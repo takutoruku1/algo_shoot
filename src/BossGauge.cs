@@ -33,7 +33,7 @@ public partial class BossGauge : Node2D
     private static readonly Color HatchCol = new(0.10f, 0.10f, 0.12f, 0.6f);
     private const float HatchW = 0.65f, HatchPitch = 3.8f;
     private static readonly Color BreakFill = new("f0c85a");
-    private static readonly Color ReformFill = new("76cfe0"), WindowWarning = new("ff9870");
+    private static readonly Color ReformFill = new("76cfe0"), WindowFill = new("f6ab7b"), WindowWarning = new("ff746b");
 
     private double _t;   // BREAK 中の脈の時計
     private CanvasModulate? _tint;   // 祖先のどこかに居る世界の色味（無ければ打ち消し不要）
@@ -185,28 +185,19 @@ public partial class BossGauge : Node2D
         float fraction = reforming ? owner.GaugeReformProgress : owner.GaugeWindowLeft;
         bool warning = !reforming && fraction < 0.25f;
         float pulse = 0.5f + 0.5f * Mathf.Sin((float)_t * Mathf.Tau * (warning ? 4f : 1.5f));
-        Color accent = reforming ? ReformFill : warning ? WindowWarning : BreakFill;
-        float w = owner.GaugeWidth, y = owner.GaugeBottom;
-        var track = new Rect2(-w / 2 + 8f, y, w - 8f, 2.8f);
-        DrawPlate(track.Grow(1.3f), new Color(Plate, 0.96f * alpha), new Color(accent, 0.55f * alpha));
-
-        const int cells = 5;
-        const float gap = 1.1f;
-        float cellWidth = (track.Size.X - gap * (cells - 1)) / cells;
-        for (int i = 0; i < cells; i++)
+        Color accent = reforming ? ReformFill : warning ? WindowWarning : WindowFill;
+        var center = new Vector2(-11f, owner.GaugeBottom + 3.4f);
+        const float radius = 5.4f;
+        DrawCircle(center, radius + 1.1f, new Color(Plate, 0.94f * alpha));
+        DrawArc(center, radius, -Mathf.Pi / 2, Mathf.Pi * 1.5f, 48, new Color(Rail, 0.5f * alpha), 1.1f, true);
+        if (fraction > 0f)
         {
-            var cell = new Rect2(track.Position + new Vector2(i * (cellWidth + gap), 0), new Vector2(cellWidth, track.Size.Y));
-            DrawPlate(cell, new Color(Track, alpha));
-            float charge = Mathf.Clamp(fraction * cells - i, 0f, 1f);
-            if (charge <= 0f) continue;
-            var fill = new Rect2(cell.Position, new Vector2(cellWidth * charge, cell.Size.Y));
-            DrawPlate(fill, new Color(accent, (warning ? 0.65f + 0.35f * pulse : 0.92f) * alpha));
-            if (fill.Size.X > 1.4f)
-                DrawLine(fill.Position + new Vector2(0.7f, 0.65f), new Vector2(fill.End.X - 0.7f, y + 0.65f),
-                    new Color(Colors.White, 0.5f * alpha), 0.4f, true);
+            float end = -Mathf.Pi / 2 + Mathf.Tau * fraction;
+            DrawArc(center, radius, -Mathf.Pi / 2, end, 48,
+                new Color(accent, (warning ? 0.65f + 0.35f * pulse : 0.95f) * alpha), 1.25f, true);
+            DrawCircle(center + Vector2.FromAngle(end) * radius, 0.85f, new Color(Colors.White, alpha));
         }
 
-        var center = new Vector2(-w / 2 + 2.5f, y + 1.3f);
         _shield[0] = center + new Vector2(-2.7f, -2.9f);
         _shield[1] = center + new Vector2(2.7f, -2.9f);
         _shield[2] = center + new Vector2(2.3f, 0.8f);
@@ -230,6 +221,14 @@ public partial class BossGauge : Node2D
             _shieldCrack[3] = center + new Vector2(-0.7f, 1.7f);
             DrawPolyline(_shieldCrack, new Color(accent, alpha), 0.65f, true);
         }
+
+        string label = reforming ? "再生中" : "復帰まで";
+        var labelPosition = (center + new Vector2(8f, -2.8f)) / UiKit.Scale;
+        UiKit.BeginDesign(this);
+        DrawStringOutline(UiKit.ZenBold, labelPosition + new Vector2(0, UiKit.ZenBold.GetAscent(13)), label,
+            HorizontalAlignment.Left, -1, 13, 4, new Color(Plate, alpha));
+        UiKit.Text(this, UiKit.ZenBold, labelPosition, label, 13, new Color(accent, alpha));
+        UiKit.EndDesign(this);
     }
 
     private void DrawPlate(Rect2 rect, Color fill, Color? edge = null)

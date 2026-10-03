@@ -45,7 +45,7 @@ public partial class CameoBoss : Enemy
     // 後で調整しやすいよう、ここ1か所に集約する。総HP = Enemy.BarHp(100) × CameoBars。
     private const int CameoBars = 2;          // HPバー本数（=サイクル数の目安。本戦は難易度別3〜6本）
     private const int CameoPanels = 3;        // 周回パネル枚数（本戦5より少なめ）
-    private const int CameoPanelInk = 2;      // 1パネルの耐久（剥がすのに要する被弾数）
+    private const int CameoPanelInk = 8;
     private const float CameoOrbitR = 24f;    // パネル周回半径
     private const float CameoSpin = 1.0f;     // パネル周回速度(rad/s)
     private const float CameoBodyR = 14f;     // 本体当たり「横」半径（カプセルの半径）

@@ -1766,7 +1766,13 @@ public partial class Enemy : Area2D
         }
         var art = BulletArt.PlayerMark(job);
         float size = job == Job.Magic ? 13f : 12f;
-        DrawTextureRect(art, new Rect2(-size / 2, -r - size - 3, size, size), false,
+        var markPosition = new Vector2(-size / 2, -r - size - 3);
+        if (HasHpBar)
+        {
+            DrawSetTransform(Vector2.Zero);
+            markPosition = new Vector2(-GaugeWidth / 2 - size - 8f, GaugeTop - 4f - size / 2);
+        }
+        DrawTextureRect(art, new Rect2(markPosition, new Vector2(size, size)), false,
             new Color(Colors.White, 0.88f));
         DrawSetTransform(Vector2.Zero);
     }

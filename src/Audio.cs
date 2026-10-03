@@ -420,6 +420,13 @@ public partial class Audio : Node
     public void VoiceSe(AudioStream stream, float volDb = 0f, float pitch = 1f)
         => Play(_voicePool, stream, volDb, pitch);
 
+    // 文字送り音を即座に黙らせる（映像のスキップ／終了で鳴り残さない。1音 14〜22ms なので保険だが、
+    //   「スキップしたら音が残らない」を呼び手側で言い切れるようにしておく）。
+    public void StopVoice()
+    {
+        for (int i = 0; i < _voicePool.Count; i++) _voicePool[i].Stop();
+    }
+
     private void Play(List<AudioStreamPlayer> pool, AudioStream stream, float volDb, float pitch)
     {
         if (Muted || stream == null || pool.Count == 0) return;
@@ -711,21 +718,99 @@ public partial class Audio : Node
     //   少年=温かい木 / ミナ=澄んだガラス / ボス=くぐもり / ナレ=無音。
     //   Relay（少年＝ミナの声）は少年寄り、Post（Y投稿）はごく控えめ。
     //   Hud のタイプライターから 1〜2文字に1回だけ呼ぶ（毎文字は鳴らしすぎ／Hud側で間引く）。
-    //   ピッチを毎回 ±数% 微ゆらぎさせ、機械的な反復を避ける。
-    public void PlayType(Hud.LineKind kind)
+    //
+    //   抑揚（2026-10-03）: 音色だけ替えても1行ずっと同じピッチ＝棒読みに聞こえる、という指摘への対応。
+    //   line（その行の全文）と index（いま出た文字位置）を渡すと、Prosody が1音ごとのピッチを動かす。
+    //   とくに「？」で終わる行は語尾を持ち上げる（疑問形の抑揚）。line を省略した単発の呼び手
+    //   （ChoiceOverlay の決定音）は従来どおり平坦＋微ゆらぎ。音量帯（-18〜-20dB）は据え置き。
+    public void PlayType(Hud.LineKind kind, string line = "", int index = -1)
     {
-        float p = _rng.RandfRange(0.97f, 1.03f);
-        switch (kind)
-        {
-            case Hud.LineKind.Boy:   VoiceSe(TypBoy,  volDb: -18f, pitch: p); break;
-            case Hud.LineKind.Mina:  VoiceSe(TypMina, volDb: -19f, pitch: p); break;
-            case Hud.LineKind.Other: VoiceSe(TypBoss, volDb: -18f, pitch: p); break;
-            case Hud.LineKind.Companion: VoiceSe(TypBoss, volDb: -20f, pitch: p); break;
-            case Hud.LineKind.Relay: VoiceSe(TypBoy,  volDb: -19f, pitch: p * 1.04f); break; // 少年寄り・やや高く
-            case Hud.LineKind.Post:  VoiceSe(TypMina, volDb: -28f, pitch: p * 1.08f); break; // ごく控えめ・素っ気ない
-            default: return; // Narration＝無音（語りとセリフを耳で区別）
-        }
+        VoiceTone tone = VoiceOf(kind);
+        AudioStreamWav? stream = tone.Stream;
+        if (stream == null) return;   // Narration＝無音（語りとセリフを耳で区別）
+        var (semitones, db) = Prosody(line, index, tone);
+        VoiceSe(stream, volDb: tone.Db + db,
+            pitch: Mathf.Clamp(tone.Pitch * Mathf.Pow(2f, semitones / 12f), 0.70f, 1.80f));
     }
+
+    // 話者ごとの声色。Span＝終止形（？！…。）の振れ幅の倍率／Wave＝行途中のうねりの深さ(半音)／
+    //   Rate＝そのうねりの速さ。音色だけでなく**抑揚の幅と速さ**でも性格を分ける。
+    private readonly record struct VoiceTone(AudioStreamWav? Stream, float Db, float Pitch,
+                                             float Span, float Wave, float Rate);
+
+    private VoiceTone VoiceOf(Hud.LineKind kind) => kind switch
+    {
+        //                                音源     音量  基準   Span   Wave   Rate
+        Hud.LineKind.Boy       => new(TypBoy,  -18f, 1.00f, 1.00f, 0.45f, 1.5f), // 素直によく動く
+        Hud.LineKind.Mina      => new(TypMina, -19f, 1.00f, 1.30f, 0.60f, 2.1f), // いちばん動く＝感情を獲得していく当人
+        Hud.LineKind.Other     => new(TypBoss, -18f, 1.00f, 0.65f, 0.28f, 0.9f), // 抑え込んだ声＝重く、動きが少ない
+        Hud.LineKind.Companion => new(TypBoss, -20f, 1.00f, 0.90f, 0.42f, 1.4f), // 改心後の仲間＝同じ音色でもよく動く
+        Hud.LineKind.Relay     => new(TypBoy,  -19f, 1.04f, 0.40f, 0.16f, 1.1f), // 中継＝読み上げ、ほぼ平坦
+        Hud.LineKind.Post      => new(TypMina, -28f, 1.08f, 0.25f, 0.10f, 0.9f), // 投稿＝素っ気ない
+        _ => new(null, 0f, 1f, 0f, 0f, 0f),                                      // Narration＝無音
+    };
+
+    // 1音ぶんの抑揚。返り値＝基準ピッチからの差（半音）と音量差（dB）。
+    //   ① 終止形で語尾を上げ下げ（？＝上がる／。＝落ちる／…＝ゆっくり沈む／！＝張る）
+    //   ② 文節ごとに頭高→尾低（日本語の自然な下降。「、」や改行で区切る）
+    //   ③ 行の進行に沿った緩い波（単調な連打を避ける／乱数だけに頼ると雑になる）
+    //   ④ ごく小さな乱数揺らぎ（機械的な反復を消す）
+    private (float Semitones, float Db) Prosody(string line, int index, VoiceTone tone)
+    {
+        if (line.Length == 0 || index < 0)
+            return (_rng.RandfRange(-0.5f, 0.5f), 0f);   // 単発＝従来の ±3% 相当の揺らぎだけ
+        float u = Mathf.Clamp(index / (float)Mathf.Max(1, line.Length - 1), 0f, 1f);
+        var cadence = Cadence(line);
+        float tail = cadence.End * Smooth((u - cadence.From) / Mathf.Max(0.05f, 1f - cadence.From));
+        float phrase = PhraseAt(line, index);
+        float downstep = (0.5f - phrase) * 1.3f;
+        float wave = tone.Wave * (Mathf.Sin(u * Mathf.Tau * tone.Rate) * 0.7f
+                                + Mathf.Sin(u * Mathf.Tau * tone.Rate * 2.3f + 0.9f) * 0.3f);
+        // 音量は飾りに留める（抑揚はピッチが担う）。文節頭を ±0.5dB だけ張り、感嘆でもう +0.6dB。
+        //   既存の音量帯（-18〜-20dB）から 1dB ちょっとしか動かさない＝やかましくしない。
+        return ((cadence.Lift + tail + downstep) * tone.Span + wave + _rng.RandfRange(-0.18f, 0.18f),
+                (0.5f - phrase) * 1.0f + cadence.Accent);
+    }
+
+    // 行の終わり方で決まる語尾の動き。End=語尾で到達する差(半音)／From=動き始める行内進行度／
+    //   Lift=行全体の持ち上げ(半音)／Accent=音量差(dB)。
+    private static (float End, float From, float Lift, float Accent) Cadence(string line) => Tail(line) switch
+    {
+        '？' or '?' => (+3.2f, 0.58f, +0.0f, +0.2f),  // 疑問＝語尾を持ち上げる（ユーザー要望 2026-10-03）
+        '！' or '!' => (+1.6f, 0.72f, +0.7f, +0.6f),  // 感嘆＝張って高いまま切る（高ピッチ＝再生も短くなる）
+        '…' or '‥' => (-3.0f, 0.42f, -0.2f, -0.6f),  // 言いさし＝ゆっくり長く沈んで消える
+        '。' or '.' or '．' => (-2.0f, 0.60f, 0f, 0f), // 言い切り＝語尾を落とす
+        '、' or '，' => (-0.6f, 0.75f, 0f, 0f),        // まだ続く＝わずかに落とすだけ
+        _ => (-0.9f, 0.65f, 0f, 0f),                  // 記号なし＝普通に言い終わる
+    };
+
+    // 行末の「意味のある」1文字（空白・改行・閉じ括弧は飛ばす）。
+    private static char Tail(string line)
+    {
+        for (int i = line.Length - 1; i >= 0; i--)
+        {
+            char c = line[i];
+            if (c is ' ' or '　' or '\n' or '\r' or '」' or '』' or '"' or '\'' or ')' or '）') continue;
+            return c;
+        }
+        return '\0';
+    }
+
+    // index が属する文節の中での進行度 0..1。文節ごとに頭高→尾低を付けると、
+    //   1行の中でも息継ぎ（言い直し）が聞こえて「しゃべっている感じ」になる。
+    private static float PhraseAt(string line, int index)
+    {
+        int start = 0;
+        for (int i = 0; i < index && i < line.Length; i++) if (PhraseBreak(line[i])) start = i + 1;
+        int end = start;
+        while (end < line.Length && !PhraseBreak(line[end])) end++;
+        return Mathf.Clamp((index - start) / (float)Mathf.Max(1, end - start), 0f, 1f);
+    }
+
+    private static bool PhraseBreak(char c) => c is '、' or '，' or '。' or '．' or '.' or '！' or '!'
+        or '？' or '?' or '…' or '‥' or '\n' or '\r' or '　' or ' ';
+
+    private static float Smooth(float v) { v = Mathf.Clamp(v, 0f, 1f); return v * v * (3f - 2f * v); }
 
     // ───────── UI操作音（⑧。全画面共通＝一貫性）─────────
     public void PlayUiMove()    => Se(SfxUiMove,    volDb: -20f, pitch: _rng.RandfRange(0.99f, 1.02f));

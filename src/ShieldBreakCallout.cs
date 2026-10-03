@@ -8,6 +8,8 @@ public partial class ShieldBreakCallout : Node2D
     private string _speaker = "", _line = "";
     private Color _accent;
     private float _age;
+    private Job _job;
+    private bool _showingPost;
     public bool Active => IsInstanceValid(_owner) && _owner.GaugeVulnerable
         && !Hud.BubblePaused && !Hud.CinematicMode && !Hud.SuppressCallouts;
 
@@ -26,13 +28,8 @@ public partial class ShieldBreakCallout : Node2D
         _age = 0;
         _speaker = Jobs.Get(job).CharacterName;
         _accent = CompanionDialogue.Accent(job);
-        _line = job switch
-        {
-            Job.Melee => "シールド、壊れた！\n今がチャンス！　本体を狙おう！",
-            Job.Heal => "シールドが壊れたよ！\n今なら届くよ。一緒に、本体を狙おう！",
-            Job.Magic => "シールドは壊れたわ。\n今がチャンスよ。本体を狙って！",
-            _ => "シールドを破壊しました。\nご主人様、今こそ本体を狙いましょう！",
-        };
+        _job = job;
+        UpdateLine();
         _portrait = GD.Load<Texture2D>(job switch
         {
             Job.Melee => "res://char/v3/akari_face.png",
@@ -43,10 +40,32 @@ public partial class ShieldBreakCallout : Node2D
         QueueRedraw();
     }
 
+    private void UpdateLine()
+    {
+        _showingPost = GetTree().GetFirstNodeInGroup("boss_post") is BossPost post && post.Boss == _owner;
+        _line = _showingPost ? _job switch
+        {
+            Job.Melee => "……隠してた言葉が、見えてきたね。\nもう少し、奥へ進もう。",
+            Job.Heal => "……隠していた言葉が、見えてきたよ。\n一緒に、もう少し奥へ進もう。",
+            Job.Magic => "……隠していた言葉が、見えてきたわ。\nもう少し、奥へ進みましょう。",
+            _ => "……隠していた言葉が、見えてきました。\nご主人様、もう少し奥へ進みましょう。",
+        } : _job switch
+        {
+            Job.Melee => "シールド、壊れた！\n今がチャンス！　本体を狙おう！",
+            Job.Heal => "シールドが壊れたよ！\n今なら届くよ。一緒に、本体を狙おう！",
+            Job.Magic => "シールドは壊れたわ。\n今がチャンスよ。本体を狙って！",
+            _ => "シールドを破壊しました。\nご主人様、今こそ本体を狙いましょう！",
+        };
+    }
+
     public override void _Process(double delta)
     {
         if (!Active) _owner = null;
-        else _age += (float)delta;
+        else
+        {
+            _age += (float)delta;
+            UpdateLine();
+        }
         QueueRedraw();
     }
 
@@ -55,31 +74,20 @@ public partial class ShieldBreakCallout : Node2D
         if (!Active || _portrait == null) return;
         UiKit.BeginDesign(this);
         float enter = 1f - Mathf.Pow(1f - Mathf.Clamp(_age / 0.24f, 0, 1), 3);
-        float alpha = enter * Mathf.Clamp(_owner!.GaugeWindowLeft / 0.09f, 0, 1);
-        float x = Field.DLeft + 24 - (1 - enter) * 22;
-        const float bottom = 622, portraitH = 242, portraitW = 204;
-        var content = UiKit.ContentRect(_portrait);
-        float scale = Mathf.Min(portraitW / content.Size.X, portraitH / content.Size.Y);
-        var size = (Vector2)content.Size * scale;
-        var portraitRect = new Rect2(x + (portraitW - size.X) / 2, bottom - size.Y, size.X, size.Y);
-        const float textOffset = 224, textW = 540;
-        float tx = x + textOffset, top = bottom - 144;
-        DrawColoredPolygon(new[] {
-            new Vector2(x + 14, top + 8), new Vector2(tx + textW + 22, top + 8),
-            new Vector2(tx + textW + 8, bottom), new Vector2(x, bottom),
-        }, new Color("10171e", 0.78f * alpha));
-        DrawTextureRectRegion(_portrait, portraitRect, content, new Color(1, 1, 1, 0.88f * alpha));
-        DrawLine(new Vector2(tx, top + 7), new Vector2(tx + textW, top + 7), new Color(_accent, alpha), 2, true);
-        UiKit.Text(this, UiKit.ZenBold, new Vector2(tx, top + 17), _speaker, 17, new Color(_accent, alpha));
-        UiKit.Text(this, UiKit.ZenBold, new Vector2(tx + textW - 196, top + 17), "本体にダメージが通る", 17,
-            new Color("d7f4ee", alpha), HorizontalAlignment.Right, 196);
-        var lines = UiKit.WrapLines(UiKit.ZenBold, _line, 24, textW);
-        for (int i = 0; i < lines.Count; i++)
-            UiKit.Text(this, UiKit.ZenBold, new Vector2(tx, top + 49 + i * 33), lines[i], 24, new Color("f5f8fa", alpha));
-        float barY = bottom - 12;
-        DrawLine(new Vector2(tx, barY), new Vector2(tx + textW, barY), new Color(_accent, 0.2f * alpha), 2, true);
-        DrawLine(new Vector2(tx, barY), new Vector2(tx + textW * _owner.GaugeWindowLeft, barY),
-            new Color(_accent, 0.85f * alpha), 2, true);
+        float alpha = enter * (_showingPost ? 1 : Mathf.Clamp(_owner!.GaugeWindowLeft / 0.09f, 0, 1));
+        var box = DialogueBox.Board;
+        box.Position += new Vector2(-(1 - enter) * 22, 0);
+        DialogueBox.DrawFrame(this, box, _speaker, _accent, _portrait, alpha: alpha);
+        UiKit.Text(this, UiKit.Zen, new Vector2(box.End.X - 244, box.Position.Y + 17),
+            _showingPost ? "下書きの奥へ" : "本体にダメージが通る", 15,
+            new Color(DialogueBox.Ink, alpha), HorizontalAlignment.Right, 220);
+        var lines = UiKit.WrapLines(DialogueBox.Body.Font, _line, DialogueBox.Body.Size, DialogueBox.WrapWidth(box));
+        DialogueBox.DrawBody(this, box, string.Join("\n", lines), int.MaxValue, alpha);
+        var start = new Vector2(box.Position.X + DialogueBox.Padding, box.End.Y - 15);
+        float width = DialogueBox.WrapWidth(box);
+        DrawLine(start, start + new Vector2(width, 0), new Color(_accent, 0.18f * alpha), 2, true);
+        DrawLine(start, start + new Vector2(width * (_showingPost ? 1 : _owner!.GaugeWindowLeft), 0),
+            new Color(_accent, 0.75f * alpha), 2, true);
         UiKit.EndDesign(this);
     }
 }

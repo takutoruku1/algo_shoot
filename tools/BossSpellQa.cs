@@ -629,7 +629,7 @@ public partial class BossSpellQa : Node
         Write(player, "_lockArmed", true);
         Write(player, "_lockByShift", false);
         Write(player, "_lockTarget", boss);
-        Check(panels.All(p => p.Ink == 10 && p.CanLock), $"{scene}: shield durability matches precise panel aiming");
+        Check(panels.All(p => p.Ink == 20 && p.CanLock), $"{scene}: shield durability matches precise panel aiming");
         using (var art = GD.Load<Texture2D>(UnfolderMotion.TexturePath(boss.UnfolderStyle)).GetImage())
             Check(art.GetWidth() == 256 && art.GetHeight() == 256 && art.HasMipmaps() && art.GetPixel(0, 0).A == 0
                 && art.GetPixel(128, 128).A > 0.5f, $"{scene}: real alpha and an opaque target core");
@@ -644,8 +644,8 @@ public partial class BossSpellQa : Node
             else if (tier > 0) test.MakeCharged(Job.Tank, tier);
             int cost = tier == -1 ? 2 : tier == 0 ? 1 : tier == ChargeTier.First ? 3 : 5;
             Call(panels[0], "OnAreaEntered", test);
-            Check(panels[0].Ink == 10 - cost, $"{scene}: shot tier {tier} strips {cost} durability");
-            panels[0].Ink = 10;
+            Check(panels[0].Ink == 20 - cost, $"{scene}: shot tier {tier} strips {cost} durability");
+            panels[0].Ink = 20;
             Pool.DespawnAll();
         }
         foreach (var panel in panels) panel._PhysicsProcess(0.2);

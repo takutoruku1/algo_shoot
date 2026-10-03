@@ -65,8 +65,8 @@ public partial class HeroLinesQa : Node
         game.ResetPersistent();
         game.SelectedJob = Job.Tank;
         game.SelectedEntry = GameManager.StageEntry.Boss;
-        game.RecordChoice("p2", "おはよう", Array.Empty<string>(), 3f);
-        game.RecordChoice("s1_4", "十二件、ぜんぶ", Array.Empty<string>(), hesitated ? 9f : 1f);
+        game.RecordChoice("p2", "ひとりだった", Array.Empty<string>(), 3f);
+        game.RecordChoice("s1_4", "ぜんぶ、読みたい", Array.Empty<string>(), hesitated ? 9f : 1f);
         var root = GD.Load<PackedScene>("res://Akari.tscn").Instantiate<Node2D>();
         GetTree().Root.AddChild(root);
         GetTree().CurrentScene = root;

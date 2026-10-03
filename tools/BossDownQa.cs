@@ -215,6 +215,7 @@ public partial class BossDownQa : Node
                 await Frames(5);
                 await SaveBreakShot($"break_{job.CharacterId}_small");
                 DisplayServer.WindowSetSize(new Vector2I(1280, 720));
+                await CheckPostCallout(boss, job.Id);
             }
             Call(boss, "EnterReclose");
             Check(!cue.Active, "the chance disappears immediately when the damage window closes early");
@@ -235,6 +236,45 @@ public partial class BossDownQa : Node
         await ToSignal(RenderingServer.Singleton, RenderingServer.SignalName.FramePostDraw);
         using var frame = GetViewport().GetTexture().GetImage();
         Check(frame.SavePng($"{Out}/{name}.png") == Error.Ok, name + " screenshot saved");
+    }
+
+    private async Task CheckPostCallout(Enemy boss, Job job)
+    {
+        var cue = _root.Hud.Bubbles!.ShieldBreak;
+        string combatLine = Read<string>(cue, "_line");
+        boss.Visible = false;
+        foreach (int index in new[] { 0, 1, 4 })
+        {
+            var post = new BossPost
+            {
+                Story = BossPostStory.Get("akari"), Boss = boss, Index = index,
+                Position = new Vector2(Field.Right - 84, 104),
+                Broken = (_, _) => { }, Completed = () => { },
+            };
+            _root.World.AddChild(post);
+            post.SetPhysicsProcess(false);
+            post._PhysicsProcess(0.5);
+            await Frames(3);
+            string line = Read<string>(cue, "_line");
+            Check(cue.Active && Read<bool>(cue, "_showingPost")
+                && !line.Contains("シールド") && !line.Contains("本体") && line.Contains("言葉"),
+                $"{job}/{index}: post replaces combat guidance with hidden-word dialogue");
+            Check(UiKit.WrapLines(UiKit.ZenBold, line, 24, 540).Count == 2, "post dialogue fits two lines");
+            if (job == Job.Tank)
+                Check(line == "……隠していた言葉が、見えてきました。\nご主人様、もう少し奥へ進みましょう。",
+                    "Mina uses the requested draft dialogue");
+            for (int hit = 0; hit < 3; hit++) post.BombHit();
+            post._PhysicsProcess(post.MinimumReadTime);
+            post._PhysicsProcess(0.5);
+            await Frames(3);
+            Check(cue.Active && Read<string>(cue, "_line") == line, "shattering keeps post guidance");
+            if (index == 1) await SaveBreakShot($"draft_{Jobs.Get(job).CharacterId}");
+            post.QueueFree();
+            await Frames(3);
+            Check(!Read<bool>(cue, "_showingPost") && Read<string>(cue, "_line") == combatLine,
+                "combat guidance returns after the post closes");
+        }
+        boss.Visible = true;
     }
 
     private async Task CheckBreakLayering(ShieldBreakCallout cue)

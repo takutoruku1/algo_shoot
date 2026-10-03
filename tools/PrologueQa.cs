@@ -66,7 +66,7 @@ public partial class PrologueQa : Node
             }
 
             CheckMinaArtwork();
-            for (int route = 0; route < 3; route++)
+            for (int route = 0; route < 2; route++)
             {
                 GetNode<GameManager>("/root/Game").ResetPersistent();
                 var pro = GD.Load<PackedScene>("res://Prologue.tscn").Instantiate<Prologue>();

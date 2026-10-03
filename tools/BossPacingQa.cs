@@ -34,11 +34,13 @@ public partial class BossPacingQa : Node
             await Frames(2);
             var args = OS.GetCmdlineUserArgs();
             var jobs = args.Contains("--all-jobs") ? Enum.GetValues<Job>() : new[] { Job.Tank };
+            var stages = args.Contains("--cameo") ? new[] { "Akari", "Koharu", "Rei" }
+                : new[] { "Akari", "Koharu", "Rei", "MinaBattle" };
             foreach (bool powered in new[] { false, true })
             {
                 if (!powered && args.Contains("--powered-only")) continue;
                 foreach (var job in jobs)
-                    foreach (string id in new[] { "Akari", "Koharu", "Rei", "MinaBattle" })
+                    foreach (string id in stages)
                         await Encounter(game, id, powered, job);
             }
             Pool.DespawnAll();
@@ -73,7 +75,8 @@ public partial class BossPacingQa : Node
         GetTree().Root.AddChild(root);
         GetTree().CurrentScene = root;
         root.SetProcess(false);
-        ((Node)root.GetType().GetProperty("Stage")!.GetValue(root)!).SetProcess(false);
+        var stage = (Node)root.GetType().GetProperty("Stage")!.GetValue(root)!;
+        stage.SetProcess(false);
         var world = root.GetNode<Node2D>("World");
         world.ProcessMode = ProcessModeEnum.Inherit;
         var hud = root.GetNode<Hud>("Hud");
@@ -81,18 +84,33 @@ public partial class BossPacingQa : Node
         hud.HideBubble();
         var player = world.GetNode<Player>("Player");
         player.SetPhysicsProcess(false);
+        if (args.Contains("--line-power"))
+            for (int i = 0; i < Player.PowerLevelCap; i++) player.ApplyPowerup(PowerKind.Line);
         Write(player, "_invincible", true);
         Write(player, "_invincibleTimer", 999f);
-        Enemy boss = id switch
+        Enemy boss;
+        if (args.Contains("--cameo"))
         {
-            "Akari" => new BossAkari(), "Koharu" => new BossKoharu(),
-            "Rei" => new BossRei(), _ => new BossMina(),
-        };
-        boss.Position = new Vector2(Field.BossCenterX, Field.BossZoneCenterY);
-        world.AddChild(boss);
+            game.MarkIdleDialogSeen("once_midboss_shield");
+            Write(stage, "_cameoIntroDone", true);
+            Write(stage, "_stepStarted", false);
+            Call(stage, "Step_BossCameo", null, 0d);
+            boss = world.GetChildren().OfType<CameoBoss>().Single();
+            id += "Cameo";
+        }
+        else
+        {
+            boss = id switch
+            {
+                "Akari" => new BossAkari(), "Koharu" => new BossKoharu(),
+                "Rei" => new BossRei(), _ => new BossMina(),
+            };
+            boss.Position = new Vector2(Field.BossCenterX, Field.BossZoneCenterY);
+            world.AddChild(boss);
+        }
         Write(player, "_locked", true);
         Write(player, "_lockTarget", boss);
-        if (args.Contains("--shields-only"))
+        if (args.Contains("--shields-only") || args.Contains("--cameo"))
         {
             await Shields(game, boss, player, hud, id, powered, charged);
             hud.HoldBubble = false;
@@ -237,6 +255,6 @@ public partial class BossPacingQa : Node
             await Frames(1);
         }
         Check(times.Count == 3, $"{id}: three shield cycles complete");
-        GD.Print($"[BossPacingQA] SHIELD {id} job={game.SelectedJob} powered={powered} charged={charged} seconds={string.Join(",", times.Select(t => t.ToString("F2")))} mean={times.Average():F2}");
+        GD.Print($"[BossPacingQA] SHIELD {id} job={game.SelectedJob} powered={powered} charged={charged} lines={player.LinePower} seconds={string.Join(",", times.Select(t => t.ToString("F2")))} mean={times.Average():F2}");
     }
 }

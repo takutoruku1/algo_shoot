@@ -166,11 +166,11 @@ public partial class NewTextQa : Node
 
                 // 迷い秒ゲート（ChoiceEffects.Hesitated）：未通過→false／p2 以下→false／p2 より長い→true／game 無し→false。
                 game.ResetPersistent();
-                game.RecordChoice("p2", "おはよう", System.Array.Empty<string>(), 4f);
+                game.RecordChoice("p2", "ひとりだった", System.Array.Empty<string>(), 4f);
                 Check("Hesitated: 未通過の id は false", !ChoiceEffects.Hesitated(game, "s1_4"));
-                game.RecordChoice("s1_4", "十二件、ぜんぶ", System.Array.Empty<string>(), 4f);
+                game.RecordChoice("s1_4", "ぜんぶ、読みたい", System.Array.Empty<string>(), 4f);
                 Check("Hesitated: p2 と同秒は false", !ChoiceEffects.Hesitated(game, "s1_4"));
-                game.RecordChoice("s1_4", "十二件、ぜんぶ", System.Array.Empty<string>(), 4.5f);
+                game.RecordChoice("s1_4", "ぜんぶ、読みたい", System.Array.Empty<string>(), 4.5f);
                 Check("Hesitated: p2 より長ければ true", ChoiceEffects.Hesitated(game, "s1_4"));
                 Check("Hesitated: game 無しは false", !ChoiceEffects.Hesitated(null, "s1_4"));
 
@@ -194,7 +194,7 @@ public partial class NewTextQa : Node
                     foreach (bool gate in new[] { true, false })
                     {
                         game.ResetPersistent();
-                        game.RecordChoice("p2", "おはよう", System.Array.Empty<string>(), 4f);
+                        game.RecordChoice("p2", "ひとりだった", System.Array.Empty<string>(), 4f);
                         game.RecordChoice(id, "x", System.Array.Empty<string>(), gate ? 9f : 1f);
                         var lines = Lines(type, "ClearFor", game);
                         int at = System.Array.FindIndex(lines, l => l.text == anchor);
@@ -211,7 +211,7 @@ public partial class NewTextQa : Node
                 foreach (bool gate in new[] { true, false })
                 {
                     game.ResetPersistent();
-                    game.RecordChoice("p2", "おはよう", System.Array.Empty<string>(), 4f);
+                    game.RecordChoice("p2", "ひとりだった", System.Array.Empty<string>(), 4f);
                     game.RecordChoice("s1_4", "x", System.Array.Empty<string>(), gate ? 9f : 1f);
                     var all = Lines(typeof(StageAkari), "ClearFor", game);
                     var before = Lines(typeof(StageAkari), "ClearBeforeFor", game);
@@ -233,15 +233,19 @@ public partial class NewTextQa : Node
                 int f3At = System.Array.FindIndex(f3, l => l.text == "知ってる。あんたの声だった。");
                 Check("F3 「あんたの声だった」の直後＝レイ「そっくりよ」", f3.Length == 6 && f3At >= 0 && f3[f3At + 1] == (2, "……あんたの言い方。画面の向こうの、あの人に、そっくりよ。", "res://char/v3/rei_face.png"), Join(f3));
 
-                // P2 の受け：「敬っている〜」の直後に「いまの言い回し」（ミナ）。Prologue はシーンを起こさず、
-                //   未初期化オブジェクトで P2Reply（Godot 側に触らない純関数）だけを呼ぶ。終了処理（finalizer）は抑止しておく。
+                // P2 の受け：皮肉の言い切り（「敬意とは、別の項目」）の直後に「いまの言い回し」（ミナ）。
+                //   2026-10-03 の改稿で錨の行が「敬っている、とは言っていませんが。」から差し替わった（出所の伏線は不変）。
+                //   Prologue はシーンを起こさず、未初期化オブジェクトで P2Reply（Godot 側に触らない純関数）だけを呼ぶ。
+                //   終了処理（finalizer）は抑止しておく。
                 var pro = System.Runtime.CompilerServices.RuntimeHelpers.GetUninitializedObject(typeof(Prologue));
                 GC.SuppressFinalize(pro);
-                var reply = (System.Collections.IList)typeof(Prologue).GetMethod("P2Reply", Private)!.Invoke(pro, new object[] { "おはよう" })!;
+                var reply = (System.Collections.IList)typeof(Prologue).GetMethod("P2Reply", Private)!.Invoke(pro, new object[] { "ひとりだった" })!;
                 var texts = new List<(int who, string text)>();
                 foreach (var d in reply) texts.Add(((int)d!.GetType().GetField("Who")!.GetValue(d)!, (string)d.GetType().GetField("Text")!.GetValue(d)!));
-                int p2At = texts.FindIndex(t => t.text == "……敬っている、とは言っていませんが。");
-                Check("P2 受け 「敬っている〜」の直後＝「いまの言い回し」", p2At >= 0 && p2At + 1 < texts.Count && texts[p2At + 1] == (1, "……いまの言い回し。……どこで覚えたのか、記録に、ありません。"), string.Join(" / ", texts.Select(t => t.text)));
+                int p2At = texts.FindIndex(t => t.text == "……敬称です。敬意とは、別の項目になっております。");
+                Check("P2 受け 皮肉の直後＝「いまの言い回し」", p2At >= 0 && p2At + 1 < texts.Count && texts[p2At + 1] == (1, "……いまの言い回し。……どこで覚えたのか、記録に、ありません。"), string.Join(" / ", texts.Select(t => t.text)));
+                // 迷い秒の観測は一度だけ（旧稿は {sec} を2行続けて言っていた）。
+                Check("P2 受け 迷い秒の行は1本だけ", texts.FindAll(t => t.text.Contains("秒")).Count == 1, string.Join(" / ", texts.Select(t => t.text)));
             }
         }
         catch (Exception e)

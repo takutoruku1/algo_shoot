@@ -115,6 +115,71 @@ public partial class OpeningFilmQa : Node
                 (5, 3.1), (6, 4.0), (7, 3.3), (8, 3.6), (9, 4.0), (10, 4.0) })
                 Check(Math.Abs(cuts[index + 1] - cuts[index] - duration) < 0.001,
                     $"shot {index} follows its authored duration");
+
+            // ── 字幕の文字送り音（2026-10-03）───────────────────────────────────────
+            //   耳で判定できないことは見ない。見るのは「刻みが本編と同じ」「字幕が消える前に打ち切る」
+            //   「記号ごとに語尾のピッチが動く」「話者ごとに抑揚の幅が違う」「ナレは無音」。
+            const BindingFlags Stat = BindingFlags.Static | BindingFlags.NonPublic;
+            var audio = GetNode<Audio>("/root/Audio");
+            float cps = (float)typeof(OpeningFilm).GetField("TypeCps", Stat)!.GetRawConstantValue()!;
+            int stride = (int)typeof(OpeningFilm).GetField("TypeStride", Stat)!.GetRawConstantValue()!;
+            Check(cps == (float)typeof(Hud).GetField("CharsPerSec", Stat)!.GetRawConstantValue()!
+                && stride == (int)typeof(Hud).GetField("TypeStride", Stat)!.GetRawConstantValue()!,
+                "captions tick at the in-game typewriter's rate and stride");
+            var dailyQuotes = (string[])typeof(OpeningFilm).GetField("DailyLines", Stat)!.GetValue(null)!;
+            var cutinQuotes = (string[])typeof(OpeningFilm).GetField("CutinLines", Stat)!.GetValue(null)!;
+            string heard = (string)typeof(OpeningFilm).GetField("HeardLine", Stat)!.GetRawConstantValue()!;
+            string go = (string)typeof(OpeningFilm).GetField("GoLine", Stat)!.GetRawConstantValue()!;
+            double Ticks(string text) => text.Length / cps;   // 1本を打ち切るのに要る秒数
+            for (int i = 0; i < 3; i++)
+                Check(0.2 + Ticks(dailyQuotes[i]) < 3.25, $"daily caption {i} finishes typing before it fades");
+            Check(1 + Ticks(heard) + 0.1 + Ticks(go) < 4.2,
+                "Mina's two lines type one after the other, not on top of each other");
+            for (int i = 0; i < 4; i++)
+                Check(0.48 + Ticks(cutinQuotes[i]) < cuts[6 + i] - cuts[5 + i] - 0.3,
+                    $"cutin caption {i} finishes typing before the shot cuts");
+
+            var prosody = typeof(Audio).GetMethod("Prosody", Private)!;
+            var voiceOf = typeof(Audio).GetMethod("VoiceOf", Private)!;
+            object Tone(Hud.LineKind kind) => voiceOf.Invoke(audio, new object[] { kind })!;
+            float Say(Hud.LineKind kind, string line, int index)
+            {
+                object tone = Tone(kind);
+                float sum = 0;
+                for (int n = 0; n < 128; n++)   // ±0.18半音の乱数揺らぎは平均で消す
+                    sum += ((ValueTuple<float, float>)prosody.Invoke(audio, new object[] { line, index, tone })!).Item1;
+                return sum / 128f;
+            }
+            float Range(Hud.LineKind kind, string line)
+            {
+                float lo = 99f, hi = -99f;
+                for (int i = 0; i < line.Length; i++)
+                {
+                    float v = Say(kind, line, i);
+                    lo = Mathf.Min(lo, v); hi = Mathf.Max(hi, v);
+                }
+                return hi - lo;
+            }
+            const string ask = "ほんとうに、そうなの？";
+            const string tell = "ほんとうに、そうなの。";
+            const string trail = "ほんとうに、そうなの…";
+            const string cry = "ほんとうに、そうなの！";
+            int closing = ask.Length - 2;   // 終止記号の1つ前＝語尾の一打
+            Check(Say(Hud.LineKind.Mina, ask, closing) > Say(Hud.LineKind.Mina, ask, 2) + 1.2f,
+                "a question lifts its pitch toward the end");
+            Check(Say(Hud.LineKind.Mina, tell, closing) < Say(Hud.LineKind.Mina, tell, 2) - 0.5f,
+                "a full stop settles the pitch downward");
+            Check(Say(Hud.LineKind.Mina, trail, closing) < Say(Hud.LineKind.Mina, tell, closing),
+                "a trailing ellipsis sinks further than a full stop");
+            Check(Say(Hud.LineKind.Mina, cry, closing) > Say(Hud.LineKind.Mina, tell, closing),
+                "an exclamation stays raised instead of falling");
+            Check(Range(Hud.LineKind.Mina, tell) > Range(Hud.LineKind.Boy, tell)
+                && Range(Hud.LineKind.Boy, tell) > Range(Hud.LineKind.Other, tell)
+                && Range(Hud.LineKind.Other, tell) > Range(Hud.LineKind.Post, tell),
+                "Mina moves most and the stifled boss voice least — speakers differ in range");
+            object narration = Tone(Hud.LineKind.Narration);
+            Check(narration.GetType().GetProperty("Stream")!.GetValue(narration) == null,
+                "narration keeps no type sound at all");
             var daily = Read<Texture2D[]>(film, "_daily");
             Check(daily.Length == 3 && Array.TrueForAll(daily, tex => tex.GetWidth() > 1000), "three dedicated full-resolution daily scenes");
             var portraits = Read<Texture2D[]>(film, "_cutins");
@@ -142,15 +207,22 @@ public partial class OpeningFilmQa : Node
             var titleFont = Read<FontFile>(film, "_titleFont");
             Check(filmFont.ResourcePath.EndsWith("ShipporiMincho-SemiBold.ttf")
                 && titleFont.ResourcePath.EndsWith("CormorantGaramond-Italic.ttf"), "cinematic typography is separate from game UI");
-            foreach (var (field, width, font) in new[] { ("DailyLines", 1100f, 30), ("CutinLines", 368f, 30) })
+            foreach (string field in new[] { "DailyLines", "CutinLines" })
             {
                 var quotes = (string[])typeof(OpeningFilm).GetField(field, BindingFlags.Static | BindingFlags.NonPublic)!.GetValue(null)!;
                 foreach (string quote in quotes)
-                    foreach (string line in quote.Split('\n'))
+                {
+                    var lines = UiKit.WrapLines(DialogueBox.Body.Font, quote, DialogueBox.Body.Size,
+                        DialogueBox.WrapWidth(DialogueBox.FullScreen));
+                    Check(lines.Count <= 2, $"{field}: dialogue fits the shared two-line panel");
+                    foreach (string line in lines)
                     {
-                        Check(UiKit.TextW(filmFont, line, font) <= width, $"{field}: dialogue fits its caption area");
-                        Check(Array.TrueForAll(line.ToCharArray(), c => filmFont.HasChar(c)), $"{field}: all glyphs exist in the cinematic font");
+                        Check(UiKit.TextW(DialogueBox.Body.Font, line, DialogueBox.Body.Size) <= DialogueBox.WrapWidth(DialogueBox.FullScreen),
+                            $"{field}: dialogue fits its caption area");
+                        Check(Array.TrueForAll(line.ToCharArray(), c => DialogueBox.Body.Font.HasChar(c)),
+                            $"{field}: all glyphs exist in the dialogue font");
                     }
+                }
             }
             Check(UiKit.TextW(filmFont, cast[1].CharacterName, 80) < 280
                 && UiKit.TextW(titleFont, "Refrain", 164) < 1000, "name and title fit the cinematic frame");
@@ -260,6 +332,7 @@ public partial class OpeningFilmQa : Node
             Check(Difference(moved, blink, new Rect2I(750, 360, 150, 250)) < 0.0001f,
                 "blinking does not swap Mina's body or outfit");
             await Shot("mina_blink");
+            await SkipButtonStates(film, cuts[8] + 1.9, cuts[6] + 1.7);
             film.QueueFree();
             await Frames(3);
 
@@ -268,30 +341,36 @@ public partial class OpeningFilmQa : Node
             int count = 0;
             film = new OpeningFilm { Completed = () => count++ };
             prologue.AddChild(film);
-            await Frames(85);
+            await Seconds(1.4);
             Check(count == 0 && !Read<bool>(film, "_inputArmed"), "held dialogue advance cannot skip the opening");
             Input.ParseInputEvent(new InputEventKey { Keycode = Key.Z, Pressed = false });
             await Frames(3);
             Input.ParseInputEvent(new InputEventKey { Keycode = Key.X, Pressed = true });
-            await Frames(20);
+            await Seconds(0.2);
             Check(count == 0, "short press cannot accidentally skip");
-            await Frames(65);
+            Input.ParseInputEvent(new InputEventKey { Keycode = Key.X, Pressed = false });
+            await Frames(3);
+            Check(Read<double>(film, "_skipHold") == 0 && !Read<bool>(film, "_leaving"),
+                "releasing a partial hold cancels the progress without skipping");
+            Input.ParseInputEvent(new InputEventKey { Keycode = Key.X, Pressed = true });
+            await Seconds(1.3);
             Input.ParseInputEvent(new InputEventKey { Keycode = Key.X, Pressed = false });
             Check(count == 1 && !IsInstanceValid(film), "held skip fades out and completes once");
 
             film = new OpeningFilm { Completed = () => count++ };
             prologue.AddChild(film);
-            await Frames(48);
+            await Seconds(0.75);
             ClickSkip(film);
             Check(!Read<bool>(film, "_leaving"), "hidden skip button is not clickable");
-            await Frames(22);
+            await Seconds(0.45);
             ClickSkip(film);
-            await Frames(40);
+            await Seconds(0.6);
             Check(count == 2, "skip button handles a pointer click");
 
             film = new OpeningFilm { Completed = () => count++ };
             prologue.AddChild(film);
-            for (int i = 0; i < (OpeningFilm.Duration + 2) * 60 && IsInstanceValid(film); i++) await Frames(1);
+            ulong deadline = Time.GetTicksMsec() + (ulong)((OpeningFilm.Duration + 2) * 1000);
+            while (Time.GetTicksMsec() < deadline && IsInstanceValid(film)) await Frames(1);
             Check(count == 3, $"{OpeningFilm.Duration}-second playback completes automatically once");
             await Cleanup();
         }
@@ -312,16 +391,69 @@ public partial class OpeningFilmQa : Node
 
     private static void ClickSkip(OpeningFilm film)
     {
-        typeof(Pad).GetField("_mousePos", BindingFlags.Static | BindingFlags.NonPublic)!.SetValue(null, new Vector2(1180, 675));
+        var bounds = (Rect2)typeof(OpeningFilm).GetField("SkipRect", BindingFlags.Static | BindingFlags.NonPublic)!.GetValue(null)!;
+        typeof(Pad).GetField("_mousePos", BindingFlags.Static | BindingFlags.NonPublic)!.SetValue(null, bounds.GetCenter());
         typeof(Pad).GetField("_mL", BindingFlags.Static | BindingFlags.NonPublic)!.SetValue(null, true);
         typeof(Pad).GetField("_mLPrev", BindingFlags.Static | BindingFlags.NonPublic)!.SetValue(null, false);
         film._Process(1.0 / 60);
         typeof(Pad).GetField("_mL", BindingFlags.Static | BindingFlags.NonPublic)!.SetValue(null, false);
     }
 
+    private async Task SkipButtonStates(OpeningFilm film, double minaTime, double koharuTime)
+    {
+        const BindingFlags stat = BindingFlags.Static | BindingFlags.NonPublic;
+        var bounds = (Rect2)typeof(OpeningFilm).GetField("SkipRect", stat)!.GetValue(null)!;
+        Check(DialogueBox.FullScreen.Encloses(bounds) && bounds.End.Y < DialogueBox.TextPosition(DialogueBox.FullScreen).Y,
+            "skip button stays inside the shared dialogue header and clear of captions");
+        typeof(Pad).GetField("_mousePos", stat)!.SetValue(null, bounds.GetCenter());
+        Seek(film, minaTime);
+        film._Process(0.2);
+        Check(Read<float>(film, "_skipHover") == 1, "pointer hover highlights the visible skip button");
+        foreach (var size in new[] { new Vector2I(1280, 720), new Vector2I(960, 540), new Vector2I(540, 960) })
+        {
+            DisplayServer.WindowSetSize(size);
+            await Frames(8);
+            typeof(OpeningFilm).GetField("_skipHover", Private)!.SetValue(film, 0f);
+            Seek(film, minaTime);
+            await Shot($"skip_idle_{size.X}x{size.Y}");
+            using var idle = await Capture();
+            typeof(OpeningFilm).GetField("_skipHover", Private)!.SetValue(film, 1f);
+            Seek(film, minaTime);
+            await Shot($"skip_hover_{size.X}x{size.Y}");
+            using var hover = await Capture();
+            if (size.X == 1280)
+                Check(Difference(idle, hover, (Rect2I)bounds) > 0.01f,
+                    "hover is visibly distinct without moving or resizing the button");
+            typeof(OpeningFilm).GetField("_skipHold", Private)!.SetValue(film, 0.325);
+            Seek(film, minaTime);
+            await Shot($"skip_hold_{size.X}x{size.Y}");
+            using var held = await Capture();
+            if (size.X == 1280)
+                Check(Difference(hover, held, (Rect2I)bounds) > 0.02f,
+                    "hold progress and amber artwork are visibly distinct");
+            typeof(OpeningFilm).GetField("_skipHold", Private)!.SetValue(film, 0d);
+            Seek(film, koharuTime);
+            await Shot($"skip_right_caption_{size.X}x{size.Y}");
+        }
+        var icons = (CanvasTexture?[])typeof(DialogToolbar).GetField("Icons", stat)!.GetValue(null)!;
+        var active = (CanvasTexture?[])typeof(DialogToolbar).GetField("ActiveIcons", stat)!.GetValue(null)!;
+        Check(icons[DialogToolbar.Skip]!.DiffuseTexture.ResourcePath.EndsWith("dialog_skip_v1.png")
+            && active[DialogToolbar.Skip]!.DiffuseTexture.ResourcePath.EndsWith("dialog_skip_on_v1.png"),
+            "opening uses the existing illustrated skip artwork and its active variant");
+        typeof(OpeningFilm).GetField("_skipHover", Private)!.SetValue(film, 0f);
+        DisplayServer.WindowSetSize(new Vector2I(1280, 720));
+        await Frames(8);
+    }
+
     private async Task Frames(int n)
     {
         for (int i = 0; i < n; i++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+    }
+
+    private async Task Seconds(double seconds)
+    {
+        ulong deadline = Time.GetTicksMsec() + (ulong)(seconds * 1000);
+        while (Time.GetTicksMsec() < deadline) await Frames(1);
     }
 
     private async Task<Image> Capture()

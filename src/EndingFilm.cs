@@ -23,7 +23,7 @@ public partial class EndingFilm : Node2D
         "……ええ。\nわたくしも、ここにいて、よいのですね。",
         "",
     };
-    private static readonly Rect2 SkipRect = new(1110, 665, 140, 43);
+    private static readonly Rect2 SkipRect = DialogToolbar.FilmSkipRect;
     private Texture2D[] _art = null!;
     private bool _inputArmed, _leaving;
     private double _skipHold, _leaveTime;
@@ -155,24 +155,15 @@ public partial class EndingFilm : Node2D
         else Frame(shot, progress, 1);
 
         float captionAlpha = Ease(local / 0.7) * (1 - Ease((local - length + 0.7) / 0.7));
-        float framing = shot == 9 ? 1 - Ease(local / 2.5) : 1;
-        Color accent = AccentFor(Speakers[shot]);
-        DrawSubtitleShade(framing);
-        DrawString(UiKit.ZenBold, new Vector2(80, 587), Speakers[shot], HorizontalAlignment.Left, -1, 22,
-            new Color(accent, captionAlpha));
-        string[] lines = Lines[shot].Split('\n');
-        for (int i = 0; i < lines.Length; i++)
-            DrawString(UiKit.Zen, new Vector2(80, 629 + i * 39), lines[i], HorizontalAlignment.Left, -1, 30,
-                new Color(0.97f, 0.98f, 0.99f, captionAlpha));
-
-        if (Elapsed > 1 && shot < 9)
+        if (Lines[shot].Length > 0)
         {
-            bool hover = SkipRect.HasPoint(Pad.MousePos());
-            DrawString(UiKit.Zen, new Vector2(1120, 694), "スキップ", HorizontalAlignment.Center, 120, 20,
-                new Color(1, 1, 1, hover ? 1f : 0.64f));
-            if (_skipHold > 0)
-                DrawLine(new Vector2(1120, 704), new Vector2(1120 + 120 * (float)Math.Min(1, _skipHold / 0.65), 704), accent, 2);
+            var box = DialogueBox.FullScreen;
+            DialogueBox.DrawFrame(this, box, Speakers[shot], AccentFor(Speakers[shot]));
+            var lines = UiKit.WrapLines(DialogueBox.Body.Font, Lines[shot], DialogueBox.Body.Size, DialogueBox.WrapWidth(box));
+            DialogueBox.DrawBody(this, box, string.Join("\n", lines), int.MaxValue, captionAlpha);
         }
+        if (Elapsed > 1 && shot < 9)
+            DialogToolbar.DrawFilmSkip(this, Mathf.Clamp((float)(_skipHold / 0.65), 0, 1), SkipRect.HasPoint(Pad.MousePos()));
         if (_leaving)
             Frame(9, 1, Ease(_leaveTime / 0.7));
     }
@@ -186,12 +177,5 @@ public partial class EndingFilm : Node2D
         _ => new Color("87d7ed"),
     };
 
-    private void DrawSubtitleShade(float framing)
-    {
-        if (framing <= 0f) return;
-        Color shade = new(0.018f, 0.022f, 0.034f);
-        UiKit.VGradient(this, new Rect2(0, 514, 1280, 206),
-            new[] { new Color(shade, 0f), new Color(shade, 0.82f * framing), new Color(shade, 0.94f * framing) },
-            new[] { 0f, 0.4f, 1f });
-    }
+
 }

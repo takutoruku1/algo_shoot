@@ -205,7 +205,7 @@ public partial class BossMina : Enemy
         BodyRadius = BossTuning.F("mina", "body_radius", 16f);
         BodyHalfH = BossTuning.F("mina", "body_half_h", 20f);   // 縦長カプセル（絵の形に沿わせる）
         PanelCount = BossTuning.I("mina", "panel_count", 6); // 渦巻く悲鳴の言葉（黒い吹き出し）
-        PanelInk = BossTuning.I("mina", "panel_ink", 10);
+        PanelInk = BossTuning.I("mina", "panel_ink", 20);
         OrbitRadius = BossTuning.F("mina", "orbit_radius", 32f);
         SpinSpeed = BossTuning.F("mina", "spin_speed", 1.0f);
         PanelsFire = false;

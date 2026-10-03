@@ -16,33 +16,25 @@ using System.Collections.Generic;
 //   ＝セーブは RecordChoice の既存キーで足りる（新しい id を足すだけで後方互換）。
 public static class ChoiceEffects
 {
-    public static readonly string[] SkyChoices = { "晴れてる", "雨が降ってる", "今日は、空を見てない", "（送らない）" };
+    public static readonly string[] SkyChoices = { "あとで空を見よう。ミナと一緒に", "今は、ミナが無事でほっとしてる" };
 
     public static (int who, string text, string face)[] SkyReply(int sel)
     {
         const string face = "res://char/mina_face.png";
         string reply = sel switch
         {
-            0 => "……晴れ、と。そちらの空のこと、ひとつ教わりました。……ありがとうございます。",
-            1 => "……雨、と。傘は、お忘れなく。……こちらからは、差せませんので。",
-            2 => "……はい。見ていない日も、ありますね。次に見上げたときにでも。",
-            _ => "……はい。今は、伺わずにおきます。わたくしは、いつか自分の目でも、見てみたいです。",
+            0 => "……一緒に。はい。ご主人様が見上げた空のこと、聞かせてください。わたくしも、こちらの空をお話しします。",
+            _ => "……わたくしを、心配してくださっていたのですね。ただいま、ご主人様。少し、ここでお話ししていきましょう。",
         };
-        return sel < SkyChoices.Length - 1
-            ? new[] { (0, SkyChoices[sel], ""), (1, reply, face) }
-            : new[] { (1, reply, face) };
+        return new[] { (0, SkyChoices[sel], ""), (1, reply, face) };
     }
 
-    // 道中の選択1か所ぶんを記録する。choices の末尾は必ず（送らない）＝表示候補は末尾を除いた3件。
-    //   戻り値 true＝送った（＝効果を付ける側）。false＝（送らない）。
-    //   【散】は表示候補のうち選ばれなかったぶんだけを計上する（（送らない）自体は言葉ではないので
-    //   送信語にも散る語にも数えない＝表示候補3件が丸ごと散る）。S1-4・S3-7 と同じ流儀。
     public static bool Record(GameManager? game, string id, string[] choices, int sel, float hesitationSec)
     {
-        bool sent = sel < choices.Length - 1;
+        bool sent = choices[sel] != "（送らない）";
         var others = new List<string>();
-        for (int i = 0; i < choices.Length - 1; i++)
-            if (i != sel) others.Add(choices[i]);
+        for (int i = 0; i < choices.Length; i++)
+            if (i != sel && choices[i] != "（送らない）") others.Add(choices[i]);
         game?.RecordChoice(id, sent ? choices[sel] : "", others, hesitationSec);
         return sent;
     }

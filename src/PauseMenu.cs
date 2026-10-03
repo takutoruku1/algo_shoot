@@ -287,7 +287,7 @@ public partial class PauseMenu : CanvasLayer
 
     // Hub/ショップ/難易度選択/記録/トレーニング＝ランの外側にある非戦闘画面。
     // メニューは開くが 離脱／リスタート／ログ は意味を持たない。
-    // （ShopTutorial は "Shop" の部分一致で自動的に含まれる）。RetryEnabled と揃えること。
+    // RetryEnabled と揃えること。
     private static bool IsNonCombatMenuScreen(string path) =>
         path.Contains("Hub") || path.Contains("Shop") || path.Contains("DiffSelect")
         || path.Contains("Records") || path.Contains("Training") || path.Contains("Customize");

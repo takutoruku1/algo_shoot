@@ -307,7 +307,6 @@ public partial class StoryFilm : Node2D
         Color accent = StoryAccent();
         Color accent2 = StoryAccent2();
         Color ink = new(0.025f, 0.025f, 0.04f, 0.96f);
-        Color glass = new(0.035f, 0.035f, 0.055f, 0.82f);
 
         UiKit.VGradient(this, new Rect2(0, 0, 1280, 88),
             new[] { new Color(0.010f, 0.012f, 0.020f, 0.98f), new Color(0.020f, 0.020f, 0.030f, 0.88f), new Color(0, 0, 0, 0f) },
@@ -323,13 +322,6 @@ public partial class StoryFilm : Node2D
         DrawRect(new Rect2(18, 82, 2, 410), new Color(accent, 0.18f));
         DrawRect(new Rect2(1260, 82, 2, 410), new Color(accent2, 0.18f));
 
-        const float panelX = 72f, panelY = 526f, panelW = 1136f, panelH = 174f;
-        UiKit.Box(this, new Rect2(panelX, panelY, panelW, panelH), glass, 8f, new Color(accent, 0.28f), 1.2f);
-        UiKit.VGradient(this, new Rect2(panelX + 1, panelY + 1, panelW - 2, 54),
-            new[] { new Color(1, 1, 1, 0.055f), new Color(1, 1, 1, 0f) }, new[] { 0f, 1f });
-        DrawRect(new Rect2(panelX + 20, panelY + 18, 3, 42), new Color(accent, 0.78f));
-        DrawRect(new Rect2(panelX + panelW - 28, panelY + 18, 3, 42), new Color(accent2, 0.52f));
-
         string mode = _aftermath ? "AFTER SCENE" : "MEMORY LOG";
         string modeJ = _aftermath ? "アフターシーン" : "回想記録";
         float chipW = Mathf.Max(188f, UiKit.TextW(UiKit.Mono, mode, 18) + 44f);
@@ -339,14 +331,7 @@ public partial class StoryFilm : Node2D
 
     }
 
-    // 時制の見出し（字幕）。会話欄の話者名の行（Hud のシネマ表示は 112,542 に話者名を描く）に、
-    //   その**逆端**から出す。時制が変わった瞬間だけ現れ、TimeLife 秒かけて自分で消える。
-    //   ・右端に寄せる理由：見出しの一拍が明けた直後の行に話者が居る場合（例 KoharuStoryFilm の
-    //     各場面の頭は同級生／こはるの台詞）、左詰めだと 112,542 の話者名と同じ場所に重なる。
-    //     実際に重なったのを確認して右寄せへ直した（build/qa_story/akari/shots/memory_pressure.png の初版）。
-    //     右端は Hud の既読スキップ印（1168,546）とページ送りの▼（1136,664）を避けて 1136 で止める。
-    //   ・左詰めの話者名＝発話、右端の淡い小さな字＝画面の見出し、と位置と書体で役割が分かれる。
-    //   セリフ本文は Hud が下の行（112,588）に描くので、縦にも重ならない。
+    // Keep scene timestamps in the top heading, clear of the dialogue controls.
     private void DrawTimeCard()
     {
         if (_timeText.Length == 0) return;
@@ -355,7 +340,7 @@ public partial class StoryFilm : Node2D
         float wipe = Mathf.Clamp((float)(_timeT / TimeWipe), 0, 1);
         float ease = 1 - (1 - wipe) * (1 - wipe);
         float outA = Mathf.Clamp((float)((TimeLife - _timeT) / 0.5), 0, 1);
-        const float right = 1136f, y = 542f;
+        const float right = 1208f, y = 24f;
         const int size = 18;
         const float track = 1.6f;   // 字間。少し開けて「見出し」に寄せる
         // 右端から積むので、先に総幅を測って書き出しを決める。

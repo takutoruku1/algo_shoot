@@ -38,7 +38,7 @@ public partial class CameoIntroQa : Node
                 await Bypass(id, GameManager.StageEntry.Boss, GameManager.Diff.Normal);
                 await RouteEntry(id);
             }
-            foreach (string chosen in new[] { "少し休んでほしい", "好きな時間は残して", "本人はどうしたい" })
+            foreach (string chosen in new[] { "そんなに頑張ったんだね。今日は休もう", "大好きなんだね。その気持ちは消さなくていい" })
                 await ChoiceReaction("koharu", "s2_1", chosen);
             foreach (string chosen in new[] { "同接、9", "ちゃんと見てる", "見えてる" })
                 await RemovedChoiceReaction(chosen);

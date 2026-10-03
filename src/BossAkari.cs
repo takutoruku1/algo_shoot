@@ -97,6 +97,14 @@ public partial class BossAkari : Enemy
     // 「取り消された十二通は、ぜんぶ、わたくしに当たりました。」の行で BGM を落とし、決定打を無音のまま置く。
     // 相手の返事は代弁しない＝最後は「……ぁ……」の涙のまま抜く（cry 保持）。
     private const string ACry = "res://char/v3/akari_face_cry.png";
+    private static readonly (int who, string text, string face)[] MemoryLeadIn =
+    {
+        (2, "……待って。まだ、言えてないのに。", ""),
+        (1, "……誰に、伝えたかったのですか。", "res://char/mina_face.png"),
+        (2, "西野くん。最後の日も、あたし、いつもみたいに仕事してた。", ""),
+        (1, "最後の日に、何があったのですか。……聞かせてください。", "res://char/mina_face.png"),
+        (2, "……三日前。あの人が、会社を辞める日。帰る前に、あたしの席へ来てね……。", ""),
+    };
     private static readonly (int who, string text, string face)[] Lines =
     {
         (2, "……返事がほしかった。おめでとう、より先に。", ACry),
@@ -117,7 +125,6 @@ public partial class BossAkari : Enemy
     private bool _charStory;
     private (int who, string text, string face)[] _lines = Lines;
     private int _storySilenceAt = -1;
-    // 他ジョブ潜行の回想（CharacterStory.Memory）を会話枠だけで送るドライバ。null＝ミナ潜行（＝フィルム）。
     private CharacterStoryTalk? _memoryTalk;
 
     protected override void OnEnemyReady()
@@ -127,7 +134,7 @@ public partial class BossAkari : Enemy
         BodyRadius = BossTuning.F("akari", "body_radius", 19f);
         BodyHalfH = BossTuning.F("akari", "body_half_h", 23f);   // 縦長カプセル（絵の形に沿わせる）
         PanelCount = BossTuning.I("akari", "panel_count", 5); // 自責の言葉（黒い吹き出し）
-        PanelInk = BossTuning.I("akari", "panel_ink", 10);
+        PanelInk = BossTuning.I("akari", "panel_ink", 20);
         OrbitRadius = BossTuning.F("akari", "orbit_radius", 26f);
         SpinSpeed = BossTuning.F("akari", "spin_speed", 0.9f);
         PanelsFire = false;      // 攻撃は本体の自責弾
@@ -245,7 +252,7 @@ public partial class BossAkari : Enemy
 
     public override void _PhysicsProcess(double delta)
     {
-        if (_post != null || _revealingDraft) return;
+        if (_post != null || _revealingDraft || _memoryTalk is { Active: true }) return;
         base._PhysicsProcess(delta);
         if (_postReturnGrace > 0 && !IsPurified && !Hud.BubblePaused)
         {
@@ -558,8 +565,6 @@ public partial class BossAkari : Enemy
     public override void _Process(double delta)
     {
         if (_post != null || _revealingDraft) return;
-        // 他ジョブ潜行の回想（吹き出しのみ）は自前で送る。フィルムと違い World を止めないので、
-        //   Hud.HoldBubble＝BubblePaused が弾と敵を止めている間にここで送り切る。
         if (_memoryTalk is { Active: true }) { _memoryTalk.Update(delta); return; }
         // Start outside collision dispatch so suspending the world cannot interrupt a hit callback.
         if (_memoryPending && !_seq && !IsPurified && !Hud.BubblePaused)
@@ -595,7 +600,13 @@ public partial class BossAkari : Enemy
                 _memoryTalk = CharacterStoryTalk.Start(CharacterStory.Memory(game.SelectedJob, "akari"),
                     GetHud, ShowStoryLine, ResumeBattle);
             }
-            else AkariStoryFilm.Play(GetHud()!, GetParent(), aftermath: false, completed: ResumeBattle);
+            else
+            {
+                GetHud()!.HideSpellCard();
+                Audio.Instance?.StopMusic(0.7f);
+                _memoryTalk = CharacterStoryTalk.Start(MemoryLeadIn, GetHud, ShowStoryLine,
+                    () => AkariStoryFilm.Play(GetHud()!, GetParent(), aftermath: false, completed: ResumeBattle));
+            }
             return;
         }
         if (_postPending && _corridorPhase == 0 && !_seq && !IsPurified && !Hud.BubblePaused)
@@ -654,8 +665,6 @@ public partial class BossAkari : Enemy
         hud.ShowDialog(kind, text, portrait, otherName: "あかり");
     }
 
-    // 他ジョブ潜行の回想の1行（CharacterStoryTalk から呼ばれる）。立ち絵の引き当ては ShowLine と同じ規則。
-    //   who は 6（潜行キャラ本人）／2（このボス）／4（Ｙ投稿。Hud 側が立ち絵を捨てる）だけ。
     private void ShowStoryLine(Hud hud, int who, string text, string face)
     {
         var kind = (Hud.LineKind)who;

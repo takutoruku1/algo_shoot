@@ -95,6 +95,7 @@ public partial class ChoiceOverlayQa : Node
             {
                 if (field.FieldType != typeof(string[]) || !field.Name.EndsWith("Choices")) continue;
                 var labels = (string[])field.GetValue(null)!;
+                if (type != typeof(GameManager)) Check(labels.Length == 2, $"{type.Name}/{field.Name}: exactly two story choices");
                 bool cinematic = type == typeof(Epilogue);
                 bool board = type != typeof(Prologue) && !cinematic;
                 var choice = Open(labels, board, cinematic);
@@ -217,20 +218,20 @@ public partial class ChoiceOverlayQa : Node
                     Check(Mathf.IsEqualApprox(game.Contamination, 0.4f), $"{field.Name}/{sel}: no contamination penalty");
                     var reply = Reply(type, field.Name.Replace("Choices", "Reply"), sel);
                     Check(Array.Exists(reply, l => l.who == 1), $"{field.Name}/{sel}: Mina acknowledges the response");
-                    Check(sel == choices.Length - 1
-                        ? !Array.Exists(reply, l => l.who == 0)
-                        : Array.Exists(reply, l => l.who == 0 && l.text == choices[sel]),
+                    Check(game.ChosenAt("qa_reply") == choices[sel] && game.LastSentWord == choices[sel],
+                        $"{field.Name}/{sel}: either response is recorded as speech");
+                    Check(Array.Exists(reply, l => l.who == 0 && l.text == choices[sel]),
                         $"{field.Name}/{sel}: player speech matches the selected text");
                 }
             }
-        for (int sel = 0; sel < 4; sel++)
+        for (int sel = 0; sel < 2; sel++)
         {
             var reply = Reply(typeof(StageRei), "S35cReply", sel);
             Check(!Array.Exists(reply, l => l.text.Contains("散りました") || l.text.Contains("気づいて、いただけ")),
                 $"S35c/{sel}: no hidden right-answer reproach");
         }
         float? rei = null;
-        foreach (string word in new[] { "見てる", "ここにいる", "見ています" })
+        foreach (string word in new[] { "誰も見てないなんて、思ってほしくない", "強がらなくていいよ。今のレイの話が聞きたい" })
         {
             game.RecordChoice("s3_5c", word, Array.Empty<string>(), 1);
             float value = Fury.InitialFor(game, "rei");
@@ -238,7 +239,7 @@ public partial class ChoiceOverlayQa : Node
             rei = value;
         }
         var koharuChoices = (string[])typeof(StageKoharu).GetField("S21Choices", Static)!.GetValue(null)!;
-        foreach (string word in koharuChoices[..^1])
+        foreach (string word in koharuChoices)
         {
             game.RecordChoice("s2_1", word, Array.Empty<string>(), 1);
             var lines = ((int, string, string)[])typeof(StageKoharu).GetMethod("CameoIntroFor", Static)!.Invoke(null, new object[] { game })!;
@@ -363,7 +364,7 @@ public partial class ChoiceOverlayQa : Node
                     await Frames(1);
                 }
                 string id = route.Item1 == "Akari" ? "s1_sky" : route.Item1 == "Koharu" ? "s2_sky" : "s3_sky";
-                Check(selected && game.HasChoiceAt(id) && game.ChosenAt(id) == (sel < 3 ? ChoiceEffects.SkyChoices[sel] : ""),
+                Check(selected && game.HasChoiceAt(id) && game.ChosenAt(id) == ChoiceEffects.SkyChoices[sel],
                     $"{route.Item1}/{sel}: weather answer is recorded accurately");
                 Check(Read<int>(stage, "_step") == route.Item3 + 1 && !hud.HoldBubble,
                     $"{route.Item1}/{sel}: clear dialogue finishes without a stuck choice");
@@ -378,7 +379,7 @@ public partial class ChoiceOverlayQa : Node
         var world = _root.GetNode<Node2D>("World");
         var gameMode = game.ProcessMode;
         var begin = stage.GetType().GetMethod("BeginMemoryFollowUp", Private)!;
-        for (int sel = 0; sel < 3; sel++)
+        for (int sel = 0; sel < 2; sel++)
         {
             Set(stage, "_midStoryShown", false);
             world.ProcessMode = ProcessModeEnum.Inherit;
@@ -392,7 +393,7 @@ public partial class ChoiceOverlayQa : Node
             stage.GetType().GetMethod("SetQuietVeil", Private)!.Invoke(stage, new object[] { true });
             float contamination = game.Contamination;
             stage.GetType().GetMethod("ApplyS37Choice", Private)!.Invoke(stage, new object[] { sel });
-            Check(Mathf.IsEqualApprox(game.Contamination, contamination), "S37 silence does not increase contamination");
+            Check(Mathf.IsEqualApprox(game.Contamination, contamination), "S37 concern does not increase contamination");
             int resting = 0;
             for (int i = 0; i < 60 && Read<int>(stage, "_step") == 17; i++)
             {
@@ -446,7 +447,7 @@ public partial class ChoiceOverlayQa : Node
         Click(choice, Row(choice, 0).GetCenter());
         choice._Process(0.6);
         ((Prologue)_root)._Process(0.01);
-        Check(GetNode<GameManager>("/root/Game").ChosenAt("p2") == "おはよう", "prologue records the original selected story text");
+        Check(GetNode<GameManager>("/root/Game").ChosenAt("p2") == "やっと会えた。ずっと話したかった", "prologue records the original selected story text");
         Set(_root, "_line", Read<int>(_root, "_p3ChoiceLine"));
         ((Prologue)_root)._Process(0.01);
         choice = Read<ChoiceOverlay>(_root, "_choice");
@@ -475,7 +476,7 @@ public partial class ChoiceOverlayQa : Node
         {
             DisplayServer.WindowSetSize(size);
             await Frames(4);
-            await Shot($"stage_four_choices_{size.X}x{size.Y}");
+            await Shot($"stage_two_choices_{size.X}x{size.Y}");
         }
         DisplayServer.WindowSetSize(new Vector2I(1280, 720));
         await Frames(3);
@@ -523,7 +524,7 @@ public partial class ChoiceOverlayQa : Node
         Click(choice, Row(choice, 1).GetCenter());
         choice._Process(0.6);
         ((Epilogue)_root)._Process(0.01);
-        Check(GetNode<GameManager>("/root/Game").ChosenAt("e6") == "ありがとう", "ending records and resumes after the chosen response");
+        Check(GetNode<GameManager>("/root/Game").ChosenAt("e6") == "ミナに会えてよかった。もう、ひとりじゃない", "ending records and resumes after the chosen response");
     }
 
     private static void Click(ChoiceOverlay choice, Vector2 position)

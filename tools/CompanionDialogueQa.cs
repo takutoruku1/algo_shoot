@@ -569,10 +569,10 @@ public partial class CompanionDialogueQa : Node
         game.ResetPersistent();
         game.AutoSaveEnabled = false;
         game.SelectedJob = Job.Tank;
-        // 強化ショップの初回説明（ShopTutorial・2026-09-22）を既読にしておく。ResetPersistent が
+        // 強化ショップの初回説明（2026-09-22）を既読にしておく。ResetPersistent が
         //   ShopTutorialSeen を折るので、下で "akari" を _cleared に入れた瞬間 ShopUnlocked が立ち、
-        //   ホームの最初の Process が Hub.TryOpenShopTutorial() で ShopTutorial.tscn へ飛ばしてしまう
-        //   （ハブごと解放されるので Z を押しても SNS へ入れない）。ここで見たいのは SNS の導線なので、
+        //   ホームの最初の Process が Hub.TryOpenShopTutorial() で説明の会話を始めてしまう
+        //   （会話が開いているので Z を押しても SNS へ入れない）。ここで見たいのは SNS の導線なので、
         //   once_phone_home と同じ流儀でこの一度きりの説明だけ消費済みにする。
         game.ShopTutorialSeen = true;
         var hub = GD.Load<PackedScene>("res://Hub.tscn").Instantiate<Hub>();

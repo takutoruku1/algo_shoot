@@ -19,13 +19,10 @@ public partial class Hud : CanvasLayer
     // 吹き出し表示中は敵を止める（他クラスから参照）
     public static bool BubblePaused = false;
     public bool CinematicMode { get; private set; }
-    private static UiKit.TextStyle FilmBody => new(UiKit.Zen, 24, 0, 1.55f);
-    private const float FilmTextWidth = 1056f;
     private bool _cinematicBubble;
     private bool _hasCinematicAccent;
     private Color _cinematicAccent;
-    private float FilmTextX => _cinematicBubble ? 216f : 112f;
-    private float FilmWrapWidth => _cinematicBubble ? 928f : FilmTextWidth;
+    public Rect2 DialogRect => CinematicMode ? DialogueBox.FullScreen : DialogueBox.Board;
 
     public void SetCinematicMode(bool active, bool dialogueBubble = false, Color? accent = null)
     {
@@ -346,8 +343,9 @@ public partial class Hud : CanvasLayer
             int rev = Mathf.FloorToInt(_dlgRevealed);
             if (rev > _typePrevRevealed)
             {
+                // 行の全文と現在位置を渡す＝PlayType 側で抑揚が付く（語尾の「？」で上がる等）。
                 if (rev < CurPageText.Length && rev / TypeStride != _typePrevRevealed / TypeStride)
-                    Audio.Instance?.PlayType(_dlgKind);
+                    Audio.Instance?.PlayType(_dlgKind, CurPageText, rev);
                 _typePrevRevealed = rev;
             }
         }
@@ -564,9 +562,7 @@ public partial class Hud : CanvasLayer
         _typePrevRevealed = 0; _dlgKind = kind;
         Texture2D? next = string.IsNullOrEmpty(portrait) ? null : ResourceLoader.Load<Texture2D>(portrait);
         _dlgDraftMark = draftMark && next == null;
-        // ページ分割：本文が入る幅を確定し、2行ずつのページへ割る（送り機構は DialogRevealed/RevealDialogNow で駆動）。
-        //   幅は DrawDialog のレイアウトと一致させる（ナレ＝中央920 ／ セリフ＝バー幅から話者列・立ち絵を引いた実効幅）。
-        BuildDialogPages(dialog, next, _dlgDraftMark);
+        BuildDialogPages();
         // 表情クロスフェード：face テクスチャが実際に変わる瞬間だけ、旧絵を短時間重ねて移ろわせる。
         // 同一立ち絵の続き（同じ話者の連続行）はクロスフェードせず、無からの登場/退場もハード切替で十分。
         if (sameSpeaker && next != null && _dlgPortrait != null && next != _dlgPortrait)
@@ -588,35 +584,11 @@ public partial class Hud : CanvasLayer
 
     // 本文を DlgMaxLines(=2) 行ずつのページへ分割する。折り返しは DrawDialog の実効幅と一致させる
     //（＝画面に出る行構成と分割位置がズレない）。禁則は WrapLines が担保。ページは元の行を \n で束ねた文字列。
-    private void BuildDialogPages(bool dialog, Texture2D? portrait, bool draftMark = false)
+    private void BuildDialogPages()
     {
         _dlgPages.Clear();
         _dlgPage = 0;
-        if (CinematicMode)
-        {
-            _dlgPages.AddRange(UiKit.Paginate(FilmBody, _dlgText, FilmWrapWidth, DlgMaxLines));
-            return;
-        }
-        // DrawDialog と同じジオメトリで本文の折り返し幅を求める。
-        float wrapW;
-        if (!dialog)
-        {
-            wrapW = NarrWrapW;                              // ナレ（中央テロップ）
-        }
-        else
-        {
-            const float x = DlgBoxX, h = 170f;   // DrawDialog と同じバー座標（DlgBoxX/W が唯一の定義元）
-            float textX = x + 36f;
-            if (portrait != null)
-            {
-                float ph = h - 8f;
-                float pw = ph * portrait.GetWidth() / Mathf.Max(1, portrait.GetHeight());
-                textX = x + 10f + pw + 20f;
-            }
-            else if (draftMark) textX = x + 10f + DraftMarkW + 20f;
-            wrapW = DlgWrapW(textX);                        // DrawDialog の本文幅と同じ式（DlgBoxX/W 由来）
-        }
-        _dlgPages.AddRange(UiKit.Paginate(UiKit.BattleBody, _dlgText, wrapW, DlgMaxLines));   // DrawDialog と同じ書体・サイズで割る
+        _dlgPages.AddRange(UiKit.Paginate(DialogueBox.Body, _dlgText, DialogueBox.WrapWidth(DialogRect), DlgMaxLines));
     }
 
     // 会話送り（ステージの Step_Lines から使う）：現在ページを出し切った かつ 最終ページなら「この行は読了＝次の行へ」。
@@ -968,14 +940,15 @@ public partial class Hud : CanvasLayer
         UiKit.EndDesign(ci);
     }
 
-    private static readonly Color SideSurface = new("1e2023");
-    private static readonly Color SideRaised = new("292d31");
-    private static readonly Color SideInk = new("e7e9ea");
-    private static readonly Color SideMuted = new("9ca6af");
-    private static readonly Color SideRule = new("33383d");
+    private static readonly Color SideSurface = new("1b1e23");
+    private static readonly Color SideRaised = new("24292f");
+    private static readonly Color SideInk = new("eff1f2");
+    private static readonly Color SideMuted = new("a3adb6");
+    private static readonly Color SideRule = new("394149");
     private static readonly Color SideBlue = new("61b9ea");
     private static readonly Color SideTeal = new("7bcbbc");
     private static readonly Color SideRose = new("f28bab");
+    private static readonly Color SideGold = new("e4ba79");
     private Color AccountAccent => _game.SelectedJob switch
     {
         Job.Melee => new Color("e9bd7c"),
@@ -989,40 +962,28 @@ public partial class Hud : CanvasLayer
     {
         const float pw = Field.PanelW;
         ci.DrawRect(new Rect2(0, 0, pw, UiKit.DesignH), SideSurface);
-        var cover = _accountFaces[_game.SelectedJob];
-        float sourceHeight = cover.GetWidth() * 32f / pw;
-        ci.DrawRect(new Rect2(0, 0, pw, 32), SideRaised);
-        ci.DrawTextureRectRegion(cover, new Rect2(0, 0, pw, 32),
-            new Rect2(0, (cover.GetHeight() - sourceHeight) * 0.5f, cover.GetWidth(), sourceHeight),
-            new Color(0.8f, 0.8f, 0.8f));
+        ci.DrawRect(new Rect2(0, 0, pw, 112), SideRaised);
+        ci.DrawRect(new Rect2(PanelX, 0, 38, 3), AccountAccent);
         ci.DrawRect(new Rect2(pw - 1f, 0, 1f, UiKit.DesignH), SideRule);
         ci.DrawRect(new Rect2(pw, 0, Field.DLeft - pw, UiKit.DesignH), new Color(0, 0, 0, 0.12f));
         ci.DrawRect(new Rect2(Field.DLeft, 0, 1f, UiKit.DesignH), new Color(1f, 1f, 1f, 0.07f));
-        ci.DrawRect(new Rect2(0, RowLifeBomb, pw - 1f, 1), SideRule);
-        ci.DrawLine(new Vector2(22f, RowLifeBomb + 28f),
-            new Vector2(22f, (_focusHas ? RowFocus : RowCombo) + 28f), new Color(SideRule, 0.65f), 1f);
-        foreach (float y in new[] { RowLifeBomb, RowBomb, RowPurify, RowScore, RowTime, RowLock, RowCombo, RowFocus })
-        {
-            if (y == RowFocus && !_focusHas) continue;
-            if (y != RowLifeBomb)
-                ci.DrawRect(new Rect2(PostX, y, PostInnerW, 1), new Color(SideRule, 0.65f));
-            ci.DrawCircle(new Vector2(22f, y + 28f), 2f, SideMuted.Darkened(0.45f));
-        }
+        foreach (float y in new[] { 112f, RowPurify - 6f, RowScore - 14f })
+            ci.DrawRect(new Rect2(PostX, y, PostInnerW, 1), SideRule);
     }
 
     private const float PanelX = 18f;
-    private const float PostX = 44f;
+    private const float PostX = PanelX;
     private const float PostInnerW = Field.PanelW - PostX - PanelX;
-    private const float RowLifeBomb = 100f;
-    private const float RowBomb = 206f;
-    private const float RowPurify = 310f;
-    private const float RowScore = 390f;
-    private const float RowTime = 468f;
-    private const float RowLock = 530f;
-    private const float RowCombo = 600f;
-    private const float RowFocus = 662f;
+    private const float RowLifeBomb = 120f;
+    private const float RowBomb = 216f;
+    private const float RowPurify = 320f;
+    private const float RowLock = 416f;
+    private const float RowFocus = 490f;
+    private const float RowScore = 570f;
+    private const float RowTime = 634f;
+    private const float RowCombo = 666f;
     internal static Rect2 BombHudRect => new(0, RowBomb, Field.PanelW, RowPurify - RowBomb);
-    internal static Rect2 PurifyHudRect => new(0, RowPurify, Field.PanelW, RowScore - RowPurify);
+    internal static Rect2 PurifyHudRect => new(0, RowPurify, Field.PanelW, RowLock - RowPurify);
 
     private string AccountHandle => _game.SelectedJob == Job.Tank ? Handles.Mina
         : System.Array.Find(GameManager.Stages, stage => stage.Id == _game.JobDef.CharacterId)!.Handle;
@@ -1031,9 +992,9 @@ public partial class Hud : CanvasLayer
     {
         int columns = Mathf.Max(5, Mathf.CeilToInt(count / 2f));
         float step = PostInnerW / columns;
-        float size = Mathf.Min(27f, step - 2f);
+        float size = Mathf.Min(count > columns ? 24f : 28f, step - 4f);
         return new Rect2(PostX + (slot % columns) * step + (step - size) * 0.5f,
-            (bomb ? RowBomb : RowLifeBomb) + 46f + (slot / columns) * 28f, size, size);
+            (bomb ? RowBomb : RowLifeBomb) + 44f + (slot / columns) * 27f, size, size);
     }
 
     // 操作子のキーキャップ（情報の隣に添えて「どのボタンか」を一目で示す）。2026-09-27 に旧 KeyBadge（文字の枠）から
@@ -1050,18 +1011,18 @@ public partial class Hud : CanvasLayer
 
         float x = PostX, y = RowLifeBomb, w = PostInnerW;
         Color lifeColor = low ? SideRose : SideInk;
-        if (low) ci.DrawRect(new Rect2(0, y + 5, 3f, 96f), SideRose);
-        UiKit.Text(ci, UiKit.Zen, new Vector2(x, y + 18), "ライフ", 13, SideMuted);
+        if (low) ci.DrawRect(new Rect2(0, y + 8, 3f, 80f), SideRose);
+        UiKit.Text(ci, UiKit.ZenBold, new Vector2(x, y + 13), "ライフ", 14, low ? SideRose : SideMuted);
         string capacity = $" / {maxLives}";
         float capacityW = UiKit.TextW(UiKit.Mono, capacity, 14);
-        UiKit.Text(ci, UiKit.Mono, new Vector2(x, y + 21), capacity, 14, SideMuted, HorizontalAlignment.Right, w);
-        UiKit.Text(ci, UiKit.Mono, new Vector2(x, y + 15), _lives.ToString(), 22, lifeColor,
+        UiKit.Text(ci, UiKit.Mono, new Vector2(x, y + 16), capacity, 14, SideMuted, HorizontalAlignment.Right, w);
+        UiKit.Text(ci, UiKit.Mono, new Vector2(x, y + 2), _lives.ToString("D2"), 30, lifeColor,
             HorizontalAlignment.Right, w - capacityW - 4f);
         DrawResourceMarks(ci, _lifeMarks[_game!.SelectedJob], _lives, maxLives, false);
-        UiKit.Text(ci, UiKit.Zen, new Vector2(x, RowBomb + 18), "ボム", 13, SideMuted);
+        UiKit.Text(ci, UiKit.ZenBold, new Vector2(x, RowBomb + 13), "ボム", 14, SideMuted);
         float capW = UiKit.KeyCapW(TokBomb, SideCapH);
-        UiKit.KeyCap(ci, new Vector2(x + w - capW, RowBomb + 16f), TokBomb, SideCapH, alpha: SideCapAlpha);
-        UiKit.Text(ci, UiKit.Mono, new Vector2(x, RowBomb + 16f), bombs.ToString(), 20, SideInk,
+        UiKit.KeyCap(ci, new Vector2(x + w - capW, RowBomb + 13f), TokBomb, SideCapH, alpha: SideCapAlpha);
+        UiKit.Text(ci, UiKit.Mono, new Vector2(x, RowBomb + 2f), bombs.ToString("D2"), 30, bombs > 0 ? SideGold : SideMuted,
             HorizontalAlignment.Right, w - capW - 8f);
         DrawResourceMarks(ci, _bombMark, bombs, maxBombs, true);
     }
@@ -1140,7 +1101,7 @@ public partial class Hud : CanvasLayer
 
     private void DrawPurify(HudCanvas ci)
     {
-        float prog = _game?.StageProgress ?? 0f;
+        float prog = Mathf.Clamp(_game?.StageProgress ?? 0f, 0f, 1f);
         bool full = prog >= 0.999f;
         float x = PostX, y = RowPurify, w = PostInnerW;
         // Keep the forward-position pulse on the fill without flashing the whole sidebar.
@@ -1148,11 +1109,17 @@ public partial class Hud : CanvasLayer
         float lean = Mathf.Clamp((posF - 0.55f) / 1.05f, 0f, 1f); // 左端0 → 右端1
         float pulseHz = Mathf.Lerp(2.4f, 7.0f, lean);
         float pulse = 0.5f + 0.5f * Mathf.Sin((float)_t * pulseHz);
-        UiKit.Text(ci, UiKit.Zen, new Vector2(x, y + 14f), "浄化", 13, SideMuted);
-        UiKit.Text(ci, UiKit.Mono, new Vector2(x, y + 40f), $"{Mathf.RoundToInt(prog * 100f)}%", 20, SideTeal,
+        UiKit.Text(ci, UiKit.ZenBold, new Vector2(x, y + 14f), full ? "浄化完了" : "浄化", 14, SideTeal);
+        UiKit.Text(ci, UiKit.Mono, new Vector2(x, y + 2f), $"{Mathf.RoundToInt(prog * 100f)}", 30, SideInk,
+            HorizontalAlignment.Right, w - 19f);
+        UiKit.Text(ci, UiKit.Mono, new Vector2(x, y + 18f), "%", 14, SideTeal,
             HorizontalAlignment.Right, w);
-        DrawMeter(ci, new Rect2(x, y + 54f, w - 56f, 4f), prog,
-            full ? SideTeal : SideTeal.Lerp(new Color("b3f0dc"), pulse * lean * 0.3f));
+        var bar = new Rect2(x, y + 48f, w, 12f);
+        DrawMeter(ci, bar, prog, full ? SideTeal : SideTeal.Lerp(new Color("b3f0dc"), pulse * lean * 0.3f));
+        for (int i = 1; i < 8; i++)
+            ci.DrawRect(new Rect2(bar.Position.X + w * i / 8f - 1f, bar.Position.Y, 2f, bar.Size.Y), SideSurface);
+        for (int i = 0; i <= 4; i++)
+            ci.DrawLine(new Vector2(x + w * i / 4f, y + 67f), new Vector2(x + w * i / 4f, y + 71f), SideRule, 1f);
     }
 
     private static void DrawMeter(CanvasItem ci, Rect2 rect, float ratio, Color accent)
@@ -1168,22 +1135,22 @@ public partial class Hud : CanvasLayer
     {
         long score = _game?.Score ?? 0;
         string scoreStr = UiKit.FormatScore(score);
-        if (UiKit.TextW(UiKit.ZenBold, scoreStr, 14) > PostInnerW)
+        if (UiKit.TextW(UiKit.Mono, scoreStr, 14) > PostInnerW)
             scoreStr = score.ToString("0.##E+0", System.Globalization.CultureInfo.InvariantCulture);
         float x = PostX, y = RowScore;
-        UiKit.Text(ci, UiKit.Zen, new Vector2(x, y + 14f), "スコア", 13, SideMuted);
-        int size = 24;
-        while (size > 14 && UiKit.TextW(UiKit.ZenBold, scoreStr, size) > PostInnerW) size--;
-        UiKit.Text(ci, UiKit.ZenBold, new Vector2(x, y + 35f), scoreStr, size, SideInk);
+        UiKit.Text(ci, UiKit.Zen, new Vector2(x, y), "スコア", 13, SideMuted);
+        int size = 27;
+        while (size > 14 && UiKit.TextW(UiKit.Mono, scoreStr, size) > PostInnerW) size--;
+        UiKit.Text(ci, UiKit.Mono, new Vector2(x, y + 22f), scoreStr, size, SideInk);
     }
 
     private void DrawTimer(HudCanvas ci)
     {
         string t = UiKit.FormatTime(_elapsed);
-        UiKit.Text(ci, UiKit.Zen, new Vector2(PostX, RowTime + 26f), "経過", 13, SideMuted);
-        int size = 17;
+        UiKit.Text(ci, UiKit.Zen, new Vector2(PostX, RowTime), "経過", 13, SideMuted);
+        int size = 16;
         while (size > 10 && UiKit.TextW(UiKit.Mono, t, size) > PostInnerW - 44f) size--;
-        UiKit.Text(ci, UiKit.Mono, new Vector2(PostX, RowTime + 24f), t, size, SideInk,
+        UiKit.Text(ci, UiKit.Mono, new Vector2(PostX, RowTime - 1f), t, size, SideInk,
             HorizontalAlignment.Right, PostInnerW);
     }
 
@@ -1198,28 +1165,37 @@ public partial class Hud : CanvasLayer
         bool on = player?.LockedOn ?? false;
         float x = PostX, y = RowLock, w = PostInnerW;
         Color accent = on ? AccountAccent : armed ? SideTeal : SideMuted;
-        UiKit.Text(ci, UiKit.Zen, new Vector2(x, y + 12f), "ロックオン", 13, SideMuted);
+        ci.DrawRect(new Rect2(0, y, Field.PanelW - 1f, 66f), new Color(accent, armed ? 0.09f : 0.025f));
+        if (armed) ci.DrawRect(new Rect2(0, y + 12f, 2f, 42f), accent);
+        UiKit.Text(ci, UiKit.Zen, new Vector2(x + 36f, y + 10f), "ロックオン", 13, SideMuted);
         // ロックオンの意思（LockArmed）が立っている間はキャップを沈める＝「いま押さえている」ことを鍵の形でも見せる。
         float capW = UiKit.KeyCapW(TokLock, SideCapH);
-        UiKit.KeyCap(ci, new Vector2(x + w - capW, y + 12f), TokLock, SideCapH, pressed: armed, alpha: SideCapAlpha);
+        UiKit.KeyCap(ci, new Vector2(x + w - capW, y + 23f), TokLock, SideCapH, pressed: armed, alpha: SideCapAlpha);
         string status = on ? "追尾中" : armed ? "待機中" : "オフ";
-        float a = armed && !on ? 0.55f + 0.45f * (0.5f + 0.5f * Mathf.Sin((float)_t * 4f)) : 1f;
-        ci.DrawCircle(new Vector2(x + 2.5f, y + 49f), 2.5f, new Color(accent, armed ? a : 0.35f));
-        UiKit.Text(ci, UiKit.ZenBold, new Vector2(x + 13f, y + 39f), status, 13, new Color(accent, a));
+        float a = armed && !on ? 0.7f + 0.3f * (0.5f + 0.5f * Mathf.Sin((float)_t * 4f)) : 1f;
+        var center = new Vector2(x + 12f, y + 33f);
+        float radius = on ? 9f : 12f;
+        for (int i = 0; i < 4; i++)
+        {
+            float angle = i * Mathf.Pi / 2f + Mathf.Pi / 4f;
+            ci.DrawArc(center, radius, angle - 0.3f, angle + 0.3f, 6, new Color(accent, a), 1.5f, true);
+        }
+        if (on) ci.DrawCircle(center, 3f, accent);
+        UiKit.Text(ci, UiKit.ZenBold, new Vector2(x + 36f, y + 32f), status, 16, new Color(accent, a));
     }
 
     private void DrawCombo(HudCanvas ci)
     {
         int combo = _game?.Combo ?? 0;
         float x = PostX, y = RowCombo, w = PostInnerW;
-        UiKit.Text(ci, UiKit.Zen, new Vector2(x, y + 21f), "コンボ", 13, SideMuted);
+        UiKit.Text(ci, UiKit.Zen, new Vector2(x, y + 8f), "コンボ", 13, SideMuted);
         string value = $"×{combo:D2}";
         int size = 22;
         while (size > 10 && UiKit.TextW(UiKit.Mono, value, size) > w - 58f) size--;
-        UiKit.Text(ci, UiKit.Mono, new Vector2(x, y + 16f), value, size, combo >= 2 ? SideRose : SideMuted,
+        UiKit.Text(ci, UiKit.Mono, new Vector2(x, y + 2f), value, size, combo >= 2 ? SideRose : SideMuted,
             HorizontalAlignment.Right, w);
         float comboRatio = combo >= 2 ? Mathf.Clamp(_game?.ComboTimeRatio ?? 0f, 0f, 1f) : 0f;
-        DrawMeter(ci, new Rect2(x, y + 46f, w, 3f), comboRatio, SideRose);
+        DrawMeter(ci, new Rect2(x, y + 35f, w, 3f), comboRatio, SideRose);
     }
 
     // スペル宣言オーバーレイ（X のスペル発動ツイート＋通知）。ボスカードの直下に出る。
@@ -1411,9 +1387,11 @@ public partial class Hud : CanvasLayer
         Color accent = _focusOn ? AccountAccent : (_focusReady ? SideTeal : SideMuted);
         string status = _focusOn ? "発動中" : _focusReady ? "発動可能" : "充填中";
         float x = PostX, y = RowFocus, w = PostInnerW;
-        UiKit.KeyCap(ci, new Vector2(x, y + 20f), TokFocus, SideCapH, pressed: _focusOn, alpha: SideCapAlpha);
-        UiKit.Text(ci, UiKit.ZenBold, new Vector2(x, y + 21f), status, 14, accent, HorizontalAlignment.Right, w);
-        DrawMeter(ci, new Rect2(x, y + 47f, w, 3f), _focusRatio, accent);
+        UiKit.Text(ci, UiKit.Zen, new Vector2(x, y + 7f), "集中", 13, SideMuted);
+        UiKit.KeyCap(ci, new Vector2(x + w - UiKit.KeyCapW(TokFocus, SideCapH), y + 5f),
+            TokFocus, SideCapH, pressed: _focusOn, alpha: SideCapAlpha);
+        UiKit.Text(ci, UiKit.ZenBold, new Vector2(x, y + 29f), status, 14, accent);
+        DrawMeter(ci, new Rect2(x + 74f, y + 39f, w - 74f, 4f), _focusRatio, accent);
     }
 
     private void DrawPowerups(HudCanvas ci)
@@ -1424,10 +1402,10 @@ public partial class Hud : CanvasLayer
             var kind = (PowerKind)i;
             int level = player.PowerLevel(kind);
             if (level == 0) continue;
-            float x = 22f + i * 25f;
-            PowerPickupArt.Draw(ci, new Rect2(x - 9f, 73f, 18f, 18f), kind);
+            float x = 26f + i * 25f;
+            PowerPickupArt.Draw(ci, new Rect2(x - 9f, 78f, 18f, 18f), kind);
             for (int pip = 0; pip < Player.PowerLevelCap; pip++)
-                ci.DrawRect(new Rect2(x - 5f + pip * 6f, 94f, 4f, 2f),
+                ci.DrawRect(new Rect2(x - 5f + pip * 6f, 99f, 4f, 2f),
                     pip < level ? PowerPickupArt.ColorFor(kind) : SideRule);
         }
     }
@@ -1435,14 +1413,16 @@ public partial class Hud : CanvasLayer
     private void DrawShotMode(HudCanvas ci)
     {
         var job = _game.JobDef;
-        ci.DrawCircle(new Vector2(30f, 36f), 23f, SideSurface);
-        UiKit.FaceAvatar(ci, new Vector2(30f, 36f), 19f, _accountFaces[job.Id], SideSurface, false, 0f);
-        UiKit.Text(ci, UiKit.ZenBold, new Vector2(60f, 31f), job.CharacterName, 19, SideInk);
-        UiKit.VerifiedBadge(ci, new Vector2(60f + UiKit.TextW(UiKit.ZenBold, job.CharacterName, 19) + 10f, 44f),
+        UiKit.FaceAvatar(ci, new Vector2(42f, 38f), 24f, _accountFaces[job.Id], AccountAccent, false, 0f);
+        UiKit.Text(ci, UiKit.ZenBold, new Vector2(76f, 17f), job.CharacterName, 19, SideInk);
+        UiKit.VerifiedBadge(ci, new Vector2(76f + UiKit.TextW(UiKit.ZenBold, job.CharacterName, 19) + 10f, 30f),
             5f, SideBlue);
-        UiKit.Text(ci, UiKit.Mono, new Vector2(60f, 56f), AccountHandle, 10, SideMuted);
+        UiKit.Text(ci, UiKit.Mono, new Vector2(76f, 45f), AccountHandle, 10, SideMuted);
         string status = _gameOverTitle.Length > 0 ? "終了" : BubblePaused ? "対話中" : "ダイブ中";
-        UiKit.Text(ci, UiKit.Zen, new Vector2(120f, 78f), status, 11, SideMuted,
+        Color statusColor = BubblePaused ? SideMuted : SideTeal;
+        float statusWidth = UiKit.TextW(UiKit.Zen, status, 11);
+        ci.DrawCircle(new Vector2(Field.PanelW - PanelX - statusWidth - 8f, 93f), 2f, statusColor);
+        UiKit.Text(ci, UiKit.Zen, new Vector2(120f, 85f), status, 11, statusColor,
             HorizontalAlignment.Right, Field.PanelW - PanelX - 120f);
     }
 
@@ -1517,7 +1497,7 @@ public partial class Hud : CanvasLayer
 
         // 会話表示中はそのボックス矩形を暗幕から除外する（セリフ・立ち絵がフル輝度で読める）。
         bool hasDlg = _dlgText.Length > 0;
-        Rect2 dlgBox = _dlgIsDialog ? new Rect2(DlgBoxX, 520, DlgBoxW, 170) : new Rect2(NarrBoxX, 590, NarrBoxW, 96);
+        Rect2 dlgBox = DialogRect;
 
         // 穴なし＝全画面を一様に覆う（会話矩形だけは避ける）。
         if (_spotRect.Size.X <= 1f || _spotRect.Size.Y <= 1f)
@@ -1679,118 +1659,25 @@ public partial class Hud : CanvasLayer
     private static float TickerHandleW(string h)
         => string.IsNullOrEmpty(h) ? 0f : UiKit.TextW(UiKit.Mono, h, UiKit.FontSmall) + 6f;
 
-    public const float DraftMarkW = 74f;
-    public const float DraftMarkH = 120f;
-    private static Texture2D? _draftArt;
-    public static void DrawDraftMark(CanvasItem ci, Vector2 leftCenter, Color col, double t = 0)
+    private void DrawDialog(CanvasItem ci)
     {
-        _draftArt ??= GD.Load<Texture2D>("res://char/ui/dialogue_you_v1.png");
-        var size = new Vector2(DraftMarkW, DraftMarkW * _draftArt.GetHeight() / _draftArt.GetWidth());
-        ci.DrawTextureRect(_draftArt, new Rect2(leftCenter + new Vector2(0, -size.Y / 2f), size), false);
-    }
-
-    private void DrawDialog(CanvasItem ci)   // CanvasItem＝HudCanvas（カットシーン・保険）と BubbleLayer（戦闘中）の両方から描ける
-    {
-        // 現在ページのテキストを、その表示済み文字数ぶんだけ描く（全ボックス 2行固定＝DlgMaxLines）。
         string page = CurPageText;
-        int n = Mathf.Clamp(Mathf.FloorToInt(_dlgRevealed), 0, page.Length);
-        var lines = new List<string>(page.Split('\n'));
-        // ページ継続サイン：現在ページを出し切っていて、まだ後続ページがあるとき「▼」を点滅（Zで続きへ）。
-        bool morePages = !OnLastPage && _dlgRevealed >= page.Length;
-
-        if (CinematicMode)
+        var box = DialogRect;
+        var accent = _dlgSpeakerCol;
+        DialogueBox.DrawFrame(ci, box, _dlgSpeaker, accent, draft: _dlgDraftMark);
+        if (_dlgPortrait != null && (!CinematicMode || _cinematicBubble))
         {
-            if (_cinematicBubble)
-            {
-                var accent = _dlgSpeakerCol;
-                var fill = new Color(0.035f, 0.04f, 0.055f, 0.98f);
-                float tailX = _dlgKind == LineKind.Mina ? 640 : 160;
-                var tail = new[] { new Vector2(tailX - 10, 531), new Vector2(tailX, 519), new Vector2(tailX + 10, 531) };
-                ci.DrawColoredPolygon(tail, fill);
-                ci.DrawPolyline(tail, new Color(accent, 0.55f), 1.2f, true);
-                UiKit.Box(ci, new Rect2(112, 530, 1056, 166), fill, 8f, new Color(accent, 0.55f), 1.2f);
-                if (_dlgPortrait != null)
-                    UiKit.FaceAvatar(ci, new Vector2(160, 580), 32, _dlgPortrait, accent, false);
-                else if (_dlgDraftMark)
-                {
-                    _draftArt ??= GD.Load<Texture2D>("res://char/ui/dialogue_you_v1.png");
-                    var size = _draftArt.GetSize() * (56f / Mathf.Max(_draftArt.GetWidth(), _draftArt.GetHeight()));
-                    ci.DrawTextureRect(_draftArt, new Rect2(new Vector2(160, 580) - size / 2, size), false);
-                }
-            }
-            if (_dlgSpeaker.Length > 0)
-                UiKit.Text(ci, UiKit.ZenBold, new Vector2(FilmTextX, 542), _dlgSpeaker, 21,
-                    _cinematicBubble ? _dlgSpeakerCol : new Color(_dlgSpeakerCol, 0.96f));
-            UiKit.TypewriterLines(ci, UiKit.Zen, lines,
-                new Vector2(FilmTextX, 588 + UiKit.Zen.GetAscent(FilmBody.Size)), FilmWrapWidth,
-                FilmBody.Size, new Color(0.965f, 0.97f, 0.99f), n, extraLeading: FilmBody.ExtraLeading);
-            // 既読早送り中の表示は上辺のボタン列（SKIP の点灯）が担う＝旧「▶▶」チップは出さない（二重表示を避ける）。
-            if (morePages && !FastForwarding) UiKit.Text(ci, UiKit.Zen, new Vector2(1136, 664), "▼", 14,
-                _hasCinematicAccent ? new Color(_cinematicAccent, 0.9f) : Colors.White);
-            return;
+            float breath = BreathAmp * 0.25f * Mathf.Sin((float)_t * Mathf.Tau / BreathPeriod);
+            float nod = _nodT > 0 ? NodAmp * 0.25f * Mathf.Sin((float)((NodTime - _nodT) / NodTime) * Mathf.Pi) : 0;
+            var center = box.Position + new Vector2(40, 27 + breath + nod);
+            float fade = Mathf.Clamp((float)(_portraitFadeT / PortraitFade), 0, 1);
+            UiKit.FaceAvatar(ci, center, 17, _dlgPortrait, accent, false, alpha: 1 - fade);
+            if (fade > 0 && _dlgPortraitPrev != null)
+                UiKit.FaceAvatar(ci, center, 17, _dlgPortraitPrev, accent, false, alpha: fade);
         }
-
-        if (!_dlgIsDialog)
-        {
-            // ナレーション：中央寄せの淡いテロップ（バー無し）。行間を足して詰まりを解消。2行に統一。
-            UiKit.Box(ci, new Rect2(NarrBoxX, 590, NarrBoxW, 96), new Color(0.04f, 0.03f, 0.07f, 0.7f), 12f);
-            UiKit.TypewriterLines(ci, UiKit.Zen, lines,
-                new Vector2(NarrBoxX + 40, 602 + UiKit.Zen.GetAscent(UiKit.FontBattle)), NarrWrapW,
-                UiKit.FontBattle, new Color(0.9f, 0.9f, 0.95f), n, extraLeading: UiKit.BattleBody.ExtraLeading);
-            if (morePages && ((int)(_t * 2f) % 2) == 0)
-                UiKit.Text(ci, UiKit.ZenBold, new Vector2(NarrBoxX + NarrBoxW - 32, 590 + 96 - 26), "▼", UiKit.FontLabel, new Color(1f, 1f, 1f, 0.7f));
-            return;
-        }
-
-        // シネマ下部バー（盤面の中に収める。板は覆わない）。座標は DlgBoxX/W に集約し、
-        // 折り返し幅（DlgWrapW）とページ分割（BuildDialogPages）が同じ数字を見るようにする。
-        float x = DlgBoxX, y = 520, w = DlgBoxW, h = 170;
-        UiKit.Box(ci, new Rect2(x, y, w, h), new Color(0.05f, 0.04f, 0.09f, 0.95f), 16f, new Color(_dlgSpeakerCol, 0.5f), 1.4f);
-        float textX = x + 36;
-        // 立ち絵（あれば左に）。常時の微細な生命感：呼吸（上下揺れ）＋表情クロスフェード＋うなずき。
-        // ここで描く立ち絵＝いま発話中の話者なので、揺れは「話者だけ」に自然に閉じる。
-        if (_dlgPortrait == null && _dlgDraftMark)
-        {
-            // 「あなた」には顔が無い。立ち絵の代わりに下書き欄（入力欄）を置く
-            //（＝画面に人が増えず、それでも誰が喋ったかの居場所は残る）。
-            DrawDraftMark(ci, new Vector2(x + 10, y + h / 2f), _dlgSpeakerCol, _t);
-            textX = x + 10 + DraftMarkW + 20;
-        }
-        if (_dlgPortrait != null)
-        {
-            float ph = h - 8, pw = ph * _dlgPortrait.GetWidth() / Mathf.Max(1, _dlgPortrait.GetHeight());
-            float px = x + 10;
-            // 呼吸：ゆっくりした上下のサイン。基準位置 y+4 を中心に ±BreathAmp。
-            float breath = BreathAmp * Mathf.Sin((float)_t * (Mathf.Tau / BreathPeriod));
-            // うなずき：完了直後に下→戻る。半周期 Sin の山（下が＋）。タイプ送り完了の相づち。
-            float nod = 0f;
-            if (_nodT > 0f)
-                nod = NodAmp * Mathf.Sin((float)((NodTime - _nodT) / NodTime) * Mathf.Pi);
-            float py = y + 4 + breath + nod;
-            // 表情クロスフェード：旧絵をフェードアウトしつつ新絵をフェードイン（同じ揺れ位置で重ねる）。
-            if (_portraitFadeT > 0f && _dlgPortraitPrev != null)
-            {
-                float f = Mathf.Clamp((float)(_portraitFadeT / PortraitFade), 0f, 1f); // 1→0
-                float pwOld = ph * _dlgPortraitPrev.GetWidth() / Mathf.Max(1, _dlgPortraitPrev.GetHeight());
-                ci.DrawTextureRect(_dlgPortraitPrev, new Rect2(px, py, pwOld, ph), false, new Color(1f, 1f, 1f, f));
-                ci.DrawTextureRect(_dlgPortrait, new Rect2(px, py, pw, ph), false, new Color(1f, 1f, 1f, 1f - f));
-            }
-            else
-            {
-                ci.DrawTextureRect(_dlgPortrait, new Rect2(px, py, pw, ph), false);
-            }
-            textX = x + 10 + pw + 20;
-        }
-        if (_dlgSpeaker.Length > 0)
-            UiKit.Draw(ci, UiKit.DialogSpeaker, new Vector2(textX, y + 16), _dlgSpeaker, _dlgSpeakerCol);
-        // 本文：BattleBody（22px・行間1.5倍。2026-09-26 に 17px から拡大）。全ボックス 2行固定（DlgMaxLines）
-        //   ＝はみ出し防止＋箇所ごとの行数差を解消。折り返し幅は BuildDialogPages と同じ式（DlgWrapW）。
-        UiKit.TypewriterLines(ci, UiKit.Zen, lines,
-            new Vector2(textX, y + 48 + UiKit.Zen.GetAscent(UiKit.FontBattle)), DlgWrapW(textX),
-            UiKit.FontBattle, new Color(0.95f, 0.95f, 0.98f), n, extraLeading: UiKit.BattleBody.ExtraLeading);
-        // ページ継続サイン：後続ページがあるとき「▼」を点滅（Zで続きへ）。
-        if (morePages && ((int)(_t * 2f) % 2) == 0)
-            UiKit.Text(ci, UiKit.ZenBold, new Vector2(x + w - 34, y + h - 30), "▼", UiKit.FontLabel, new Color(1f, 1f, 1f, 0.7f));
+        DialogueBox.DrawBody(ci, box, page, Mathf.Clamp((int)_dlgRevealed, 0, page.Length));
+        if (_dlgRevealed >= page.Length && !FastForwarding)
+            DialogueBox.DrawContinue(ci, box, !OnLastPage);
     }
 
     // R 長押しリトライの進捗チップ（下部中央・設計座標）。長押し中だけ出て、離すと消える
@@ -1808,18 +1695,6 @@ public partial class Hud : CanvasLayer
         ci.DrawRect(new Rect2(bx, by, barW, 6f), new Color(1, 1, 1, 0.14f));
         ci.DrawRect(new Rect2(bx, by, barW * Mathf.Clamp(frac, 0f, 1f), 6f), UiKit.Info);
     }
-
-    // 会話本文の折り返し幅。DrawDialog（描画）と BuildDialogPages（ページ分割）の両方から必ずこれを通す
-    //   ＝幅がズレると「画面に出る行構成」と「ページの切れ目」が食い違い、送りで文字が飛ぶ/重なる。
-    //   行間は UiKit.DialogBody.Leading(1.55) が持つ（旧 DlgLeading/NarrLeading の px 直指定は廃止）。
-    //   会話バーとナレ箱の矩形。盤面（設計 x 400..1280）の中に収める＝サイドパネルを覆わない。
-    //   ここを直せば描画・折り返し・ページ分割が同時に追随する（式が2か所にあるとページの切れ目がズレる）。
-    public const float DlgBoxX = Field.DLeft + 20f;          // 420
-    public const float DlgBoxW = Field.DWidth - 40f;         // 840
-    private const float NarrBoxX = Field.DLeft + 60f;        // 460（ナレは会話バーより一段内側）
-    private const float NarrBoxW = Field.DWidth - 120f;      // 760
-    private const float NarrWrapW = NarrBoxW - 80f;          // ナレ本文（箱の内側・左右40pxずつ空ける）
-    private static float DlgWrapW(float textX) => DlgBoxX + DlgBoxW - textX - 30f; // セリフ（バーの内側）
 
     private void DrawBossLine(CanvasItem ci)   // CanvasItem＝HudCanvas（保険）と BubbleLayer（通常）の両方から描ける
     {

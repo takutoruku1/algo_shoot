@@ -30,7 +30,7 @@ public partial class EpilogueQa : Node
             GetNode<GameManager>("/root/Game").MsgCharsPerSec = 300;
             await Frames(2);
             await VerifyFinal();
-            for (int choice = 0; choice < 3; choice++) await VerifyEpilogue(choice);
+            for (int choice = 0; choice < 2; choice++) await VerifyEpilogue(choice);
             Audio.Instance?.StopMusic(0);
             foreach (var child in GetNode<Audio>("/root/Audio").GetChildren())
                 if (child is AudioStreamPlayer player) { player.Stop(); player.Stream = null; }
@@ -84,7 +84,8 @@ public partial class EpilogueQa : Node
             {
                 await Seconds(21);
                 Check(Read<ChoiceOverlay?>(final, "_choice") == overlay && !overlay.Decided
-                    && game.LastSentWord == "まだ送っていない", "F4 waits for a decision after twenty seconds");
+                    && game.LastSentWord == "まだ送っていない",
+                    $"F4 waits for a decision after twenty seconds (same={Read<ChoiceOverlay?>(final, "_choice") == overlay}, decided={overlay.Decided}, word={game.LastSentWord})");
             }
             if (route != 1)
             {
@@ -188,7 +189,7 @@ public partial class EpilogueQa : Node
         await Frames(60);
         var overlay = Read<ChoiceOverlay>(ep, "_e6Choice");
         float previousBottom = 500;
-        for (int i = 0; i < 3; i++)
+        for (int i = 0; i < 2; i++)
         {
             var row = (Rect2)typeof(ChoiceOverlay).GetMethod("RowRect", Private)!.Invoke(overlay, new object[] { i })!;
             Check(row.Position.Y >= previousBottom && row.End.Y <= 720, "ending choices stay below faces with separate hit targets");
@@ -198,7 +199,7 @@ public partial class EpilogueQa : Node
         if (choice == 0) { using var capture = await Shot("choice"); }
         await Select(overlay, choice);
         await AdvanceUntil(() => Read<ChoiceOverlay?>(ep, "_e6Choice") == null);
-        string expected = choice == 0 ? "また来る" : choice == 1 ? "ありがとう" : "おかえり";
+        string expected = choice == 0 ? "また会いに来る。次は、何でもない話をしよう" : "ミナに会えてよかった。もう、ひとりじゃない";
         Check(game.HasChoiceAt("e6") && game.LastSentWord == expected, $"E6 choice {choice} records the correct last word");
         await AdvanceUntil(() => Read<int>(ep, "_line") == Read<IList>(ep, "_end").Count - 2);
         Check(Read<double>(ep, "_goodbyeT") < 1.2, "last response starts a continuous close-up dissolve");
@@ -235,8 +236,9 @@ public partial class EpilogueQa : Node
         var lines = (string[])typeof(EndingFilm).GetField("Lines", BindingFlags.Static | BindingFlags.NonPublic)!.GetValue(null)!;
         for (int shot = 0; shot < art.Length; shot++)
         {
-            foreach (string line in lines[shot].Split('\n'))
-                Check(UiKit.Zen.GetStringSize(line, fontSize: 30).X <= 1120, $"film caption {shot} fits");
+            var wrapped = UiKit.WrapLines(DialogueBox.Body.Font, lines[shot], DialogueBox.Body.Size,
+                DialogueBox.WrapWidth(DialogueBox.FullScreen));
+            Check(wrapped.Count <= 2, $"film caption {shot} fits the shared two-line panel");
             double time = (cuts[shot] + cuts[shot + 1]) / 2;
             typeof(EndingFilm).GetProperty(nameof(EndingFilm.Elapsed))!.SetValue(film, time);
             film.QueueRedraw();
@@ -273,7 +275,7 @@ public partial class EpilogueQa : Node
     private static void ClickSkip(EndingFilm film)
     {
         const BindingFlags flags = BindingFlags.Static | BindingFlags.NonPublic;
-        typeof(Pad).GetField("_mousePos", flags)!.SetValue(null, new Vector2(1180, 686));
+        typeof(Pad).GetField("_mousePos", flags)!.SetValue(null, DialogToolbar.FilmSkipRect.GetCenter());
         typeof(Pad).GetField("_mL", flags)!.SetValue(null, true);
         typeof(Pad).GetField("_mLPrev", flags)!.SetValue(null, false);
         film._Process(1.0 / 60);

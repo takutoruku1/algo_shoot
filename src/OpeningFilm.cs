@@ -59,8 +59,13 @@ public partial class OpeningFilm : Node2D
     private static readonly Vector2[] PortraitFocus = { new(0.52f, 0.24f), new(0.64f, 0.25f), new(0.51f, 0.24f), new(0.45f, 0.2f) };
     private static readonly Vector2[] DailyFocus = { new(0.73f, 0.32f), new(0.35f, 0.32f), new(0.73f, 0.32f) };
     private const float RecallBeat = 0.42f;
+    // 字幕の文字送り音の刻み。本編（Hud の MsgCharsPerSec 既定 48字/秒・TypeStride 2）と同じ手触りに揃える
+    //   ＝1/24 秒ごとに1音。この映像は時間駆動（Crossed）で1文字ずつのループが無いので、
+    //   字幕が出始める時刻から「何文字目が出ているはず」を時刻に換算して鳴らす（2026-10-03）。
+    private const float TypeCps = 48f;
+    private const int TypeStride = 2;
     private static readonly Rect2 Screen = new(0, 0, 1280, 720);
-    private static readonly Rect2 SkipRect = new(1110, 657, 140, 45);
+    private static readonly Rect2 SkipRect = DialogToolbar.FilmSkipRect;
     private static readonly Vector2 PhoneTextPosition = new(-108, -108);
     private const int PhoneTextSize = 28;
     private Texture2D[] _daily = null!, _fighters = null!, _cores = null!, _cutins = null!;
@@ -83,7 +88,9 @@ public partial class OpeningFilm : Node2D
     private FilmOverlay _overlay = null!;
     private bool _inputArmed;
     private double _skipHold, _leaveTime;
+    private float _skipHover;
     private bool _leaving;
+    private bool SkipVisible => Elapsed > 1 && !_leaving && Elapsed < Duration - 1.3;
     private int _loggedShot = -1;   // 会話ログへ字幕を積んだカット（カット切替ごとに1回）
     private int Shot => FindShot(Elapsed);
 
@@ -159,12 +166,14 @@ public partial class OpeningFilm : Node2D
             bool held = SkipHeld();
             if (!held) _inputArmed = true;
             _skipHold = _inputArmed && held && Elapsed >= 0.6 ? _skipHold + delta : 0;
-            if (_skipHold >= 0.65 || (Elapsed > 1 && Elapsed < Duration - 1.3
+            if (_skipHold >= 0.65 || (SkipVisible
                 && SkipRect.HasPoint(Pad.MousePos()) && Pad.MouseClick()))
                 RequestSkip();
             if (!_leaving) PlaySoundtrack(previousTime);
             if (Elapsed >= Duration) { Complete(); return; }
         }
+        _skipHover = Mathf.MoveToward(_skipHover, SkipVisible && SkipRect.HasPoint(Pad.MousePos()) ? 1f : 0f,
+            (float)delta * 8f);
         UpdateMina();
         QueueRedraw();
         _overlay.QueueRedraw();
@@ -176,7 +185,8 @@ public partial class OpeningFilm : Node2D
         if (Crossed(0.55)) Audio.Instance?.PlayUiConfirm();
         for (int i = 1; i < DraftBeats.Length; i++)
             if (Crossed(DraftBeats[i].Time) && DraftBeats[i].Text.Length > DraftBeats[i - 1].Text.Length)
-                Audio.Instance?.PlayType(Hud.LineKind.Boy);
+                // 完成形「たすけて」を行として渡す＝打ち進むほど抑揚が進む（打ち直しで頭に戻る）。
+                Audio.Instance?.PlayType(Hud.LineKind.Boy, DraftBeats[^1].Text, DraftBeats[i].Text.Length - 1);
         if (Crossed(5.1)) Audio.Instance?.PlayUiCancel();
         if (Crossed(8.7)) Audio.Instance?.PlayCalm();
         if (Crossed(Cuts[4] + 3.2)) Audio.Instance?.Music(Audio.Instance.BgmBossRei, 1.8f);
@@ -200,6 +210,56 @@ public partial class OpeningFilm : Node2D
         if (Crossed(Cuts[9] + RecallBeat * 3)) Audio.Instance?.PlayCalm();
         if (Crossed(Cuts[10] + 0.16)) Audio.Instance?.PlayPurify();
         if (Crossed(Duration - 1.3)) Audio.Instance?.StopMusic(1.3f);
+        TypeCaptions(previousTime);
+    }
+
+    // 字幕の文字送り音（2026-10-03）。話者は LogCaption の割り当てと揃える
+    //   ＝三人は相手（Other＝くぐもった音色）／ミナは Mina（澄んだ音色）。
+    //   カット9（まだ届いていない声が、待っている。）とカット10（消された言葉は、消えていない。）は
+    //   ナレ＝語りなので**鳴らさない**（PlayType の Narration 無音と同じ判断。カット10のタイトル
+    //   "Refrain" はロゴで台詞でないので同様）。
+    //   同じ理由で鳴らさないもの：スマホUIの固定文字（下書き／保存／かな／キー）・@ハンドル・
+    //   砕けるパネルに焼かれた投稿本文。どれも1文字ずつ出てこない飾りで、ここに音を足すと
+    //   チャージ/ショットの合図（PlayChargeReady 等）を潰す（mitsuda pitfalls P1/P2）。
+    private void TypeCaptions(double previousTime)
+    {
+        // カット1〜3：三人の日常の一言。DrawOverlay が t=0.2 から DrawQuote で出す。
+        for (int i = 0; i < 3; i++)
+            TypeCaption(previousTime, Cuts[1 + i] + 0.2, DailyLines[i], Hud.LineKind.Other);
+        // カット4：ミナの二行。絵はどちらも t=1.0 から出るので、音は一行目を打ち切ってから二行目へ
+        //   （同時に重ねると二人がしゃべっているように聞こえる）。
+        TypeCaption(previousTime, Cuts[4] + 1, HeardLine, Hud.LineKind.Mina);
+        TypeCaption(previousTime, Cuts[4] + 1 + HeardLine.Length / TypeCps + 0.1, GoLine, Hud.LineKind.Mina);
+        // カット5〜8：名前（DrawName の 0.09 秒刻み）→ セリフ（DrawQuote の出だし t=0.48）。
+        for (int i = 0; i < 4; i++)
+        {
+            double start = Cuts[5 + i];
+            var kind = i == 3 ? Hud.LineKind.Mina : Hud.LineKind.Other;
+            TypeName(previousTime, start + 0.18, _cast[i].CharacterName, kind);
+            TypeCaption(previousTime, start + 0.48, CutinLines[i], kind);
+        }
+    }
+
+    // 字幕1本ぶん。start 秒を0文字目として、本編と同じ TypeStride 文字に1回だけ鳴らす。
+    //   ナレは PlayType 側で無音なので、ここで早めに抜けて空回りを避ける。
+    private void TypeCaption(double previousTime, double start, string text, Hud.LineKind kind)
+    {
+        if (kind == Hud.LineKind.Narration) return;
+        for (int i = TypeStride; i < text.Length; i += TypeStride)
+        {
+            double at = start + i / TypeCps;
+            if (previousTime < at && Elapsed >= at) Audio.Instance?.PlayType(kind, text, i);
+        }
+    }
+
+    // 名前の1文字ずつの出（DrawName と同じ 0.09 秒刻み）に合わせた一打。名前は1〜2文字なので間引かない。
+    private void TypeName(double previousTime, double start, string name, Hud.LineKind kind)
+    {
+        for (int i = 0; i < name.Length; i++)
+        {
+            double at = start + i * 0.09;
+            if (previousTime < at && Elapsed >= at) Audio.Instance?.PlayType(kind, name, i);
+        }
     }
 
     private static bool SkipHeld() => Input.IsKeyPressed(Key.Escape) || Input.IsKeyPressed(Key.X)
@@ -211,6 +271,7 @@ public partial class OpeningFilm : Node2D
         if (_leaving || Finished || Elapsed < 0.6) return;
         _leaving = true;
         Audio.Instance?.StopMusic(0.45f);
+        Audio.Instance?.StopVoice();   // 字幕の文字送り音を鳴り残さない
     }
 
     private void Complete()
@@ -218,6 +279,7 @@ public partial class OpeningFilm : Node2D
         if (Finished) return;
         Finished = true;
         Visible = false;
+        Audio.Instance?.StopVoice();   // 映像の終わりに文字送り音を持ち込まない
         // 「見た」を記録しておく（2026-09-22）。このフィルムは**初回からスキップできる**ので
         //   記録がスキップの条件になることは無いが、回想（StoryFilm）と同じ台帳に載せておく
         //   ＝どのムービーを通ったかが1か所に揃う。スキップで抜けた場合も「通過した」として記録する
@@ -786,6 +848,7 @@ public partial class OpeningFilm : Node2D
     {
         int shot = Shot;
         float t = (float)(Elapsed - Cuts[shot]);
+        (string Speaker, string Text, Color Accent, float Alpha)? caption = null;
         if (shot is 4 or 9)
         {
             float shade = shot == 9 ? Ease((t - 1.2f) / 0.4f) : 1;
@@ -796,15 +859,12 @@ public partial class OpeningFilm : Node2D
         {
             int i = shot - 1;
             float a = Ease((t - 0.2f) / 0.35f) * (1 - Ease((t - 3.25f) / 0.25f));
-            DrawCaptionShade(canvas, 486, a);
-            UiKit.Text(canvas, _filmFont, new Vector2(68, 520), _cast[i].CharacterName, 24, Fade(Accents[i], a));
-            DrawQuote(canvas, DailyLines[i], new Vector2(68, 564), 30, a, t - 0.2f);
+            caption = (_cast[i].CharacterName, DailyLines[i], Accents[i], a);
         }
         if (shot == 4)
         {
             float a = Ease((t - 1) / 0.7f) * (1 - Ease((t - 4.2f) / 0.5f));
-            UiKit.Text(canvas, _filmFont, new Vector2(72, 125), HeardLine, 29, Fade(UiKit.PurifyHi, a));
-            DrawQuote(canvas, GoLine, new Vector2(72, 176), 29, a, t - 1);
+            caption = ("ミナ", HeardLine + "\n" + GoLine.Replace("\n", ""), Accents[3], a);
         }
         if (shot == 10)
         {
@@ -825,41 +885,40 @@ public partial class OpeningFilm : Node2D
             int i = shot - 5;
             float duration = (float)(Cuts[shot + 1] - Cuts[shot]);
             float a = Ease((t - 0.18f) / 0.3f) * (1 - Ease((t - duration + 0.3f) / 0.3f));
-            DrawCaptionShade(canvas, 493, a);
             Vector2 namePosition = i == 1 ? new(928, 78) : new(68, 78);
             DrawName(canvas, _cast[i].CharacterName, namePosition, i == 3 ? 72 : 80, t - 0.18f, a, i == 3);
-            Vector2 handlePosition = i == 3 ? new(72, 522) : namePosition + new Vector2(4, 106);
+            Vector2 handlePosition = i == 3 ? new(72, 472) : namePosition + new Vector2(4, 106);
             UiKit.Text(canvas, _titleFont, handlePosition, Handle(_cast[i]), 26, Fade(Accents[i], a));
-            DrawQuote(canvas, CutinLines[i], new Vector2(i == 1 ? 840 : 72, 573), 30, a, t - 0.48f);
+            caption = (_cast[i].CharacterName, CutinLines[i], Accents[i], a);
         }
         if (shot == 9)
         {
             float a = Ease((t - 1.35f) / 0.4f) * (1 - Ease((t - 3.6f) / 0.4f));
-            DrawQuote(canvas, WaitingLine.Replace("、", "、\n"), new Vector2(72, 145), 36, a, t - 1.35f);
+            caption = ("ミナ", WaitingLine, Accents[3], a);
         }
         float bars = shot <= 3 ? 38 : shot == 4 ? Mathf.Lerp(38, 22, Ease(t / 1.2f)) : 22;
         canvas.DrawRect(new Rect2(0, 0, 1280, bars), Colors.Black);
         canvas.DrawRect(new Rect2(0, 720 - bars, 1280, bars), Colors.Black);
+        if (caption is { } captionLine) DrawDialogueCaption(canvas, captionLine.Speaker, captionLine.Text, captionLine.Accent, captionLine.Alpha);
         float fade = Mathf.Max(1 - Ease((float)Elapsed / 0.6f), Ease((float)(Elapsed - Duration + 1)));
         if (_leaving) fade = Mathf.Max(fade, Ease((float)_leaveTime / 0.45f));
         canvas.DrawRect(Screen, new Color(0, 0, 0, fade));
-        if (Elapsed > 1 && !_leaving && Elapsed < Duration - 1.3)
-        {
-            bool hover = SkipRect.HasPoint(Pad.MousePos());
-            UiKit.Box(canvas, SkipRect, new Color(0.025f, 0.03f, 0.035f, hover ? 0.92f : 0.7f), 5);
-            UiKit.Text(canvas, UiKit.Zen, SkipRect.Position + new Vector2(18, 9), "スキップ", 18, Fade(UiKit.White, hover ? 1 : 0.72f));
-            Vector2 p = SkipRect.Position + new Vector2(110, 17);
-            canvas.DrawPolyline(new[] { p, p + new Vector2(7, 6), p + new Vector2(0, 12) }, UiKit.Text2, 1.5f, true);
-            if (_skipHold > 0)
-                canvas.DrawLine(SkipRect.Position + new Vector2(0, 44), SkipRect.Position + new Vector2(140 * (float)(_skipHold / 0.65), 44), UiKit.Info, 2);
-        }
+        if (SkipVisible) DrawSkipButton(canvas);
     }
 
-    private static void DrawCaptionShade(Node2D canvas, float top, float alpha)
+    private void DrawSkipButton(Node2D canvas)
     {
-        UiKit.VGradient(canvas, new Rect2(0, top, 1280, 720 - top),
-            new[] { new Color(0.015f, 0.02f, 0.025f, 0), new Color(0.015f, 0.02f, 0.025f, alpha * 0.88f) },
-            new[] { 0f, 0.72f });
+        float progress = Mathf.Clamp((float)(_skipHold / 0.65), 0, 1);
+        float alpha = Ease((float)(Elapsed - 1) / 0.25f) * Ease((float)(Duration - 1.3 - Elapsed) / 0.25f);
+        DialogToolbar.DrawFilmSkip(canvas, progress, _skipHover > 0, alpha);
+    }
+
+    private static void DrawDialogueCaption(Node2D canvas, string speaker, string text, Color accent, float alpha)
+    {
+        var box = DialogueBox.FullScreen;
+        DialogueBox.DrawFrame(canvas, box, speaker, accent);
+        var lines = UiKit.WrapLines(DialogueBox.Body.Font, text, DialogueBox.Body.Size, DialogueBox.WrapWidth(box));
+        DialogueBox.DrawBody(canvas, box, string.Join("\n", lines), int.MaxValue, alpha);
     }
 
     private void DrawName(Node2D canvas, string name, Vector2 position, int size, float time, float alpha, bool vertical)
@@ -875,17 +934,7 @@ public partial class OpeningFilm : Node2D
         }
     }
 
-    private void DrawQuote(Node2D canvas, string text, Vector2 position, int size, float alpha, float time)
-    {
-        int index = 0;
-        foreach (string line in text.Split('\n'))
-        {
-            float reveal = Ease((time - index * 0.16f) / 0.45f);
-            UiKit.Text(canvas, _filmFont, position + new Vector2(0, (1 - reveal) * 8), line, size, Fade(UiKit.White, alpha * reveal));
-            position.Y += size + 12;
-            index++;
-        }
-    }
+
 
     private partial class FilmOverlay : Node2D
     {

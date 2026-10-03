@@ -153,32 +153,20 @@ public partial class StageAkari : Node
         (1, "ご主人様。——拾います。……どこまで、拾いましょう。", MFace),
     };
 
-    // S1-4 の下書き選択。（送らない）は言葉ではないので【散】に数えない＝表示候補の2件だけが散る。
-    //   旧稿は「ひろって／そっとしといて」で、受けが「両立します」と言ってしまう＝選択が消えていた。
-    //   拾う前提は S14Tail で動かないので、二択は「十二件ぜんぶ」か「一件だけ」かの重さの差に振り直す。
-    //   どちらを選んでも何かを取りこぼす＝手が止まる形にした。
-    private static readonly string[] S14Choices = { "十二件、ぜんぶ", "いちばん上の、一件だけ", "（送らない）" };
-    // 選択ごとの受け。どのみち「そっと拾う」＝最後の締め（S14Tail）へ合流する。
-    //   先頭の who=0 は台本 06 の「送った下書きの復唱」行（Hud は LineKind.Boy を「あなた」名義・
-    //   立ち絵なしの下書き印で描く）。（送らない）は言葉を送っていないので復唱を置かない。
+    private static readonly string[] S14Choices = { "あの人の言葉、消えたままにしたくない", "一つずつ聞こう。ミナも無理しないで" };
     private static (int who, string text, string face)[] S14Reply(int sel) => sel switch
     {
         0 => new (int, string, string)[]
         {
-            (0, "十二件、ぜんぶ", ""),
-            (1, "……はい。十二件。——一件ずつ、抱えます。", MFace),
-            (1, "……十二回ぶん、消す直前の声を、浴びることになりますが。……浴びる、と決めましたので。", MFace),
-        },
-        1 => new (int, string, string)[]
-        {
-            (0, "いちばん上の、一件だけ", ""),
-            (1, "……いちばん上の、一件。——承知しました。", MFace),
-            (1, "……残りの十一件は、閉じたまま、置いていきます。……数だけ、覚えておきます。", MWorried),
+            (0, S14Choices[0], ""),
+            (1, "……はい。消す前には、伝えたかった言葉があったはずです。一つずつ、聞いていきましょう。", MFace),
+            (1, "十二件ぶん。……ご主人様も、一緒に聞いていてください。", MFace),
         },
         _ => new (int, string, string)[]
         {
-            (1, "……無言。——では、一件だけ。いちばん上のを。", MFace),
-            (1, "……残りの十一件は、閉じたままにしておきます。", MWorried),
+            (0, S14Choices[1], ""),
+            (1, "……わたくしのことまで。ありがとうございます。では、いちばん上の一通から。", MFace),
+            (1, "残りは、今は開かずにおきます。……急がなくてよいと、言っていただけたので。", MWorried),
         },
     };
     // 選択の受けの後に必ず流す締め（中ボスが来る予感）。
@@ -190,29 +178,18 @@ public partial class StageAkari : Node
     // ───────── 道中の下書き選択（正典: wiki/08_仮台本/17_道中の選択肢_案C.md・承認 2026-09-06）─────────
     //   s1_5 … 中ボスの捨て台詞の直後（Mid の頭＝step 4）。効果＝ハブ返信（ミナ→@akari）に一語混ざる。
 
-    // S1-5 中ボス・ね?。既定カーソルは末尾＝（送らない）。
-    private static readonly string[] S15Choices = { "宛先、ちがう", "ぜったい", "傘、忘れてる", "（送らない）" };
+    private static readonly string[] S15Choices = { "うん。また会いに行く。約束する", "うまく言えないけど、ひとりにしたくない" };
     private static (int who, string text, string face)[] S15Reply(int sel) => sel switch
     {
-        // 「取り消されずに」は S1-10 の「取り消されていない一通」への遠い仕込み。ここでは一度きり。
         0 => new (int, string, string)[]
         {
-            (0, "宛先、ちがう", ""),
-            (1, "……はい。宛先は、ちがいます。——それでも、一通。取り消されずに、雨の奥へ。", MFace),
-        },
-        1 => new (int, string, string)[]
-        {
-            (0, "ぜったい", ""),
-            (1, "……ぜったい、と。——同じ言葉が、雨の奥と、こちらに、ひとつずつ。", MFace),
-        },
-        2 => new (int, string, string)[]
-        {
-            (0, "傘、忘れてる", ""),
-            (1, "……傘立てに、二本とも、残ったままです。——傘なしで、雨の奥へ。……観測だけ、しておきます。", MFace),
+            (0, S15Choices[0], ""),
+            (1, "……また会いに行く、と。はい。その約束を持って、あの方を探しましょう。", MFace),
         },
         _ => new (int, string, string)[]
         {
-            (1, "……無言。——「ね?」は、雨の奥へ。返事の、ないまま。", MFace),
+            (0, S15Choices[1], ""),
+            (1, "……いまの言葉で、伝わりました。うまく言えなくても、そばへ行くことはできます。わたくしも、ご一緒します。", MFace),
         },
     };
     private static readonly (int who, string text, string face)[] S15Tail =
@@ -513,19 +490,14 @@ public partial class StageAkari : Node
     private void ApplyS14Choice(int sel)
     {
         var game = GetNodeOrNull<GameManager>("/root/Game");
-        // 【散】は表示候補（上2件）のうち選ばれなかったぶんだけを計上する。
-        //   （送らない）自体は言葉ではないので送信語にも散る語にも数えない＝表示候補2件が丸ごと散る。
-        bool sent = sel < S14Choices.Length - 1;
-        var others = new System.Collections.Generic.List<string>();
-        for (int i = 0; i < S14Choices.Length - 1; i++) if (i != sel) others.Add(S14Choices[i]);
-        game?.RecordChoice("s1_4", sent ? S14Choices[sel] : "", others, (float)_s14ChoiceT);
+        ChoiceEffects.Record(game, "s1_4", S14Choices, sel, (float)_s14ChoiceT);
         _s14After = S14Reply(sel).Concat(S14Tail).ToArray();
     }
 
     // ---- 道中の下書き選択（17）の汎用三フェーズ：きっかけ → 選択 → 受け＋締め（＋残りの会話）----
     // 型は S1-4（Step_MidStory）と同じで、id・候補・受け・締めを引数で受けるようにしただけ。
     //   提示中もバブルは保持（HoldBubble）＝BubblePaused が続いて弾・敵は止まったまま。
-    //   自動プレイ（--qa/--demo）は BubblePaused 中 Z をパルスし続けるので既定カーソル（末尾＝（送らない））
+    //   自動プレイ（--qa/--demo）は BubblePaused 中 Z をパルスし続けるので既定カーソル
     //   のまま即決される＝詰まらない。tail の後ろに rest を繋げば、選択のあとに元の会話の続きを流せる。
     private ChoiceOverlay? _choice;
     private double _choiceT;                          // 提示からの経過＝迷い秒数（RecordChoice へ渡す）

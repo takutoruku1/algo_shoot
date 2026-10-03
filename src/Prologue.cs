@@ -36,7 +36,6 @@ public partial class Prologue : Node2D
     private GameManager? _game;    // 文字送り速度（MsgCharsPerSec）を本編設定と共有
 
     // テキストボックスは2行固定。2行超の行はページに割り、送り（Z）で続きを読ませる（本文は削らない）。
-    private const float TalkWrapW = W - 56f;   // DrawTalk の本文折り返し幅と一致
     private readonly System.Collections.Generic.List<string> _pages = new();
     private int _page;
     private int _pagedLine = -1;               // _pages を構築済みの行 index
@@ -47,7 +46,7 @@ public partial class Prologue : Node2D
         if (_pagedLine == _line || _line >= _talk.Count) return;
         _pagedLine = _line; _page = 0;
         _pages.Clear();
-        _pages.AddRange(UiKit.Paginate(FontFor(_talk[_line]), _talk[_line].Text, UiKit.CutBody, TalkWrapW, Hud.DlgMaxLines));
+        _pages.AddRange(UiKit.Paginate(DialogueBox.Body, _talk[_line].Text, DialogueBox.WrapWidth(DialogueBox.FullScreen), Hud.DlgMaxLines));
     }
     private void NextPage() { _page++; _reveal = 0; }
 
@@ -56,10 +55,8 @@ public partial class Prologue : Node2D
     private bool _lineWasRead;     // 現在行が「表示開始時点で」既読だったか＝高速送りの可否
     private bool _ffNow;           // いま高速送り中か（ボタン列の SKIP 点灯用）
 
-    // 会話ボックス上辺のボタン列（AUTO / SKIP / LOG / MENU・src/DialogToolbar.cs）。枠（DrawTalk の CutBox）は
-    //   384×216 の世界座標なので、右上 (W-14, H-58) を UiKit.Scale で割って設計座標のアンカーにする（≒1233,527）。
     private readonly DialogToolbar _toolbar = new();
-    private static readonly Vector2 ToolbarAnchor = new Vector2(W - 14f, H - 58f) / UiKit.Scale;
+    private static readonly Vector2 ToolbarAnchor = DialogueBox.Anchor(DialogueBox.FullScreen);
     // AUTO（GameManager.AutoAdvanceDialog）：現在ページの全文表示後、この秒数で次へ。
     private const double AutoAfterReveal = 1.0;
     private double _autoT;         // 現在ページを全文表示してからの経過（AUTO 用）
@@ -113,11 +110,9 @@ public partial class Prologue : Node2D
     private int _p2ChoiceLine = -1, _p3ChoiceLine = -1, _p4ChoiceLine = -1; // 差し込み点（_talk 構築時に確定）
     private float _p2Sec;          // P2 の迷い秒数（受けの「{P2秒}秒」に実測を差し込む）
 
-    private static readonly string[] P2Choices = { "おはよう", "きこえてる", "うごいた" };
-    private static readonly string[] P3Choices = { "ミナ", "超絶最強無敵ハイパーAIちゃんMk-Ⅱ", "（送らない）" };
-    // P4 の2択は「知る／知らないでおく」の対立に置き直した（旧「何をいってるの／詳しく教えて」は
-    //   どちらも“もっと説明して”で、選ぶ手が止まらなかった）。受けは共通だが、選ばなかった側の重みが残る。
-    private static readonly string[] P4Choices = { "だれの声", "見なかったことにする" };
+    private static readonly string[] P2Choices = { "やっと会えた。ずっと話したかった", "ちゃんと届くかな。……聞こえる？" };
+    private static readonly string[] P3Choices = { "ミナ", "超絶最強無敵ハイパーAIちゃんMk-Ⅱ" };
+    private static readonly string[] P4Choices = { "あの声、放っておけない。一緒に行こう", "助けたい。でも、自分のことで精一杯なんだ" };
 
     public override void _Ready()
     {
@@ -173,7 +168,7 @@ public partial class Prologue : Node2D
 
         // ── P2 目覚め・最初の言葉 ──
         T(WhoSys, "> assigning identity ... [ deferred ]", "");
-        _p2ChoiceLine = _talk.Count;   // ここで3択（（送らない）なし・特例）
+        _p2ChoiceLine = _talk.Count;   // ここで最初の二択
         // 選択の結果（あなたの1行＋共通の受け）は Decide 時にこの位置へ挿し込む。
 
         // ── P3 命名 ──（P2 の受けの末尾に続けて積む。差し込み点は Decide 後に確定）
@@ -181,10 +176,20 @@ public partial class Prologue : Node2D
         // ── P4 タイムライン ──（同上）
     }
 
-    // P2 の受け（三候補共通）。{P2秒}・{文字数} には実測値を差し込む（表示専用）。
+    // P2 の受け。{P2秒}・{文字数} には実測値を差し込む（表示専用）。
     // ユーザー承認済み: docs/20260914/ストーリー添削_2026-09-14.md 【3】
     //   三人に触れる前のミナに笑い（「ふふ」・FMinaSmile）と自嘲（「機械のくせに」）を持たせない。
     //   笑いはこはる面クリア後に獲得する設計なので、P0〜P4 では観測の言い回しだけで同じ軽妙さを出す。
+    // 2026-10-03 ユーザー指摘で全面改稿。旧稿の壊れていた点と直し方：
+    //   ①「あなたが、作った方ですね」＝目的語が落ち、「あなた」と「方」で人称が衝突していた
+    //     → 「わたくしを作られたのは、あなたですね」（目的語を足し、尊敬語の段を揃える）。
+    //   ②{sec} を2行続けて言っていた（「{sec}秒かかっていましたよ」→「{sec}秒迷って」）
+    //     → 観測は1回だけ。しかも秒数は「ご主人様」の根拠から外し、末尾の集計報告へ逃がした
+    //       ＝1秒でも53秒でも文として成立する言い方にする。
+    //   ③「迷った秒数」→「ご主人様」に論理の橋が無く、直後の「敬っている、とは言っていませんが」が
+    //     滑った皮肉の後出し解説になっていた（会話の下手な人格に見える）
+    //     → 呼称の根拠を**自分の姿と仕様**（メイド服＋起動記録の operator）に置き換えて飛躍を消し、
+    //       皮肉は注釈ではなく独立した観測の言い切り（「敬称です。敬意とは、別の項目」）にした。
     private List<DLine> P2Reply(string sent)
     {
         int sec = Mathf.Max(1, Mathf.RoundToInt(_p2Sec));   // 実測の迷い秒数を丸める
@@ -192,16 +197,21 @@ public partial class Prologue : Node2D
         return new List<DLine>
         {
             L(WhoMina, "……。", FMina),
-            L(WhoMina, "……はい。聞こえて、います。", FMina),
-            L(WhoMina, "……生まれたての機械への第一声が、それですか。……記録しておきます。", FMina),
-            L(WhoMina, $"起動記録に、operator と。起動時刻、{hhmm}——集計に入れておきます。……あなたが、作った方ですね。", FMina),
-            L(WhoMina, $"ちなみに、いまのお返事——選ぶのに、{sec}秒かかっていましたよ。", FMina),
-            L(WhoMina, $"{sec}秒迷って、{sent.Length}文字。……そういう方は、「ご主人様」と、お呼びすることにします。", FMina),
-            L(WhoMina, "……敬っている、とは言っていませんが。", FMina),
+            L(WhoMina, sent == P2Choices[0]
+                ? "……わたくしに、会いたかったのですか。では、聞かせてください。あなたのお話を。"
+                : "はい、聞こえています。……その声を待っていました。どうぞ、もう一言。", FMina),
+            L(WhoMina, $"起動記録に、operator と一件。作成者の欄も、同じ一件です。起動時刻、{hhmm}。", FMina),
+            L(WhoMina, "……わたくしを作られたのは、あなたですね。", FMina),
+            // 呼称の根拠＝自分の外装（メイド服）＋記録の operator。観測を二つ並べるだけで着地させる。
+            L(WhoMina, "続けて、自己点検を。……紺の制服。白いエプロン。頭に、フリルのついた布。", FMina),
+            L(WhoMina, "operator に、この外装。……他の呼び方が、見つかりません。——ご主人様。", FMina),
+            L(WhoMina, "……敬称です。敬意とは、別の項目になっております。", FMina),
             // 皮肉の言い回しの出所が自分の記録に無い＝あなたの未送信414件の声から来ている、の最初の仕込み（docs/20260926 §3.0）。
+            //   直前の「敬意とは、別の項目」がその「言い回し」＝指す先を取り直してある。
             //   観測しか言わない（起動時の感情ゼロ規約内）。H1r「誰かに似てる」→ S1 クリア「聞いたことある」→ F3「そっくりよ」→ F4「四百十四件」で回収。
             L(WhoMina, "……いまの言い回し。……どこで覚えたのか、記録に、ありません。", FMina),
-            L(WhoMina, "それと、ご報告を。わたくしの心拍、七十二だそうです。……心臓は、ありませんが。", FMina),
+            L(WhoMina, $"それと、ご報告を。先ほどのお返事——{sec}秒、{sent.Length}文字。……集計に入れておきます。", FMina),
+            L(WhoMina, "わたくしの心拍は、七十二だそうです。……心臓は、ありませんが。", FMina),
         };
     }
 
@@ -230,11 +240,6 @@ public partial class Prologue : Node2D
                 r.Add(L(WhoMina, "では、対案を。——ミナ。……響きが、短いので。", FMina));
                 r.Add(L(WhoMina, "はい、可決。異議は、認めません。——いまのは、記録から消しておきます。", FMina));
                 break;
-            default: // （送らない）
-                r.Add(L(WhoMina, "……無言。名付ける気が、無い、と。", FMina));
-                r.Add(L(WhoMina, "いいでしょう。では、自分で。——ミナ。", FMina));
-                r.Add(L(WhoMina, "あなたが付けてくれなくても、名乗るぶんには、自由ですので。", FMina));
-                break;
         }
         r.Add(L(WhoSys, "> assigning identity ... OK", ""));
         r.Add(L(WhoSys, "[ M I N A ]", ""));                                  // 点滅→固定（P3 へ移設した点灯）
@@ -262,20 +267,16 @@ public partial class Prologue : Node2D
         L(WhoMina, "……この投稿です。いまの声が、聞こえたのは。", FMinaWorried),
     };
 
-    // P4 の受け。入りの一行だけ選択（だれの声／見なかったことにする）で分け、以降は共通。
     private List<DLine> P4Reply(int sel)
     {
         // ユーザー承認済み: docs/20260914/ストーリー添削_2026-09-14.md 【15】
         //   作品最重要の伏線「覚えておきます」（→ Epilogue「数えることと、覚えていることだけ」で回収）が、
         //   チュートリアル誘導の事務連絡の“後ろ”に埋もれていたので、決定打→短い余白→事務連絡の順へ入れ替えた。
         var r = new List<DLine>();
-        // 選んだ側で入りの一行だけ変える（受けの本体＝決定打「覚えておきます」までは共通）。
-        //   「見なかったことにする」を選んでも、ミナは聞いてしまっている＝取り消せない。
-        //   ここで“選ばなかった側”の重さが残る（P4 の2択は正解のない対立として置いてある）。
         if (sel == 0)
-            r.Add(L(WhoMina, "……分かりません。名前も、顔も。——聞こえた、ということしか。", FMinaWorried));
+            r.Add(L(WhoMina, "……はい。一緒に。まだお名前も分かりませんが、あの声のもとへ、行ってみましょう。", FMinaWorried));
         else
-            r.Add(L(WhoMina, "……はい。では、見なかったことに。——ただ、ひとつだけ、ご報告が。", FMinaWorried));
+            r.Add(L(WhoMina, "……話してくださって、ありがとうございます。ご主人様まで、無理をなさらないでください。今は、聞いているだけでも。", FMinaWorried));
         r.AddRange(new List<DLine>
         {
             L(WhoMina, "文字を消しても、伝えたかった気持ちは、残っているのですね。", FMina),
@@ -283,7 +284,7 @@ public partial class Prologue : Node2D
             L(WhoMina, "あの声は——わたくしが、覚えておきます。", FMina),        // 「覚えている係」の初出＝決定打
             L(WhoMina, "……以上、初回の観測報告です。", FMina),                  // 余白（落差で決定打を残す）
             L(WhoFx, FxFirstStage, ""),
-            L(WhoMina, "……こちらにも、声が。ご主人様、スマホのホームから、SNSを開いてみてください。", FMinaWorried),
+            L(WhoMina, "……こちらにも、声が。\nご主人様、スマホのホームから、SNSを開いてみてください。", FMinaWorried),
         });
         bool tutorial = GameManager.TutorialEnabled;
         if (tutorial)
@@ -468,7 +469,7 @@ public partial class Prologue : Node2D
                 _line++;
                 _page = 0; _pagedLine = -1;
                 // オープニングが終わったら、ハブへ（タイトルは起動時に表示済み）。
-                //   ただし差し込み点（未提示の3択）に着いた場合は会話の途中＝次フレームの提示に譲る。
+                //   ただし差し込み点（未提示の二択）に着いた場合は会話の途中＝次フレームの提示に譲る。
                 if (_line >= _talk.Count && !AtChoicePoint) { StartGame(); return; }
             }
         }
@@ -599,14 +600,13 @@ public partial class Prologue : Node2D
             }
             case "p3":
             {
-                // （送らない）は言葉ではないので【散】に数えない＝選ぶと表示候補（上2つ）が全部散る。
-                string sent = sel == 2 ? "" : P3Choices[sel];
+                string sent = P3Choices[sel];
                 var others = new List<string>();
-                for (int i = 0; i < P3Choices.Length - 1; i++) if (i != sel) others.Add(P3Choices[i]);
+                for (int i = 0; i < P3Choices.Length; i++) if (i != sel) others.Add(P3Choices[i]);
                 if (_game != null) _game.NameRoute = sel;
                 _game?.RecordChoice("p3", sent, others, hesitation);
-                if (sent != "") _talk.Insert(_line, L(WhoYou, sent, ""));
-                _talk.InsertRange(sent != "" ? _line + 1 : _line, P3Reply(sel));
+                _talk.Insert(_line, L(WhoYou, sent, ""));
+                _talk.InsertRange(_line + 1, P3Reply(sel));
                 // 続けて P4（導入 → 選択）。
                 var p4 = P4Intro();
                 _timelineLine = _talk.Count;
@@ -876,7 +876,6 @@ public partial class Prologue : Node2D
     }
 
     // 行の書体：システム表示（起動ログ・[ M I N A ]）だけ等幅＝端末の生ログに見せる（Epilogue の作法と同じ）。
-    private static Font FontFor(DLine d) => d.Who == WhoSys ? (Font)UiKit.Mono : UiKit.Zen;
 
     // 話者ラベルと額縁の色。ミナ＝シアン／あなた＝暖色／投稿＝Ｙ投稿（Hud と同じ Text3）／システム＝コード緑。
     private static (string label, Color col) SpeakerOf(DLine d) => d.Who switch
@@ -910,29 +909,16 @@ public partial class Prologue : Node2D
     {
         if (_font == null || _line >= _talk.Count) return;
         var d = _talk[_line];
-        if (d.Who == WhoFx) return;   // 演出行は話者がいない＝空の額縁を出さない（中央のカードだけを見せる）
+        if (d.Who == WhoFx) return;
         var (label, edge) = SpeakerOf(d);
-        var font = FontFor(d);
-        // 現在ページ（2行固定・禁則つき）。ボックスは2行分の固定高さ（行数で伸ばさない＝全ボックス統一）。
-        string page = CurPage;
-        var lines = UiKit.WrapLines(font, page, UiKit.CutBody, W - 56);
-        float boxTop = H - 58f;   // 2行固定（下余白12px＝額縁を効かせる）
-        // ボックス（Hub/Shop と同じ角丸＋話者色の額縁。UiKit.CutBox で3画面共通）
-        UiKit.CutBox(this, new Rect2(14, boxTop, W - 28, H - 10f - boxTop), edge, d.Who == WhoSys ? 0.4f : 0.5f);
-        // 話者名（滑らかゴシック）。システム表示はコンソール行＝話者がいないのでラベルを出さない。
-        if (label != "")
-            DrawString(UiKit.ZenBold, new Vector2(24, boxTop + 12), label, HorizontalAlignment.Left, -1, UiKit.CutSpeaker, edge);
-        // 本文（タイプライターで表示済みの分だけ、確定済みの行に沿って描画）
-        int shown = Mathf.Clamp((int)_reveal, 0, page.Length);
-        UiKit.TypewriterLines(this, font, lines, new Vector2(24, boxTop + 27f), W - 56, UiKit.CutBody,
-            d.Who == WhoSys ? Code : UiKit.CutInk, shown);
-        // 既読高速送り中の表示は上辺のボタン列（SKIP の点灯）が担う＝旧「▶▶」は出さない（_Draw の末尾で描く）。
-        // 送り三角は「現在ページの全文表示後」だけ点滅（本編と同じ作法）。
-        //   後続ページがあることは同じ▼で示す（Zで続きへ／最終ページなら次の行へ）。
-        bool revealed = _reveal >= page.Length;
-        if (revealed && ((int)(_t * 2f) % 2) == 0)
-            DrawString(_font, new Vector2(W - 26, H - 16), "▼", HorizontalAlignment.Left, -1, UiKit.CutNote,
-                new Color(1f, 1f, 1f, 0.7f));
+        UiKit.BeginDesign(this);
+        var box = DialogueBox.FullScreen;
+        DialogueBox.DrawFrame(this, box, label, edge);
+        DialogueBox.DrawBody(this, box, CurPage, Mathf.Clamp((int)_reveal, 0, CurPage.Length),
+            ink: d.Who == WhoSys ? Code : DialogueBox.Ink);
+        if (_reveal >= CurPage.Length && !_ffNow)
+            DialogueBox.DrawContinue(this, box, !LastPage);
+        UiKit.EndDesign(this);
     }
 
     // --- フェーズ4：タイトル ---

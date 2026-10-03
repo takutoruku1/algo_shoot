@@ -58,8 +58,8 @@ public partial class HubKeysQa : Node
             game.MarkIdleDialogSeen("once_account_intro");
             // あかりをクリア済みにする＝あかりのカードで [返信] が使える（CanReplySel）。
             Read<HashSet<string>>(game, "_cleared").Add(GameManager.FirstStageId);
-            // 強化ショップの初回説明（ShopTutorial）は既読にする。あかりをクリア済みにした瞬間 ShopUnlocked が立ち、
-            //   ホームが ShopTutorial.tscn へ飛んでしまう（CompanionDialogueQa と同じ扱い）。
+            // 強化ショップの初回説明は既読にする。あかりをクリア済みにした瞬間 ShopUnlocked が立ち、
+            //   ホームが説明の会話を始めてしまう（CompanionDialogueQa と同じ扱い）。
             game.ShopTutorialSeen = true;
             game.AutoSaveEnabled = false;
             game.Difficulty = GameManager.Diff.Normal;

@@ -128,8 +128,9 @@ public partial class StoryFilmQa : Node
             Call(boss, "OnHpChanged");
             Write(game, "_comboTimer", 5.0);
             await Frames(10);
+            if (!koharu && !rei) await CheckMemoryLeadIn(boss, hud, player, stage, game);
             var film = GetTree().GetFirstNodeInGroup("storyfilm") as StoryFilm;
-            Check(film != null && hud.CinematicMode, "HP threshold starts flashback");
+            Check(film != null && hud.CinematicMode, "memory sequence reaches flashback");
             Check(world.ProcessMode == ProcessModeEnum.Disabled && Hud.BubblePaused, "combat is suspended");
             if (rei)
             {
@@ -154,6 +155,23 @@ public partial class StoryFilmQa : Node
                   && game.Bombs == bombs && player.BombCount == bombCount, "movement, damage and bombs stay frozen");
             Check(Read<double>(boss, "_phaseT", typeof(Enemy)) == phaseT && Read<double>(stage, "_stageElapsed") == elapsed, "boss phase and stage clocks stay frozen");
             Check(game.ProcessMode == ProcessModeEnum.Disabled && Read<double>(game, "_comboTimer") == comboTime, "combo timeout stays frozen during memory");
+            if (Array.IndexOf(OS.GetCmdlineUserArgs(), "--memory-lead-in") >= 0)
+            {
+                await AdvanceUntil(() => !IsInstanceValid(film));
+                await WaitUntil(() => !hud.CinematicMode, 600);
+                Check(!hud.CinematicMode && !Hud.BubblePaused && !hud.HoldBubble && !hud.BattleMemoryTempo
+                      && world.ProcessMode == ProcessModeEnum.Inherit && game.ProcessMode == gameMode,
+                    $"lead-in and flashback release every dialogue pause (cinematic={hud.CinematicMode}, bubble={Hud.BubblePaused}, hold={hud.HoldBubble}, tempo={hud.BattleMemoryTempo}, world={world.ProcessMode}, game={game.ProcessMode}/{gameMode})");
+                Check(Read<bool>(boss, "_form2", typeof(Enemy)) && Read<bool>(boss, "_corridorFired"),
+                    "second form and corridor start after the flashback");
+                Call(boss, "OnHpChanged");
+                await Frames(15);
+                Check(Read<CharacterStoryTalk>(boss, "_memoryTalk").Active == false
+                      && GetTree().GetNodesInGroup("storyfilm").Count == 0, "lead-in and flashback play only once");
+                GD.Print("[StoryQA] MEMORY LEAD-IN ALL PASS");
+                GetTree().Quit();
+                return;
+            }
             var first = await Shot("memory_start", grayscale: true);
             await Frames(90);
             var moving = await Shot("memory_motion", grayscale: true);
@@ -283,7 +301,8 @@ public partial class StoryFilmQa : Node
             stage.SetProcess(true);
             await AdvanceUntil(() => GetTree().CurrentScene != root);
             await QaSceneTransition.Wait(this);
-            Check(GetTree().CurrentScene.SceneFilePath is "res://ShopTutorial.tscn" or "res://Hub.tscn", "normal clear transition completes");
+            // クリアの行き先はハブ1本（初回ショップ説明はそのハブの中で流れる＝別シーンへ寄らない・2026-10-03）。
+            Check(GetTree().CurrentScene.SceneFilePath == "res://Hub.tscn", "normal clear transition completes");
             Audio.Instance?.StopMusic(0);
             foreach (var child in GetNode<Audio>("/root/Audio").GetChildren())
                 if (child is AudioStreamPlayer audio) { audio.Stop(); audio.Stream = null; }
@@ -300,6 +319,47 @@ public partial class StoryFilmQa : Node
             GetTree().Paused = false;
             GetTree().Quit(1);
         }
+    }
+
+    private async Task CheckMemoryLeadIn(Enemy boss, Hud hud, Player player, Node stage, GameManager game)
+    {
+        Check(!hud.CinematicMode && GetTree().GetNodesInGroup("storyfilm").Count == 0,
+            "HP threshold starts dialogue before the illustration");
+        Check(Hud.BubblePaused && hud.HoldBubble, "lead-in pauses combat");
+        var talk = Read<CharacterStoryTalk>(boss, "_memoryTalk");
+        var position = player.GlobalPosition;
+        int lives = player.Lives, bombs = game.Bombs;
+        float hp = boss.HpRatio;
+        double phase = Read<double>(boss, "_phaseT", typeof(Enemy));
+        double elapsed = Read<double>(stage, "_stageElapsed");
+        double combo = Read<double>(game, "_comboTimer");
+        KeyEvent(Key.Right, true);
+        KeyEvent(Key.X, true);
+        await Frames(120);
+        KeyEvent(Key.Right, false);
+        KeyEvent(Key.X, false);
+        Check(Read<int>(talk, "_line") == 0 && !hud.CinematicMode, "first exchange waits for the reader");
+        Check(player.GlobalPosition == position && player.Lives == lives && game.Bombs == bombs && boss.HpRatio == hp,
+            "lead-in freezes movement, damage and bombs");
+        Check(Read<double>(boss, "_phaseT", typeof(Enemy)) == phase
+              && Read<double>(stage, "_stageElapsed") == elapsed && Read<double>(game, "_comboTimer") == combo,
+            "lead-in freezes boss, stage and combo clocks");
+        int firstEntry = Hud.Backlog.Count - 1;
+        var args = OS.GetCmdlineUserArgs();
+        bool auto = Array.IndexOf(args, "--auto") >= 0;
+        bool ff = Array.IndexOf(args, "--ff") >= 0;
+        game.AutoAdvanceDialog = auto;
+        if (ff) KeyEvent(Key.Ctrl, true);
+        if (auto || ff) await WaitUntil(() => hud.CinematicMode, 1800);
+        else await AdvanceUntil(() => hud.CinematicMode);
+        if (ff) KeyEvent(Key.Ctrl, false);
+        game.AutoAdvanceDialog = false;
+        var exchanges = Hud.Backlog.Skip(firstEntry).ToArray();
+        Check(exchanges.Length == 5 && exchanges.Select(e => e.Speaker).Distinct().Count() == 2,
+            "five exchanges between Akari and Mina precede the film");
+        Check(exchanges[^1].Text.Contains("三日前") && exchanges[^1].Text.Contains("席"),
+            "last exchange introduces the flashback's time and place");
+        Check(!talk.Active, "lead-in finishes when the film takes over");
     }
 
     // ステージ × 操作キャラ（ミナ／あかり／こはる／レイ）で、戦闘中の回想（memory）と撃破後のアフター
@@ -360,6 +420,7 @@ public partial class StoryFilmQa : Node
             string memory;
             if (job == Job.Tank)
             {
+                if (stageName == "Akari") await AdvanceUntil(() => hud.CinematicMode);
                 await WaitUntil(() => hud.CinematicMode, 120);
                 var film = (StoryFilm)GetTree().GetFirstNodeInGroup("storyfilm");
                 memory = (string)filmId.GetValue(film)!;
@@ -445,7 +506,7 @@ public partial class StoryFilmQa : Node
             }
             Check(GetTree().CurrentScene != root, "clear transition leaves the stage");
             Check(extraFilms == 0, "no second (playable) film between the aftermath and the transition");
-            Check(GetTree().CurrentScene.SceneFilePath is "res://Hub.tscn" or "res://ShopTutorial.tscn"
+            Check(GetTree().CurrentScene.SceneFilePath == "res://Hub.tscn"
                   && game.IsStageCleared(stageId), "clear transition completes after the aftermath");
             if (job != Job.Tank)
             {

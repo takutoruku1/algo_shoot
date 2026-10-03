@@ -1,8 +1,8 @@
 using Godot;
 
 // Hud.BacklogFeed : Hud を使わず自前で会話を描く画面から会話ログ（Hud.Backlog）へ行を積む入口。
-//   対象＝Prologue / Final / Epilogue（各カットシーン）、OpeningFilm / EndingFilm（字幕）、Hub の会話、
-//   ShopTutorial。どれも Hud.SetDialog を通らないため、これまで会話ログに残らなかった
+//   対象＝Prologue / Final / Epilogue（各カットシーン）、OpeningFilm / EndingFilm（字幕）、Hub の会話
+//   （帰還会話・小話・強化ショップの説明）。どれも Hud.SetDialog を通らないため、これまで会話ログに残らなかった
 //   （ユーザー指示 2026-09-26「オープニングから全シーンでログが開けるように」）。
 //   本体（PushBacklog / BacklogSpeaker / KindColor）は Hud.cs 側。ここは partial で同じクラスに
 //   公開の呼び口を1つ足すだけ＝積み方（空行は捨てる／直前と同一の行は弾く／上限 200 行）は Hud と同じ。

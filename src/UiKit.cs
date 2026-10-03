@@ -242,7 +242,7 @@ public static class UiKit
     private const string KinsokuNoHead =
         "、。，．・：；！？…‥ーっゃゅょぁぃぅぇぉゎッャュョァィゥェォヮ々ゝゞヽヾ）」』】〕｝〉》’”!?.,:;)]}";
     private const string KinsokuNoTail = "（「『【〔｛〈《‘“([{";
-    private static bool IsWordChar(char c) => c < 128 && (char.IsLetterOrDigit(c) || c == '\'');
+    private static bool IsWordChar(char c) => c < 128 && (char.IsLetterOrDigit(c) || "'_@:/.,-".IndexOf(c) >= 0);
 
     private static bool CanBreakLine(string text, int at)
     {
@@ -250,13 +250,52 @@ public static class UiKit
         bool pause = after is '…' or '‥' or '—';
         if (pause && before == after) return false;
         bool pauseStart = pause && at + 1 < text.Length && text[at + 1] == after;
+        if (before is '…' or '‥' or '—')
+        {
+            int head = at - 1;
+            while (head > 0 && text[head - 1] == before) head--;
+            if (head == 0 || IsSentenceEnd(text, head)) return false;
+        }
         return (KinsokuNoHead.IndexOf(after) < 0 || pauseStart)
             && KinsokuNoTail.IndexOf(before) < 0;
     }
 
-    private static bool IsPhraseEnd(string text, int at)
-        => "。！？、；!?;）」』】〕｝〉》’”)]}".IndexOf(text[at - 1]) >= 0
-            || char.IsWhiteSpace(text[at - 1]);
+    private static bool IsSentenceEnd(string text, int at)
+    {
+        while (at > 0 && (char.IsWhiteSpace(text[at - 1]) || "）」』】〕｝〉》’”)]}".IndexOf(text[at - 1]) >= 0)) at--;
+        return at > 0 && "。！？!?".IndexOf(text[at - 1]) >= 0
+            || at > 1 && text[at - 1] == '.' && !char.IsDigit(text[at - 2]);
+    }
+
+    private static int BreakRank(string text, int at)
+    {
+        if (IsSentenceEnd(text, at)) return 0;
+        if (at + 1 < text.Length && (text[at] is '…' or '‥' or '—') && text[at] == text[at + 1]) return 1;
+        if ("、；;）」』】〕｝〉》’”)]}".IndexOf(text[at - 1]) >= 0) return 2;
+        return char.IsWhiteSpace(text[at - 1]) ? 3 : 4;
+    }
+
+    private static bool[] WordBoundaries(string text)
+    {
+        // TextServer uses Unicode code-point offsets; C# slices use UTF-16 offsets.
+        var offsets = new System.Collections.Generic.List<int> { 0 };
+        int offset = 0;
+        foreach (var rune in text.EnumerateRunes()) { offset += rune.Utf16SequenceLength; offsets.Add(offset); }
+        var words = TextServerManager.GetPrimaryInterface().StringGetWordBreaks(text, "ja");
+        var breaks = new bool[text.Length + 1];
+        foreach (int at in words) breaks[offsets[at]] = true;
+        for (int i = 0; i < words.Length; i += 2)
+        {
+            int start = offsets[words[i]], end = offsets[words[i + 1]];
+            string word = text[start..end];
+            if (word is "は" or "が" or "を" or "に" or "へ" or "と" or "で" or "も" or "の"
+                or "ね" or "よ" or "か" or "から" or "まで" or "だけ" or "です" or "ます"
+                or "た" or "て" or "だ" or "ない" or "たい" or "ません" or "でした" or "様" or "さん" or "ちゃん")
+                breaks[start] = false;
+            if (word is "お" or "ご") breaks[end] = false;
+        }
+        return breaks;
+    }
 
     // width に収まるよう折り返した行リストを返す。明示改行 '\n' は尊重。
     //   エンディング等の独自レンダラも同じ折り返し結果（＝同じ禁則・同じ行数）を共有できるよう public。
@@ -269,6 +308,7 @@ public static class UiKit
             if (para.Length == 0) { outLines.Add(""); continue; }
             var stops = new System.Collections.Generic.List<int>(System.Globalization.StringInfo.ParseCombiningCharacters(para));
             stops.Add(para.Length);
+            bool[]? wordBreaks = null;
             int first = 0;
             while (first < stops.Count - 1)
             {
@@ -288,28 +328,33 @@ public static class UiKit
                     while (brk > first + 1 && !CanBreakLine(para, stops[brk])) brk--;
                     if (preferPhrases)
                     {
-                        bool phrase = false;
+                        int bestRank = 4;
+                        int phraseBreak = brk;
                         for (int candidate = brk; candidate > first; candidate--)
                         {
                             int at = stops[candidate];
-                            if (!IsPhraseEnd(para, at) || !CanBreakLine(para, at)) continue;
+                            int rank = BreakRank(para, at);
+                            if (rank >= bestRank || !CanBreakLine(para, at)) continue;
+                            if (IsWordChar(para[at - 1]) && IsWordChar(para[at])) continue;
                             float used = TextW(f, para.Substring(start, at - start), size);
-                            bool lastLineFits = TextW(f, para.Substring(at), size) <= width;
+                            float tail = TextW(f, para.Substring(at), size);
+                            bool lastLineFits = tail <= width;
                             if (used < width * 0.5f && !lastLineFits) continue;
-                            brk = candidate;
-                            phrase = true;
-                            break;
+                            if (tail < Mathf.Min(size * 6f, width * .4f)) continue;
+                            phraseBreak = candidate;
+                            bestRank = rank;
                         }
-                        // Keep a short sentence ending with enough preceding text to read as a line.
-                        if (!phrase && TextW(f, para.Substring(stops[brk]), size) < size * 4f)
+                        if (bestRank < 4) brk = phraseBreak;
+                        else
                         {
+                            wordBreaks ??= WordBoundaries(para);
                             float minimumTail = Mathf.Min(size * 6f, width * 0.4f);
-                            for (int candidate = brk - 1; candidate > first; candidate--)
+                            for (int candidate = brk; candidate > first; candidate--)
                             {
                                 int at = stops[candidate];
+                                if (TextW(f, para.Substring(start, at - start), size) < width * .65f) break;
                                 float tail = TextW(f, para.Substring(at), size);
-                                if (tail > width) break;
-                                if (tail < minimumTail || !CanBreakLine(para, at)) continue;
+                                if (!wordBreaks[at] || tail < minimumTail || !CanBreakLine(para, at)) continue;
                                 if (IsWordChar(para[at - 1]) && IsWordChar(para[at])) continue;
                                 brk = candidate;
                                 break;
@@ -396,27 +441,6 @@ public static class UiKit
         };
         if (border is Color bc && borderW > 0f) { sb.BorderColor = bc; sb.SetBorderWidthAll((int)Mathf.Max(1, borderW)); }
         ci.DrawStyleBox(sb, r);
-    }
-
-    // ── カットシーンのテキストボックス（Prologue/Final/Epilogue 共通の額縁）──
-    //   従来は直角の黒ベタ＋上辺1px直線で、Hub/Shop の角丸カードと見た目が揃っていなかった。
-    //   下から順に：背景との断層を消すフェード帯 → 角丸ボックス（話者色の全周ボーダー）→
-    //   内側の「ガラス」グラデ → 上辺アクセント（左右へ消える横グラデ）。
-    //   座標は 384×216 の生座標（カットシーンは BeginDesign を使わない）。radius=5 は Hud の 16×0.3 相当。
-    public static void CutBox(CanvasItem ci, Rect2 r, Color accent, float borderAlpha = 0.5f)
-    {
-        // 背景との断層消し（ボックス上端の8px上・透明→暗）
-        VGradient(ci, new Rect2(r.Position.X, r.Position.Y - 8f, r.Size.X, 8f),
-            new[] { new Color(0.02f, 0.02f, 0.035f, 0f), new Color(0.02f, 0.02f, 0.035f, 0.55f) },
-            new[] { 0f, 1f });
-        Box(ci, r, new Color(0.05f, 0.04f, 0.09f, 0.95f), 5f, accent with { A = borderAlpha }, 1f);
-        // 内側グラデ（上の白がうっすら乗る＝ガラス感）
-        VGradient(ci, new Rect2(r.Position.X + 1f, r.Position.Y + 1f, r.Size.X - 2f, r.Size.Y * 0.5f),
-            new[] { new Color(1f, 1f, 1f, 0.045f), new Color(1f, 1f, 1f, 0f) }, new[] { 0f, 1f });
-        // 上辺アクセント：均一な1px直線をやめ、中央が濃く左右へ消える横グラデ2本にする
-        float half = r.Size.X * 0.5f;
-        HGradient(ci, new Rect2(r.Position.X, r.Position.Y, half, 1f), accent with { A = 0f }, accent with { A = 0.75f });
-        HGradient(ci, new Rect2(r.Position.X + half, r.Position.Y, half, 1f), accent with { A = 0.75f }, accent with { A = 0f });
     }
 
     // ── 縦リニアグラデ矩形（上→下に色を補間）──

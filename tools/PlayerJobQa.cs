@@ -215,8 +215,8 @@ public partial class PlayerJobQa : Node
                 foreach (bool bomb in new[] { false, true })
                 {
                     var rect = Hud.ResourceMarkRect(slot, count, bomb);
-                    Check(rect.Position.X >= 44 && rect.End.X <= Field.PanelW - 18
-                        && rect.Position.Y >= (bomb ? 252 : 146) && rect.End.Y <= (bomb ? 307 : 201),
+                    Check(rect.Position.X >= 18 && rect.End.X <= Field.PanelW - 18
+                        && rect.Position.Y >= (bomb ? 260 : 164) && rect.End.Y <= (bomb ? 312 : 216),
                         $"{(bomb ? "BOMB" : "LIFE")} {slot + 1}/{count} fits its fixed resource area");
                 }
         game.SetProcess(false);
@@ -242,8 +242,8 @@ public partial class PlayerJobQa : Node
             var faces = Read<Dictionary<Job, Texture2D>>(root.Hud, "_accountFaces");
             Check(faces[job.Id].ResourcePath == CompanionDialogue.AccountPortrait(job.Id), "account portrait matches the playable character");
             string handle = (string)typeof(Hud).GetProperty("AccountHandle", Private)!.GetValue(root.Hud)!;
-            Check(60 + UiKit.TextW(UiKit.ZenBold, job.CharacterName, 19) + 15 <= Field.PanelW - 18
-                && 60 + UiKit.TextW(UiKit.Mono, handle, 10) <= Field.PanelW - 18,
+            Check(76 + UiKit.TextW(UiKit.ZenBold, job.CharacterName, 19) + 15 <= Field.PanelW - 18
+                && 76 + UiKit.TextW(UiKit.Mono, handle, 10) <= Field.PanelW - 18,
                 "profile name and handle fit the single account header");
             var marks = Read<Dictionary<Job, Texture2D>>(root.Hud, "_lifeMarks");
             Check(marks[job.Id].ResourcePath == $"res://char/player/{job.CharacterId}/{job.CharacterId}_core_v1.png",
@@ -281,20 +281,17 @@ public partial class PlayerJobQa : Node
                 Check(full.GetPixel(1, Mathf.RoundToInt(180f * size.Y / 720f)).R < 0.3f,
                     "full health never uses the low-life warning stripe, including Akari");
                 var background = full.GetPixel(Mathf.RoundToInt(4f * size.X / 1280f), Mathf.RoundToInt(400f * size.Y / 720f));
-                Check(background.R > 0.10f && background.R < 0.25f && Mathf.Abs(background.R - background.B) < 0.04f,
+                Check(background.R > 0.08f && background.R < 0.25f && Mathf.Abs(background.R - background.B) < 0.04f,
                     "sidebar uses a charcoal surface instead of white or pure black");
-                bool quietThread = true;
+                bool quietGutter = true;
                 float scale = size.X / 1280f;
-                foreach (int postY in new[] { 100, 206, 310, 390, 468, 530, 600, 662 })
-                    for (int x = 8; x <= 36; x += 4)
-                        for (int y = postY + 6; y < postY + 40; y += 4)
-                        {
-                            if (x >= 18 && x <= 26) continue;
-                            var pixel = full.GetPixel(Mathf.RoundToInt(x * scale), Mathf.RoundToInt(y * scale));
-                            quietThread &= Mathf.Abs(pixel.R - background.R) + Mathf.Abs(pixel.G - background.G)
-                                + Mathf.Abs(pixel.B - background.B) < 0.02f;
-                        }
-                Check(quietThread, "thread uses a quiet gutter without repeated account avatars");
+                for (int y = 128; y < 400; y += 4)
+                {
+                    var pixel = full.GetPixel(Mathf.RoundToInt(8f * scale), Mathf.RoundToInt(y * scale));
+                    quietGutter &= Mathf.Abs(pixel.R - background.R) + Mathf.Abs(pixel.G - background.G)
+                        + Mathf.Abs(pixel.B - background.B) < 0.02f;
+                }
+                Check(quietGutter, "resource groups have a clear gutter without timeline decoration");
                 if (size.X == 1280)
                 {
                     full.Convert(Image.Format.Rgba8);
@@ -347,18 +344,30 @@ public partial class PlayerJobQa : Node
                 root.Hud.SetFocusMode(false, false, false, 0f);
                 typeof(GameManager).GetProperty("Combo")!.SetValue(game, 0);
                 using var noExtras = await Capture("no_extras");
-                Check(RegionDifference(full, noExtras, new Rect2I(44, 616, 146, 35)) > 0.01f
-                    && RegionDifference(full, noExtras, new Rect2I(0, 662, 208, 58)) > 0.01f,
+                Check(RegionDifference(full, noExtras, new Rect2I(18, 666, 172, 38)) > 0.01f
+                    && RegionDifference(full, noExtras, new Rect2I(0, 490, 208, 58)) > 0.01f,
                     "combo post updates to zero and unowned focus remains hidden");
-                Check(RegionDifference(full, noExtras, new Rect2I(0, 100, 208, 106)) < 0.001f,
+                Check(RegionDifference(full, noExtras, new Rect2I(0, 120, 208, 96)) < 0.001f,
                     "conditional rows do not shift the resource layout");
                 typeof(GameManager).GetProperty("Score")!.SetValue(game, long.MaxValue);
                 using var wideScore = await Capture("wide_score");
-                Check(RegionDifference(noExtras, wideScore, new Rect2I(191, 424, 16, 36)) < 0.001f,
+                Check(RegionDifference(noExtras, wideScore, new Rect2I(191, 588, 16, 38)) < 0.001f,
                     "maximum score fits before the sidebar edge");
                 typeof(GameManager).GetProperty("Score")!.SetValue(game, 127840L);
                 typeof(GameManager).GetProperty("Combo")!.SetValue(game, 12);
                 root.Hud.SetFocusMode(true, true, false, 1f);
+                typeof(GameManager).GetProperty("PurifiedCount")!.SetValue(game, 0);
+                using var purifyEmpty = await Capture("purify_empty");
+                typeof(GameManager).GetProperty("PurifiedCount")!.SetValue(game, game.StageTarget);
+                using var purifyFull = await Capture("purify_full");
+                Check(RegionDifference(purifyEmpty, purifyFull, new Rect2I(18, 368, 172, 12)) > 0.2f,
+                    "purification has a clearly visible full-width segmented meter");
+                typeof(GameManager).GetProperty("PurifiedCount")!.SetValue(game, game.StageTarget / 2);
+                Write(root.Player, "_lockArmed", true);
+                using var lockWaiting = await Capture("lock_waiting");
+                Check(RegionDifference(full, lockWaiting, new Rect2I(0, 416, 208, 66)) > 0.015f,
+                    "armed lock mode is visually distinct even without an enemy");
+                Write(root.Player, "_lockArmed", false);
 
                 async Task<Image> Capture(string state)
                 {
@@ -382,6 +391,15 @@ public partial class PlayerJobQa : Node
             await ToSignal(RenderingServer.Singleton, RenderingServer.SignalName.FramePostDraw);
             using (var image = GetViewport().GetTexture().GetImage())
                 Check(image.SavePng($"{output}/{job.CharacterId}_all_powerups.png") == Error.Ok, "upgrades and lock status fit the compact header");
+            if (job.Id == Job.Tank)
+            {
+                root.Hud.ShowDialog(Hud.LineKind.Mina, "……いいねが、ひとつ。この方にも、投稿しようとして、\n送れなかった言葉があるようです。");
+                root.Hud.RevealDialogNow();
+                await Frames(4);
+                await ToSignal(RenderingServer.Singleton, RenderingServer.SignalName.FramePostDraw);
+                using var dialogue = GetViewport().GetTexture().GetImage();
+                Check(dialogue.SavePng($"{output}/mina_dialogue.png") == Error.Ok, "dialogue and sidebar remain separate");
+            }
             root.QueueFree();
             await Task.Delay(150);
             await Frames(5);

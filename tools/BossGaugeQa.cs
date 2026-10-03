@@ -83,6 +83,9 @@ public partial class BossGaugeQa : Node
 
         // ── ① 中ボス（CameoBoss）を StageAkari.Step_BossCameo と同じ作り方で出す ──
         var cameo = SpawnCameo(root, "AkariCameo", new Vector2(Field.CenterX + 40, 100));
+        Write(player, "_locked", true);
+        Write(player, "_lockArmed", true);
+        Write(player, "_lockTarget", cameo);
         await Frames(80);
         var g1 = Gauges(cameo);
         Check($"中ボスの子に BossGauge が1つ（{g1.Length}）", g1.Length == 1);
@@ -125,6 +128,7 @@ public partial class BossGaugeQa : Node
         var old = g1.Length == 1 ? g1[0] : null;
         var second = new BossAkari { Name = "SecondBoss" };
         root.World.AddChild(second);
+        Write(player, "_lockTarget", second);
         second.GlobalPosition = new Vector2(Field.CenterX + 40, 100);
         var caster = (AreaSpellCaster)BaseField(second, "_caster").GetValue(second)!;
         caster.SetProcess(false);
@@ -274,8 +278,24 @@ public partial class BossGaugeQa : Node
 
         await Enter("Break", 0);
         Check($"{prefix}: broken shield starts with a full attack window", boss.GaugeWindowLeft == 1f && !boss.GaugeReforming);
+        hud.Bubbles!.ShieldBreak.Show(boss, GetNode<GameManager>("/root/Game").SelectedJob);
+        await Wait(0.3);
+        Check($"{prefix}: shield break callout is visible", hud.Bubbles.ShieldBreak.Active);
         await Shot($"{prefix}_recovery_break");
         await Zoom(gauge, $"{prefix}_recovery_break_zoom", recovery: true);
+        if (_shot)
+        {
+            var game = GetNode<GameManager>("/root/Game");
+            var previousJob = game.SelectedJob;
+            foreach (Job job in Enum.GetValues<Job>())
+            {
+                game.SelectedJob = job;
+                boss.QueueRedraw();
+                await Shot($"{prefix}_lock_{job}");
+            }
+            game.SelectedJob = previousJob;
+            boss.QueueRedraw();
+        }
         foreach (double t in new[] { 1.6, 3.4, 4.0 })
         {
             await Enter("Exposed", t);
@@ -339,8 +359,8 @@ public partial class BossGaugeQa : Node
         float sx = image.GetWidth() / vis.X, sy = image.GetHeight() / vis.Y;
         float w = owner.GaugeWidth, top = recovery ? owner.GaugeBottom : owner.GaugeTop;
         var xf = g.GetGlobalTransformWithCanvas();
-        var a = xf * new Vector2(-w / 2f - 6f, top - (recovery ? 4f : 10f));
-        var b = xf * new Vector2(w / 2f + 6f, top + 8f);
+        var a = xf * new Vector2(-w / 2f - (recovery ? 6f : 23f), top - (recovery ? 4f : 13f));
+        var b = xf * new Vector2(w / 2f + 6f, top + (recovery ? 12f : 8f));
         int x0 = Mathf.Clamp((int)(Mathf.Min(a.X, b.X) * sx), 0, image.GetWidth() - 1);
         int y0 = Mathf.Clamp((int)(Mathf.Min(a.Y, b.Y) * sy), 0, image.GetHeight() - 1);
         int x1 = Mathf.Clamp((int)Mathf.Ceil(Mathf.Max(a.X, b.X) * sx), x0 + 1, image.GetWidth());

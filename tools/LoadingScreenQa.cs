@@ -37,7 +37,8 @@ public partial class LoadingScreenQa : Node
             await Frames(_movie ? 90 : 30);
 
             string[] scenes = _movie ? new[] { "Settings", "Hub", "Akari", "Hub", "Koharu" }
-                : new[] { "Settings", "Credits", "TitleMenu", "Prologue", "Hub", "ShopTutorial", "Shop",
+                // ShopTutorial.tscn は 2026-10-03 に廃止（説明はハブの会話として流れる＝ローディングを挟まない）。
+                : new[] { "Settings", "Credits", "TitleMenu", "Prologue", "Hub", "Shop",
                     "Training", "Customize", "Records", "Stage0", "Akari", "Koharu", "Rei", "MinaBattle", "Final", "Epilogue", "Hub" };
             foreach (string scene in scenes)
             {

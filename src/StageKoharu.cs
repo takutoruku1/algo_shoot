@@ -118,25 +118,20 @@ public partial class StageKoharu : Node
 
     private static readonly (int who, string text, string face)[] CameoTalk1_S21Rest =
     {
-        (2, "「少し休んでほしい」？　でも、休んだら……置いてかれちゃう。", KPale),
+        (2, "「そんなに頑張ったんだね。今日は休もう」……頑張った、って。ほんとに？　でも、休んだら……置いてかれちゃう。", KPale),
     };
 
     private static readonly (int who, string text, string face)[] CameoTalk1_S21Keep =
     {
-        (2, "「好きな時間は残して」……うん。好きなの。そこまで、なくしたくない。", KLit),
-    };
-
-    private static readonly (int who, string text, string face)[] CameoTalk1_S21Ask =
-    {
-        (2, "「本人はどうしたい」……って？　あたしは……今日も、見たい。", KFace),
+        (2, "「大好きなんだね。その気持ちは消さなくていい」……うん。好きなの。やめなよって、言われると思ってた。", KLit),
     };
 
     // 中ボスの第一声を s2_1 の選択から選ぶ。選んでいない／（送らない）なら既存の CameoTalk1（フォールバック）。
+    //   引用（「」の中）は S21Choices と一字一句そろえる＝「もう聞かれていた」の画が成立する条件。
     private static (int who, string text, string face)[] CameoIntroFor(GameManager? game) => (game?.ChosenAt("s2_1") ?? "") switch
     {
-        "少し休んでほしい" => CameoTalk1_S21Rest,
-        "好きな時間は残して" => CameoTalk1_S21Keep,
-        "本人はどうしたい" => CameoTalk1_S21Ask,
+        "そんなに頑張ったんだね。今日は休もう" => CameoTalk1_S21Rest,
+        "大好きなんだね。その気持ちは消さなくていい" => CameoTalk1_S21Keep,
         _ => CameoTalk1,
     };
 
@@ -157,31 +152,20 @@ public partial class StageKoharu : Node
         (1, "……かごに、栄養ドリンクが三本。買われたまま、開けられていません。", MWorried),
         (1, "ご主人様。……あの方に、何と声をかけましょう。休む日を、こちらで勝手に決めるわけにはいきませんので。", MFace),
     };
-    private static readonly string[] S21Choices = { "少し休んでほしい", "好きな時間は残して", "本人はどうしたい", "（送らない）" };
+    private static readonly string[] S21Choices = { "そんなに頑張ったんだね。今日は休もう", "大好きなんだね。その気持ちは消さなくていい" };
     private static (int who, string text, string face)[] S21Reply(int sel) => sel switch
     {
         0 => new (int, string, string)[]
         {
             (0, S21Choices[0], ""),
-            (1, "……はい。休んでほしい、と。予定をこなした数ではなく、あの方のことを。", MFace),
-            (1, "……会えたら、伝えましょう。空ける日は、一緒に探せますので。", MWorried),
-        },
-        1 => new (int, string, string)[]
-        {
-            (0, S21Choices[1], ""),
-            (1, "……好きな時間まで、消さなくていい。——そう、伝えてみます。", MFace),
-            (1, "全部を見ることと、好きでいることは。……同じでなくても、よいのですね。", MFace),
-        },
-        2 => new (int, string, string)[]
-        {
-            (0, S21Choices[2], ""),
-            (1, "……はい。あの方の答えは、まだ聞いていませんでした。", MFace),
-            (1, "本当は、どう過ごしたいのか。……ご本人に、聞きに行きましょう。", MFace),
+            (1, "……これだけ予定を詰めて、眠る時間は残っていたのでしょうか。わたくしも、心配です。", MWorried),
+            (1, "会えたら、休もうと伝えましょう。休むのが怖いなら、その理由も聞いてから。", MFace),
         },
         _ => new (int, string, string)[]
         {
-            (1, "……はい。今すぐ、答えを出さなくても。", MFace),
-            (1, "まずは、あの方の声を聞いてきます。予定表は、変えずに。", MFace),
+            (0, S21Choices[1], ""),
+            (1, "……はい。大切にしてきたものまで、取り上げたくはありませんね。", MFace),
+            (1, "全部を見られない日も、好きでいてよい。……あの方にも、そう伝えたいです。", MFace),
         },
     };
     private static readonly (int who, string text, string face)[] S21Tail =
@@ -204,31 +188,20 @@ public partial class StageKoharu : Node
         (1, "……これ、あの方のでは、ありませんね。——ご主人様の画面です。", MWorried),
         (1, "……打ちかけて、消すこと。ご主人様にも、ありますか。……話せるぶんだけで、結構です。", MFace),
     };
-    private static readonly string[] S24Choices = { "何て返せばいいか、分からない", "自分には、まだ分からない", "今は、話したくない", "（送らない）" };
+    private static readonly string[] S24Choices = { "あるよ。嫌われるのが怖くて、消しちゃう", "まだ話すのは怖い。でも、聞いてくれてうれしい" };
     private static (int who, string text, string face)[] S24Reply(int sel) => sel switch
     {
         0 => new (int, string, string)[]
         {
             (0, S24Choices[0], ""),
-            (1, "……はい。返したくても、言葉が見つからないことが。", MFace),
-            (1, "今の一行は、受け取りました。……続きは、急がなくて結構です。", MSmile),
-        },
-        1 => new (int, string, string)[]
-        {
-            (0, S24Choices[1], ""),
-            (1, "……はい。ご主人様の経験まで、こちらで決めるところでした。", MFace),
-            (1, "知らない声を、ここで一緒に聞いていただければ。……それで、うれしいです。", MSmile),
-        },
-        2 => new (int, string, string)[]
-        {
-            (0, S24Choices[2], ""),
-            (1, "……承知しました。今は、伺いません。", MFace),
-            (1, "話さないでおく言葉も、ご主人様のものですので。", MFace),
+            (1, "……嫌われたくなくて、言いたいことを引っ込めてしまうのですね。", MWorried),
+            (1, "今は、消さずに話してくださった。……わたくしには、うれしい一通です。", MSmile),
         },
         _ => new (int, string, string)[]
         {
-            (1, "……無言。——はい。伺いません。", MFace),
-            (1, "……こちらで答えを埋めずに、閉じておきますね。", MFace),
+            (0, S24Choices[1], ""),
+            (1, "……はい。続きは、話したくなったときに。今は、ここまで聞かせてくださって、ありがとうございます。", MFace),
+            (1, "では、しばらくわたくしの話を。……黙って聞いていてくださるだけでも、うれしいです。", MSmile),
         },
     };
     private static readonly (int who, string text, string face)[] S24Tail =
@@ -571,9 +544,6 @@ public partial class StageKoharu : Node
             if (!_s24Erased) { _s24Erased = true; _input?.Erase(); }
             if (!(_input?.Done ?? true)) { _lineHold = 0; return; }
             bool ran = RunChoice(delta, "s2_4", S24Cue, S24Choices, S24Reply, S24Tail);
-            // 4択の末尾「（送らない）」は y=420 に来て欄（y=424〜488）と重なる＝提示中だけ欄を退かせ、
-            //   カーソルの明滅だけを下の空き帯に残す（他の5か所と同じ「選択肢＋会話枠だけ」の見え方）。
-            //   選択が決まって _cOverlay が消えたら、受け＋締めの前に元の位置・濃さへ戻る。
             _input?.Recede(_cOverlay != null);
             if (!ran) return;
             _input?.QueueFree();
@@ -635,7 +605,7 @@ public partial class StageKoharu : Node
     //   ホスト step が _stepStarted / _introLine を使っているので、状態はここに閉じて持つ。
     //   提示中もバブルは保持（HoldBubble）＝BubblePaused が続いて弾・敵は止まったまま。
     //   自動プレイ（--qa/--demo）は BubblePaused 中 Z をパルスし続けるので既定カーソル
-    //   （末尾＝（送らない））のまま即決される＝ここで詰まらない。
+    //   のまま決定される＝ここで詰まらない。
     private string _cId = "";     // いま流している選択の id（切り替わったら頭から）
     private int _cPhase;          // 0=きっかけ / 1=選択提示中 / 2=受け＋締め / 3=完了
     private int _cLine;

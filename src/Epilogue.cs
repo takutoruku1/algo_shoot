@@ -34,7 +34,6 @@ public partial class Epilogue : Node2D
 
     // テキストボックスは2行固定。2行超の行はページに割り、送り（Z）で続きを読ませる（本文は削らない）。
     //   会話フェーズ（PhGaze/PhEnd）が対象。折り返しは DrawLineBox と一致させる。
-    private const float BoxWrapW = W - 56f;    // DrawLineBox の本文折り返し幅と一致
     private readonly List<string> _pages = new();
     private int _page;
     private int _pagedKey = -1;                // _pages を構築済みの行キー（phase×1000+line）
@@ -49,7 +48,7 @@ public partial class Epilogue : Node2D
         if (_pagedKey == key) return;
         _pagedKey = key; _page = 0;
         _pages.Clear();
-        _pages.AddRange(UiKit.Paginate(_font, t, UiKit.CutBody, BoxWrapW, Hud.DlgMaxLines));
+        _pages.AddRange(UiKit.Paginate(DialogueBox.Body, t, DialogueBox.WrapWidth(DialogueBox.FullScreen), Hud.DlgMaxLines));
     }
     private void NextPage() { _page++; _reveal = 0; _lineT = 0; }
 
@@ -59,10 +58,8 @@ public partial class Epilogue : Node2D
     private bool _lineWasRead;     // 現在行が「表示開始時点で」既読だったか
     private bool _ffNow;           // いま高速送り中か（ボタン列の SKIP 点灯用）
 
-    // 会話ボックス上辺のボタン列（AUTO / SKIP / LOG / MENU・src/DialogToolbar.cs）。枠（DrawLineBox の CutBox）は
-    //   384×216 の世界座標なので、右上 (W-14, H-58) を UiKit.Scale で割って設計座標のアンカーにする（≒1233,527）。
     private readonly DialogToolbar _toolbar = new();
-    private static readonly Vector2 ToolbarAnchor = new Vector2(W - 14f, H - 58f) / UiKit.Scale;
+    private static readonly Vector2 ToolbarAnchor = DialogueBox.Anchor(DialogueBox.FullScreen);
     // AUTO（GameManager.AutoAdvanceDialog）：現在ページの全文表示後、この秒数で次へ。
     //   E6 の選択と、最後の END の一行（送るとタイトルへ抜ける）は対象外＝そこは自分の手で。
     private const double AutoAfterReveal = 1.0;
@@ -169,12 +166,7 @@ public partial class Epilogue : Node2D
     private readonly RetryHold _rollSkip = new();
     private bool _rollSkipArmed;     // 一度離すまで長押しを受けない（映画スキップの押しっぱなしを引き継がない）
 
-    // ───────── E6 END の下書き選択（08 E6）─────────
-    //   「また来る／ありがとう／（送らない）」。作品全体の最後の選択。
-    //   受けは【迷】＝今回の迷い秒数を P2 と比べて3分岐する
-    //   （短ければ P2 の実測秒数をそのまま差し込む対句、長ければ集計の一言、無言なら集計に入れておく）。
-    //   （送らない）は【終】を更新しない。END の一行は分岐しない。
-    private static readonly string[] E6Choices = { "また来る", "ありがとう", "（送らない）" };
+    private static readonly string[] E6Choices = { "また会いに来る。次は、何でもない話をしよう", "ミナに会えてよかった。もう、ひとりじゃない" };
     private int _e6ChoiceLine = -1;   // ここに着いたら選択を出す（-1＝提示済み）
     private ChoiceOverlay? _e6Choice;
     private double _e6ChoiceT;        // 提示からの経過＝迷い秒数（RecordChoice へ渡す）
@@ -250,34 +242,25 @@ public partial class Epilogue : Node2D
     // E6 の確定：送った言葉と迷い秒数を記録し、受け（対句）と END の2行を挿し込む。
     private void ApplyE6Choice(int sel)
     {
-        bool sent = sel < E6Choices.Length - 1;
         float hesitation = (float)_e6ChoiceT;
-        // （送らない）は言葉ではないので送信語にも散る語にも数えない＝表示候補2件が丸ごと散る（P3・S3-7 と同じ流儀）。
-        var others = new List<string>();
-        for (int i = 0; i < E6Choices.Length - 1; i++) if (i != sel) others.Add(E6Choices[i]);
-        _game?.RecordChoice("e6", sent ? E6Choices[sel] : "", others, hesitation);
+        ChoiceEffects.Record(_game, "e6", E6Choices, sel, hesitation);
         _e6ChoiceLine = -1;
-        // 【迷】の対句：P2 の迷い秒数と比べて3分岐。P2 の実測秒数をそのまま差し込む（丸めは Prologue と同じ流儀）。
+        // 最初の返事を待った時間を、最後の会話で振り返る。
         float p2 = _game?.HesitationAt("p2") ?? 0f;
         int p2Sec = Mathf.Max(1, Mathf.RoundToInt(p2));
-        string couplet = !sent
-            ? "……無言。ふふ。それも、集計に入れておきます。"
-            : hesitation <= p2
-                ? $"……ええ。いまの、{p2Sec}秒も、かかりませんでしたね。"
-                : "……最初のときより、長く迷いましたね。……ええ。集計だけ、しています。";
-        // ユーザー承認済み: docs/20260914/ストーリー添削_2026-09-14.md 5-(C)（命名の道筋の処遇）
-        //   命名の3ルート（GameManager.NameRoute）は記録されるだけで一度も参照されない死にデータだった。
-        //   由来は**回収しない**（明かすとルート2・3の「自分で名乗った」意味が壊れる）。
-        //   代わりに、名前に一切触れずに「ミナが最初のやりとりを覚えている」一行だけを置く
-        //   ＝主モチーフ「覚えておきます」の最後の一押し。【迷】の対句と同じ流儀（集計だけする）。
+        string couplet = hesitation <= p2
+            ? $"最初は、{p2Sec}秒。……今は、こんなふうにお話しできるのですね。"
+            : "……ゆっくり選んでくださった言葉ですもの。大切に、覚えておきます。";
         string nameEcho = (_game?.NameRoute ?? 0) switch
         {
             1 => "……最初のご提案は、十九文字でした。……却下したのは、わたくしです。いまでも、そう思います。",
-            2 => "……最初は、無言でしたね。……名乗ったのは、わたくしのほうでした。",
             _ => "……最初につけていただいた名前も、大切にしております。",
         };
         var after = new List<DLine>();
-        if (sent) after.Add(new DLine { Who = "あなた", Text = E6Choices[sel] });
+        after.Add(new DLine { Who = "あなた", Text = E6Choices[sel] });
+        after.Add(new DLine { Who = "ミナ", Text = sel == 0
+            ? "はい。何でもないお話を。うまくいかなかった日も、何もなかった日も。……聞かせてくださいね。"
+            : "……わたくしも、お会いできてよかった。そう言っていただけて、うれしいです。ご主人様。" });
         after.Add(new DLine { Who = "ミナ", Text = couplet });
         after.Add(new DLine { Who = "ミナ", Text = nameEcho });
         after.Add(new DLine { Who = "ミナ", Text = "いってらっしゃいませ、ご主人様。" });     // 送り出す側の反転
@@ -618,40 +601,15 @@ public partial class Epilogue : Node2D
     //   旧 "UI"（画面テキスト・起動記録の等幅コード緑）は E2〜E5 の削除で使う行が無くなったので落とした。
     private void DrawLineBox(DLine d)
     {
-        bool narr = d.Who == "地";        // 語り＝話者名なし・中央寄せでセリフと区別
-        var font = _font;
-        Color edge = EdgeFor(d.Who);
-        // 現在ページ（2行固定・禁則つき）。ボックスは2行分の固定高さ（行数で伸ばさない＝全ボックス統一）。
-        string page = CurPage;
-        var lines = UiKit.WrapLines(font, page, UiKit.CutBody, W - 56);
-        float boxTop = H - 58f;   // 2行固定（下余白12px＝額縁を効かせる）
-        UiKit.CutBox(this, new Rect2(14, boxTop, W - 28, H - 10f - boxTop), edge, narr ? 0.38f : 0.5f);
-        string label = narr ? "" : d.Who;
-        if (label != "")
-            DrawString(UiKit.ZenBold, new Vector2(24, boxTop + 12), label, HorizontalAlignment.Left, -1, UiKit.CutSpeaker, edge);
-        var align = narr ? HorizontalAlignment.Center : HorizontalAlignment.Left;
-        // 中央寄せのナレは「中央から左右へ広がる」見え方になるタイプライターをやめ、現在ページ全文をその場でフェードイン表示。
-        //   （中央寄せ＋部分文字列だと毎フレーム再センタリングされて左右に展開して見えるため）。
-        // セリフ（左寄せ）は従来どおり左→右のタイプライターで送る。
-        Color ink = Ink;
-        int shown;
-        if (narr)
-        {
-            shown = page.Length;                             // 現在ページ全文をその場で（広がる演出なし）
-            float a = Mathf.Clamp((float)_lineT / 0.35f, 0f, 1f); // 短いフェードイン
-            ink = new Color(Ink.R, Ink.G, Ink.B, a);
-        }
-        else
-        {
-            shown = Mathf.Clamp((int)_reveal, 0, page.Length);
-        }
-        UiKit.TypewriterLines(this, font, lines, new Vector2(24, boxTop + 27f), W - 56, UiKit.CutBody, ink, shown, align);
-        // 既読高速送り中の表示は上辺のボタン列（SKIP の点灯）が担う＝旧「▶▶」は出さない（_Draw で描く）。
-        // 送り三角は現在ページの全文表示後だけ点滅（本編と同じ作法。後続ページも同じ▼で示す）。
-        // ナレは現在ページを即表示するので、フェード完了で点滅（タイプライター完了を待たない）。
-        bool ready = narr ? _lineT >= 0.35 : _reveal >= page.Length;
-        if (ready && ((int)(_t * 2f) % 2) == 0)
-            DrawString(_font, new Vector2(W - 26, H - 16), "▼", HorizontalAlignment.Left, -1, UiKit.CutNote,
-                new Color(1f, 1f, 1f, 0.7f));
+        bool narr = d.Who == "地";
+        var box = DialogueBox.FullScreen;
+        UiKit.BeginDesign(this);
+        DialogueBox.DrawFrame(this, box, narr ? "" : d.Who, EdgeFor(d.Who));
+        int shown = narr ? CurPage.Length : Mathf.Clamp((int)_reveal, 0, CurPage.Length);
+        float alpha = narr ? Mathf.Clamp((float)_lineT / 0.35f, 0, 1) : 1;
+        DialogueBox.DrawBody(this, box, CurPage, shown, alpha);
+        if ((narr ? _lineT >= 0.35 : _reveal >= CurPage.Length) && !_ffNow)
+            DialogueBox.DrawContinue(this, box, !LastPage);
+        UiKit.EndDesign(this);
     }
 }

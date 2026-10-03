@@ -1,7 +1,6 @@
 using Godot;
 
-// DialogToolbar : 会話ボックス上辺のボタン列「AUTO / SKIP / LOG / MENU」（2026-09-27 作者指示）。
-//   ノベルゲーム定番の「テキスト枠の上辺・右寄せに小さなボタンが横一列」を本作の会話ボックスに付ける。
+// DialogToolbar : 会話ボックス内のボタン列「AUTO / SKIP / LOG / MENU」（2026-09-27 作者指示）。
 //   出る場所：Hud が描く全ての会話ボックス（戦闘中の会話バー・ナレーション枠・カットシーン（CinematicMode：
 //   StoryFilm の回想/アフター、BossDraftScene、MinaPhaseScene））と、会話枠を自前で描く4画面
 //   （Prologue／Final／Epilogue のカットシーンと Hub の返信会話）。後者は Hud を通らないので、
@@ -14,7 +13,6 @@ using Godot;
 //   LOG 横線  | 会話ログ（Backlog）                                          | L  | View                    | クリック
 //   MENU 歯車 | ポーズメニュー（PauseMenu）                                   | M  | Menu(≡)                 | クリック
 //
-//   ・見た目：一体の金属調の台座に、銀・ミントのガラスと金縁の透過イラストを描く。
 //     キー文字はボタンにも吹き出しにも載せない（作者指示。キーの案内は「あそびかた」＝HowToPlay だけが担う）。
 //     名前はマウスを乗せたときの吹き出しで出す。ON（AUTO 有効／SKIP ラッチ・早送り中）は
 //     専用のミント色／琥珀色イラストへ切り替え、枠も点灯する。キー操作とクリックは上の表のとおり効く。
@@ -36,8 +34,7 @@ using Godot;
 //     各画面は Tick を _Process の先頭（Pad.AdvanceHeld を読む前）で呼ぶ。
 //   ・当たり判定は Pad.MousePos()（設計座標 1280×720）と描画と同じ矩形（ButtonRect）を直接突き合わせる。
 //     UiKit のホットスポット登録は使わない（ChoiceOverlay 等と同フレームで潰し合う。PauseMenu.HintClickable 参照）。
-//   ・座標はすべて設計座標。384×216 の世界座標で枠を描く画面（UiKit.CutBox）は、枠の右上を
-//     UiKit.Scale で割って渡し、Draw は UiKit.BeginDesign の下で呼ぶ。
+//   ・座標はすべて設計座標。Draw は UiKit.BeginDesign の下で呼ぶ。
 public sealed class DialogToolbar
 {
     // マウスを乗せたときの吹き出し（見た目はアイコンだけなので、名前はここで言葉にする）。
@@ -46,8 +43,8 @@ public sealed class DialogToolbar
     private const int Count = 4;
     public const float W = 36f, H = 30f;       // ボタンの寸法（設計座標）
     private const float Gap = 4f;              // ボタン同士の間隔
-    private const float Bite = 3f;             // ボックス上辺へ食い込ませる量
-    private const float Inset = 12f;           // ボックス右端からの引っ込み
+    private const float Top = 12f;
+    private const float Inset = DialogueBox.Padding;
     private const double Grace = 0.3;          // ボックスが出てからキー入力を受け付けるまで
     private const double TapMax = 0.3;         // RB／Start をこれより短く押し離したらボタン扱い（長押しは従来の意味）
     private const float MarkH = 18f;           // ラッチ中の右上の印「▶▶」の高さ
@@ -55,7 +52,6 @@ public sealed class DialogToolbar
     private const double BreathPeriod = 2.4;   // ON の地の呼吸（α 0.85〜1.0）の周期
     private const int TipSize = 11;            // 吹き出しの字（ZenBold）
 
-    private static readonly Color Metal = new("c4b998");
     private static readonly Color Active = new("a4e9d9");
     private static readonly Color SkipActive = new("f4bf62");
     private static readonly string[] IconPaths = {
@@ -91,7 +87,7 @@ public sealed class DialogToolbar
     public static Rect2 ButtonRect(Vector2 anchor, int i)
     {
         float right = anchor.X - Inset - (Count - 1 - i) * (W + Gap);
-        return new Rect2(right - W, anchor.Y - H + Bite, W, H);
+        return new Rect2(right - W, anchor.Y + Top, W, H);
     }
 
     // ラッチ中の印の矩形。topRight＝印の右上（盤面なら (Field.DRight-16, 14)、全画面なら (UiKit.DesignW-16, 14)）。
@@ -242,22 +238,25 @@ public sealed class DialogToolbar
 
     private static void DrawDock(CanvasItem ci, Vector2 anchor)
     {
-        Rect2 first = ButtonRect(anchor, Auto), last = ButtonRect(anchor, Menu);
-        float left = first.Position.X - 5, right = last.End.X + 5;
-        float top = first.Position.Y - 2, bottom = first.End.Y + 2;
-        var rim = new[] {
-            new Vector2(left, bottom), new Vector2(left, top + 4), new Vector2(left + 4, top),
-            new Vector2(right - 4, top), new Vector2(right, top + 4), new Vector2(right, bottom),
-        };
-        ci.DrawColoredPolygon(rim, new Color(0.035f, 0.044f, 0.045f, 0.96f));
-        ci.DrawPolyline(rim, new Color(Metal, 0.28f), 1, true);
-        ci.DrawLine(new Vector2(left + 7, top + 1), new Vector2(right - 7, top + 1),
-            new Color(Colors.White, 0.07f), 1, true);
-        ci.DrawLine(new Vector2(left + 6, bottom), new Vector2(right - 6, bottom),
-            new Color(Metal, 0.42f), 1, true);
+        var first = ButtonRect(anchor, Auto);
         float divider = ButtonRect(anchor, Skip).End.X + Gap / 2f;
-        ci.DrawLine(new Vector2(divider, top + 11), new Vector2(divider, bottom - 10),
-            new Color(Metal, 0.23f), 1, true);
+        ci.DrawLine(new Vector2(divider, first.Position.Y + 8), new Vector2(divider, first.End.Y - 8),
+            new Color(DialogueBox.Border, 0.5f), 1, true);
+    }
+
+    public static Rect2 FilmSkipRect => ButtonRect(DialogueBox.Anchor(DialogueBox.FullScreen), Menu);
+
+    public static void DrawFilmSkip(CanvasItem ci, float progress, bool hover, float alpha = 1)
+    {
+        var rect = FilmSkipRect;
+        if (hover || progress > 0)
+            UiKit.Box(ci, rect, new Color(SkipActive, 0.12f * alpha), 4, new Color(SkipActive, 0.6f * alpha), 1);
+        DrawIcon(ci, new Rect2(rect.Position + new Vector2(6, 4), new Vector2(24, 20)), Skip,
+            new Color(Colors.White, (hover ? 1 : 0.78f) * alpha), active: progress > 0);
+        if (progress > 0)
+            ci.DrawLine(new Vector2(rect.Position.X, rect.End.Y), new Vector2(rect.Position.X + rect.Size.X * progress, rect.End.Y),
+                new Color(SkipActive, alpha), 2, true);
+        if (hover && progress == 0) DrawTip(ci, rect, "映像をスキップ");
     }
 
     private static void DrawButton(CanvasItem ci, Rect2 r, int i, bool on, bool hover, float breath)
@@ -275,7 +274,7 @@ public sealed class DialogToolbar
             ink, active: on && i <= Skip);
     }
 
-    private static void DrawIcon(CanvasItem ci, Rect2 bounds, int i, Color modulate, bool active = false)
+    internal static void DrawIcon(CanvasItem ci, Rect2 bounds, int i, Color modulate, bool active = false)
     {
         var icons = active ? ActiveIcons : Icons;
         var paths = active ? ActiveIconPaths : IconPaths;
@@ -298,7 +297,7 @@ public sealed class DialogToolbar
         float h = 20f, w = UiKit.TextW(f, tip, TipSize) + 14f;
         float x = Mathf.Min(btn.GetCenter().X - w / 2f, UiKit.DesignW - 4f - w);
         var r = new Rect2(x, btn.Position.Y - 5f - h, w, h);
-        UiKit.Box(ci, r, new Color(0.035f, 0.044f, 0.045f, 0.96f), 2f, new Color(Metal, 0.4f), 1f);
+        UiKit.Box(ci, r, new Color(DialogueBox.Surface, 0.98f), 2f, new Color(DialogueBox.Border, 0.7f), 1f);
         float top = r.Position.Y + (h - f.GetHeight(TipSize)) / 2f;
         UiKit.Text(ci, f, new Vector2(r.Position.X + 7f, top), tip, TipSize, UiKit.Text2);
     }
@@ -320,14 +319,7 @@ public partial class Hud
     public bool SkipLatchMarkVisible => _toolbar.LatchMarkVisible;
     public Rect2 SkipLatchMarkDrawnRect => _toolbar.LatchMarkDrawnRect;
 
-    // 今のボックスの右上（設計座標）。DrawDialog の各分岐の矩形と一致させる。
-    //   シネマ（吹き出し）… 112,530,1056×166 ／ シネマ（帯）… StoryFilm の会話パネル 72,526,1136×174
-    //   （BossDraftScene の帯は y516 から全幅なので同じ位置で収まる）
-    //   ナレ … NarrBox（y590） ／ 戦闘の会話バー … DlgBox（y520）
-    private Vector2 ToolbarAnchor() =>
-        CinematicMode ? (_cinematicBubble ? new Vector2(1168f, 530f) : new Vector2(1208f, 526f))
-        : !_dlgIsDialog ? new Vector2(NarrBoxX + NarrBoxW, 590f)
-        : new Vector2(DlgBoxX + DlgBoxW, 520f);
+    private Vector2 ToolbarAnchor() => DialogueBox.Anchor(DialogRect);
 
     public Rect2 ToolbarRect(int i) => DialogToolbar.ButtonRect(ToolbarAnchor(), i);
 

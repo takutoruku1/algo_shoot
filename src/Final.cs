@@ -21,7 +21,6 @@ public partial class Final : Node2D
     private GameManager? _game;    // 文字送り速度（MsgCharsPerSec）を本編設定と共有
 
     // テキストボックスは2行固定。2行超の行はページに割り、送り（Z）で続きを読ませる（本文は削らない）。
-    private const float TalkWrapW = W - 56f;   // DrawTalk の本文折り返し幅と一致
     private readonly System.Collections.Generic.List<string> _pages = new();
     private int _page;
     private int _pagedLine = -1;               // _pages を構築済みの行 index
@@ -32,7 +31,7 @@ public partial class Final : Node2D
         if (_pagedLine == _line || _line >= _talk.Count) return;
         _pagedLine = _line; _page = 0;
         _pages.Clear();
-        _pages.AddRange(UiKit.Paginate(_font, _talk[_line].Text, UiKit.CutBody, TalkWrapW, Hud.DlgMaxLines));
+        _pages.AddRange(UiKit.Paginate(DialogueBox.Body, _talk[_line].Text, DialogueBox.WrapWidth(DialogueBox.FullScreen), Hud.DlgMaxLines));
     }
     private void NextPage() { _page++; _reveal = 0; _holdT = 0; _holdAt = -1; }
 
@@ -41,10 +40,8 @@ public partial class Final : Node2D
     private bool _lineWasRead;     // 現在行が「表示開始時点で」既読だったか
     private bool _ffNow;           // いま高速送り中か（ボタン列の SKIP 点灯用）
 
-    // 会話ボックス上辺のボタン列（AUTO / SKIP / LOG / MENU・src/DialogToolbar.cs）。枠（DrawTalk の CutBox）は
-    //   384×216 の世界座標なので、右上 (W-14, H-58) を UiKit.Scale で割って設計座標のアンカーにする（≒1233,527）。
     private readonly DialogToolbar _toolbar = new();
-    private static readonly Vector2 ToolbarAnchor = new Vector2(W - 14f, H - 58f) / UiKit.Scale;
+    private static readonly Vector2 ToolbarAnchor = DialogueBox.Anchor(DialogueBox.FullScreen);
     // AUTOでも下書きの送信はプレイヤーの決定を待つ。
     private const double AutoAfterReveal = 1.0;
     private double _autoT;         // 現在ページを全文表示してからの経過（AUTO 用）
@@ -156,7 +153,7 @@ public partial class Final : Node2D
             after.Add(new DLine { Who = "あなた", Text = word });
             after.Add(new DLine { Who = "ミナ", Text = CueSilenceLine });
             after.Add(new DLine { Who = "ミナ", Text = CueResolveLine });
-            after.Add(new DLine { Who = "ミナ", Text = $"……{word.Length}文字。……ふふ。相変わらず、短いですね。" });
+            after.Add(new DLine { Who = "ミナ", Text = "……届きました。ご主人様の声。聞けて、よかった。……帰ったら、もっとお話ししましょう。" });
         }
         after.AddRange(new DLine[]
         {
@@ -335,27 +332,14 @@ public partial class Final : Node2D
     {
         if (_font == null || _phase != 1 || _line >= _talk.Count) return;
         var d = _talk[_line];
-        bool narr = d.Who == "地";       // ミナの語り＝話者名なし・中央寄せでセリフと区別
-        bool mina = d.Who == "ミナ";
-        // "あなた"＝送られた下書き。他画面と揃えて暖色（Warm）で出す。
-        Color edge = narr ? UiKit.CutNarr : (mina ? Cool : Warm);
-        // 現在ページ（2行固定・禁則つき）。ボックスは2行分の固定高さ（行数で伸ばさない＝全ボックス統一）。
-        string page = CurPage;
-        var lines = UiKit.WrapLines(_font, page, UiKit.CutBody, W - 56);
-        float boxTop = H - 58f;   // 2行固定（下余白12px＝額縁を効かせる）
-        UiKit.CutBox(this, new Rect2(14, boxTop, W - 28, H - 10f - boxTop), edge, narr ? 0.38f : 0.5f);
-        if (!narr)
-            DrawString(UiKit.ZenBold, new Vector2(24, boxTop + 12), d.Who, HorizontalAlignment.Left, -1, UiKit.CutSpeaker, edge);
-        // ナレも左寄せにする＝中央寄せ＋部分文字列で起きる「中央から左右へ広がる」見え方を撤去。
-        //   タイプライター自体は残す（左→右の素直な送り。三人の名を一人ずつ沈ませる句点ホールドも保つ）。
-        // タイプライターで表示済みの分だけ、確定済みの行に沿って描画。
-        int shown = Mathf.Clamp((int)_reveal, 0, page.Length);
-        UiKit.TypewriterLines(this, _font, lines, new Vector2(24, boxTop + 27f), W - 56, UiKit.CutBody,
-            UiKit.CutInk, shown);
-        // 既読高速送り中の表示は上辺のボタン列（SKIP の点灯）が担う＝旧「▶▶」は出さない（_Draw で描く）。
-        // 送り三角は現在ページの全文表示後だけ点滅（本編と同じ作法。後続ページも同じ▼で示す）。
-        if (_reveal >= page.Length && ((int)(_t * 2f) % 2) == 0)
-            DrawString(_font, new Vector2(W - 26, H - 16), "▼", HorizontalAlignment.Left, -1, UiKit.CutNote,
-                new Color(1f, 1f, 1f, 0.7f));
+        bool narr = d.Who == "地";
+        Color edge = narr ? UiKit.CutNarr : d.Who == "ミナ" ? Cool : Warm;
+        UiKit.BeginDesign(this);
+        var box = DialogueBox.FullScreen;
+        DialogueBox.DrawFrame(this, box, narr ? "" : d.Who, edge);
+        DialogueBox.DrawBody(this, box, CurPage, Mathf.Clamp((int)_reveal, 0, CurPage.Length));
+        if (_reveal >= CurPage.Length && !_ffNow)
+            DialogueBox.DrawContinue(this, box, !LastPage);
+        UiKit.EndDesign(this);
     }
 }

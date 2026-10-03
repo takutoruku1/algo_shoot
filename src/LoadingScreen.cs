@@ -183,7 +183,7 @@ public partial class LoadingScreen : CanvasLayer
         "TitleMenu" => "タイトル", "Hub" => "ホーム", "Prologue" => "プロローグ",
         "Shop" => "強化ショップ", "Customize" => "カスタマイズ", "Records" => "記録",
         "Settings" => "設定", "Credits" => "クレジット", "Training" => "トレーニング",
-        "ShopTutorial" => "強化ショップ", "DiffSelect" => "難易度選択", "Stage0" => "チュートリアル",
+        "DiffSelect" => "難易度選択", "Stage0" => "チュートリアル",
         "Akari" => "あかりのタイムライン", "Koharu" => "こはるのタイムライン",
         "Rei" => "レイのタイムライン", "MinaBattle" => "ミナのタイムライン", "Main" => "タイムライン",
         "Final" => "最後の対話", "Epilogue" => "エピローグ", _ => "次の画面",

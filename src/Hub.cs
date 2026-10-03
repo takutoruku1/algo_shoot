@@ -147,13 +147,13 @@ public partial class Hub : Node2D
     private bool _openJob;
     // デバッグ限定：--hub-photos で写真アプリを開いた状態から始める（スクショ用。セーブは触らない）。
     private bool _openPhotos;
-    // デバッグ限定：--hub-shopnudge で「説明を読み終えて帰ってきた直後」のホーム誘導を再現する
+    // デバッグ限定：--hub-shopnudge で「説明を読み切った直後」のホーム誘導を再現する
     //   （スクショ／見え方の確認用。セーブは触らない＝ShopTutorialSeen も書き換えない）。
     private bool _previewShopNudge;
     // デバッグ限定：--hub-accountnudge でフッタ「アカウント」の誘導リングを撮る（--hub-preview と併用。セーブは触らない）。
     private bool _previewAccountNudge;
     // アカウント追加の説明を読み切った回だけ、SNS のフッタ「アカウント」を脈動させる（_shopNudge と同じ作法）。
-    //   フラグは GameManager のランタイム限り＝帰還会話→ShopTutorial→ハブ再入場をまたいで残り、
+    //   フラグは GameManager のランタイム限り＝帰還会話→説明→ショップ往復をまたいで残り、
     //   OpenJob（押す／切替UIを開く）で降りる。once キーで説明が二度と出ないので再発もしない。
     private bool AccountNudge => !_autoplay && (_previewAccountNudge || (_game?.AccountNudgePending ?? false));
 
@@ -191,9 +191,10 @@ public partial class Hub : Node2D
     private double _homeRevealT;
     private Texture2D? _homeSnapshot;
     private Rect2 _homeSnapshotRegion;
-    // 強化ショップの説明を読み終えて帰ってきた直後だけ立つ（2026-09-22）。ホームの強化アイコンを
+    // 強化ショップの説明を読み切った直後だけ立つ（2026-09-22）。ホームの強化アイコンを
     //   脈動させ、下に「タップして ひらく」の小さな指示を出す＝押すのはプレイヤー自身。
     //   一度でも開けば（OpenHomeApp）降りる＝用が済んだら普通のホームに戻る。
+    //   立てるのは EndDialogue（説明の読了）＝同じ画面の続きで、シーンをまたがない（2026-10-03）。
     private bool _shopNudge;
     private double _detailT;      // 開いてからの経過（展開アニメと入力ゲート）
     private int _tierSel;         // 潜り方（難易度）の段。既定は前回の難易度＝Z 二押しでそのまま潜れる
@@ -212,7 +213,7 @@ public partial class Hub : Node2D
     private readonly System.Collections.Generic.List<string> _dlgPages = new();
     private int _dlgPage;
     private int _dlgPagedIdx = -1;                 // _dlgPages を構築済みの行 index
-    private const float DlgBodyWrapW = PhoneW - 48f;
+    private static float DlgBodyWrapW => DialogueBox.WrapWidth(DialogBox);
     private string DlgCurPage => _dlgPages.Count > 0 ? _dlgPages[Mathf.Min(_dlgPage, _dlgPages.Count - 1)] : "";
     private bool DlgLastPage => _dlgPages.Count == 0 || _dlgPage >= _dlgPages.Count - 1;
     private void DlgEnsurePages()
@@ -220,7 +221,7 @@ public partial class Hub : Node2D
         if (_dlgPagedIdx == _dlgIdx || _dlg.Length == 0 || _dlgIdx >= _dlg.Length) return;
         _dlgPagedIdx = _dlgIdx; _dlgPage = 0;
         _dlgPages.Clear();
-        _dlgPages.AddRange(UiKit.Paginate(UiKit.Zen, _dlg[_dlgIdx].tx, UiKit.FontHeading, DlgBodyWrapW, Hud.DlgMaxLines));
+        _dlgPages.AddRange(UiKit.Paginate(DialogueBox.Body, _dlg[_dlgIdx].tx, DlgBodyWrapW, Hud.DlgMaxLines));
     }
     private void DlgNextPage() { _dlgPage++; _dlgReveal = 0; _dlgLineT = 0; }
     private bool _pendingBurn;
@@ -234,7 +235,7 @@ public partial class Hub : Node2D
     // 会話ボックス上辺のボタン列（AUTO / SKIP / LOG / MENU・src/DialogToolbar.cs）。アンカーは DialogBox の右上（880,428）。
     //   ハブはカットシーンではない＝MENU のパッド Start・キー M は PauseMenu が自前で読む（ここは足さない）。
     private readonly DialogToolbar _toolbar = new();
-    private static Rect2 DialogBox => new(PhoneX, 428f, PhoneW, 276f);   // DrawDialog の枠と同じ1本
+    private static Rect2 DialogBox => new(PhoneX, DialogueBox.FullScreen.Position.Y, PhoneW, DialogueBox.FullScreen.Size.Y);
     private static Vector2 ToolbarAnchor => new(DialogBox.End.X, DialogBox.Position.Y);
     private bool DialogShown => _mode == Mode.Dialogue && !_dived && _dlg.Length > 0;
     // AUTO（GameManager.AutoAdvanceDialog）：現在ページの全文表示後、この秒数で次へ（--demo/--qa の _autoplay とは別）。
@@ -346,12 +347,10 @@ public partial class Hub : Node2D
         // デバッグ限定：--hub-toast で炎上トーストの見え方を撮る（GameManager は一切触らない）。
         if (_previewToast) Toast("炎上中。次に潜るとき、光が薄い。", "発射間隔 +30%  移動 -10%  稼ぎ -40%", UiKit.Burn);
 
-        // 説明パート（ShopTutorial）から帰ってきた回：ホーム画面で開き、強化ショップのアイコンを
-        //   選択＋誘導表示にして「押す」のを待つ（2026-09-22。押す操作はプレイヤー自身にやらせる）。
-        //   フラグはランタイム限りなので、ここで消費すれば以降の入場には持ち越さない。
-        if ((_game != null && _game.ShopNudgePending) || _previewShopNudge)
+        // デバッグ限定：--hub-shopnudge で「説明を読み切った直後のホーム」を再現する（スクショ用。セーブは触らない）。
+        //   本編ではこの状態は同じ画面の続き（説明の読了＝EndDialogue）で作られるので、ここはプレビュー専用。
+        if (_previewShopNudge)
         {
-            if (_game != null) _game.ShopNudgePending = false;
             _shopNudge = !_autoplay;
             if (_shopNudge) { _mode = Mode.Home; _homeSel = 1; _zHeld = _navHeld = true; }
         }
@@ -366,7 +365,7 @@ public partial class Hub : Node2D
             // 解禁の告知（2026-09-07）。クリアして帰ってきた回に、新しく開いた導線をトーストで一度だけ出す。
             //   新しい台詞は書いていない：見出しはフッタの語（強化／記録）とキー表記をそのまま並べただけで、
             //   ミナは何も言わない。強化＝最初の面のクリア、記録＝初クリアで開くので、初回は両方が同時に開く。
-            //   強化の中身の案内は ShopTutorial（同じ瞬間に一度きり出る説明パート）が持つ。
+            //   強化の中身の案内は説明パート（ShopTutorialLines・同じ瞬間に一度きり流れる）が持つ。
             //   ※見出しに世界の言葉（例「タイムラインに、新しい操作が増えた」）を添えるかは
             //     scenario 担当の領分なので、ここでは足していない。
             //   ★トーストは1枚しか出ない（_toast は上書き式）。1面クリアの瞬間は「強化／記録が開く」と
@@ -771,18 +770,34 @@ public partial class Hub : Node2D
     //   インプレ／フォロワーの加算とトーストを出さない＝まだ何も投稿していないのに数字が動くのを防ぐ。
     private bool _dlgNoPost;
     private Mode _dlgReturnMode = Mode.Cards;
-    private void StartDialogue((string, string)[] lines, string? replyId, bool noPost = false, Mode returnMode = Mode.Cards, string? seenKey = null)
+    // 行ごとの立ち絵パス（省略／空＝話者から引く既定＝SpeakerFace）。同じ話者で表情だけ変える会話
+    //   （ショップ説明の 8 行目だけ mina_worried）のために行で指し、既定の作法は変えない。
+    private string[] _dlgFaces = System.Array.Empty<string>();
+    private void StartDialogue((string, string)[] lines, string? replyId, bool noPost = false, Mode returnMode = Mode.Cards, string? seenKey = null, string[]? faces = null)
     {
         _mode = Mode.Dialogue;
         _dlgNoPost = noPost;
         _dlgReturnMode = returnMode;
         _dlgSeenKey = seenKey;
+        _dlgFaces = faces ?? System.Array.Empty<string>();
         _zHeld = Pad.AdvanceHeld();
         // `{n}` の差し込みで中身を書き換えるので、静的な台詞データを直接持たず必ず写しで回す
         //（そのまま持つと差し込んだ実測値が静的配列に焼き付き、次の再訪でも同じ数字が出てしまう）。
         _dlg = ((string sp, string tx)[])lines.Clone(); _dlgIdx = 0; _dlgLineT = 0; _dlgReveal = 0; _dlgReplyId = replyId;
         _dlgReadIdx = -1; _dlgReadBefore = false; _ffNow = false; _dlgLogIdx = -1; _dlgAutoT = 0;
         _dlgPages.Clear(); _dlgPage = 0; _dlgPagedIdx = -1;
+    }
+
+    // 行ごとの立ち絵（_dlgFaces）→ テクスチャ。指定が無ければ null＝話者から引く既定のまま。
+    //   毎フレーム Load しないようパスで引けるキャッシュに溜める。
+    private readonly System.Collections.Generic.Dictionary<string, Texture2D?> _lineFaces = new();
+    private Texture2D? LineFace(int index)
+    {
+        if (index < 0 || index >= _dlgFaces.Length || string.IsNullOrEmpty(_dlgFaces[index])) return null;
+        string path = _dlgFaces[index];
+        if (!_lineFaces.TryGetValue(path, out var tex))
+            _lineFaces[path] = tex = ResourceLoader.Exists(path) ? ResourceLoader.Load<Texture2D>(path) : null;
+        return tex;
     }
 
     // 会話ログの種別（本文色の出し分け用）。話者名と色は画面（DrawDialog／SpeakerFace）と同じものを渡す。
@@ -875,6 +890,17 @@ public partial class Hub : Node2D
             _game.MarkIdleDialogSeen(_dlgSeenKey);
             _dlgSeenKey = null;
         }
+        // 強化ショップの説明を読み切った＝ホームの強化アイコンを誘導表示にして「押す」のを待つ（2026-09-22）。
+        //   説明はホームの上に出ている＝画面は変わらないので、ここで誘導を立てるだけで最終行
+        //   「——では、まいりましょう。」がそのまま光ったアイコンへの号令になる（2026-10-03）。
+        if (_shopTutorialDlg)
+        {
+            _shopTutorialDlg = false;
+            _shopNudge = true;         // オートプレイでは説明自体を出さない（TryOpenShopTutorial のガード）
+            _homeSel = 1;              // カーソルは強化ショップのアイコンに置いておく
+            _zHeld = _navHeld = true;  // 最後の行を送った Z／A が「ひらく」へ漏れないよう食う
+            Audio.Instance?.PlayUiConfirm();
+        }
         if (_dlgNoPost)
         {
             // 投稿ではない会話（H0）＝加算もトーストも無し。オートセーブと画面戻しだけ行う。
@@ -938,20 +964,34 @@ public partial class Hub : Node2D
         TryOpenShopTutorial();
     }
 
-    // 強化ショップの説明パート（ShopTutorial）を一度だけ挟む。開いたら true（呼び元は以降を打ち切る）。
+    // 強化ショップの説明（ShopTutorialLines）を一度だけ挟む。始めたら true（呼び元は以降を打ち切る）。
     //   置き場所：帰還会話（お疲れさま）→ ホーム解禁演出でアイコンが光る → ここ → ホームで押す、の順。
-    //   説明の最終行「——では、まいりましょう。」が、戻ってきたホームの光ったアイコンへの号令になる。
+    //   説明の最終行「——では、まいりましょう。」が、目の前で光ったアイコンへの号令になる。
     //   説明を先（ステージ側）に出すと「ひと息つきましょう」と帰還会話の帰宅挨拶が二重に立つので、
-    //   かならず帰還会話のあとに置く。ShopTutorial は読み切るとハブへ戻す（ShopNudgePending を立てて）。
+    //   かならず帰還会話のあとに置く。
+    //   ★2026-10-03: 専用シーン（ShopTutorial.tscn）への遷移をやめ、ハブのこの会話機構で流す。
+    //     以前は「ローディング＝強化ショップ → 中身の無い強化ショップでミナが喋る → ホームへ戻される →
+    //     アイコンを押す → 本物のショップ」と見え、ショップに二度入って一度目が壊れているように映った
+    //     （ユーザー報告）。説明はホームの上に出す＝画面遷移もローディングも挟まない。
     //   解禁演出（HomeReveal）とホーム入場の両方から呼ぶ＝演出が出ない状態のセーブでも取りこぼさない。
+    private bool _shopTutorialDlg;   // いま流れている会話が説明パートか（読了で _shopNudge を立てる印）
     private bool TryOpenShopTutorial()
     {
         if (_autoplay || _dived || _game == null || _previewShopNudge) return false;
         if (_game.ShopTutorialSeen || !ShopUnlocked) return false;
         _game.ShopTutorialSeen = true;   // 一度きり（直後の AutoSave で永続化）
         _game.AutoSave();
-        _dived = true;                   // 遷移中は入力を食う（多重遷移よけ。他の導線と同じ作法）
-        GameManager.FadeToScene(this, "res://ShopTutorial.tscn");
+        // 立ち絵は行ごと（表情差分）。戻り先はホーム＝説明の裏で光ったアイコンがそのまま見えている。
+        var lines = new (string, string)[ShopTutorialLines.Length];
+        var faces = new string[ShopTutorialLines.Length];
+        for (int i = 0; i < ShopTutorialLines.Length; i++)
+        {
+            lines[i] = (ShopTutorialLines[i].sp, ShopTutorialLines[i].tx);
+            faces[i] = ShopTutorialLines[i].face;
+        }
+        _homeSel = 1;
+        StartDialogue(lines, null, noPost: true, returnMode: Mode.Home, faces: faces);
+        _shopTutorialDlg = true;
         return true;
     }
 
@@ -3326,38 +3366,17 @@ public partial class Hub : Node2D
 
     private void DrawDialog()
     {
-        var (sp, tx) = _dlg[Mathf.Clamp(_dlgIdx, 0, _dlg.Length - 1)];
-        var (spFace, spc, spTop) = SpeakerFace(sp);
+        int line = Mathf.Clamp(_dlgIdx, 0, _dlg.Length - 1);
+        var (sp, tx) = _dlg[line];
+        var (face, accent, top) = SpeakerFace(sp);
+        // 行で立ち絵が指されていれば（表情差分）そちらを出す。話者色と円窓の上端は話者のまま。
+        face = LineFace(line) ?? face;
         var box = DialogBox;
-        UiKit.Box(this, box, PhoneBg, 8f, new Color(spc, 0.5f), 1f);
-        // 簡易丸＋頭文字 → 本物の立ち絵（カード/ヘッダと同じ円形クリップ）。リング色は話者色＝枠線と一致。
-        //   spTop < 0＝顔の無い話者（Ｙ 投稿／Ｙ システム）＝アバターを描かず、話者名を左端へ寄せる。
-        //   spTop == DraftTop＝「あなた」＝顔の代わりに Hud と同じ下書きの吹き出し印（見え方を本編会話に揃える）。
-        bool draft = spTop == DraftTop;
-        bool faceless = spTop < 0f;
-        if (draft)
-            // 下書き欄は縦長（DraftMarkH）。アバター（r=26）と違い上端 44 を中心にすると枠を割るので、
-            // 欄の上端を話者名と揃う位置（+24）に置いた上での縦中心を渡す。
-            Hud.DrawDraftMark(this, new Vector2(box.Position.X + 14, box.Position.Y + 24 + Hud.DraftMarkH / 2f), spc, _t);
-        else if (!faceless)
-            UiKit.FaceAvatar(this, new Vector2(box.Position.X + 44, box.Position.Y + 44), 26f, spFace, spc, false, spTop, 1f, _t);
-        UiKit.Text(this, UiKit.ZenBold, new Vector2(box.Position.X + (draft ? 14 + Hud.DraftMarkW + 20 : faceless ? 36 : 84), box.Position.Y + 24), sp, UiKit.FontSpeaker, spc);
-        // 現在ページ（2行固定）を表示済みの分だけ描画。
-        string page = DlgCurPage;
-        int shown = Mathf.Clamp((int)_dlgReveal, 0, page.Length);
-        var lines = new System.Collections.Generic.List<string>(page.Split('\n'));
-        UiKit.TypewriterLines(this, UiKit.Zen, lines,
-            new Vector2(box.Position.X + 24, box.Position.Y + 90 + UiKit.Zen.GetAscent(UiKit.FontHeading)),
-            DlgBodyWrapW, UiKit.FontHeading, new Color(0.95f, 0.95f, 0.98f), shown);
-        // 既読高速送り中の表示は上辺のボタン列（SKIP の点灯）が担う＝旧「▶▶」チップは出さない（_Draw の最後で描く）。
-        // 送り表示は現在ページの全文表示後だけ点滅。後続ページなら「▼ つづき」、最終ページなら「Z すすむ ▸」。
-        if (!_autoplay && _dlgReveal >= page.Length)
-        {
-            float blink = 0.5f + 0.5f * Mathf.Sin((float)_t * 4f);
-            string hint = DlgLastPage ? "次へ  ›" : "つづき  ›";
-            UiKit.Text(this, UiKit.Zen, new Vector2(box.Position.X + box.Size.X - 150, box.Position.Y + box.Size.Y - 36),
-                hint, UiKit.FontLabel, new Color(UiKit.Info, blink));
-        }
+        bool draft = top == DraftTop;
+        DialogueBox.DrawFrame(this, box, sp, accent, top < 0 || draft ? null : face, draft, faceTop: Mathf.Max(0, top));
+        DialogueBox.DrawBody(this, box, DlgCurPage, Mathf.Clamp((int)_dlgReveal, 0, DlgCurPage.Length));
+        if (!_autoplay && _dlgReveal >= DlgCurPage.Length && !_ffNow)
+            DialogueBox.DrawContinue(this, box, !DlgLastPage);
     }
 
     // ───────── 会話データ（③-2 / ③-3 / ③-6）─────────
@@ -3585,6 +3604,33 @@ public partial class Hub : Node2D
         ("ミナ", "ご報告。アカウントが、ひとつ、増えています。……名義は、わたくしではありません。あの方です。"),
         ("ミナ", "SNSの下の「アカウント」で、潜る方を切り替えられます。身体を動かすのは、引き続き、ご主人様です。"),
         ("ミナ", "放つ光も、ダイブ中にお話しする内容も、その方によって変わります。……わたくしに戻すときも、同じ場所からどうぞ。"),
+    };
+
+    // ───────── S1-6 ショップ説明・初回のみ（初回のボス撃破後・一度きり）─────────
+    // 仮台本 docs/20260928/wiki_仮台本_退避/06_粗い台本_案C_1_冒頭とあかり.md の S1-6（ユーザー承認済み・2026-09-05）。
+    // 案C に少年は居ないので、ミナの独り解説9行。口調は本編と同じ です・ます。
+    // ユーザー承認済み: docs/20260914/ストーリー添削_2026-09-14.md 【3】（感情アークの厳格運用）
+    //   この説明は最初の面の撃破直後＝「笑う」の獲得（こはる面クリア）より前なので、笑顔の立ち絵は出さない。
+    //   台詞そのものは変えず、face だけ平常顔へ倒した。
+    // 2026-10-03: 専用シーン（ShopTutorial.tscn）をやめ、この会話機構（StartDialogue）へ移した。本文と face は
+    //   一字も変えていない。元データは (int who, string text, string face) で who は Hud.LineKind＝9行すべて 1（ミナ）。
+    //   ハブの話者文字列 "ミナ" は DialogLogKind で同じ LineKind.Mina になる＝会話ログの種別も色も従来と同じ。
+    //   第3要素の face は行ごとの立ち絵（_dlgFaces）。同じ話者で表情だけ変わるので、話者から引く既定
+    //   （SpeakerFace＝mina_face）ではなく行ごとの指定が要る（8行目だけ mina_worried）。
+    private static readonly (string sp, string tx, string face)[] ShopTutorialLines =
+    {
+        ("ミナ", "……最初の“声”が、静かになりました。ひと息つきましょう。", "res://char/mina_face.png"),
+        ("ミナ", "せっかく稼いだのです。使い道を、ご案内します。", "res://char/mina_face.png"),
+        ("ミナ", "浄化すると、こぼれた心が散ります。あれを拾うと貯まる——“浄化した心”、♥の数が、それです。", "res://char/mina_face.png"),
+        // ★2026-09-17 経済改修：通貨は「撃破の瞬間」ではなく「欠片を拾ったとき」に入る実装になった。
+        //   拾う動作が報酬になる＝前へ出る動機（§2-4）なので、そこだけは一行で明示する。
+        //   面倒に聞こえないよう「近づけば勝手に寄る／終わりには全部拾える」という救済もセットで言う。
+        ("ミナ", "近づけば、向こうから寄ってきます。取り逃しても、面が終わればぜんぶ拾い上げますから。", "res://char/mina_face.png"),
+        ("ミナ", "その心を、強化ショップで わたくしに注いでください。道は、一本きりです。", "res://char/mina_face.png"),
+        ("ミナ", "上から順に。買えるのは、いつも いちばん上の ひとつだけ。——迷いようが、ありませんでしょう?", "res://char/mina_face.png"),
+        ("ミナ", "先の段も、名前と値段はぜんぶ見えています。どこまで行けるかを、隠したりはしません。", "res://char/mina_face.png"),
+        ("ミナ", "歯が立たない相手なら、無理は禁物。一度ここで強くなって、出直せばいいのです。", "res://char/mina_worried.png"),
+        ("ミナ", "わたくしを、よく研いでおいてくださいね。——では、まいりましょう。", "res://char/mina_face.png"),
     };
 
     private static (string, string)[] ReturnDialog(string id) => id switch

@@ -180,34 +180,22 @@ public partial class StageRei : Node
     };
 
 
-    // S3-5c 道中C・三つの席。ふざけ枠の代わりに**ミナ自身の下書き**を三つめに混ぜる（どれかは言わない）。
-    //   表記（です・ます）で気づける。「見ています」は S3-8 の決定打「見ていました。」の現在形。
-    //   きっかけ＝MidEnd の一行目＋この報告。文言は MidEnd から切り出す（二重に持たない）。
     private static readonly (int who, string text, string face)[] S35cCue = MidEnd.Take(1).Concat(new (int, string, string)[]
     {
-        (1, "……ご主人様。レイさんへ、何と伝えましょう。お返事の下書きが、三つあります。", MFace),
+        (1, "……誰も見ていないと、思っておられるのでしょうか。ご主人様。レイさんへ、何と伝えましょう。", MFace),
     }).ToArray();
-    private static readonly string[] S35cChoices = { "見てる", "ここにいる", "見ています", "（送らない）" };
+    private static readonly string[] S35cChoices = { "誰も見てないなんて、思ってほしくない", "強がらなくていいよ。今のレイの話が聞きたい" };
     private static (int who, string text, string face)[] S35cReply(int sel) => sel switch
     {
         0 => new (int, string, string)[]
         {
-            (0, "見てる", ""),
-            (1, "……見てる、と。——はい。顔を上げたときに、その一言があるのは、心強いです。", MFace),
-        },
-        1 => new (int, string, string)[]
-        {
-            (0, "ここにいる", ""),
-            (1, "……ここにいる、と。——では、そちらにも一席。わたくしも、隣に。……少し、落ち着きました。", MSmile),
-        },
-        2 => new (int, string, string)[]
-        {
-            (0, "見ています", ""),
-            (1, "……ありがとうございます。——その言い方、わたくしの下書きと、同じでした。……並んで、見ているみたいですね。", MSmile),
+            (0, S35cChoices[0], ""),
+            (1, "……はい。客席にいること、黙っているだけでは伝わりませんものね。ご主人様の言葉を、届けます。", MFace),
         },
         _ => new (int, string, string)[]
         {
-            (1, "……はい。言葉にしないまま、見ていても。わたくしは、ここにいます。", MFace),
+            (0, S35cChoices[1], ""),
+            (1, "……拍手をもらえるお話でなくても、聞いてほしいことはあるのでしょうね。わたくしも、一緒に聞きたいです。", MSmile),
         },
     };
     // 締めは 07 の残り2行を流用（MidEnd の二行目・三行目）。
@@ -266,25 +254,19 @@ public partial class StageRei : Node
         (1, "——ひとつ、ご報告を。わたくしの光、二割ほど、濁っています。", MDoubt),
         (1, "二人ぶんの声と、貼られた引用と、いまの声を、浴びすぎました。……つづけて、いいですか。", MFace),
     };
-    private static readonly string[] S37Choices = { "つづけて", "むりしないで", "（送らない）" };
-    // 受け（仮台本 07）。送った2件は復唱（who=0）してから受ける＝S1-4 と同じ流儀。
+    private static readonly string[] S37Choices = { "一緒に行こう。つらくなったら教えて", "ミナまで傷つくのは嫌だ。少し休もう" };
     private static (int who, string text, string face)[] S37Reply(int sel) => sel switch
     {
         0 => new (int, string, string)[]
         {
-            (0, "つづけて", ""),
-            (1, "……はい。見ていてください。——苦しくなったら、今度は、わたくしから言います。", MFace),
-        },
-        1 => new (int, string, string)[]
-        {
-            (0, "むりしないで", ""),
-            (1, "……はい。少し、手を休めます。……言ってくださって、ありがとうございます。", MWorried),
-            (1, "……戻りました。全部を一度に、抱えなくても。ここからは、一つずつ。", MFace),
+            (0, S37Choices[0], ""),
+            (1, "……はい。つらくなったら、お伝えします。……ご主人様にも頼ってよいのだと、覚えておきます。", MFace),
         },
         _ => new (int, string, string)[]
         {
-            (1, "……答えは、急がなくて結構です。わたくしも、少し休みます。", MFace),
-            (1, "……まだ、届けたい声があります。続けるのは、わたくしが決めます。苦しいときは、そう伝えます。", MFace),
+            (0, S37Choices[1], ""),
+            (1, "……わたくしが傷つくのは、嫌。そう言っていただけるとは、思っていませんでした。少しだけ、お言葉に甘えます。", MWorried),
+            (1, "……もう大丈夫です。待っていてくださって、ありがとうございました。ここからは、一つずつ。", MFace),
         },
     };
     private double _s37RestRemaining;
@@ -423,7 +405,7 @@ public partial class StageRei : Node
             case 6: Step_MidwaveB(delta); break;          // 道中ザコ戦B（やや詰める）
             case 7: Step_MidStory(delta); break;          // ★S3-4 受け＋S3-5a／S3-5b 接続 → 嵐（18）へ
             case 8: Step_MidwaveC(delta); break;          // 道中ザコ戦C（終盤＝最大密度の山）
-            // ★S3-5c の下書き選択（17）＝三つの席の直後にミナの一件が混ざる → 選択 → 07 の残り2行
+            // ★S3-5c の下書き選択（17）＝三つの席の直後 → 選択 → 07 の残り2行
             case 9: if (_charStory) Step_Lines(delta, _storyPreBoss); else Step_Choice(delta, "s3_5c", S35cCue, S35cChoices, S35cReply, S35cTail); break;
             case 10: Step_BossSpawn(); break;
             case 11: Step_Lines(delta, _playerBoss); break;
@@ -433,7 +415,7 @@ public partial class StageRei : Node
             // S3-7 は回想の完了から続けて入り、
             //   17 の受けを流し切ると 12（ボス戦）へ戻る。バブルは 15→16→17 の間ずっと保持される。
             case 15: Step_LinesHold(delta, MidChoicePre); break;   // 問いかけまで（バブルを閉じない）
-            case 16: Step_MidChoice(delta); break;                 // 下書き選択（つづけて／むりしないで／（送らない））
+            case 16: Step_MidChoice(delta); break;                 // 下書き選択（並走／休息）
             case 17: Step_MidChoiceAfter(delta); break;            // 受け → 膜を明けて戦闘へ戻す
             // S3-5b 引用の嵐（仮台本 11）。step 7 の接続3行を流し切ると 18 へ落ち、
             //   剥がし切って下書きが出たら 19（受けの4行）→ 8（道中C）へ戻る。
@@ -496,7 +478,7 @@ public partial class StageRei : Node
     //   id・候補・受け・締めを引数で受け、1つの step の中で完結させただけ。
     //   提示中もバブルは保持（HoldBubble）＝BubblePaused が続いて弾・敵は止まったまま。
     //   自動プレイ（--qa/--demo）は BubblePaused 中 Z をパルスし続けるので既定カーソル
-    //   （末尾＝（送らない））のまま即決される＝ここで詰まらない。
+    //   のまま決定される＝ここで詰まらない。
     //   行送りの状態は、ホスト側（_stepStarted / _introLine）と混ざらないようここに閉じて持つ。
     private int _cPhase;       // 0=きっかけ / 1=選択提示中 / 2=受け＋締め
     private int _cLine;
@@ -958,15 +940,10 @@ public partial class StageRei : Node
     private void ApplyS37Choice(int sel)
     {
         var game = GetNodeOrNull<GameManager>("/root/Game");
-        // 【散】は表示候補（上2件）のうち選ばれなかったぶんだけを計上する（S1-4 と同じ流儀）。
-        //   （送らない）自体は言葉ではないので送信語にも散る語にも数えない＝表示候補2件が丸ごと散る。
-        bool sent = sel < S37Choices.Length - 1;
-        var others = new System.Collections.Generic.List<string>();
-        for (int i = 0; i < S37Choices.Length - 1; i++) if (i != sel) others.Add(S37Choices[i]);
-        game?.RecordChoice("s3_7", sent ? S37Choices[sel] : "", others, (float)_s37ChoiceT);
+        ChoiceEffects.Record(game, "s3_7", S37Choices, sel, (float)_s37ChoiceT);
         _s37After = S37Reply(sel);
         _s37RestRemaining = sel == 0 ? 0 : 2.0;
-        _s37RestLine = sel == 1 ? 1 : 0;
+        _s37RestLine = 1;
     }
 
     // 受けを流し切ったら鈍色の膜を明けて戦闘へ戻す（→ case 12 の Step_BossWait）。

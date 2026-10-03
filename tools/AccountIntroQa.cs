@@ -121,7 +121,7 @@ public partial class AccountIntroQa : Node
         hub.QueueRedraw();
         await Frames(4);
         await Shot("dialogue_account_intro");
-        // 読み切る＝EndDialogue（HomeReveal → ShopTutorial への遷移が走る前にハブを畳む）
+        // 読み切る＝EndDialogue（HomeReveal → 強化ショップの説明が始まる前にハブを畳む）
         hub.SetProcess(false);
         Call(hub, "EndDialogue");
         Check(game.IsIdleDialogSeen(SeenKey), "once key is consumed after reading");

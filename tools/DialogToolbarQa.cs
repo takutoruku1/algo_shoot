@@ -73,6 +73,18 @@ public partial class DialogToolbarQa : Node
                 DirAccess.MakeDirRecursiveAbsolute(_out);
             }
             var game = GetNode<GameManager>("/root/Game");
+            foreach (var box in new[] { DialogueBox.FullScreen, DialogueBox.Board,
+                new Rect2(430, DialogueBox.FullScreen.Position.Y, 450, DialogueBox.FullScreen.Size.Y) })
+            {
+                float textBottom = DialogueBox.TextPosition(box).Y + DialogueBox.Body.Font.GetHeight(DialogueBox.Body.Size) * 2
+                    + DialogueBox.Body.ExtraLeading;
+                Check(textBottom < box.End.Y - 32, $"two full lines end at {textBottom:0.0}, above the continue button at {box.End.Y - 32}");
+                var pages = UiKit.Paginate(DialogueBox.Body, "……ご主人様。誰にも届かなかった言葉が、まだここに残っています。ひとつずつ、一緒に読んでいきましょう。",
+                    DialogueBox.WrapWidth(box), Hud.DlgMaxLines);
+                foreach (string page in pages)
+                    Check(page.Split('\n').Length <= 2 && UiKit.WrapLines(DialogueBox.Body.Font, page, DialogueBox.Body.Size,
+                        DialogueBox.WrapWidth(box)).Count <= 2, "pagination matches the shared panel's rendered width");
+            }
             game.AutoSaveEnabled = false;
             game.AutoAdvanceDialog = false;
             game.SelectedJob = Job.Tank;
@@ -186,12 +198,11 @@ public partial class DialogToolbarQa : Node
             Check(!Pad.MouseCaptured, "(g) capture lapses once the hover stops");
             var r0 = hud.ToolbarRect(0); var r3 = hud.ToolbarRect(3);
             Check(r0.End.X < r3.Position.X && Mathf.IsEqualApprox(r0.Position.Y, r3.Position.Y), "(g) AUTO..MENU laid out left to right on one row");
-            Check(r3.End.X <= Hud.DlgBoxX + Hud.DlgBoxW && r3.Position.Y < 520f && r3.End.Y > 520f, "(g) row sits right-aligned and bites into the box's top edge");
+            Check(hud.DialogRect.Encloses(r0) && hud.DialogRect.Encloses(r3), "(g) all controls stay inside the dialogue panel");
             GD.Print($"[Toolbar] rects AUTO={r0} MENU={r3}");
-            // (vi) 新しい寸法（戦闘の会話バー＝右上 (DlgBoxX+DlgBoxW, 520)）
-            float ax = Hud.DlgBoxX + Hud.DlgBoxW;
-            Check(r3 == new Rect2(ax - 12f - 36f, 493f, 36f, 30f), $"(vi) MENU rect is compact and aligned ({r3})");
-            Check(r0 == new Rect2(ax - 12f - 36f - 3f * 40f, 493f, 36f, 30f), $"(vi) AUTO rect sits 3 buttons (36+4) to the left ({r0})");
+            float ax = hud.DialogRect.End.X;
+            Check(r3.End.Y < DialogueBox.TextPosition(hud.DialogRect).Y, "(vi) toolbar never overlaps the dialogue body");
+            Check(r3.End.X == ax - DialogueBox.Padding, "(vi) controls share the dialogue's right padding");
             Check(hud.ToolbarRect(1).Position.X - hud.ToolbarRect(0).End.X == 4f, "(vi) 4px gap between buttons");
             Check(r3.End.X - r0.Position.X == 156f, "(vi) toolbar occupies only 156px before its thin rim");
             var boundsField = typeof(DialogToolbar).GetField("IconRegions", PrivateStatic)!;
@@ -333,14 +344,16 @@ public partial class DialogToolbarQa : Node
         foreach (int button in new[] { DialogToolbar.Auto, DialogToolbar.Skip })
         {
             var rect = hud.ToolbarRect(button);
-            await Click(rect.GetCenter());
+            await Click(hud, rect.GetCenter());
             Check(button == DialogToolbar.Auto ? game.AutoAdvanceDialog : Hud.SkipLatched,
                 $"button {button}: compact hitbox toggles on with a mouse click");
             GetViewport().WarpMouse(new Vector2(200, 100));
             await Frames(3);
             await SaveZoom(button == DialogToolbar.Auto ? "toolbar_auto_on" : "toolbar_skip_on", hud.ToolbarRect(0), hud.ToolbarRect(3));
             using var on = GetViewport().GetTexture().GetImage();
-            Rect2I icon = new((int)rect.Position.X + 6, (int)rect.Position.Y + 4, 24, 20);
+            float scale = off.GetWidth() / UiKit.DesignW;
+            Rect2I icon = new((int)((rect.Position.X + 6) * scale), (int)((rect.Position.Y + 4) * scale),
+                (int)(24 * scale), (int)(20 * scale));
             int changed = 0;
             for (int y = icon.Position.Y; y < icon.End.Y; y++)
                 for (int x = icon.Position.X; x < icon.End.X; x++)
@@ -353,22 +366,22 @@ public partial class DialogToolbarQa : Node
                         + Math.Abs(color.B - before.B) > 0.3f) changed++;
                 }
             Check(changed >= 18, $"button {button}: dedicated selected illustration visibly changes color ({changed} pixels)");
-            await Click(rect.GetCenter());
+            await Click(hud, rect.GetCenter());
             Check(button == DialogToolbar.Auto ? !game.AutoAdvanceDialog : !Hud.SkipLatched,
                 $"button {button}: second click restores the inactive state");
         }
         GetViewport().WarpMouse(new Vector2(200, 100));
     }
 
-    private async Task Click(Vector2 designPosition)
+    private async Task Click(Hud hud, Vector2 designPosition)
     {
-        Vector2 position = designPosition * UiKit.Scale;
-        GetViewport().WarpMouse(position);
-        await Frames(3);
-        Input.ParseInputEvent(new InputEventMouseButton { ButtonIndex = MouseButton.Left, Pressed = true, Position = position });
-        await Frames(3);
+        const BindingFlags mouseFields = BindingFlags.Static | BindingFlags.NonPublic;
+        typeof(Pad).GetField("_mousePos", mouseFields)!.SetValue(null, designPosition);
+        typeof(Pad).GetField("_mL", mouseFields)!.SetValue(null, true);
+        typeof(Pad).GetField("_mLPrev", mouseFields)!.SetValue(null, false);
+        typeof(Hud).GetMethod("TickDialogToolbar", Private)!.Invoke(hud, new object[] { 1.0 / 60 });
         Check(Pad.MouseCaptured && !Pad.AdvanceHeld(), "toolbar click does not advance the dialogue");
-        Input.ParseInputEvent(new InputEventMouseButton { ButtonIndex = MouseButton.Left, Pressed = false, Position = position });
+        typeof(Pad).GetField("_mL", mouseFields)!.SetValue(null, false);
         await Frames(3);
     }
 
@@ -387,10 +400,9 @@ public partial class DialogToolbarQa : Node
         var m0 = DialogToolbar.ButtonRect(anchor, DialogToolbar.Auto);
         var m3 = DialogToolbar.ButtonRect(anchor, DialogToolbar.Menu);
         GD.Print($"[Toolbar] prologue anchor={anchor} AUTO={m0} MENU={m3}");
-        Check(Mathf.IsEqualApprox(anchor.X, 370f / UiKit.Scale) && Mathf.IsEqualApprox(anchor.Y, 158f / UiKit.Scale),
-            "(h) prologue: anchor is the CutBox top-right (370,158) in design coords");
-        Check(m3.End.X <= anchor.X && m3.Position.Y < anchor.Y && m3.End.Y > anchor.Y && m0.End.X < m3.Position.X,
-            "(h) prologue: row is right-aligned on the box's top edge");
+        Check(anchor == DialogueBox.Anchor(DialogueBox.FullScreen), "(h) prologue uses the shared cinematic panel");
+        Check(DialogueBox.FullScreen.Encloses(m3) && DialogueBox.FullScreen.Encloses(m0),
+            "(h) prologue controls stay inside the panel");
         await Seconds(0.4);
 
         // SKIP：未読行では即 OFF（台本の1行目＝起動ログ。その次が P2 の3択）
@@ -484,14 +496,15 @@ public partial class DialogToolbarQa : Node
             ("ミナ", $"ハブのツールバー検証、四行目です。{stamp}"),
         };
         typeof(Hub).GetMethod("StartDialogue", Private)!.Invoke(hub,
-            new object?[] { lines, null, true, Enum.Parse(modeType, "Cards"), null });
+            new object?[] { lines, null, true, Enum.Parse(modeType, "Cards"), null, null });
         await Frames(3);
         Check(Shown(hub, "DialogShown"), "(h) hub: dialogue box is shown");
         var anchor = Anchor(typeof(Hub));
         var m3 = DialogToolbar.ButtonRect(anchor, DialogToolbar.Menu);
         GD.Print($"[Toolbar] hub anchor={anchor} AUTO={DialogToolbar.ButtonRect(anchor, DialogToolbar.Auto)} MENU={m3}");
-        Check(anchor == new Vector2(880f, 428f) && m3.End.X <= 880f && m3.Position.Y < 428f && m3.End.Y > 428f,
-            "(h) hub: row is right-aligned on the dialogue box's top edge (880,428)");
+        Check(anchor == new Vector2(880f, DialogueBox.FullScreen.Position.Y) && m3.End.X <= 880f
+            && m3.Position.Y > anchor.Y && m3.End.Y < anchor.Y + DialogueBox.HeaderHeight,
+            "(h) hub controls stay inside the same header layout");
         await Seconds(0.4);
         int idx0 = Read<int>(hub, "_dlgIdx");
         await Tap(Key.A);
