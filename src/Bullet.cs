@@ -81,11 +81,8 @@ public partial class Bullet : Area2D
     public bool TintSet;
 
     // ─── ボス別弾幕ギミック（#12 機構側）の弾フラグ ───
-    // Erasable: 自機弾で消せる「祈り弾」（こはる FanDown）。消すと双方消滅＋やさしさ微加算。
-    // WordAching: 層2（病みサイン）の投稿チップ＝「見つけて届ける」対象（10 の案A）。Erasable と同居し、
-    //   撃つと祈り弾と同じ経路で拾えるが、報酬は AddPostDelivered（+40／やさしさ+0.05／インプレ3）になる。
-    // SoftenOnGraze: グレイズすると一度だけ減速×GrazeSoftenMul＋淡色化する「キミ弾」（あかり）。被弾判定は不変。
-    public bool Erasable;
+    // プール再利用時に、演出側が管理する弾を通常弾と取り違えないための印。
+    public bool IsPatternBullet;
     public bool WordAching;
     public bool SoftenOnGraze;
     public bool Softened;   // 減速・淡色化が適用済みか（1発につき1回だけ）
@@ -213,6 +210,43 @@ public partial class Bullet : Area2D
     public int TurnRateOverride;
     private Node2D? _homeTarget;
     private Panel? _homeUnfolder;
+    private Node2D? _launchTarget;
+    private Panel? _launchPanel;
+    private Vector2 _launchTargetPosition, _launchTargetVelocity;
+    private bool _bossProjectile;
+
+    public void SetLaunchTarget(Node2D target, Panel? panel)
+    {
+        _launchTarget = target;
+        _launchPanel = panel;
+        _launchTargetPosition = panel?.GlobalPosition ?? target.GlobalPosition;
+        _launchTargetVelocity = Vector2.Zero;
+    }
+
+    public void UseBossProjectile()
+    {
+        _bossProjectile = true;
+        _sprite = null;
+        _spriteRotSpeed = 0;
+        _playerVisual = BulletArt.PlayerShot(Job.Tank);
+        Material = EnemyShotMaterial;
+        Rotation = Velocity.Angle();
+        QueueRedraw();
+    }
+
+    private static ShaderMaterial? _enemyShotMaterial;
+    private static ShaderMaterial EnemyShotMaterial => _enemyShotMaterial ??= new ShaderMaterial
+    {
+        Shader = new Shader { Code = @"shader_type canvas_item;
+render_mode unshaded;
+varying vec4 shot_color;
+void vertex() { shot_color = COLOR; }
+void fragment() {
+    vec4 tex = texture(TEXTURE, UV);
+    float light = max(tex.r, max(tex.g, tex.b));
+    COLOR = vec4(shot_color.rgb * (0.65 + 0.35 * light), shot_color.a * tex.a);
+}" },
+    };
     private const float HomingTurnRate = 150f; // deg/s（“曲がって当たる”手応え側へ。漂う弾は HomingLife で始末する）
     private float _retargetT;                  // 標的の再探索クールダウン（RetargetInterval ごとに乗り換え判定）
     private const float RetargetInterval = 0.25f; // 全探索は 0.25s に1回だけ＝毎フレーム探索より軽い
@@ -356,9 +390,10 @@ public partial class Bullet : Area2D
     internal static Color NeonOf(Color tint, Job job)
     {
         tint.ToHsv(out float h, out float s, out float v);
-        if (s < PaleS || v < DarkV) NeonDefault.ToHsv(out h, out _, out _);
+        if (s < PaleS || v < DarkV) h = 0.15f;
+        else h = Mathf.Wrap(h + 0.5f, 0, 1);
         BulletArt.PlayerColor(job).ToHsv(out float ph, out _, out _);
-        if (Mathf.Abs(Mathf.Wrap(h - ph, -0.5f, 0.5f)) < PlayerBand) h = Mathf.Wrap(h + 1f / 3f, 0f, 1f);
+        if (Mathf.Abs(Mathf.Wrap(h - ph, -0.5f, 0.5f)) < PlayerBand) h = Mathf.Wrap(h + 0.25f, 0f, 1f);
         return Color.FromHsv(h, NeonS, NeonV);
     }
     internal static Color RimOf(Color neon) => neon.Lerp(Colors.White, RimWhite);
@@ -499,9 +534,6 @@ public partial class Bullet : Area2D
         _shape = new CollisionShape2D { Shape = _circle };
         AddChild(_shape);
 
-        // 「祈り弾」（Erasable）のみ自機弾との重なりを自前処理する（MakeErasable が mask を開く）。
-        AreaEntered += OnAreaEntered;
-
         // 初期状態は非アクティブ
         Deactivate();
     }
@@ -516,7 +548,7 @@ public partial class Bullet : Area2D
         _playerVisual = isEnemy ? null : BulletArt.PlayerShot(GameManager.Instance!.SelectedJob);
         TextureFilter = isEnemy ? TextureFilterEnum.ParentNode : TextureFilterEnum.LinearWithMipmaps;
         // 自機の通常弾だけ加算ブレンド＝縁取りの無い光条（敵弾は通常ブレンド＝暗い縁取りが立つ）。
-        Material = isEnemy ? null : PlayerGlow;
+        Material = isEnemy ? EnemyShotMaterial : PlayerGlow;
         Damage = damage;
         Radius = radius;
         Active = true;
@@ -531,7 +563,7 @@ public partial class Bullet : Area2D
         _slowLogged = false; // QA検証ログのワンショットもプール再利用ごとに戻す
         Chain = 0;  // 跳弾数も同様（付与は FireSpread 側）
         Word = "";  // 再利用時に前の言葉を持ち越さない
-        Erasable = false;       // ギミックフラグも再利用時に持ち越さない
+        IsPatternBullet = false;       // ギミックフラグも再利用時に持ち越さない
         SoftenOnGraze = false;
         BoundsMargin = DefaultBoundsMargin;
         Softened = false;
@@ -539,14 +571,18 @@ public partial class Bullet : Area2D
         _sprite = null; _spriteRotSpeed = 0f; _spriteSway = 0f;
         Shape = shape;
         TintSet = tint.HasValue;
-        if (tint.HasValue) Tint = tint.Value;
+        Tint = isEnemy ? NeonOf(tint ?? EnemyMid, GameManager.Instance!.SelectedJob) : tint ?? Colors.White;
         // 蛍光縁の色はここで一度だけ決める（_Draw は Activate/SetSprite 時の記録のみ＝毎フレーム計算しない）。
-        if (isEnemy) _neon = NeonOf(TintSet ? Tint : EnemyMid, GameManager.Instance!.SelectedJob);
+        if (isEnemy) { _neon = Tint; TintSet = true; }
         Homing = homing;
         BackwardHoming = backwardHoming; // 再利用時に持ち越さない（既定 false）
         TurnRateOverride = 0;            // 旋回上書きも再利用時にリセット（付与は Spawn 後に設定）
         _homeTarget = null;
         _homeUnfolder = null;
+        _launchTarget = null;
+        _launchPanel = null;
+        _launchTargetVelocity = Vector2.Zero;
+        _bossProjectile = false;
         _retargetT = 0f;                 // 再探索タイマーも持ち越さない（次フレームで即1回探索）
         // 加速球フラグ群も再利用時に必ずリセット（プール再利用で持ち越すと別の弾が誤加速する）。
         Accel = false; _accelDone = false; _accelDelay = 0f; _fastSpeed = 0f; _accelDir = Vector2.Zero; _age = 0f;
@@ -624,20 +660,10 @@ public partial class Bullet : Area2D
             _shape.SetDeferred(CollisionShape2D.PropertyName.Disabled, true);
     }
 
-    // 「祈り弾」にする（Spawn 後に呼ぶ。こはる FanDown）。自機弾(layer=2)を拾う mask を開き、
-    // 消せる合図の淡い暖色ハロを再描画で反映する。Activate が mask/フラグを毎回リセットするので持ち越さない。
-    public void MakeErasable()
-    {
-        Erasable = true;
-        CollisionMask |= LayerPlayerBullet;
-        QueueRedraw();
-    }
-
     // 貼りついた引用（S3-5b 引用の嵐・仮台本 11）を「当たらない」状態にする。
     //   11 の規則＝核（当たり判定）は貼りつく前の飛行中だけ持ち、貼りついたあとは当たらない。
     //   自機の被弾判定は Player 側の AreaEntered（自機 mask に敵弾 layer=8 が入っている）で起きるので、
     //   こちら側の mask を切るだけでは足りない＝敵弾 layer を降ろして自機の Area から見えなくする。
-    //   自機弾の layer（Erasable が開いた mask）だけは残るので、撃てば剥がれるが刺さらない。
     //   芯の赤ドットも消す（＝「これはもう危険ではない」を絵でも言う）。
     public void MakeHarmless()
     {
@@ -684,27 +710,6 @@ public partial class Bullet : Area2D
         _fromSpeed = len;
         _slowSpeed = Mathf.Min(slowSpeed, len);  // 「速くなる」方向には決して働かせない
         _decelDelay = Mathf.Max(0.05f, delaySec);
-    }
-
-    // 祈り弾×自機弾の重なり：双方消して「受け止めた」の手応え＋やさしさ微加算。
-    // 自機弾も消費する＝雨を受け止めるぶん本体への火力が落ちる（受け皿のコスト＝リスクとリターン）。
-    private void OnAreaEntered(Area2D area)
-    {
-        if (!Active || OverheadPending || !IsEnemy || !Erasable) return;
-        if (area is Bullet pb && !pb.IsEnemy && pb.Active)
-        {
-            var pool = GetNodeOrNull<BulletPool>("/root/Pool");
-            if (!pb.RegisterChargeHit(this)) return;
-            pb.ChargeImpact(GlobalPosition);
-            if (pb.Charged && pb.Pierce > 0) pb.Pierce--;
-            else pool?.Despawn(pb);
-            FxLayer.Instance?.BulletToPetal(GlobalPosition); // 弾が花びらへ＝“祈りを受け止めた”
-            Audio.Instance?.PlayStrip();                     // 軽い「コツッ」（剥離と同域＝浄化より一段軽い）
-            var gm = GetNodeOrNull<GameManager>("/root/Game");
-            // 層2 の病みポストは「拾った」＝届けた扱い（10 の案A）。祈り弾より一段大きい報酬にする。
-            if (WordAching) gm?.AddPostDelivered(); else gm?.AddPrayerCleared();
-            if (pool != null) pool.Despawn(this); else Deactivate();
-        }
     }
 
     // 連鎖の光（chain_light）：この拡散弾が敵/パネルに消費された瞬間、最寄りの「別の敵」へ跳弾する。
@@ -799,6 +804,20 @@ public partial class Bullet : Area2D
         //   タメ中の Velocity はほぼ 0 なので向き復元は使わず、MakeAccel で保持した _accelDir を使う（len≈0破綻回避）。
         if (Accel && !_accelDone)
         {
+            if (!IsEnemy && IsInstanceValid(_launchTarget) && !_launchTarget!.IsQueuedForDeletion()
+                && (_launchTarget is not Enemy targetEnemy || !targetEnemy.IsPurified))
+            {
+                if (_launchTarget is Enemy enemy)
+                    _launchPanel = enemy.SelectUnfolder(GlobalPosition, _launchPanel, this);
+                Vector2 target = _launchPanel?.GlobalPosition ?? _launchTarget.GlobalPosition;
+                if (edelta > 0)
+                    _launchTargetVelocity = _launchTargetVelocity.Lerp(
+                        ((target - _launchTargetPosition) / (float)edelta).LimitLength(180f), 0.35f);
+                _launchTargetPosition = target;
+                float flight = Mathf.Min(0.35f, GlobalPosition.DistanceTo(target) / _fastSpeed);
+                _accelDir = GlobalPosition.DirectionTo(target + _launchTargetVelocity * flight);
+                Velocity = _accelDir * Velocity.Length();
+            }
             if (_age >= _accelDelay)
             {
                 _accelDone = true;
@@ -830,7 +849,7 @@ public partial class Bullet : Area2D
             SteerToTarget((float)edelta);
         }
         // 旋回は変換行列だけを更新し、画像の描画コマンドを毎フレーム作り直さない。
-        if (!IsEnemy && Velocity.LengthSquared() > 0.01f) Rotation = Velocity.Angle();
+        if ((!IsEnemy || _bossProjectile) && Velocity.LengthSquared() > 0.01f) Rotation = Velocity.Angle();
 
         GlobalPosition += Velocity * (float)edelta;
 
@@ -1024,9 +1043,15 @@ public partial class Bullet : Area2D
             return;
         }
 
-        if (!IsEnemy)
+        if (!IsEnemy || _bossProjectile)
         {
+            if (IsEnemy)
+            {
+                DrawCircle(Vector2.Zero, r + 0.5f, new Color("151020"), true, -1, true);
+                DrawCircle(Vector2.Zero, r - 0.2f, _neon, true, -1, true);
+            }
             DrawPlayerProjectile(r);
+            if (IsEnemy) DrawEnemyCore(r);
             return;
         }
 
@@ -1055,18 +1080,6 @@ public partial class Bullet : Area2D
         // 絵つき弾にも同じ芯を打つ＝絵が何であれ「蛍光の縁取り＋白い芯」なら敵弾、と一目で読める。
         DrawEnemyCore(r);
 
-        if (Erasable)
-        {
-            float edge = r + 2.4f;
-            var mark = new Color(1f, 0.95f, 0.8f, 0.75f);
-            for (int x = -1; x <= 1; x += 2)
-                for (int y = -1; y <= 1; y += 2)
-                {
-                    var corner = new Vector2(x * edge, y * edge);
-                    DrawLine(corner, corner - new Vector2(x * 2f, 0), mark, 0.8f, true);
-                    DrawLine(corner, corner - new Vector2(0, y * 2f), mark, 0.8f, true);
-                }
-        }
     }
 
     // 認証バッジの白✓。極小サイズではフォント✓が潰れるので2線分のチェック記号で描く。
@@ -1107,7 +1120,7 @@ public partial class Bullet : Area2D
             ChargeShotFx.DrawProjectile(this, art, ChargeJob, _age, r, ChargeStage);
             return;
         }
-        Color accent = art.Accent;
+        Color accent = IsEnemy ? _neon : art.Accent;
         if (AccelCharging)
         {
             float progress = _accelDelay > 0 ? Mathf.Clamp(_age / _accelDelay, 0, 1) : 1;
@@ -1130,7 +1143,8 @@ public partial class Bullet : Area2D
         }
         float scale = r * 3.8f / Mathf.Max(art.Region.Size.X, art.Region.Size.Y);
         DrawTextureRectRegion(art.Texture,
-            new Rect2((art.Region.Position - art.Pivot) * scale, art.Region.Size * scale), art.Region);
+            new Rect2((art.Region.Position - art.Pivot) * scale, art.Region.Size * scale), art.Region,
+            IsEnemy ? accent : Colors.White);
     }
 
     // テクスチャ弾（こはる＝推し活グッズ／あかり＝仕事の書類）。
@@ -1159,10 +1173,11 @@ public partial class Bullet : Area2D
         float pad = sil.PadFrac * longSide;
         var big = new Rect2(-half - new Vector2(pad, pad), ts + new Vector2(pad * 2f, pad * 2f));
         DrawTextureRect(sil.Glow, big, false, GlowOf(neon));
+        DrawTextureRect(sil.Rim, big.Grow(0.6f / scale), false, new Color("11121d"));
         DrawTextureRect(sil.Rim, big, false, RimOf(neon));
 
         // 本体。グレイズ軟化済みは白へ寄せた淡色を薄く乗せる（他の弾と同じ「和らいだ」の合図）。
-        DrawTextureRect(tex, dst, false, Softened ? new Color(1f, 1f, 1f, 0.75f) : Colors.White);
+        DrawTextureRect(tex, dst, false, new Color(neon, Softened ? 0.75f : 1f));
         DrawSetTransform(Vector2.Zero, 0f, Vector2.One);
     }
 

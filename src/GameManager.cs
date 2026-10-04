@@ -169,7 +169,7 @@ public partial class GameManager : Node
     // ボスHPバー本数（言葉のシールド＋無防備窓リワーク）。1本=BarHp(=100)で、総HP=本数×BarHp。
     // 難易度で本数が増える＝堅くなる（弾数調整とは別軸の「殴る回数」調整）。
     public int DiffBarBonus(bool finalBoss) =>
-        (Difficulty switch { Diff.Easy => 4, Diff.Hard => 10, Diff.Lunatic => 12, _ => 8 }) + (finalBoss ? 4 : 0);
+        (Difficulty switch { Diff.Easy => 2, Diff.Hard => 5, Diff.Lunatic => 6, _ => 4 }) + (finalBoss ? 2 : 0);
 
     // ルナティック解禁条件（①-9）：フォロワーが一定 or 一本道 #5「火力 2倍」を持っている。
     public const int LunaticFollowerReq = 200;
@@ -975,8 +975,8 @@ public partial class GameManager : Node
     public float DodgeDistance => Has("n_dodge_cd") ? 76f : 64f;
 
     // 窓キャップ（Enemy.ExposedDamageCap）のテンポ還元。火力に投資するほど1窓で通せる量が増える＝
-    //   「強くなったのに窓の中で手が空く」を作らない。基準100＋火力3段ぶん（各+25）。
-    public int ExposedDamageCap => 100 + 25 * ((Has("n_power_2x") ? 1 : 0) + (Has("n_lines") ? 1 : 0) + (Has("n_rate_2x") ? 1 : 0));
+    //   「強くなったのに窓の中で手が空く」を作らない。基準180＋火力3段ぶん（各+35）。
+    public int ExposedDamageCap => 180 + 35 * ((Has("n_power_2x") ? 1 : 0) + (Has("n_lines") ? 1 : 0) + (Has("n_rate_2x") ? 1 : 0));
 
     // ── 旧ノードが消えたぶんの既定値（買えなくなった軸は「旧ノードを買い切った値」で固定する）──
     //   ＝一本道化で強化軸が消えても、撃ち味そのものは旧・最終段のまま。弱体化ゼロ（査読確定・§9）。

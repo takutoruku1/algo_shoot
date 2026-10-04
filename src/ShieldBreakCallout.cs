@@ -75,7 +75,7 @@ public partial class ShieldBreakCallout : Node2D
     {
         if (!Active || _portrait == null) return;
         UiKit.BeginDesign(this);
-        float enter = 1f - Mathf.Pow(1f - Mathf.Clamp(_age / 0.24f, 0, 1), 3);
+        float enter = 1f - Mathf.Pow(1f - Mathf.Clamp((_age + 0.04f) / 0.10f, 0, 1), 3);
         float alpha = enter * (_showingPost ? 1 : Mathf.Clamp(_owner!.GaugeWindowLeft / 0.09f, 0, 1));
         var box = DialogueBox.Board;
         box.Position += new Vector2(-(1 - enter) * 22, 0);
@@ -84,8 +84,7 @@ public partial class ShieldBreakCallout : Node2D
             _showingPost ? "下書きの奥へ" : "本体にダメージが通る", 15,
             new Color(DialogueBox.Ink, alpha), HorizontalAlignment.Right, 220);
         var pages = DialogueBox.Paginate(_line, DialogueBox.WrapWidth(box));
-        var caption = DialogueBox.CaptionAt(pages, _age);
-        DialogueBox.DrawBody(this, box, caption.Page, caption.Shown, alpha);
+        DialogueBox.DrawBody(this, box, pages[0], pages[0].Length, alpha);
         var start = new Vector2(box.Position.X + DialogueBox.Padding, box.End.Y - 15);
         float width = DialogueBox.WrapWidth(box);
         DrawLine(start, start + new Vector2(width, 0), new Color(_accent, 0.18f * alpha), 2, true);

@@ -16,7 +16,6 @@ public partial class BossEdgeVolley : Node2D
     private int _rows;
     private Vector2[] _gates = null!;
     private Vector2 _direction;
-    private readonly List<(Bullet bullet, ulong activation)> _bullets = new();
     public Edge Side { get; private set; }
     public string SpellName { get; private set; } = "";
     public bool Finished { get; private set; }
@@ -104,36 +103,28 @@ public partial class BossEdgeVolley : Node2D
                 _ => new Vector2(Field.Right - 5, axis),
             };
         }
-        foreach (var node in GetTree().GetNodesInGroup("enemy_bullets"))
-            if (node is Bullet bullet && bullet.Active) _pool.Despawn(bullet);
     }
-
-    private static bool Owns((Bullet bullet, ulong activation) shot)
-        => IsInstanceValid(shot.bullet) && shot.bullet.Active && shot.bullet.ActivationId == shot.activation;
 
     public override void _PhysicsProcess(double delta)
     {
         if (Finished) return;
-        if (!IsInstanceValid(_boss) || _boss.IsQueuedForDeletion() || _boss.IsPurified || !_boss.Visible
-            || _boss.GaugeVulnerable || _boss.GaugeReforming)
+        if (!IsInstanceValid(_boss) || _boss.IsQueuedForDeletion() || _boss.IsPurified || !_boss.Visible)
         {
             Cancel();
             return;
         }
-        if (Hud.BubblePaused) { QueueRedraw(); return; }
+        if (Hud.BubblePaused || _boss.GaugeVulnerable || _boss.GaugeReforming) { QueueRedraw(); return; }
         _time += GameManager.EnemyDelta(delta);
         if (_rows < Rows && _time >= _warning + _rows * RowInterval)
         {
             foreach (var gate in _gates)
             {
                 var bullet = _pool.Spawn(gate, _direction * _speed, true, 3.4f, 1, BulletShape.Diamond, _accent);
-                bullet.SetSprite(_art);
-                _bullets.Add((bullet, bullet.ActivationId));
+                bullet.UseBossProjectile();
             }
             _rows++;
         }
-        _bullets.RemoveAll(shot => !Owns(shot));
-        if (_rows == Rows && _bullets.Count == 0) { Cancel(); return; }
+        if (_rows == Rows) { Cancel(); return; }
         QueueRedraw();
     }
 
@@ -141,20 +132,10 @@ public partial class BossEdgeVolley : Node2D
     {
         if (Finished) return;
         Finished = true;
-        ClearBullets();
         Hide();
         QueueFree();
     }
 
-    private void ClearBullets()
-    {
-        // Pool reuse must not let an interrupted volley erase a later, unrelated shot.
-        foreach (var shot in _bullets)
-            if (Owns(shot)) _pool.Despawn(shot.bullet);
-        _bullets.Clear();
-    }
-
-    public override void _ExitTree() => ClearBullets();
 
     public override void _Draw()
     {

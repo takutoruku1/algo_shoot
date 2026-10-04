@@ -118,7 +118,9 @@ public partial class BossDownQa : Node
                         game.Difficulty = GameManager.Diff.Lunatic;
                         Call(mina, "BeginPhaseTransition");
                         game.Difficulty = GameManager.Diff.Normal;
-                        Check(Body(mina).Texture.ResourcePath == BossDownArt.BreathingPath(BossMina.BattleDownPath(mina.EncounterPhase), 0), costume + " changes costume while down");
+                        Check(costume == "home" ? mina.GaugeReforming && !Read<bool>(mina, "_bodyDown")
+                            : Body(mina).Texture.ResourcePath == BossDownArt.BreathingPath(BossMina.BattleDownPath(mina.EncounterPhase), 0),
+                            costume + " changes costume with the correct shield state");
                         Call(mina, "CompletePhaseTransition");
                         await FinishTransformation(mina);
                         Read<MinaPhaseAttacks>(mina, "_caster").CancelPendingAttacks();
@@ -372,7 +374,7 @@ public partial class BossDownQa : Node
         var bullet = Pool.Spawn(new Vector2(-100, -100), Vector2.Zero, false, damage: 1);
         Call(boss, "OnBodyHitByPlayerBullet", bullet);
         Check(Read<int>(boss, "_hp") < hp, id + " player shot still damages down boss");
-        Call(boss, "TickBossPhase", 3.9d);
+        Call(boss, "TickBossPhase", 7.9d);
         Check(Body(boss).Texture.ResourcePath == down && boss.GaugeVulnerable, id + " down persists through exposed window");
         Call(boss, "TickBossPhase", 0.11d);
         Check(!Read<bool>(boss, "_bodyDown") && Body(boss).Texture.ResourcePath == Read<string>(boss, "PreTexPath"), id + " reclose restores current idle costume");
@@ -400,14 +402,14 @@ public partial class BossDownQa : Node
         }
         var playerShot = Pool.Spawn(new Vector2(-100, -100), Vector2.Zero, false);
         Strip(boss);
-        Check(!hostile.Active && playerShot.Active, id + " break clears hostile bullets but preserves player shots");
+        Check(hostile.Active && playerShot.Active, id + " break preserves hostile and player shots");
         boss.ProcessMode = ProcessModeEnum.Inherit;
         boss.SetProcess(false);
         boss.SetPhysicsProcess(true);
         foreach (var child in boss.GetChildren())
             if (child is AreaSpellCaster or MinaPhaseAttacks) child.SetProcess(true);
         await Frames(28);
-        Check(!IsInstanceValid(strike) || strike.IsQueuedForDeletion(), id + " break cancels existing AOE");
+        Check(IsInstanceValid(strike) && !strike.IsQueuedForDeletion(), id + " break preserves existing AOE");
         var frames = new HashSet<string>();
         var origin = boss.GlobalPosition;
         for (int i = 0; i < 100; i++)
@@ -417,11 +419,9 @@ public partial class BossDownQa : Node
             frames.Add(body.Texture.ResourcePath);
             if (!body.Position.IsZeroApprox() || !Mathf.IsZeroApprox(body.Rotation) || boss.GlobalPosition != origin)
                 throw new Exception(id + " moves the whole sprite instead of breathing through shoulders");
-            if (GetTree().GetNodesInGroup("enemy_bullets").OfType<Bullet>().Any(b => b.Active)
-                || GetTree().GetNodesInGroup("aoe").Any(n => !n.IsQueuedForDeletion()))
-                throw new Exception(id + " attacks during down");
         }
         Check(frames.Count == 3 && frames.All(p => p.Contains("_breath_")), id + " three shoulder-breathing drawings animate without whole-body motion");
+        Check(GetTree().GetNodesInGroup("enemy_bullets").OfType<Bullet>().Any(b => b.Active), id + " danmaku continues during down");
         Check(Read<bool>(boss, "_bodyDown") && boss.GaugeVulnerable, id + " live physics holds down during combat");
         Check(_root.Hud.Bubbles!.ShieldBreak.Active, id + " opportunity callout follows the live damage window");
         Pool.DespawnAll();

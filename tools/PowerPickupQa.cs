@@ -52,11 +52,13 @@ public partial class PowerPickupQa : Node
             DisplayServer.WindowSetMode(DisplayServer.WindowMode.Windowed);
             DisplayServer.WindowSetSize(new Vector2I(1280, 720));
             await Frames(2);
+            Check(Enum.GetNames<PowerKind>().SequenceEqual(new[] { "Line", "Speed", "Life" }), "shield item removed");
+            Check(Jobs.Get(Job.Melee).MaxLifeDelta == 0, "Akari gains one starting life");
             CheckArtwork();
             foreach (var job in Jobs.All) await CheckPlayer(job);
             await CheckDrops();
             await CheckStageRoots();
-            await Preview();
+            if (OS.GetCmdlineUserArgs().Contains("--shots")) await Preview();
             Audio.Instance?.StopMusic(0);
             foreach (var child in GetNode<Audio>("/root/Audio").GetChildren())
                 if (child is AudioStreamPlayer audio) { audio.Stop(); audio.Stream = null; }
@@ -90,16 +92,7 @@ public partial class PowerPickupQa : Node
                 $"{kind}: distinct generated illustration");
             Check(ReferenceEquals(texture, PowerPickupArt.TextureFor(kind)), "texture cached");
         }
-        using var barrier = GD.Load<Texture2D>("res://char/player/shield_barrier_v1.png").GetImage();
-        Check(barrier.GetWidth() == 256 && barrier.HasMipmaps(), "player barrier uses bounded mipmapped artwork");
-        Check(barrier.GetPixel(0, 0).A == 0 && barrier.GetPixel(255, 255).A == 0,
-            "player barrier has a transparent background");
-        float centerAlpha = 0;
-        for (int y = 90; y < 166; y++)
-            for (int x = 90; x < 166; x++) centerAlpha += barrier.GetPixel(x, y).A;
-        Check(centerAlpha / (76 * 76) < 0.01f, "barrier leaves the character and collision core clear");
-        Check(barrier.GetPixel(128, 20).A > 0.3f && barrier.GetPixel(30, 128).A > 0.3f,
-            "barrier has a visible enclosing rim");
+
     }
 
     private async Task<AkariRoot> NewRoot(Job job = Job.Tank)
@@ -138,9 +131,6 @@ public partial class PowerPickupQa : Node
         int startingLives = p.Lives;
         long money = _game.Impression;
         int hits = _game.RunHitCount;
-        var shield = Read<CanvasTexture>(p.GetNode<PlayerHitDot>("HitDot"), "_shieldTexture");
-        Check(shield.DiffuseTexture.ResourcePath == "res://char/player/shield_barrier_v1.png",
-            $"{job.CharacterId}: equipped shield uses the barrier illustration");
         Check(Enum.GetValues<PowerKind>().All(k => p.PowerLevel(k) == 0), $"{job.CharacterId}: new run has no temporary buffs");
         for (int level = 0; level <= 2; level++)
         {
@@ -172,59 +162,38 @@ public partial class PowerPickupQa : Node
                 Input.ActionRelease("ui_down");
                 float speed = 75f * job.MoveMul * (shop ? 1.5f : 1f) * (1f + level * 0.25f);
                 Check(Mathf.IsEqualApprox(p.Position.Y - 90f, speed * 0.1f), "actual movement includes temporary and permanent speed");
-                Check(Mathf.IsEqualApprox(p.SlowestMoveSpeed, speed * 0.8f), "AOE reachability uses the same boosted movement");
+                Check(Mathf.IsEqualApprox(p.SlowestMoveSpeed, speed * 0.4f), "AOE reachability uses the same boosted movement");
                 _pool.DespawnAll();
             }
         }
         _game.TrainingSetAllUpgrades(false);
-        foreach (var kind in new[] { PowerKind.Life, PowerKind.Shield })
-            for (int level = 0; level < 2; level++) Check(p.ApplyPowerup(kind), $"{kind}: stack {level + 1}");
-        await Frames(2);
-        Check(Read<int>(p.GetNode<PlayerHitDot>("HitDot"), "_lastShield") == 2,
-            "barrier redraw tracks both equipped charges");
-        foreach (var kind in Enum.GetValues<PowerKind>())
+        foreach (var kind in new[] { PowerKind.Line, PowerKind.Speed })
             Check(!p.ApplyPowerup(kind) && p.PowerLevel(kind) == 2, $"{kind}: third stack rejected");
-        Check(p.Lives == startingLives + 2 && p.MaxLives == startingLives + 2 && !p.AddLife(), "two bonus lives, capped healing");
+        Check(!p.ApplyPowerup(PowerKind.Life) && p.MaxLives == startingLives, "full-health heart cannot increase capacity");
         Write(p, "_invincible", true);
         p.TakeHit();
-        Check(p.ShieldPower == 2, "existing invulnerability does not consume shields");
-        Write(p, "_invincible", false);
+        Check(p.Lives == startingLives, "invulnerability prevents damage");
+        Vulnerable(p);
         Write(p, "_dodgeInv", 1f);
         p.TakeHit();
-        Check(p.ShieldPower == 2, "dodging does not consume shields");
-        for (int left = 1; left >= 0; left--)
-        {
-            Vulnerable(p);
-            p.TakeHit();
-            Check(p.ShieldPower == left && p.Lives == startingLives + 2 && _game.RunHitCount == hits,
-                $"shield absorbs hit, {left} charge left, no life or hit-count loss");
-            Check(p.LinePower == 2 && p.SpeedPower == 2 && p.LifePower == 2, "shield preserves other buffs");
-            Check(Read<bool>(p, "_invincible") && Mathf.IsEqualApprox(Read<float>(p, "_invincibleTimer"), job.HitInvulSec)
-                && Read<bool>(p, "_hitInvincible"), "shield grants normal hit invulnerability without graze farming");
-            p.TakeHit();
-            Check(p.ShieldPower == left && p.Lives == startingLives + 2, "one contact cannot consume two shields");
-            await Frames(2);
-            Check(Read<int>(p.GetNode<PlayerHitDot>("HitDot"), "_lastShield") == left,
-                $"barrier redraw tracks consumption to {left} charges");
-        }
+        Check(p.Lives == startingLives, "dodging prevents damage");
         Vulnerable(p);
         p.TakeHit();
-        Check(p.LinePower == 0 && p.SpeedPower == 0 && p.LifePower == 1 && p.Lives == startingLives + 1,
-            "unprotected damage removes attack/speed and one bonus life");
-        Check(p.MaxLives == startingLives + 1 && _game.RunHitCount == hits + 1, "life capacity and hit count stay consistent");
-        Vulnerable(p);
-        p.TakeHit();
-        Check(p.LifePower == 0 && p.Lives == startingLives && p.MaxLives == startingLives, "second bonus life is consumed normally");
-        Vulnerable(p);
-        p.TakeHit();
-        Check(p.AddLife(10) && p.Lives == startingLives && !p.AddLife(), "existing healing cannot regenerate temporary lives");
-        Check(_game.Impression == money && _game.ExtraLines == 0 && Mathf.IsEqualApprox(_game.MoveSpeedMul, 1),
-            "temporary buffs never modify permanent upgrades or currency");
-        p.ApplyPowerup(PowerKind.Shield);
+        Check(p.Lives == startingLives - 1 && p.LinePower == 0 && p.SpeedPower == 0
+            && _game.RunHitCount == hits + 1, "hit costs life and resets temporary upgrades");
+        Check(Read<bool>(p, "_invincible") && Mathf.IsEqualApprox(Read<float>(p, "_invincibleTimer"), job.HitInvulSec),
+            "hit retains character-specific invulnerability");
+        ShardLayer.SetPhysicsProcess(false);
+        Spawn(PowerKind.Life, p.Position);
+        Tick(60);
+        Check(p.Lives == startingLives && p.MaxLives == startingLives && p.PowerLevel(PowerKind.Life) == 0,
+            job.CharacterId + " heart pickup heals once with no stored buff");
+        Check(_game.ExtraLines == 0 && Mathf.IsEqualApprox(_game.MoveSpeedMul, 1),
+            "temporary buffs never modify permanent upgrades");
         Vulnerable(p);
         var hostile = _pool.Spawn(p.Position, Vector2.Zero, true, 3f);
         await Frames(5);
-        Check(p.ShieldPower == 0 && p.Lives == startingLives && !hostile.Active, "real bullet contact consumes shield, not life, and despawns the bullet");
+        Check(p.Lives == startingLives - 1 && hostile.Active, "real bullet contact costs life without destroying the bullet");
         await Close(root);
     }
 
@@ -273,12 +242,14 @@ public partial class PowerPickupQa : Node
             Check(Drops().Length == count / Player.KillsPerPowerDrop, "repeat purify cannot duplicate drops");
             enemy.QueueFree();
         }
-        Check(Drops().Select(d => Read<PowerKind?>(d, "Power")!.Value).SequenceEqual(Enum.GetValues<PowerKind>()), "first four drops cover all four kinds");
+        Check(Drops().Select(d => Read<PowerKind?>(d, "Power")!.Value).SequenceEqual(new[] { PowerKind.Line, PowerKind.Speed, PowerKind.Life, PowerKind.Line }),
+            "heart appears on the thirtieth actual enemy defeat, between attack and speed drops");
         for (int i = 0; i < 12; i++) EmitKill(p, new Vector2(310, 80));
         Check(Drops().Length == 4, "four-item clutter cap");
         Shards().Clear();
         await Frames(3);
         Write(p, "_powerKills", 0);
+        Write(p, "_lifeKills", 0);
         for (int i = 0; i < 6; i++)
         {
             var enemy = new PageShard { Position = new Vector2(310, 80) };
@@ -354,19 +325,19 @@ public partial class PowerPickupQa : Node
         p.Position = new Vector2(170, 40);
         Tick(330);
         Check(Drops().Length == 0 && p.SpeedPower == 0, "uncollected overlay expires with its shard");
-        Spawn(PowerKind.Shield, new Vector2(310, 180));
+        Spawn(PowerKind.Speed, new Vector2(310, 180));
         ShardLayer.BeginRush(2);
         root.Hud.HoldBubble = true;
         root.Hud.ShowMessage("QA");
         Check(ShardLayer.Visible, "boss collection rush remains visible during dialogue");
         Tick(90);
-        Check(Drops().Length == 0 && p.ShieldPower == 1, "boss rush grants embedded power during dialogue instead of losing it");
+        Check(Drops().Length == 0 && p.SpeedPower == 1, "boss rush grants embedded power during dialogue instead of losing it");
         root.Hud.HoldBubble = false;
         root.Hud.HideBubble();
-        Spawn(PowerKind.Shield, new Vector2(310, 180));
+        Spawn(PowerKind.Speed, new Vector2(310, 180));
         typeof(Player).GetProperty(nameof(Player.Lives))!.SetValue(p, 0);
         ShardLayer._PhysicsProcess(0.1);
-        Check(Drops().Length == 0 && p.ShieldPower == 1, "game over removes uncollected items without granting them");
+        Check(Drops().Length == 0 && p.SpeedPower == 1, "game over removes uncollected items without granting them");
         await Close(root);
         root = await NewRoot();
         Check(Drops().Length == 0 && Enum.GetValues<PowerKind>().All(k => root.Player.PowerLevel(k) == 0)
@@ -374,26 +345,28 @@ public partial class PowerPickupQa : Node
         foreach (var kind in Enum.GetValues<PowerKind>())
             for (int i = 0; i < 2; i++) root.Player.ApplyPowerup(kind);
         for (int i = 0; i < 4 * Player.KillsPerPowerDrop; i++) EmitKill(root.Player, new Vector2(310, 100));
-        Check(Drops().Length == 0, "all maxed powers suppress unnecessary drops");
+        Check(Drops().Length == 1 && Read<PowerKind?>(Drops()[0], "Power") == PowerKind.Life,
+            "maxed upgrades still allow recovery hearts every thirty kills");
+        Shards().Clear();
         Vulnerable(root.Player);
         root.Player.TakeHit();
         for (int i = 0; i < Player.KillsPerPowerDrop; i++) EmitKill(root.Player, new Vector2(900, -100));
         Tick(1);
-        Check(Drops().Length == 1 && Read<PowerKind?>(Drops()[0], "Power") == PowerKind.Shield
+        Check(Drops().Length == 1 && Read<PowerKind?>(Drops()[0], "Power") == PowerKind.Line
             && Field.Rect.HasPoint(Read<Vector2>(Drops()[0], "Position")),
             "drops skip maxed types and stay inside the playfield");
         await Close(root);
         root = await NewRoot();
         ShardLayer.SetPhysicsProcess(false);
         int killsToMax = Enum.GetValues<PowerKind>().Length * 2 * Player.KillsPerPowerDrop;
-        Check(killsToMax <= 132, "the shortest route supplies enough drops to max all four powers");
+        Check(killsToMax <= 132, "the shortest route supplies enough drops to max both temporary upgrades");
         for (int count = 1; count <= killsToMax; count++)
         {
             EmitKill(root.Player, root.Player.Position);
             Tick(60);
         }
-        Check(Enum.GetValues<PowerKind>().All(k => root.Player.PowerLevel(k) == 2),
-            "all four powers can reach level two within the expanded routes");
+        Check(root.Player.LinePower == 2 && root.Player.SpeedPower == 2 && root.Player.PowerLevel(PowerKind.Life) == 0,
+            "both temporary upgrades can reach level two within the expanded routes");
         await Close(root);
     }
 
@@ -432,17 +405,12 @@ public partial class PowerPickupQa : Node
             root.Player.Modulate = Colors.White;
             root.Player.GetNode<Sprite2D>("Sprite").Visible = true;
             DisplayServer.WindowSetSize(new Vector2I(1280, 720));
-            for (int level = 0; level <= 2; level++)
-            {
-                if (level > 0) root.Player.ApplyPowerup(PowerKind.Shield);
-                await Shot($"{job.CharacterId}_shield_{level}", level);
-            }
             foreach (var kind in Enum.GetValues<PowerKind>())
                 for (int i = 0; i < 2; i++) root.Player.ApplyPowerup(kind);
             var fx = FxLayer.Instance!;
             fx.ScoreDrops.SetPhysicsProcess(false);
             Read<RandomNumberGenerator>(fx, "_rng").Seed = 713;
-            for (int i = 0; i < 4; i++)
+            for (int i = 0; i < Enum.GetValues<PowerKind>().Length; i++)
                 fx.PurifyBurst(new Vector2(239 + i % 2 * 65, 94 + i / 2 * 54), 80,
                     FxLayer.PurifyTier.Zako, power: (PowerKind)i);
             for (int i = 0; i < 36; i++)
@@ -465,15 +433,6 @@ public partial class PowerPickupQa : Node
             }
             foreach (var b in Shots()) b.SetPhysicsProcess(true);
             DisplayServer.WindowSetSize(new Vector2I(1280, 720));
-            for (int left = 1; left >= 0; left--)
-            {
-                Vulnerable(root.Player);
-                root.Player.TakeHit();
-                await Frames(30);
-                root.Player.Modulate = Colors.White;
-                root.Player.GetNode<Sprite2D>("Sprite").Visible = true;
-                await Shot($"{job.CharacterId}_shield_remaining_{left}", left);
-            }
             await Close(root);
         }
         DisplayServer.WindowSetSize(new Vector2I(1280, 720));
@@ -489,7 +448,7 @@ public partial class PowerPickupQa : Node
         for (int i = 0; i < count; i++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
     }
 
-    private async Task Shot(string name, int? shieldLevel = null)
+    private async Task Shot(string name)
     {
         await Frames(4);
         await ToSignal(RenderingServer.Singleton, RenderingServer.SignalName.FramePostDraw);
@@ -499,23 +458,6 @@ public partial class PowerPickupQa : Node
         for (int y = 0; y < image.GetHeight(); y += 8)
             for (int x = 0; x < image.GetWidth(); x += 8) colors.Add(image.GetPixel(x, y).ToRgba32());
         Check(colors.Count > 100, "rendered viewport is nonblank");
-        if (shieldLevel > 0)
-        {
-            // Sample the right rim, clear of the character, at the fixed preview position (174, 119).
-            float warmth = 0;
-            int samples = 0;
-            for (float y = 114; y <= 124; y += 0.5f)
-                for (float x = 187; x <= 189; x += 0.5f)
-                {
-                    var pixel = image.GetPixel(Mathf.FloorToInt(x * image.GetWidth() / 384f),
-                        Mathf.FloorToInt(y * image.GetHeight() / 216f));
-                    warmth += pixel.R - pixel.B;
-                    samples++;
-                }
-            warmth /= samples;
-            Check(shieldLevel == 2 ? warmth > 0.08f : warmth < 0.02f,
-                $"{name}: rendered rim is {(shieldLevel == 2 ? "gold" : "cool white")} ({warmth:F3})");
-        }
     }
 
     public partial class PickupSheet : Node2D
@@ -524,10 +466,10 @@ public partial class PowerPickupQa : Node
         {
             UiKit.BeginDesign(this);
             DrawRect(new Rect2(0, 0, 1280, 720), new Color("232829"));
-            UiKit.Text(this, UiKit.ZenBold, new Vector2(64, 56), "ステージ強化アイテム", 32, Colors.White);
-            string[] names = { "攻撃ライン", "移動速度", "追加ライフ", "シールド" };
-            string[] levels = { "+1 / +2", "+25% / +50%", "+1 / +2", "1回 / 2回" };
-            for (int i = 0; i < 4; i++)
+            UiKit.Text(this, UiKit.ZenBold, new Vector2(64, 56), "ドロップアイテム", 32, Colors.White);
+            string[] names = { "攻撃ライン", "移動速度", "ライフ回復" };
+            string[] levels = { "+1 / +2", "+25% / +50%", "30体撃破で出現 / 1回復" };
+            for (int i = 0; i < 3; i++)
             {
                 float x = 72 + i * 300;
                 PowerPickupArt.Draw(this, new Rect2(x + 12, 180, 216, 216), (PowerKind)i);

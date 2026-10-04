@@ -7,13 +7,11 @@ public partial class BossAnimalTechnique : Node2D
     private Enemy _boss = null!;
     private AreaSpellCaster _caster = null!;
     private BulletPool _pool = null!;
-    private Texture2D _art = null!;
     private string _id = "";
     private Color _color;
     private Vector2 _origin, _target, _aim, _side;
     private double _time, _warning;
     private int _wave, _count;
-    private readonly List<(Bullet Bullet, ulong Activation)> _bullets = new();
     public bool Finished { get; private set; }
     public string SpellName { get; private set; } = "";
     private const int Waves = 3;
@@ -40,14 +38,13 @@ public partial class BossAnimalTechnique : Node2D
         _aim = _origin.DirectionTo(_target);
         if (_aim.IsZeroApprox()) _aim = Vector2.Left;
         _side = new Vector2(-_aim.Y, _aim.X);
-        var (name, speaker, handle, art, tint) = _id switch
+        var (name, speaker, handle, tint) = _id switch
         {
-            "akari" => ("狐火・三尾の便り", "あかり", BossHandles.AkariSpell, BulletArt.AkariEnvelope!, "a6d8ed"),
-            "koharu" => ("枝角・結び目の檻", "こはる", BossHandles.KoharuMain, BulletArt.KoharuTicket!, "b6efca"),
-            _ => ("星翼・追い越す流星", "レイ", BossHandles.ReiMain, BulletArt.Get("rei_subscriber")!, "e0b6ff"),
+            "akari" => ("狐火・三尾の便り", "あかり", BossHandles.AkariSpell, "a6d8ed"),
+            "koharu" => ("枝角・結び目の檻", "こはる", BossHandles.KoharuMain, "b6efca"),
+            _ => ("星翼・追い越す流星", "レイ", BossHandles.ReiMain, "e0b6ff"),
         };
         SpellName = name;
-        _art = art;
         _color = new Color(tint);
         (GetTree().GetFirstNodeInGroup("hud") as Hud)?.AnnounceSpell(speaker, handle, name, _color);
         _boss.SetAnimalWindup(true);
@@ -80,19 +77,16 @@ public partial class BossAnimalTechnique : Node2D
         }
     }
 
-    private static bool Owns((Bullet Bullet, ulong Activation) shot)
-        => IsInstanceValid(shot.Bullet) && shot.Bullet.Active && shot.Bullet.ActivationId == shot.Activation;
-
     public override void _PhysicsProcess(double delta)
     {
         if (Finished) return;
         if (!IsInstanceValid(_boss) || _boss.IsQueuedForDeletion() || _boss.IsPurified || !_boss.IsVisibleInTree()
-            || _boss.GaugeVulnerable || _boss.GaugeReforming || _caster.Suppressed || _caster.AoeActive)
+            || _caster.Suppressed || _caster.AoeActive)
         {
             Cancel();
             return;
         }
-        if (Hud.BubblePaused) { QueueRedraw(); return; }
+        if (Hud.BubblePaused || _boss.GaugeVulnerable || _boss.GaugeReforming) { QueueRedraw(); return; }
         _time += GameManager.EnemyDelta(delta);
         if (_wave < Waves && _time >= _warning + _wave * WaveInterval)
         {
@@ -101,15 +95,13 @@ public partial class BossAnimalTechnique : Node2D
             foreach (var shot in Volley(_wave))
             {
                 var bullet = _pool.Spawn(_boss.ShotCenter, shot.Direction * speed, true, 3.2f, 1, BulletShape.Diamond, _color);
-                bullet.SetSprite(_art);
+                bullet.UseBossProjectile();
                 bullet.MakeLeadIn(shot.Origin);
                 if (_id == "akari") bullet.MakeAccel(18f, speed, 0.28f);
-                _bullets.Add((bullet, bullet.ActivationId));
             }
             _wave++;
         }
-        _bullets.RemoveAll(shot => !Owns(shot));
-        if (_wave == Waves && _bullets.Count == 0) { Cancel(); return; }
+        if (_wave == Waves) { Cancel(); return; }
         QueueRedraw();
     }
 
@@ -118,33 +110,22 @@ public partial class BossAnimalTechnique : Node2D
         if (Finished) return;
         Finished = true;
         if (IsInstanceValid(_boss)) _boss.SetAnimalWindup(false);
-        ClearBullets();
         Hide();
         QueueFree();
-    }
-
-    private void ClearBullets()
-    {
-        foreach (var shot in _bullets)
-            if (Owns(shot)) _pool.Despawn(shot.Bullet);
-        _bullets.Clear();
     }
 
     public override void _ExitTree()
     {
         if (IsInstanceValid(_boss)) _boss.SetAnimalWindup(false);
-        ClearBullets();
     }
 
     public override void _Draw()
     {
         if (Finished || Hud.BubblePaused || _wave >= Waves) return;
-        float pulse = 0.3f + 0.2f * (float)Math.Sin(_time * 9);
         var origins = new HashSet<Vector2>();
         for (int wave = _wave; wave < Waves; wave++)
             foreach (var shot in Volley(wave))
             {
-                DrawLine(shot.Origin, shot.Origin + shot.Direction * 110f, new Color(_color, pulse * (wave == _wave ? 1f : 0.35f)), 0.7f, true);
                 origins.Add(shot.Origin);
             }
         foreach (var origin in origins)

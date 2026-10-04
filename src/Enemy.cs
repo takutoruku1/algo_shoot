@@ -143,7 +143,7 @@ public partial class Enemy : Area2D
     private double _phaseT; // 現フェーズ経過秒
     public const int BarHp = 100;                 // 1本=100（HUDで大きく動く）
     protected int BarCount = 0;                    // >0でHPバー方式に。総HP=BarHp×BarCount（派生が設定）。
-    private const double VulnDur = 4.0;            // 無防備窓（全難易度共通）
+    private const double VulnDur = 8.0;            // 無防備窓（全難易度共通）
     private const double BreakCueDur = 0.45;       // BREAK タメ＋合図
     private const double RecloseLineDur = 1.2;     // RECLOSE セリフ尺
     private const double RespawnGap = 0.15;        // RECLOSE 後パネル一括再生成までの間（弱気セリフ後の空白を詰めてテンポ維持）
@@ -164,9 +164,9 @@ public partial class Enemy : Area2D
     //   #b案：到達した瞬間に窓（VulnDur=4.0s）の残り時間を待たず TickBossPhase が即 EnterReclose へ進める
     //   （火力に投資するほど窓が早く閉じ、次のBREAKへ速く進む＝テンポでリターンを返す。詳細は TickBossPhase 参照）。
     //   ★2026-09-13：定数をやめ、火力3段（#4 火力2倍 / #8 線+1 / #11 連射2倍）の所持数で
-    //     100 + 25×n へ伸ばす＝火力に投資するほど1窓で通せる量が増え、「強くなったのに窓の中で
+    //     180 + 35×n へ伸ばす＝火力に投資するほど1窓で通せる量が増え、「強くなったのに窓の中で
     //     手が空く」を作らない。値の定義元は GameManager.ExposedDamageCap（BodyHitCd は据え置き）。
-    private static int WindowCap => GameManager.Instance?.ExposedDamageCap ?? 100;
+    private static int WindowCap => GameManager.Instance?.ExposedDamageCap ?? 180;
     private int _windowDamage;                      // 現在の無防備窓で本体へ通した累計ダメージ
     private bool _windowCapNotified;               // 「MAX」表示を窓ごとに一度だけ出すワンショット
     // ── 与ダメ数値のポップアップ（2026-09-17 ユーザー指示で非表示）──
@@ -302,6 +302,7 @@ public partial class Enemy : Area2D
     private CollisionShape2D _bodyShape = null!;
 
     public bool IsPurified => _purified;
+    private BossDanmaku? _danmaku;
     private bool _wasLockTarget = false;   // 前フレームのロック対象だったか（照準マーカーの消し忘れ防止。_PhysicsProcess で更新）
     protected bool IsShieldPhase => _phase == BossPhase.Shielded; // 派生ギミックが「今は殴れる時間か」を参照
 
@@ -340,6 +341,7 @@ public partial class Enemy : Area2D
         // ボスHPは難易度別バー本数で決まる（総HP=BarHp×BarCount）。本数は派生 OnEnemyReady で確定済み。
         _maxHp = BarCount * BarHp;
         _hp = _maxHp;
+        if (_maxHp > 0) _danmaku = new BossDanmaku(this);
         SetupBodySprite();
         _worldTint = TintLift.Find(this);
         ApplyTintLift();   // 初フレームから明るく出す（以降は _PhysicsProcess が毎フレーム引き直す）
@@ -535,7 +537,8 @@ public partial class Enemy : Area2D
         var b = pool.Spawn(fromCenter ? ShotCenter : pos, vel, isEnemy: true, radius, dmg,
             CurShape, CurTintSet ? CurTint : (Color?)null);
         if (fromCenter) b.MakeLeadIn(pos);
-        if (CurSprite != null) b.SetSprite(CurSprite, CurSpriteRot);
+        if (HasHpBar) b.UseBossProjectile();
+        else if (CurSprite != null) b.SetSprite(CurSprite, CurSpriteRot);
         // 改心後の遅延発射は表示・衝突させずに返す（撃破の瞬間に消した弾が後追いで湧かない）。
         //   BulletPool.Spawn の BubblePaused と同じ作法＝呼び元が b を触っても落ちない。
         if (_purified || GaugeVulnerable || GaugeReforming) pool.Despawn(b);
@@ -544,7 +547,7 @@ public partial class Enemy : Area2D
 
     // 難易度別HPバー本数（総HP=BarHp×本数）。派生ボスが OnEnemyReady で BarCount に設定する。
     protected int DiffBars(bool finalBoss) =>
-        GetNodeOrNull<GameManager>("/root/Game")?.DiffBarBonus(finalBoss) ?? (finalBoss ? 12 : 8);
+        GetNodeOrNull<GameManager>("/root/Game")?.DiffBarBonus(finalBoss) ?? (finalBoss ? 6 : 4);
 
     // 難易度に応じた弾数。派生ボスが弾幕パターンの本数を安全にスケールするために使う。
     protected int Dn(int baseCount) =>
@@ -832,9 +835,6 @@ public partial class Enemy : Area2D
     private void EnterBreak()
     {
         _phase = BossPhase.Break; _phaseT = 0;
-        var pool = GetNode<BulletPool>("/root/Pool");
-        foreach (var node in GetTree().GetNodesInGroup("enemy_bullets"))
-            if (node is Bullet bullet && bullet.Active) pool.Despawn(bullet);
         OnShieldBroken();
         SetDownBody(true);
         _shieldLayer?.QueueRedraw();
@@ -931,7 +931,7 @@ public partial class Enemy : Area2D
             if (_bodyHitCd > 0 && !b.Charged) return;
 
             // Charge bypasses the rapid-fire cap, but still respects the window and story HP floors.
-            int dmg = Mathf.Clamp(b.Damage, 1, b.Charged ? 32 : 8);
+            int dmg = Mathf.Clamp(b.Damage, 1, b.Charged ? 48 : 8);
 
             // 距離ボーナス（設計書 §2・ジョブ差の本体）。自機が取れない場合は base のまま（null安全）。
             //   近: Jobs.CloseRange(48px) 以内 → JobDef.CritMult / CritCap（灯し手 ×2.0・上限8／他 ×1.25・上限5）。
@@ -946,13 +946,13 @@ public partial class Enemy : Area2D
                 if (d <= PointBlankRange && (job?.CritEnabled ?? true))
                 {
                     crit = true;
-                    dmg = Mathf.Min(b.Charged ? 32 : job?.CritCap ?? 5, Mathf.RoundToInt(dmg * (job?.CritMult ?? 1.25f)));
+                    dmg = Mathf.Min(b.Charged ? 48 : job?.CritCap ?? 5, Mathf.RoundToInt(dmg * (job?.CritMult ?? 1.25f)));
                 }
                 else if (d > Jobs.FarRange && (job?.FarMult ?? 1f) > 1f)
                 {
                     crit = true; // 表示は密着クリと同じ金色＝「今の距離が効いている」を同じ語彙で返す
                     dmg = Mathf.RoundToInt(dmg * job!.FarMult);
-                    if (b.Charged) dmg = Mathf.Min(dmg, 32);
+                    if (b.Charged) dmg = Mathf.Min(dmg, 48);
                 }
                 // QA走行だけ、ジョブの距離ボーナスが実際に効いたかを1ヒットずつログへ出す（検証用）。
                 if (crit && QaPilot.Verbose)
@@ -1650,11 +1650,14 @@ public partial class Enemy : Area2D
         //   登場演出・改心・退場（上の early-return 群）は物語の尺なので掛けない。
         double edelta = GameManager.EnemyDelta(delta);
 
-        // 無防備窓サイクルの進行（BubblePaused でも止めない＝合図/窓が固まらないように）。
+        // 会話・変身で操作できない時間は、攻撃可能な残り時間を消費しない。
         if (_maxHp > 0)
         {
-            if (!Hud.BubblePaused) _shieldTime += (float)edelta;
-            TickBossPhase(edelta);
+            if (!Hud.BubblePaused && !Transforming)
+            {
+                _shieldTime += (float)edelta;
+                TickBossPhase(edelta);
+            }
         }
 
         // ロックオンの照準マーカー（_Draw）を回すための再描画（2026-09-08）。
@@ -1667,6 +1670,7 @@ public partial class Enemy : Area2D
         _wasLockTarget = lockedNow;
 
         if (Hud.BubblePaused) return; // 吹き出し表示中は動かない（襲ってこない）
+        _danmaku?.Tick(edelta);
 
         if (GaugeVulnerable)
         {

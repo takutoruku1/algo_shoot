@@ -140,7 +140,7 @@ public partial class ControlCard : Control
             new Row("コントローラー", Pad.Face(JoyButton.RightStick),  "右スティック押し込み"),
             new Row("マウス",         "左クリック",                    "もう一度短く押すと外れる"),
         }),
-        Topic.Bomb => ("ボム", "画面の弾を消し短時間無敵。残数ぶん", UiKit.Mina, new[]
+        Topic.Bomb => ("ボム", "敵にダメージを与え短時間無敵。残数ぶん", UiKit.Mina, new[]
         {
             new Row("キーボード",     "X",            "残数は左の BOMB 欄"),
             new Row("コントローラー", Pad.Face(JoyButton.X), "残数は左の BOMB 欄"),

@@ -43,9 +43,9 @@ public partial class CameoBoss : Enemy
 {
     // ───────── スケール調整用の定数（道中ミニボス相当に縮小。本戦ボスより控えめ）─────────
     // 後で調整しやすいよう、ここ1か所に集約する。総HP = Enemy.BarHp(100) × CameoBars。
-    private const int CameoBars = 4;
+    private const int CameoBars = 2;
     private const int CameoPanels = 3;        // 周回パネル枚数（本戦5より少なめ）
-    private const int CameoPanelInk = 8;
+    private const int CameoPanelInk = 12;
     private const float CameoOrbitR = 24f;    // パネル周回半径
     private const float CameoSpin = 1.0f;     // パネル周回速度(rad/s)
     private const float CameoBodyR = 14f;     // 本体当たり「横」半径（カプセルの半径）
@@ -122,6 +122,7 @@ public partial class CameoBoss : Enemy
     {
         bool reformed = _shieldIntroduced;
         _shieldIntroduced = true;
+        if (reformed) return;
         var game = GameManager.Instance;
         var hud = GetHud();
         if (hud == null) return;
@@ -141,16 +142,12 @@ public partial class CameoBoss : Enemy
                 });
             return;
         }
-        string line = (job, reformed) switch
+        string line = job switch
         {
-            (Job.Melee, false) => "シールドだね。まずは周りの板を全部砕こう！",
-            (Job.Heal, false) => "シールドがある！　まずは周りの板を全部砕こう。",
-            (Job.Magic, false) => "シールドね。まずは周りの板を全部砕くわよ。",
-            (Job.Tank, false) => "シールドです。まずは周りの板をすべて砕きましょう。",
-            (Job.Melee, true) => "シールドが戻った。もう一度、板を砕こう！",
-            (Job.Heal, true) => "またシールドだ……！　もう一度、板を砕こう。",
-            (Job.Magic, true) => "シールドを張り直したわね。もう一度、板からよ。",
-            _ => "シールドが戻りました。もう一度、周りの板を。",
+            Job.Melee => "シールドだね。まずは周りの板を全部砕こう！",
+            Job.Heal => "シールドがある！　まずは周りの板を全部砕こう。",
+            Job.Magic => "シールドね。まずは周りの板を全部砕くわよ。",
+            _ => "シールドです。まずは周りの板をすべて砕きましょう。",
         };
         hud.ShowBossLine(Jobs.Get(job).CharacterName, line, CompanionDialogue.Accent(job), 2.8);
     }

@@ -49,7 +49,7 @@ public partial class Audio
     {
         float depth = _postDepth / 5f;
         // Keep each theme's own rhythm; progressively open its bandwidth and dynamics.
-        _postFilter!.CutoffHz = Mathf.Lerp(2400, 18000, depth * depth);
-        AudioServer.SetBusVolumeDb(_postBus, Mathf.Lerp(-4.5f, 0, depth));
+        _postFilter!.CutoffHz = Mathf.Lerp(15000, 20000, depth);
+        AudioServer.SetBusVolumeDb(_postBus, Mathf.Lerp(0, 1.5f, depth));
     }
 }

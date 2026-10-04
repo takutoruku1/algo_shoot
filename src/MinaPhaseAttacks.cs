@@ -47,11 +47,14 @@ public partial class MinaPhaseAttacks : Node
 
     public override void _Process(double delta)
     {
-        if (_boss.IsPurified || _boss.GaugeVulnerable || _boss.GaugeReforming)
+        if (_boss.IsPurified)
         {
-            // Breaking the shield interrupts the opener successfully and must release its HP gate.
-            if (_boss.GaugeVulnerable) OpenerCompleted = true;
             CancelPendingAttacks();
+            return;
+        }
+        if (_boss.GaugeVulnerable || _boss.GaugeReforming)
+        {
+            if (_boss.GaugeVulnerable) OpenerCompleted = true;
             return;
         }
         if (Hud.BubblePaused || _boss.Transitioning) return;
@@ -74,7 +77,6 @@ public partial class MinaPhaseAttacks : Node
             _wave = 0;
             _wait = 0.8;
             _lastSafe = Vector2.Zero;
-            GetNode<BulletPool>("/root/Pool").DespawnAll();
             _boss.SetBodyContactEnabled(false);
             _boss.ShowSignaturePose();
             (GetTree().GetFirstNodeInGroup("hud") as Hud)?.AnnounceSpell(
@@ -155,7 +157,7 @@ public partial class MinaPhaseAttacks : Node
 
     private void SpawnLock(AreaStrike.Motif motif)
     {
-        float radius = _phase == 0 ? 22f : 28f;
+        float radius = _phase == 0 ? 48f : 56f;
         var zone = new AreaStrike();
         zone.Configure(AreaStrike.Shape.Circle, radius, radius,
             TravelWarning(radius + 5, 1.2f), BossMina.PhaseTint(_phase), Colors.White, motif);

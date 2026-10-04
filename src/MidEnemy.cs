@@ -1462,7 +1462,7 @@ public partial class MidEnemy : Enemy
         for (int i = 0; i < _carried.Count; i++)
         {
             var b = _carried[i];
-            if (!IsInstanceValid(b) || !b.Active || !b.Erasable) continue;
+            if (!IsInstanceValid(b) || !b.Active || !b.IsPatternBullet) continue;
             float sway = Mathf.Sin((float)_carryT * 2.2f + i * 0.9f) * 3f;
             b.GlobalPosition = GlobalPosition + PrayerOffsets[i] + new Vector2(sway, 0f);
         }
@@ -1478,28 +1478,16 @@ public partial class MidEnemy : Enemy
             // 中心からの導入区間を付けると運搬の追従と取り合いになるので、最初から鎖の位置へ置く。
             var b = FireBullet(pool, GlobalPosition + off, Vector2.Zero, 3.4f, 1, fromCenter: false);
             if (b == null) continue;
-            b.MakeErasable(); // 自機弾で消せる＝消すと AddPrayerCleared（既存経路）
+            b.IsPatternBullet = true;
             _carried.Add(b);
         }
     }
 
-    // ぶら下げ中の祈り弾を解放する。award=true（本体撃ち落とし）は AddPrayerCleared＋花びらで報い、
-    // false（撃ち漏らし退場/ステージ掃除）は静かに消すだけ＝「のこした」。
-    private void ReleaseCarriedPrayers(bool award)
+    private void ReleaseCarriedPrayers()
     {
-        if (_carried.Count == 0) return;
-        var pool = Pool;
-        var game = GetNodeOrNull<GameManager>("/root/Game");
         foreach (var b in _carried)
-        {
-            if (!IsInstanceValid(b) || !b.Active || !b.Erasable) continue;
-            if (award)
-            {
-                FxLayer.Instance?.BulletToPetal(b.GlobalPosition); // “祈りを受け止めた”の花びら
-                game?.AddPrayerCleared();
-            }
-            pool?.Despawn(b);
-        }
+            if (IsInstanceValid(b) && b.Active && b.IsPatternBullet)
+                b.Velocity = Vector2.Left * 60;
         _carried.Clear();
     }
 
@@ -1507,7 +1495,7 @@ public partial class MidEnemy : Enemy
     // 撃ち落とし時は GrantFollower が先に award 付きで解放済み＝ここに残りは無い。
     public override void _ExitTree()
     {
-        if (_spec.Pattern == AttackPattern.KoharuPrayerCarry) ReleaseCarriedPrayers(award: false);
+        if (_spec.Pattern == AttackPattern.KoharuPrayerCarry) ReleaseCarriedPrayers();
     }
 
     // ── 回り込み「引用リプ」：着座後、自機狙いの低速単発 ──
@@ -1548,7 +1536,7 @@ public partial class MidEnemy : Enemy
     protected override void GrantFollower()
     {
         // 祈り運び：本体の撃ち落とし＝残っていた祈り弾もまとめて受け止め扱い（award 付きで解放）。
-        if (_spec.Pattern == AttackPattern.KoharuPrayerCarry) ReleaseCarriedPrayers(award: true);
+        if (_spec.Pattern == AttackPattern.KoharuPrayerCarry) ReleaseCarriedPrayers();
         _motion = LivingMotion.None;
         _spin = 0f; _kick = 0f; _startle = 0f;
         if (_body != null) _body.Rotation = 0f; // Scale/Position は SwapBody/TickSwapAnim が素へ戻す

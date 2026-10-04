@@ -149,7 +149,7 @@ public partial class BossRei : Enemy
         BodyRadius = BossTuning.F("rei", "body_radius", 19f);
         BodyHalfH = BossTuning.F("rei", "body_half_h", 23f);   // 縦長カプセル（絵の形に沿わせる）
         PanelCount = BossTuning.I("rei", "panel_count", 5); // 「二番」の言葉（黒い吹き出し）
-        PanelInk = BossTuning.I("rei", "panel_ink", 20);
+        PanelInk = BossTuning.I("rei", "panel_ink", 36);
         OrbitRadius = BossTuning.F("rei", "orbit_radius", 26f);
         SpinSpeed = BossTuning.F("rei", "spin_speed", 0.9f);
         PanelsFire = false;
@@ -157,7 +157,7 @@ public partial class BossRei : Enemy
 
         // INI hp_bars > 0 で全難易度を固定本数に上書きできる。
         int bars = BossTuning.I("rei", "hp_bars", 0);
-        BarCount = bars > 0 ? bars : DiffBars(finalBoss: false);
+        BarCount = bars > 0 ? bars : DiffBars(finalBoss: false) + 1;
 
         // 弾幕・ギミックの外出し値（INIに無ければフィールド初期値＝現行値のまま）。
         _ringInterval = BossTuning.F("rei", "ring_interval", 1.0f);
@@ -249,7 +249,7 @@ public partial class BossRei : Enemy
         _posts = BossPostSequence.Attach(this, "rei", _caster, _caster.CancelPendingAttacks, () =>
         {
             _fireT = _fireT2 = 0;
-            RallyShield();
+            if (_posts.Count % 2 == 0) RallyShield();
             ApplySpell();
             OnHpChanged();
         });

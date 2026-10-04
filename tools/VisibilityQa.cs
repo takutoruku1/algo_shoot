@@ -314,27 +314,6 @@ public partial class VisibilityQa : Node
                     _bodyBefore.R < want.R - 0.02f || _bodyBefore.G < want.G - 0.02f || _bodyBefore.B < want.B - 0.02f);
         }
 
-        // シールドの泡（ShieldPower>0 の輪）も同じ _Draw の中＝同じ補正で読めることを絵で残す。
-        GetTree().Paused = false;
-        Freeze(player, dot, enemies, false);
-        player.ApplyPowerup(PowerKind.Shield);
-        player.ApplyPowerup(PowerKind.Shield);   // 二重の輪（上限2）
-        await Frames(6);   // 芯の _Process が泡を描き足すまで回す（ShieldPower>0 で毎フレーム QueueRedraw）
-        Check($"{id} シールドを2枚張れた（ShieldPower={player.ShieldPower} tree.Paused={GetTree().Paused} dot.IsProcessing={dot.IsProcessing()}）",
-            player.ShieldPower == 2);
-        Check($"{id} シールド2枚を張っても芯の補正は変わらない（{Fmt(dot.SelfModulate)}）",
-            dot.SelfModulate.IsEqualApprox(TintLift.Of(TintLift.Find(player), TintLift.PlayerCore)));
-        GetNodeOrNull<BulletPool>("/root/Pool")?.DespawnAll();
-        GetTree().Paused = true;
-        Freeze(player, dot, enemies, true);
-        Pose(player, body);
-        using (var img = await Grab())
-        {
-            Zoom(img, player, $"hitdot_{id}_shield");
-            float ringShield = RingMean(img, player);
-            GD.Print($"[VIS] info {id}: 輪の帯（半径 {ShieldRIn}..{ShieldROut}px）の明るさ 泡なし={ringPlain:0.000} → 泡あり={ringShield:0.000}");
-            Check($"{id} シールドの泡が輪として読める（帯が {ringShield - ringPlain:+0.000;-0.000} 明るくなる）", ringShield > ringPlain + 0.02f);
-        }
         GetTree().Paused = false;
         Freeze(player, dot, enemies, false);
     }
@@ -345,13 +324,9 @@ public partial class VisibilityQa : Node
     private async Task CorruptShots(string id, Node2D root, Player player, PlayerHitDot dot, Sprite2D body, Enemy[] enemies)
     {
         if (!_shot) return;
-        // 直前のシールド検証で張った泡（半径 8.5px の白い円）は胴の計測窓に丸ごと重なるので外す。
-        //   ShieldPower は private set の自動プロパティ＝反射でセッタを呼ぶ。芯は次フレームに描き直される。
-        typeof(Player).GetProperty("ShieldPower")!.SetValue(player, 0);
         root.SetProcess(false);
         Write(player, "_corruption", DeepCorruption);
         await Frames(6);   // 泡が消え、自機の _PhysicsProcess が SelfModulate へ反映するまで
-        Check($"{id} 計測前にシールドの泡を外した（ShieldPower={player.ShieldPower}）", player.ShieldPower == 0);
         CheckCorruption($"{id}/汚染{DeepCorruption:0.00}", body, DeepCorruption);
         var raw = CorruptTint(DeepCorruption);            // 明度の下限なし＝この追加対応の前の見え方
         var want = TintLift.KeepBright(raw);              // 下限あり＝今の見え方

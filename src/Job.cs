@@ -106,7 +106,7 @@ public static class Jobs
             UnlockStageId = "akari",
             ChargeDescription = "高威力の加速弾",
             ChargePower = 18, ChargeSpeed = 960f, ChargeRadius = 12f, ChargePierce = 1,
-            MaxLifeDelta = -1,
+            MaxLifeDelta = 0,
             MoveMul = 1.12f,           // 2026-09-27 機動の序列を作る：4人で一番速い＝踏み込んで殴る型の足
             DodgeDistMul = 1.5f,       // 同上（1.2→1.5）。4人中最長＝一息で踏み込み、一息で離脱する近接の足
             CritMult = 2.0f,           // 他ジョブ ×1.25 に対し ×2.0

@@ -210,7 +210,7 @@ public partial class BossMina : Enemy
         BodyRadius = BossTuning.F("mina", "body_radius", 16f);
         BodyHalfH = BossTuning.F("mina", "body_half_h", 20f);   // 縦長カプセル（絵の形に沿わせる）
         PanelCount = BossTuning.I("mina", "panel_count", 6); // 渦巻く悲鳴の言葉（黒い吹き出し）
-        PanelInk = BossTuning.I("mina", "panel_ink", 20);
+        PanelInk = BossTuning.I("mina", "panel_ink", 44);
         OrbitRadius = BossTuning.F("mina", "orbit_radius", 32f);
         SpinSpeed = BossTuning.F("mina", "spin_speed", 1.0f);
         PanelsFire = false;
@@ -275,7 +275,7 @@ public partial class BossMina : Enemy
     protected override void UpdateMovement(double delta)
     {
         if (IsDragonForm) GlobalPosition = KeepDragonInField(GlobalPosition);
-        if (_caster.Active || Transitioning || _memoryPending || PhasePending)
+        if (Transitioning || _memoryPending || PhasePending)
         {
             // EnterExposed can re-enable the body during a signature's safe-zone relay.
             if (_caster.Active) SetBodyContactEnabled(false);
@@ -285,7 +285,7 @@ public partial class BossMina : Enemy
         }
         // 自機の位置を渡す＝鏡写しの追従（track_gain 1.0／縦も gain_y 0.85 で高さを合わせる）と、反転の判定に使う。
         if (GetTree().GetFirstNodeInGroup("player") is Node2D pl) _mover.SetPlayerPos(pl.GlobalPosition);
-        GlobalPosition = _mover.Step(GlobalPosition, delta);
+        GlobalPosition = _mover.Step(GlobalPosition, delta, IsDragonForm ? 1.65f : 1f);
         if (IsDragonForm) GlobalPosition = KeepDragonInField(GlobalPosition);
         ApplyBossMotion(_mover.VisualOffset, IsDragonForm ? 0 : _mover.Lean,
             IsDragonForm ? !_mover.FacingLeft : _mover.FacingLeft);
@@ -412,6 +412,7 @@ public partial class BossMina : Enemy
         Transitioning = true;
         _caster.CancelPendingAttacks();
         _pattern++;
+        if (_pattern == 4) RallyShield();
         _fireT = _fireT2 = 0;
         if (_pattern == DragonPhase)
         {

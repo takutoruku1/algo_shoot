@@ -47,6 +47,8 @@ public sealed class BossMover
 
     // ── 巡航・追従パラメータ（ini: cruise_speed / accel_time）。
     private float _cruiseSpeed = 40f;
+    private Vector2[]? _route;
+    private int _routeIndex;
     private float _accelTime = 0.55f;
     private float _arriveDist = 6f;
 
@@ -150,10 +152,11 @@ public sealed class BossMover
     //    ここではゾーンと巡航速度だけを触り、性格（ini 由来の値）は保つ。
     public void MoveZoneTo(Vector2 zoneCenter, float zoneHalfW, float zoneHalfH, float cruiseSpeed)
     {
+        if (!Field.Rect.HasPoint(zoneCenter) || zoneHalfW < 10) _route = null;
         _zoneCenter = zoneCenter;
         _zoneHalfW = zoneHalfW;
         _zoneHalfH = zoneHalfH;
-        _cruiseSpeed = cruiseSpeed;
+        _cruiseSpeed = _route == null ? cruiseSpeed : Mathf.Max(48, cruiseSpeed);
 
         // 立ち位置の基準もゾーンへ寄せる（退場のように中心が飛ぶ場合、即その先を向く）。
         // 端へ寄る量・自機を追える幅はゾーン幅に対する比で取り直す＝狭いゾーンで飛び出さない。
@@ -171,6 +174,17 @@ public sealed class BossMover
     //    ini にキーが無ければ、ここに書いた「性格の既定値」で動く（BossTuning がフォールバックする）。
     public void Configure(string section, Vector2 zoneCenter, float zoneHalfW, float zoneHalfH)
     {
+        zoneCenter = new Vector2(Field.CenterX, Field.CenterY);
+        zoneHalfW = Field.Width * 0.5f - 36;
+        zoneHalfH = Field.Height * 0.5f - 40;
+        _route = section.Replace("cameo_", "") switch
+        {
+            "akari" => new[] { new Vector2(1, 0), new Vector2(-1, 1), new Vector2(-1, -1) },
+            "koharu" => new[] { new Vector2(1, 0), new Vector2(0, 1), new Vector2(-1, 0), new Vector2(0, -1) },
+            "rei" => new[] { new Vector2(1, -0.8f), new Vector2(-0.6f, 1), new Vector2(0, -1), new Vector2(0.6f, 1), new Vector2(-1, -0.8f) },
+            _ => new[] { new Vector2(1, -1), new Vector2(1, 1), new Vector2(-1, 1), new Vector2(-1, -1) },
+        };
+        _routeIndex = 0;
         _zoneCenter = zoneCenter;
         _zoneHalfW = zoneHalfW;
         _zoneHalfH = zoneHalfH;
@@ -250,6 +264,8 @@ public sealed class BossMover
 
         // ini 上書き（キーが無ければ上の性格既定値のまま）。
         _cruiseSpeed = BossTuning.F(section, "cruise_speed", BossTuning.F(section, "roam_speed", cruise));
+        float routeSpeed = section switch { "akari" => 36f, "koharu" => 44f, "rei" => 50f, "mina" => 56f, _ => 34f };
+        _cruiseSpeed = Mathf.Max(_cruiseSpeed, routeSpeed);
         _accelTime = Mathf.Max(0.05f, BossTuning.F(section, "accel_time", accel));
         _hoverAmp = BossTuning.F(section, "hover_amp", hoverA);
         _hoverFreq = BossTuning.F(section, "hover_freq", hoverF);
@@ -354,7 +370,17 @@ public sealed class BossMover
         // ── 立ち位置へ向かう推進。Travel 以外はその場（Idle/Settle/構え〜余韻は位置を保つ）。
         //    Aimed の横滑りだけは例外で、待機中も自機の x をゆっくり追う（＝狙っている感）。
         Vector2 desiredVel = Vector2.Zero;
-        if (_st == St.Travel)
+        if (_route != null)
+        {
+            Vector2 target = _zoneCenter + _route[_routeIndex] * new Vector2(_zoneHalfW, _zoneHalfH);
+            if (currentPos.DistanceTo(target) < 8)
+            {
+                _routeIndex = (_routeIndex + 1) % _route.Length;
+                target = _zoneCenter + _route[_routeIndex] * new Vector2(_zoneHalfW, _zoneHalfH);
+            }
+            desiredVel = currentPos.DirectionTo(target) * _cruiseSpeed * speedMultiplier;
+        }
+        else if (_st == St.Travel)
         {
             Vector2 to = _target - currentPos;
             float dist = to.Length();

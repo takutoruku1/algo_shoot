@@ -145,7 +145,7 @@ public partial class BossPacingQa : Node
                 if (posts < 5 && boss is not BossMina)
                 {
                     Check(boss.HpRatio == hp, "rally adds no health");
-                    Check(!boss.GaugeVulnerable, "new post depth starts a new shield fight");
+                    if (posts % 2 == 0) Check(!boss.GaugeVulnerable, "two post depths share one shield break");
                     if (posts == 4) Check(Read<bool>(boss, "_finale"), "final attack begins before the original draft");
                 }
             }

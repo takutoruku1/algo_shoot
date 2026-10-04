@@ -325,7 +325,7 @@ public partial class Player : Area2D
     //     **向き反転とは別系統**で、こちらは _facing を書き換えない（_facing は +1 のまま。
     //     ロック中だけ ShotDir が上書きされる）。
     //   ・ロック中は移動が遅くなる（LockMoveMul）＝照準を任せるあいだは足が重い、という取引。
-    private const float LockMoveMul = 0.8f;   // ロック中の移動速度倍率（ユーザー決定の目安 0.8）
+    private const float LockMoveMul = 0.4f;
     private bool _locked;                     // ロックオン中か（対象を実際に掴んでいる）
     // ロックオン**モード**（2026-09-26 作者指示「画面から敵が消えてもロックオン解除しないで」）。
     //   _locked が「今この敵を掴んでいる」なのに対し、こちらは「狙う意思」。対象が倒れた・画面外へ出た・
@@ -721,7 +721,7 @@ public partial class Player : Area2D
     //   ダメージ経路の見直しとして別途フォローアップ推奨。
     private const int FocusFireHitsPerStack = 8; // このヒット数ごとに威力+1（Lv1=+1まで / Lv2=+2まで）
 
-    // ── 祈りの帳（veil_light）：回避の終わり際にまとう弾消しの光輪 ──
+    // ── 祈りの帳（veil_light）：回避の終わり際にまとう防護の光輪 ──
     private float _veilT;                       // 残り時間（>0で光輪が生きている）
     private float _veilR;                       // 今回の光輪半径（Lv1=20 / Lv2=28px）
     // 通常／回避フレームのテクスチャは _Ready で一度だけロードしてキャッシュ（毎フレームLoad禁止）。
@@ -1143,21 +1143,8 @@ public partial class Player : Area2D
         if (_grazeFlash > 0f)
             _grazeFlash = Mathf.Max(0f, _grazeFlash - GrazeFlashDecay * dt);
 
-        // 祈りの帳の光輪：残り時間の間、半径内の敵弾を花びらに変えて消す（ボムの範囲消去の縮小版）。
-        // 消した弾は加点（AddVeilCleared）＝“祈りが受け止めた”が点でも報われる。
-        if (_veilT > 0f)
-        {
-            _veilT -= dt;
-            foreach (Node node in GetTree().GetNodesInGroup("enemy_bullets"))
-            {
-                if (node is Bullet vb && vb.Active && vb.GlobalPosition.DistanceTo(GlobalPosition) <= _veilR)
-                {
-                    _game?.AddVeilCleared();
-                    FxLayer.Instance?.BulletToPetal(vb.GlobalPosition);
-                    _pool?.Despawn(vb);
-                }
-            }
-        }
+        // 祈りの帳は弾を消さず、持続中の被弾を防ぐ。
+        if (_veilT > 0f) _veilT -= dt;
 
         // 体のリアクション各種の減衰（被弾のけぞり／発射反動／ボム解放）。
         if (_hitReact > 0f) _hitReact = Mathf.Max(0f, _hitReact - dt);
@@ -1376,6 +1363,7 @@ public partial class Player : Area2D
         {
             var b = _pool.Spawn(muzzle + side * offset, direction * fast, isEnemy: false, 3.4f, admg);
             b.MakeAccel(charge, fast, delay); // タメ(ほぼ静止)→delay秒後に発進
+            if (LockedOn) b.SetLaunchTarget(_lockTarget!, LockedUnfolder);
             b.Pierce = pierce;
             _accelCharging.Add(b);
         }
@@ -1558,7 +1546,7 @@ public partial class Player : Area2D
         _dodgeFlip = false;
         _aimNow = "";
 
-        // 祈りの帳（veil_light・支え側の奥義）：回避の終わり際、自機の周りに弾消しの光輪をまとう。
+        // 祈りの帳（veil_light・支え側の奥義）：回避の終わり際、自機の周りに防護の光輪をまとう。
         if ((_game?.VeilLightRadius ?? 0f) > 0f)
         {
             _veilR = _game!.VeilLightRadius;
@@ -1644,9 +1632,6 @@ public partial class Player : Area2D
         if (area is Bullet b && b.IsEnemy && b.Active && !b.OverheadPending)
         {
             TakeHit();
-            // 当たった敵弾は消す
-            if (_pool != null)
-                _pool.Despawn(b);
         }
     }
 
@@ -1690,7 +1675,6 @@ public partial class Player : Area2D
                         Vector2 at = b.GlobalPosition;
                         // 威力はホーミング射と同等（基礎×フォロワーバフ×追尾税0.7）。弾はその場で光弾に置き換える。
                         int cdmg = Mathf.Max(1, Mathf.RoundToInt(1f * game.ShotPowerMul * game.FollowerPowerMul * 0.7f));
-                        _pool?.Despawn(b);
                         _pool?.Spawn(at, ShotDir * 200f, isEnemy: false, 3f, cdmg, BulletShape.Orb, null, homing: true);
                         FxLayer.Instance?.Muzzle(at); // 変換の一閃（“返した”を短く見せる）
                     }
@@ -1707,7 +1691,7 @@ public partial class Player : Area2D
         }
     }
 
-    // ボム「魔法陣・解放」: 画面の敵弾を消去＋画面内の敵を浄化＋短時間無敵＋画面フラッシュ。
+    // ボムは敵へダメージを与え、短時間の無敵で退避を助ける。
     private void TryBomb()
     {
         if (_gameOver) return;
@@ -1724,16 +1708,6 @@ public partial class Player : Area2D
         GameCamera.Instance?.Hitstop(0.05);
         _bombCast = BombCastDur;
 
-        // 画面内の敵弾を「花びらに変換」して消去（加点）
-        foreach (Node node in GetTree().GetNodesInGroup("enemy_bullets"))
-        {
-            if (node is Bullet b && b.Active)
-            {
-                game.AddBulletCleared();
-                FxLayer.Instance?.BulletToPetal(b.GlobalPosition);
-                _pool?.Despawn(b);
-            }
-        }
 
         // 画面内の敵を浄化
         foreach (Node node in GetTree().GetNodesInGroup("enemies"))
@@ -1772,7 +1746,11 @@ public partial class Player : Area2D
                 homing: job.Mode == GameManager.ShotMode.Homing);
             b.MakeCharged(job.Id, stage);
             if (b.Homing) b.TurnRateOverride = 240;
-            if (job.Mode == GameManager.ShotMode.Accel) b.MakeAccel(240f, job.ChargeSpeed, 0.12f);
+            if (job.Mode == GameManager.ShotMode.Accel)
+            {
+                b.MakeAccel(240f, job.ChargeSpeed, 0.12f);
+                if (LockedOn) b.SetLaunchTarget(_lockTarget!, LockedUnfolder);
+            }
         }
         GD.Print($"[charge] {job.CharacterId} fire t{stage} {job.ChargeWays}x{dmg} r={radius:0.0}");
         FxLayer.Instance?.ChargeBurst(muzzle, ShotDir, job.Id,
@@ -1788,9 +1766,8 @@ public partial class Player : Area2D
     public void TakeHit()
     {
         // 無敵中・回避無敵中・ゲームオーバー中は無効（回避の主旨＝回避中は被弾しない）
-        if (_invincible || _dodgeInv > 0f || _gameOver)
+        if (_invincible || _dodgeInv > 0f || _veilT > 0f || _gameOver)
             return;
-        if (AbsorbPowerupHit()) return;
         _chargeT = 0;
         _chargeHeld = false;
         _mouseHoldValid = false;
@@ -1989,7 +1966,7 @@ public partial class Player : Area2D
 // 色味：この点だけは**どのステージでも完全に明るい**（2026-09-27 作者指摘「少なくとも自機の当たり判定は
 //   分かるよう明るい方がいい」）。盤面に居るので各 Root の CanvasModulate（夜の冷色 Tint）で芯の色が
 //   青く濁る＝暗い背景に溶ける。BossGauge と同じく 1/Tint を SelfModulate に置いて打ち消す
-//   （強さ TintLift.PlayerCore=1＝完全）。シールドの泡（ShieldPower>0 の輪）も同じ _Draw の中なので一緒に効く。
+//   （強さ TintLift.PlayerCore=1＝完全）。判定の色も同じ補正で背景から浮かせる。
 //   大きさ・形・当たり判定そのものは一切触っていない＝変わるのは見え方だけ。
 //   α には入れない＝被弾点滅（親 Player の Modulate のα）はそのまま芯にも乗る。
 public partial class PlayerHitDot : Node2D
@@ -1997,7 +1974,6 @@ public partial class PlayerHitDot : Node2D
     public float Radius = 2f;
     public string CharacterId = "mina";
     public Texture2D Texture { get; private set; } = null!;
-    private CanvasTexture _shieldTexture = null!;
     private Vector2 _jewelCenter;
     private CanvasModulate? _worldTint;   // 世界の色味（無い面は null＝打ち消し不要）
 
@@ -2007,11 +1983,6 @@ public partial class PlayerHitDot : Node2D
         SelfModulate = TintLift.Of(_worldTint, TintLift.PlayerCore);   // 初フレームから明るく出す
         Texture = GD.Load<Texture2D>($"res://char/player/{CharacterId}/{CharacterId}_core_v1.png");
         TextureFilter = TextureFilterEnum.Linear;
-        _shieldTexture = new CanvasTexture
-        {
-            DiffuseTexture = GD.Load<Texture2D>("res://char/player/shield_barrier_v1.png"),
-            TextureFilter = TextureFilterEnum.LinearWithMipmaps,
-        };
         // The flame and ribbon are asymmetric; center the jewel, not their image bounds.
         _jewelCenter = new Vector2(0.5f, CharacterId switch
         {
@@ -2024,42 +1995,23 @@ public partial class PlayerHitDot : Node2D
 
     public override void _Draw()
     {
-        if (GetParent() is Player owner && owner.ShieldPower > 0)
-        {
-            float breath = Mathf.Sin(_t * 2.4f);
-            Vector2 shell = new Vector2(36f, 42f) * (1f + 0.018f * breath);
-            bool reinforced = owner.ShieldPower >= 2;
-            if (reinforced)
-            {
-                Vector2 outer = shell * 1.08f;
-                DrawTextureRect(_shieldTexture, new Rect2(-outer * 0.5f, outer), false,
-                    new Color(1f, 0.68f, 0.12f, 0.42f + 0.04f * breath));
-            }
-            DrawTextureRect(_shieldTexture, new Rect2(-shell * 0.5f, shell), false,
-                reinforced ? new Color(1f, 0.8f, 0.24f, 0.8f + 0.06f * breath)
-                    : new Color(1f, 1f, 1f, 0.56f + 0.06f * breath));
-        }
 
         Vector2 size = Texture.GetSize();
         Vector2 center = size * _jewelCenter;
         float extent = Mathf.Max(Mathf.Max(center.X, size.X - center.X), Mathf.Max(center.Y, size.Y - center.Y));
         float scale = (Radius + 1.6f) / extent;
         DrawTextureRect(Texture, new Rect2(-center * scale, size * scale), false);
-        DrawCircle(Vector2.Zero, 0.65f, new Color(0.08f, 0.08f, 0.16f, 0.8f));
-        DrawCircle(Vector2.Zero, 0.38f, Colors.White);
+        DrawCircle(Vector2.Zero, Radius + 1.2f, new Color("101018"), true, -1, true);
+        DrawCircle(Vector2.Zero, Radius + 0.5f, Colors.White, true, -1, true);
+        Color marker = CharacterId is "akari" or "koharu" ? new Color("16eaff") : new Color("ffe51f");
+        DrawCircle(Vector2.Zero, Radius, marker, true, -1, true);
+        DrawCircle(Vector2.Zero, 0.7f, new Color("101018"), true, -1, true);
     }
 
-    private float _t;
-    private int _lastShield;
 
     public override void _Process(double delta)
     {
-        _t += (float)delta;
         // Tint は Warmth で暖色へ動き、ボスの realm 暴露では白へ抜けるので毎フレーム引き直す（BossGauge と同じ）。
         SelfModulate = TintLift.Of(_worldTint, TintLift.PlayerCore);
-        int shield = GetParent() is Player p ? p.ShieldPower : 0;
-        // 張っているあいだは呼吸のため毎フレーム、消えた瞬間は消すために一度だけ描き直す。
-        if (shield > 0 || shield != _lastShield) QueueRedraw();
-        _lastShield = shield;
     }
 }

@@ -163,7 +163,7 @@ public partial class AreaStrike : Node2D, IAoeHazard
         // 発生源が着弾前に消えた／浄化されたら、予測線ごとキャンセル（倒せば攻撃も消える）。
         if (_cancelOnOwnerLoss
             && (_owner == null || !IsInstanceValid(_owner)
-                || (_owner is Enemy e && (e.IsPurified || e.GaugeVulnerable || e.GaugeReforming))))
+                || (_owner is Enemy e && e.IsPurified)))
         {
             QueueFree();
             return;

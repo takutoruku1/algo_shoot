@@ -27,7 +27,6 @@ public partial class AreaSpellCaster : Node2D
     // ＝「AOEが自機と無関係な場所で光っているだけ＝脅威として死んでいる」を断ち、
     //   左端に張り付いていても定期的に一歩動かされる。アンカー枚の予兆は固定 1.2s×WarnMul
     //  （ランダム下限より長め）＝頭上に出ても必ず逃げ切れる（死は要求しない設計）。
-    private bool _anchorPlayer;
 
     private readonly RandomNumberGenerator _rng = new();
     private Node _world = null!;
@@ -61,7 +60,8 @@ public partial class AreaSpellCaster : Node2D
     }
     private AreaStrike.Shape? _pendShape;
     private AreaStrike.Art _pendArt;
-    private float HorizontalHalfHeight => _pendArt == AreaStrike.Art.ClipLine ? 4f : _rng.RandfRange(5f, 8f);
+    private float ThreatRadius => _key switch { "akari" => 34f, "koharu" => 39f, "rei" => 44f, _ => 48f };
+    private float HorizontalHalfHeight => ThreatRadius * 0.65f;
     private double _fireDelay = 0.7; // 技名宣告 → 予兆出現までの溜め
 
     // ── 全画面AOE（ラスボスMina専用・通常ランダム枠とは独立した専用経路）──
@@ -301,7 +301,6 @@ public partial class AreaSpellCaster : Node2D
                 _warnMin = 1.1; _warnMax = 1.6; _interval = 8.0; // 11.0→8.0：範囲技の存在感を上げる（sakurai 2026-07 週次）
                 // 技名は仮台本 07 の S3-6 の圏内へ寄せた（旧・順位掲示板の技名＝ランキング／表彰台／序列は落とす）。
                 _spells = new (string, AreaStrike.Shape?)[] { ("コメント一斉読み", H_), ("配信枠", R), ("切り抜きの線", H_) };
-                _anchorPlayer = true; // 1枚目は自機の現在地＝左端張り付きでも定期的に一歩動かされる
                 break;
             case "akari": // 雨の教室・降る前に予報（蒼）
                 _disp = "あかり"; _handle = BossHandles.AkariSpell;
@@ -318,7 +317,6 @@ public partial class AreaSpellCaster : Node2D
                 // 技名は仮台本 07 の S2-7 の圏内へ寄せた（旧・台所の技名＝フライパン／鍋／包丁は落とす）。
                 // 第3スペル（catalog: Refrain Telegraphs.dc.html 274-277）＝±26°の深紅の斜め一閃×2。
                 _spells = new (string, AreaStrike.Shape?)[] { ("画面の光", C), ("視線のかたまり", R), ("既読の線", B) };
-                _anchorPlayer = true; // 1枚目は自機の現在地（円/矩形は頭上・包丁は自機を通る線）
                 break;
             default: // mina（暴走）：全テレグラフ同時・濁った全色
                 _disp = "ミナ"; _handle = BossHandles.MinaBattle;
@@ -332,7 +330,6 @@ public partial class AreaSpellCaster : Node2D
         _interval = BossTuning.F(key, "aoe_interval", (float)_interval);
         _warnMin = BossTuning.F(key, "aoe_warn_min", (float)_warnMin);
         _warnMax = BossTuning.F(key, "aoe_warn_max", (float)_warnMax);
-        _anchorPlayer = BossTuning.B(key, "aoe_anchor_player", _anchorPlayer);
     }
 
     public override void _Process(double delta)
@@ -341,11 +338,12 @@ public partial class AreaSpellCaster : Node2D
         _owner ??= GetParent() as Enemy;
         // ボスが浄化（改心）されたら、以降は宣告も予兆出現もしない＝攻撃が終わった後に技が残らない。
         // 予約済み（宣告→出現待ち）の発火も破棄する。出現済みの予兆は AreaStrike 側が owner 浄化で自滅する。
-        if (_owner != null && (_owner.IsPurified || _owner.GaugeVulnerable || _owner.GaugeReforming))
+        if (_owner != null && _owner.IsPurified)
         {
             CancelPendingAttacks();
             return;
         }
+        if (_owner != null && (_owner.GaugeVulnerable || _owner.GaugeReforming)) return;
 
         if (Hud.BubblePaused) return; // 会話中は出さない
         if (Suppressed || (_owner?.AnimalTechniqueActive ?? false)) return;
@@ -422,7 +420,7 @@ public partial class AreaSpellCaster : Node2D
             // 技の形状が決まっていなければ（ミナ）プロファイルの全形状から拾う＝“全テレグラフ同時”。
             var shape = _pendShape ?? _shapes[_rng.RandiRange(0, _shapes.Length - 1)];
             // 1枚目は自機の現在地にアンカー（rei/koharu）。予兆は固定 1.2s×WarnMul＝必ず逃げ切れる尺。
-            bool anchor = _anchorPlayer && i == 0;
+            bool anchor = i == 0;
             double warn = anchor ? 1.2 * wm
                                  : _rng.RandfRange((float)_warnMin, (float)_warnMax) * wm;
 
@@ -457,6 +455,13 @@ public partial class AreaSpellCaster : Node2D
     // 軸形状の AreaStrike を1枚生成して World へ置く（重なり判定用の _placed にも記録）。
     private void AddStrike(AreaStrike.Shape shape, Vector2 c, float hw, float hh, double warn)
     {
+        if (GetTree().GetFirstNodeInGroup("player") is Player player)
+        {
+            Vector2 offset = player.GlobalPosition - c;
+            float escape = shape == AreaStrike.Shape.Circle ? hw - offset.Length()
+                : Mathf.Min(hw - Mathf.Abs(offset.X), hh - Mathf.Abs(offset.Y));
+            if (escape > 0) warn = System.Math.Max(warn, (escape + 6) / player.SlowestMoveSpeed + 0.5);
+        }
         var z = new AreaStrike();
         z.Configure(shape, hw, hh, warn, _tint, _hot, MotifFor(shape));
         if (shape == AreaStrike.Shape.BeamH) z.SetArt(_pendArt);
@@ -467,19 +472,17 @@ public partial class AreaSpellCaster : Node2D
         _placed.Add((shape, c, hw, hh));
     }
 
-    // 自機アンカー配置：自機の現在地を必ず覆う形で置く（＝一歩動けば外れる。死は要求しない）。
-    //   円＝r20固定（小さめ＝要求は「一歩」だけ）／矩形＝中心を自機に／ビームは自機の行・列。
+    // 自機を中心に広く塞ぎ、逃げる距離に応じた予告時間を AddStrike で確保する。
     private (Vector2 c, float hw, float hh) AnchorGeo(AreaStrike.Shape shape, Vector2 p)
     {
         switch (shape)
         {
             case AreaStrike.Shape.BeamH: return (new Vector2(Field.CenterX, p.Y), W / 2f, HorizontalHalfHeight);
-            case AreaStrike.Shape.BeamV: return (new Vector2(p.X, Field.CenterY), _rng.RandfRange(5f, 8f), H / 2f);
-            case AreaStrike.Shape.Circle: return (p, 20f, 20f);
+            case AreaStrike.Shape.BeamV: return (new Vector2(p.X, Field.CenterY), ThreatRadius * 0.65f, H / 2f);
+            case AreaStrike.Shape.Circle: return (p, ThreatRadius, ThreatRadius);
             default: // Rect
             {
-                float w = _rng.RandfRange(32f, 56f), h = _rng.RandfRange(28f, 50f);
-                return (p, w / 2f, h / 2f);
+                return (p, ThreatRadius * 1.3f, ThreatRadius * 0.8f);
             }
         }
     }

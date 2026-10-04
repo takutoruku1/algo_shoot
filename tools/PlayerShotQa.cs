@@ -75,8 +75,6 @@ public partial class PlayerShotQa : Node
                 foreach (var job in Jobs.All) await DemoCharge(job);
             else if (OS.GetCmdlineUserArgs().Contains("--charge-tier-shot"))
                 foreach (var job in Jobs.All) await ShotChargeTiers(job);
-            else if (OS.GetCmdlineUserArgs().Contains("--shield-shot"))
-                foreach (var job in Jobs.All) await ShotShield(job);
             else if (OS.GetCmdlineUserArgs().Contains("--charge-only"))
                 foreach (var job in Jobs.All) await CheckCharge(job);
             else
@@ -156,33 +154,6 @@ public partial class PlayerShotQa : Node
         root.QueueFree();
         await Frames(5);
         _pool.DespawnAll();
-    }
-
-    // Shoot the shield ring around the core with one and two shield power-ups held (window required):
-    //     Godot --path . res://tools/qa_player_shots.tscn -- --shield-shot
-    private async Task ShotShield(JobTuning job)
-    {
-        _game.SelectedJob = job.Id;
-        var root = GD.Load<PackedScene>("res://Akari.tscn").Instantiate<AkariRoot>();
-        GetTree().Root.AddChild(root);
-        GetTree().CurrentScene = root;
-        root.Stage.SetProcess(false);
-        var player = root.Player;
-        player.SetPhysicsProcess(false);
-        root.Hud.HoldBubble = false;
-        root.Hud.HideBubble();
-        Write(root.Hud, "_bannerTimer", 0d);
-        Write(player, "_invincible", false);
-        _pool.DespawnAll();
-        await Frames(2);
-        for (int n = 1; n <= Player.PowerLevelCap; n++)
-        {
-            Check(player.ApplyPowerup(PowerKind.Shield), $"{job.CharacterId}: shield power-up {n} applies");
-            await Frames(3);
-            await Shot($"{job.CharacterId}_shield{n}");
-        }
-        root.QueueFree();
-        await Frames(5);
     }
 
     // Shoot the two-tier charge for review: the meter at tier 1 and at tier 2, and the projectile of each.
@@ -324,7 +295,7 @@ public partial class PlayerShotQa : Node
         hp = Read<int>(enemy, "_hp");
         bodyHit.Invoke(enemy, new object[] { charge });
         int nearDamage = hp - Read<int>(enemy, "_hp");
-        Check(nearDamage >= expected.damage && nearDamage <= 32, "close-range bonus never lowers charged damage");
+        Check(nearDamage >= expected.damage && nearDamage <= 48, "close-range bonus never lowers charged damage");
         _pool.DespawnAll();
         enemy.Position = player.Position + new Vector2(85, 0);
         Call(enemy, "EnterExposed");
@@ -344,7 +315,7 @@ public partial class PlayerShotQa : Node
         charge.Damage = 120;
         hp = Read<int>(enemy, "_hp");
         bodyHit.Invoke(enemy, new object[] { charge });
-        Check(Read<int>(enemy, "_hp") == hp - 32, "upgraded charge is bounded at 32 boss damage");
+        Check(Read<int>(enemy, "_hp") == hp - 48, "upgraded charge is bounded at 48 boss damage");
         _pool.DespawnAll();
         Call(enemy, "EnterExposed");
         var normal = _pool.Spawn(player.Position, Vector2.Right * 360, false, 3, 12);

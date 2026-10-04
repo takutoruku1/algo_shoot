@@ -369,14 +369,10 @@ public partial class Audio : Node
         float a = 1f - Mathf.Exp(-MurkSmooth * dt);
 
         // ステージ中だけ濁す。それ以外（メニュー等）は開放・無音を目標にする。
-        // ボス別テーマ（Rei/Akari/Koharu）も「ステージ戦闘曲」＝汚染LowPassの対象に含める。
+        // ボス曲は帯域を保ち、道中だけ汚染に応じて音をこもらせる。
         bool inStage = !Muted && (_currentMusic == BgmStage || _currentMusic == BgmStageRei
                                   || _currentMusic == BgmStageAkari || _currentMusic == BgmStageKoharu
-                                  || _currentMusic == BgmStageW0
-                                  || _currentMusic == BgmBoss
-                                  || _currentMusic == BgmBossRei || _currentMusic == BgmBossAkari
-                                  || _currentMusic == BgmBossKoharu || _currentMusic == BgmBossMina
-                                  || _currentMusic == BgmBossHikage);
+                                  || _currentMusic == BgmStageW0);
 
         float targetCutoff = MurkCutoffOpen;
         float targetAmbDb  = SilentDb;
@@ -451,6 +447,8 @@ public partial class Audio : Node
     {
         if (stream == null) return 0f;
         if (stream == BgmMenu) return 0f; // メニュー実音源は今回対象外
+        if (stream == BgmBossAkari || stream == BgmBossKoharu || stream == BgmBossRei
+            || stream == BgmBossMina || stream == BgmBossHikage) return StageBgmRealDb + 3f;
         // 挿入歌（Final の解決）は BgmMenu と同じ 0dB＝無音から ppp で立ち上がったのち満ちて、
         //   Epilogue の BgmMenu（0dB）へ同じ土俵・同じ和声圏で段差なく橋渡しする。
         if (stream == BgmFinalResolve) return 0f;

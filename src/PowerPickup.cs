@@ -1,13 +1,13 @@
 using Godot;
 
-public enum PowerKind { Line, Speed, Life, Shield }
+public enum PowerKind { Line, Speed, Life }
 
 public static class PowerPickupArt
 {
-    private static readonly string[] Names = { "line", "speed", "life", "shield" };
-    private static readonly Color[] ColorsByKind = { new("ffc24e"), new("cfed48"), new("41e69b"), new("edf0e9") };
-    private static readonly Texture2D?[] Textures = new Texture2D?[4];
-    private static readonly bool[] Missing = new bool[4];
+    private static readonly string[] Names = { "line", "speed", "life" };
+    private static readonly Color[] ColorsByKind = { new("ffc24e"), new("cfed48"), new("41e69b") };
+    private static readonly Texture2D?[] Textures = new Texture2D?[3];
+    private static readonly bool[] Missing = new bool[3];
     public static Color ColorFor(PowerKind kind) => ColorsByKind[(int)kind];
 
     public static Texture2D? TextureFor(PowerKind kind)

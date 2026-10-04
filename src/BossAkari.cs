@@ -131,14 +131,14 @@ public partial class BossAkari : Enemy
         BodyRadius = BossTuning.F("akari", "body_radius", 19f);
         BodyHalfH = BossTuning.F("akari", "body_half_h", 23f);   // 縦長カプセル（絵の形に沿わせる）
         PanelCount = BossTuning.I("akari", "panel_count", 5); // 自責の言葉（黒い吹き出し）
-        PanelInk = BossTuning.I("akari", "panel_ink", 20);
+        PanelInk = BossTuning.I("akari", "panel_ink", 24);
         OrbitRadius = BossTuning.F("akari", "orbit_radius", 26f);
         SpinSpeed = BossTuning.F("akari", "spin_speed", 0.9f);
         PanelsFire = false;      // 攻撃は本体の自責弾
         EnemyBulletSpeed = BossTuning.F("akari", "bullet_speed", 80f);
 
         int bars = BossTuning.I("akari", "hp_bars", 0);
-        BarCount = bars > 0 ? bars : DiffBars(finalBoss: false);
+        BarCount = bars > 0 ? bars : Mathf.Max(1, DiffBars(finalBoss: false) - 1);
 
         // 弾幕・ギミックの外出し値（INIに無ければフィールド初期値＝現行値のまま）。
         _fanInterval = BossTuning.F("akari", "fan_interval", 1.0f);
@@ -317,7 +317,7 @@ public partial class BossAkari : Enemy
             return;
         }
         RestoreAfterPost();
-        RallyShield();
+        if (_postsBroken % 2 == 0) RallyShield();
         ApplySpell();
         OnHpChanged();
     }

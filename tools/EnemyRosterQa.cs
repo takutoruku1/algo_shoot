@@ -473,7 +473,7 @@ public partial class EnemyRosterQa : Node
             var bullets = EnemyBullets().Where(b => Read<Texture2D?>(b, "_sprite")?.ResourcePath
                 == $"res://char/v3/bullets/{art}.png").ToArray();
             Check(bullets.Length == expected && bullets.All(b => Mathf.IsEqualApprox(b.Radius, 3.2f)
-                && b.Damage == 1 && !b.Homing && !b.Erasable && !b.Accel && b.Shape == cameo.Theme.SpellShape),
+                && b.Damage == 1 && !b.Homing && !b.IsPatternBullet && !b.Accel && b.Shape == cameo.Theme.SpellShape),
                 $"{scene}/{game.Difficulty}: {art} retains count, collision and damage");
             Check(bullets.All(b => Math.Abs((rain ? b.Velocity.Y : b.Velocity.Length()) - speed * game.BulletSpeedMul) < 0.01f),
                 $"{scene}/{game.Difficulty}: {art} retains speed scaling");
@@ -548,7 +548,7 @@ public partial class EnemyRosterQa : Node
                 Check(bullets.Length == count && Read<int>(enemy, "_salvoRemaining") == 0,
                     $"{spec.Pattern}/{diff}: completes expected {count}-bullet pattern");
                 Check(bullets.All(b => Read<Texture2D>(b, "_sprite").ResourcePath == texture.ResourcePath
-                    && b.Radius >= 3.6f && b.Radius <= 4f && b.Damage == 1 && !b.Homing && !b.Erasable),
+                    && b.Radius >= 3.6f && b.Radius <= 4f && b.Damage == 1 && !b.Homing && !b.IsPatternBullet),
                     "every bullet uses its own illustration with consistent collision rules");
                 Check(bullets.All(b => b.GlobalPosition.X > Field.Left && b.GlobalPosition.X < Field.Right
                     && b.GlobalPosition.Y > Field.Top && b.GlobalPosition.Y < Field.Bottom), "all projectiles originate inside the field");

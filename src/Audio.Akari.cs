@@ -22,7 +22,7 @@ public partial class Audio
             AudioServer.AddBus();
             AudioServer.SetBusName(_akariBus, "AkariTheme");
             AudioServer.SetBusSend(_akariBus, "Music");
-            _akariFilter = new AudioEffectLowPassFilter { CutoffHz = 1800f };
+            _akariFilter = new AudioEffectLowPassFilter { CutoffHz = 15000f };
             AudioServer.AddBusEffect(_akariBus, _akariFilter);
             _akariLayers = new AudioStreamPlayer[2];
             for (int i = 0; i < _akariLayers.Length; i++)
@@ -61,8 +61,8 @@ public partial class Audio
         if (GetTree().Paused || Hud.BubblePaused) return;
         _akariDepth = Mathf.MoveToward(_akariDepth, _akariDepthTarget, (float)delta * 0.65f);
         float depth = _akariDepth / 5f;
-        _akariFilter!.CutoffHz = Mathf.Lerp(1800f, 16500f, depth * depth);
-        AudioServer.SetBusVolumeDb(_akariBus, Mathf.Lerp(-5f, 0f, depth));
+        _akariFilter!.CutoffHz = Mathf.Lerp(15000f, 20000f, depth);
+        AudioServer.SetBusVolumeDb(_akariBus, Mathf.Lerp(0f, 1.5f, depth));
         float blend = 1 - Mathf.Exp(-(float)delta * 2f);
         for (int i = 0; i < _akariLayers.Length; i++)
         {

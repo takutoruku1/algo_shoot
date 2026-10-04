@@ -1408,7 +1408,7 @@ public partial class Hud : CanvasLayer
     private void DrawPowerups(HudCanvas ci)
     {
         if (GetTree().GetFirstNodeInGroup("player") is not Player player) return;
-        for (int i = 0; i < 4; i++)
+        for (int i = 0; i < 2; i++)
         {
             var kind = (PowerKind)i;
             int level = player.PowerLevel(kind);

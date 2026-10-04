@@ -204,7 +204,7 @@ public partial class EnemyProjectileQa : Node
                 Write(game, "_focusModeT", 0f);
                 cast._PhysicsProcess(0.4);
                 Check(bullets.All(b => !b.OverheadPending && b.Visible && b.CollisionLayer == 8
-                    && b.CollisionMask == (b.Erasable ? 3u : 1u)),
+                    && b.CollisionMask == 1u),
                     $"{label}/{diff}: exact collision masks return on release");
                 Check(bullets.Select(b => b.Position).SequenceEqual(positions) && bullets.Select(b => b.Velocity).SequenceEqual(velocities)
                     && bullets.All(b => b.Radius == (cameo ? 3.2f : 3f)), $"{label}/{diff}: fall origin, velocity and radius preserved");
@@ -417,7 +417,7 @@ public partial class EnemyProjectileQa : Node
             Call(storm, "TickStorm", 1d);
             var quote = Bullets().Single();
             Check(ReferenceEquals(Read<BulletWordCore>(quote, "_wordCore").Art, BulletArt.Get("rei_film"))
-                && quote.Erasable && quote.Radius == 3f, "quote storm keeps its erasable film core");
+                && quote.IsPatternBullet && quote.Radius == 3f, "quote storm keeps its non-destructible film core");
             Pool.DespawnAll();
             storm.QueueFree();
             var tutorial = new StageZero { Player = player, Hud = hud, World = world };
@@ -505,7 +505,7 @@ public partial class EnemyProjectileQa : Node
             {
                 Call(enemy, "SpawnCarriedPrayers");
                 var carried = Bullets();
-                Check(carried.Length == 3 && carried.All(b => b.Erasable && !b.LeadIn
+                Check(carried.Length == 3 && carried.All(b => b.IsPatternBullet && !b.LeadIn
                         && b.GlobalPosition.Y > enemy.ShotCenter.Y
                         && b.GlobalPosition.Y - enemy.ShotCenter.Y <= 40f),
                     $"{label}: carried prayers hang on the chain below the body (cargo, not a shot)");

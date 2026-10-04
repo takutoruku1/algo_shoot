@@ -140,7 +140,10 @@ public static class UiKit
         {
             slot.Antialiasing = TextServer.FontAntialiasing.Gray;
             slot.SubpixelPositioning = TextServer.SubpixelPositioning.Auto;
-            slot.MultichannelSignedDistanceField = false;
+            slot.MultichannelSignedDistanceField = true;
+            slot.MsdfSize = 96;
+            slot.MsdfPixelRange = 16;
+            slot.Hinting = TextServer.Hinting.None;
         }
         return slot!;
     }

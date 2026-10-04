@@ -215,7 +215,7 @@ public partial class HowToCanvas : Node2D
 
         // ── ヘッダ（タイトル＋ページインジケータ）──
         UiKit.Draw(this, UiKit.SmallLabel, new Vector2(x + 32, y + 22), "HOW TO PLAY", UiKit.Info);
-        string[] titles = { "操作 — キーボード", "操作 — コントローラー", "操作 — マウス", "画面の見かた", "コア機能", "強化アイテム" };
+        string[] titles = { "操作 — キーボード", "操作 — コントローラー", "操作 — マウス", "画面の見かた", "コア機能", "ドロップアイテム" };
         UiKit.Text(this, UiKit.ZenBlack, new Vector2(x + 32, y + 38), "あそびかた — " + titles[Menu.Page], UiKit.FontTitle, UiKit.White);
         // ページドット（右上）。クリックで直接ジャンプできるので、ホバー中は一回り大きく光らせる。
         int hov = UiKit.HoveredId();
@@ -370,7 +370,7 @@ public partial class HowToCanvas : Node2D
             UiKit.Gold, hasDodge, hasDodge ? "" : "未習得 — ショップ「回避」");
 
         Add(tab switch { 1 => Pad.Face(JoyButton.X), 2 => "中クリック", _ => "X" },
-            "ボム", "画面の弾を消し短時間無敵。残数ぶん", UiKit.Mina, false);
+            "ボム", "敵にダメージを与え短時間無敵。残数ぶん", UiKit.Mina, false);
 
         // 集中モード（ショップの「集中モード」＝n_slow で覚える）。キーボードは C（2026-09-27。旧 V）。
         Add(tab switch { 1 => Pad.Face(JoyButton.LeftShoulder), 2 => "ホイール / サイドボタン", _ => "C" },
@@ -456,7 +456,7 @@ public partial class HowToCanvas : Node2D
         var rows = new (int icon, string name, string desc, Color col)[]
         {
             (0, "LIFE",        "残りの体力。弾に当たると1つ減る",                      UiKit.Hp),
-            (1, "BOMB",        "ボムの残り。" + TokBomb + " で画面の弾を消せる",        UiKit.Mina),
+            (1, "BOMB",        "ボムの残り。" + TokBomb + " で攻撃しながら無敵になれる",        UiKit.Mina),
             (2, "浄化 ％",     "ステージの進み具合。100%でボスへ",                     UiKit.Purify),
             (1, "コンボ",      "連続で浄化するとSCOREも、こぼれる心の量も増える。猶予内に次を倒せないと途切れる", UiKit.Mina),
             (1, "SCORE",       "遊びの得点。ハイスコアを狙える",                       UiKit.Gold),
@@ -506,8 +506,7 @@ public partial class HowToCanvas : Node2D
         {
             (PowerKind.Line,   "光が増える",     "撃ち方を問わず、放つ光の筋が増える"),
             (PowerKind.Speed,  "足が速くなる",   "移動が速くなる。よけやすく、拾いやすく"),
-            (PowerKind.Life,   "LIFEが増える",   "LIFEが増える（上限もいっしょに増える）"),
-            (PowerKind.Shield, "被弾を肩代わり", "攻撃を一度、代わりに受ける。LIFEも、ほかの強化も減らない"),
+            (PowerKind.Life,   "LIFEを1回復",     "敵を30体倒すと出現。拾ったその場で回復する（最大LIFEまで）"),
         };
         float top = y + 58f, rowH = 78f;
         for (int i = 0; i < rows.Length; i++)
@@ -523,10 +522,10 @@ public partial class HowToCanvas : Node2D
 
         float ny = top + rows.Length * rowH + 2f;
         UiKit.Text(this, UiKit.Zen, new Vector2(x, ny),
-            "◇ 同じ種類を重ねて拾うと段が上がる（上限あり）。いま持っているものは左のパネル、LIFE の上に出る",
+            "◇ 光・移動の強化は重ねて拾うと段が上がる（上限あり）。いま持っているものは左のパネル、LIFE の上に出る",
             UiKit.FontLabel, UiKit.PurifyHi, HorizontalAlignment.Left, w);
         UiKit.Text(this, UiKit.Zen, new Vector2(x, ny + 24f),
-            "※ 攻撃を受けると失う（肩代わりで受けた被弾では失わない）。持ち越しはなく、そのステージのあいだだけ",
+            "※ 攻撃を受けると失う。持ち越しはなく、そのステージのあいだだけ",
             UiKit.FontLabel, UiKit.Gold, HorizontalAlignment.Left, w);
     }
 
@@ -536,7 +535,7 @@ public partial class HowToCanvas : Node2D
         var cards = new (string title, string body, Color accent)[]
         {
             ("ボム",
-             "ピンチの保険。" + TokBomb + " で画面の弾を消し無敵に。残数は限られる。",
+             "ピンチの保険。" + TokBomb + " で攻撃しながら無敵に。残数は限られる。",
              UiKit.Mina),
             ("弾強化",
              "ハブのスマホ →ショップ。「浄化した心」で 連射 / 拡散 / ホーミング / 加速球（タメて撃つロケット弾） を解放・強化。",

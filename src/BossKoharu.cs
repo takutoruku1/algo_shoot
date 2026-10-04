@@ -184,7 +184,7 @@ public partial class BossKoharu : Enemy
         BodyRadius = BossTuning.F("koharu", "body_radius", 19f);
         BodyHalfH = BossTuning.F("koharu", "body_half_h", 23f);   // 縦長カプセル（絵の形に沿わせる）
         PanelCount = BossTuning.I("koharu", "panel_count", 5); // 「むだだ」等の言葉（黒い吹き出し）
-        PanelInk = BossTuning.I("koharu", "panel_ink", 20);
+        PanelInk = BossTuning.I("koharu", "panel_ink", 32);
         OrbitRadius = BossTuning.F("koharu", "orbit_radius", 26f);
         SpinSpeed = BossTuning.F("koharu", "spin_speed", 0.85f);
         PanelsFire = false;
@@ -285,7 +285,7 @@ public partial class BossKoharu : Enemy
         _posts = BossPostSequence.Attach(this, "koharu", _caster, _caster.CancelPendingAttacks, () =>
         {
             _fireT = _fireT2 = 0;
-            RallyShield();
+            if (_posts.Count % 2 == 0) RallyShield();
             ApplySpell();
             OnHpChanged();
         });
@@ -293,16 +293,6 @@ public partial class BossKoharu : Enemy
         // 部品の演出層（char/v3/fx/koharu/*.png）を本体の子として1個ぶら下げる。当たり判定は持たない。
         // 引数は待機・攻撃の本体画像の幅（720px 基準）＝実測の基準点を中心基準へ読み替えるのに要る。
         AttachParts("koharu", idleTexW: 626f, attackTexW: 585f);
-    }
-
-    protected override void OnShieldBroken()
-    {
-        _mealPhase = _gotoPhase = 0;
-        _mealT = _gotoT = 0;
-        _meal.Clear();
-        _mealLeft.Clear();
-        _caster.Suppressed = false;
-        _caster.CancelPendingAttacks();
     }
 
     protected override void UpdateMovement(double delta)
@@ -375,7 +365,7 @@ public partial class BossKoharu : Enemy
             float t = k > 1 ? (float)i / (k - 1) - 0.5f : 0f;
             float a = baseA + t * Mathf.DegToRad(78f);
             var b = FireBullet(pool, GlobalPosition, new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * EnemyBulletSpeed, 3.6f);
-            b.MakeErasable();
+            b.IsPatternBullet = true;
         }
     }
 
@@ -396,7 +386,7 @@ public partial class BossKoharu : Enemy
                 if (_mealT < _mealWindow) return;
                 _mealLeft.Clear();
                 foreach (var b in _meal)
-                    if (IsInstanceValid(b) && b.Active && b.Erasable) _mealLeft.Add(b);
+                    if (IsInstanceValid(b) && b.Active && b.IsPatternBullet) _mealLeft.Add(b);
                 _meal.Clear();
                 _mealPhase = 3; _mealT = 0;
                 GetHud()?.ShowBossLine("こはる", "……見なかったところ、あるでしょ。……ぜんぶ、見てほしいのに。", UiKit.Kegare, 2.0);
@@ -409,7 +399,7 @@ public partial class BossKoharu : Enemy
                     _mealT -= _mealConvStep;
                     var b = _mealLeft[0];
                     _mealLeft.RemoveAt(0);
-                    if (pool == null || !IsInstanceValid(b) || !b.Active || !b.Erasable) continue; // 変換待ち中に食べた/消えた分
+                    if (pool == null || !IsInstanceValid(b) || !b.Active || !b.IsPatternBullet) continue; // 変換待ち中に食べた/消えた分
                     Vector2 at = b.GlobalPosition;
                     pool.Despawn(b);
                     Vector2 d = pl != null ? pl.GlobalPosition - at : new Vector2(-1, 0);
@@ -451,7 +441,7 @@ public partial class BossKoharu : Enemy
                 // 配膳は「盤面の右半分に格子で並ぶ」こと自体がギミック（食べ残しを数える）＝
                 // 体から飛び出す導入区間は付けない。並んだ瞬間に格子が読めることを優先する。
                 var b = FireBullet(pool, pos, new Vector2(0f, _mealFallSpeed), 3.6f, 1, fromCenter: false);
-                b.MakeErasable();
+                b.IsPatternBullet = true;
                 _meal.Add(b);
             }
         return true;
@@ -464,7 +454,7 @@ public partial class BossKoharu : Enemy
     {
         int n = 0;
         foreach (var b in _meal)
-            if (IsInstanceValid(b) && b.Active && b.Erasable) n++;
+            if (IsInstanceValid(b) && b.Active && b.IsPatternBullet) n++;
         return n;
     }
 

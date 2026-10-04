@@ -103,7 +103,7 @@ public partial class QuoteStorm : Node2D
     //   道中弾として再利用されると参照だけが生き残り、Active だけ見ていると他人の弾を引用と取り違える
     //   （＝いつまでも「貼りついている」ことになって場面が終わらない）。文面と Erasable（Activate が毎回落とす）で見分ける。
     private static bool IsChip(Bullet b, Quote q)
-        => IsInstanceValid(b) && b.Active && b.Erasable && b.Word == q.Body;
+        => IsInstanceValid(b) && b.Active && b.IsPatternBullet && b.Word == q.Body;
 
     private readonly RandomNumberGenerator _rng = new();
     private Hud? _hud;
@@ -252,7 +252,7 @@ public partial class QuoteStorm : Node2D
         // 引用は「投稿に寄る側」で層が違う（09）。濁色チップにして、面の投稿弾（テーマ色）と見分ける。
         b.SetWord(q.Body, q.Handle, new Color(0.55f, 0.55f, 0.60f), murk: true,
             coreArt: BulletArt.Get("rei_film"));
-        b.MakeErasable();                 // 撃つと剥がれる（祈り弾と同じ経路）
+        b.IsPatternBullet = true;                 // 撃つと剥がれる（祈り弾と同じ経路）
         _flying.Add((b, q, dst));
         QuoteCount++;
         ShowCounter();

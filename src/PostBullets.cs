@@ -141,7 +141,6 @@ public static class PostBullets
         if (b == null) return false;
         b.SetWord(w, "", accent, murkAll || PostPool.IsMurk(w), aching, BulletArt.PostCore(theme));
         // 撃って「届ける」＝祈り弾と同じ経路（自機弾を拾う mask を開く）。報酬側は Bullet が WordAching で分ける。
-        if (aching) b.MakeErasable();
         OverheadCast.Begin(source, new[] { b }, BulletArt.PostCore(theme), accent ?? UiKit.Kegare);
         return aching;
     }

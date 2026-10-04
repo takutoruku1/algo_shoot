@@ -1081,7 +1081,7 @@ public partial class BossSpellQa : Node
                     _ => game.ScaleBullets(18) + 3,
                 };
                 Check(bullets.Length == count && bullets.All(b => Read<Texture2D?>(b, "_sprite") != null
-                    && b.Damage == 1 && !b.Homing && !b.Accel && !b.Erasable), $"Mina/{diff}/{pattern}: illustrated attack preserves count and damage");
+                    && b.Damage == 1 && !b.Homing && !b.Accel && !b.IsPatternBullet), $"Mina/{diff}/{pattern}: illustrated attack preserves count and damage");
                 var expectedArt = Read<Texture2D?[][]>(boss, "_spellArt")[pattern];
                 Check(bullets.Select(b => Read<Texture2D>(b, "_sprite").GetInstanceId()).Distinct().OrderBy(p => p)
                     .SequenceEqual(expectedArt.Select(t => t!.GetInstanceId()).Distinct().OrderBy(p => p)), "memory attack includes every assigned character illustration");
