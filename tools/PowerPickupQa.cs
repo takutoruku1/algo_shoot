@@ -385,13 +385,15 @@ public partial class PowerPickupQa : Node
         await Close(root);
         root = await NewRoot();
         ShardLayer.SetPhysicsProcess(false);
-        for (int count = 1; count <= 40; count++)
+        int killsToMax = Enum.GetValues<PowerKind>().Length * 2 * Player.KillsPerPowerDrop;
+        Check(killsToMax <= 132, "the shortest route supplies enough drops to max all four powers");
+        for (int count = 1; count <= killsToMax; count++)
         {
             EmitKill(root.Player, root.Player.Position);
             Tick(60);
         }
         Check(Enum.GetValues<PowerKind>().All(k => root.Player.PowerLevel(k) == 2),
-            "all four powers can reach level two within the 45-enemy routes");
+            "all four powers can reach level two within the expanded routes");
         await Close(root);
     }
 

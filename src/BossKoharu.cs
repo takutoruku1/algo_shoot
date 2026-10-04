@@ -107,7 +107,6 @@ public partial class BossKoharu : Enemy
     // ※ 実装は Min(式, cap) なので cap は「下げる」方向にしか効かず、Easy は式 0.25 が採用される（実効 50HP・切替26%の 2HP 下）。
     private float _finaleCap = 0.26f;
 
-    // HPがこの割合を割るたびに攻撃パターンを変える（独白は浄化のかけあいに集約）。
     private static readonly float[] PatternThresholds = { 0.78f, 0.50f, 0.26f };
 
     // スペルカード（STAGE2 こはる＝配信画面の光の琥珀と、我に返る一拍の深紅）。技名は仮台本 07 の S2-7。
@@ -141,30 +140,20 @@ public partial class BossKoharu : Enemy
         GetHud()?.AnnounceSpell("こはる", BossHandles.KoharuMain, s.name, s.tint);
     }
 
-    // S2-8 改心（仮台本 07。ユーザー承認済み・2026-09-05）。二段で抜く：
-    //   (1) ミナが S2-4 で拾った「消されたコメント」を本人へ返す
-    //   (2) 来ていた回数を数えた証人として、ミナ自身の言葉で決定打（「八十七回」「一秒も」）
-    // 案C に少年は居ないので中継（who=5）も使わない＝決定打はミナが自分の声で言う。
-    // 「来ていた回数を、数えました。」の行で BGM を落とし、決定打を無音のまま置く。
-    // 泣き顔差分は無く、蒼白（KPale）が絶望を担う。推しの側の話も、親の話もしない。
     private static readonly (int who, string text, string face)[] Lines =
     {
-        (2, "楽しいの。ほんとに。見てる間だけは、ぜんぶ、忘れてられるの。", KFace),
-        (2, "でも、電気つけたら——机の上に、模試。机の下に、箱。……あたし、なにしてんだろ。", KPale),
-        (2, "……忘れてた時間、ぜんぶ、むだで——", KPale),
-        (1, "消されたコメントを、拾っておりました。「レイちゃんがいたから、今日も学校行けた」。", ""),   // (1) S2-4 の回収
-        (2, "……っ。……それ、消したもん。……重いって、思われそうで、やだったから……", KPale),
-        (1, "“むだだ”という声なら、ここへ来るまでに、ぜんぶ祓いました。", MWorried),
-        (1, "来ていた回数を、数えました。八十七回。", MWorried),   // ここで BGM 停止
-        (1, "——むだな時間は、一秒も、ありませんでしたよ。", MWorried),                     // (2) 決定打。無音のまま
-        // ユーザー承認済み: docs/20260914/ストーリー添削_2026-09-14.md 【8】
-        //   旧稿は決定打の直後に説明的な補足（「約束はしなくていい」）を置き、無音の余韻を自分で埋めていた。
-        //   こはるに「……ほんとに？」だけ言わせて一度切る＝確かめに来る間が生まれ、そこへ救済の芯を返す。
-        //   最後は本人の口から「また、見に行って、いいのかな」＝こはるが自分で選び直した形になる
-        //   （救う相手を“器”にしない）。
-        (2, "……ほんとに？", KFace),
-        (1, "……明日も来る約束は、しなくて結構です。", MWorried),
-        (2, "……また、見に行って、いいのかな。", KFace),
+        (2, "楽しいの。ほんとに。見てる間だけは、ぜんぶ、忘れてられるの。", "res://char/v3/koharu_face_pale.png"),
+        (2, "でも、電気つけたら——机の上に、模試。机の下に、箱。……あたし、なにしてんだろ。", "res://char/v3/koharu_face_pale.png"),
+        (2, "……忘れてた時間、ぜんぶ、むだで——", "res://char/v3/koharu_face_pale.png"),
+        (1, "消されたコメントを、拾っておりました。「レイちゃんがいたから、今日も学校行けた」。", "res://char/mina_face.png"),
+        (2, "……っ。……それ、消したもん。……重いって、思われそうで、やだったから……", "res://char/v3/koharu_face_pale.png"),
+        (1, "“むだだ”という声なら、ここへ来るまでに、ぜんぶ祓いました。", "res://char/mina_face.png"),
+        (1, "来ていた回数を、数えました。八十七回。", "res://char/mina_face.png"),
+        (1, "——むだな時間は、一秒も、ありませんでしたよ。", "res://char/mina_face.png"),
+        (2, "……ほんとに？", "res://char/v3/koharu_face_pale.png"),
+        (1, "明日も来る約束は、なくてよいと思います。今日は、眠りたいとおっしゃっていましたから。", "res://char/mina_face.png"),
+        (2, "……また、見に行って、いいのかな。", "res://char/v3/koharu_face_pale.png"),
+        (1, "もちろん。見たい日に、見たいぶんだけ。……ペンライトの振り方も、まだ教わりたいです。", "res://char/mina_face.png"),
     };
     // 決定打の手前で音を落とす行（本文一致で拾う）。ここから BGM 無しで決定打を置く。
     private const string BgmStopLine = "来ていた回数を、数えました。八十七回。";
@@ -176,6 +165,16 @@ public partial class BossKoharu : Enemy
     private (int who, string text, string face)[] _lines = Lines;
     private int _storySilenceAt = -1;
     // 他ジョブ潜行の回想（CharacterStory.Memory）を会話枠だけで送るドライバ。null＝ミナ潜行（＝フィルム）。
+    private static readonly (int who, string text, string face)[] MemoryLeadIn = {
+        (1, "こはるさん。初めて配信を見た日も、このペンライトを？", "res://char/mina_face.png"),
+        (2, "ううん。最初は、何も持ってなかった。コメントも、書けなくて。", "res://char/v3/koharu_face.png"),
+        (1, "それでも、また見たくなったのですね。", "res://char/mina_face.png"),
+        (2, "……見てるだけのあたしにも、ありがとうって言ってくれたの。", "res://char/v3/koharu_face.png"),
+        (1, "その言葉が、うれしかった。", "res://char/mina_face.png"),
+        (2, "うん。模試が返ってきた夜で、眠れなかったから。あたし、誰とも話したくなくて……。", "res://char/v3/koharu_face.png"),
+        (1, "はい。……その夜のお話、もう少し聞かせてください。", "res://char/mina_face.png"),
+    };
+
     private CharacterStoryTalk? _memoryTalk;
 
     protected override void OnEnemyReady()
@@ -191,7 +190,6 @@ public partial class BossKoharu : Enemy
         PanelsFire = false;
         EnemyBulletSpeed = BossTuning.F("koharu", "bullet_speed", 80f);
 
-        // HPバー本数は難易度別（通常ボス：Easy2/Normal4/Hard5/Lunatic6）。INI hp_bars > 0 で固定上書き。
         int bars = BossTuning.I("koharu", "hp_bars", 0);
         BarCount = bars > 0 ? bars : DiffBars(finalBoss: false);
 
@@ -311,7 +309,7 @@ public partial class BossKoharu : Enemy
     {
         // 自機の位置を渡す＝自機狙いの追従（x と y の両方に寄る）と、反転の判定（40px 以上・0.6秒）に使う。
         if (GetTree().GetFirstNodeInGroup("player") is Node2D pl) _mover.SetPlayerPos(pl.GlobalPosition);
-        GlobalPosition = _mover.Step(GlobalPosition, delta);
+        GlobalPosition = _mover.Step(GlobalPosition, delta, IsForm2 ? 1.65f : 1f);
         ApplyBossMotion(_mover.VisualOffset, _mover.Lean, IsForm2 ? !_mover.FacingLeft : _mover.FacingLeft);
         FxLayer.Instance?.EmitBossAura(FxLayer.BossAura.Koharu, GlobalPosition, (float)delta, 32f);
         TickMeal(delta);
@@ -326,6 +324,7 @@ public partial class BossKoharu : Enemy
         if (pool == null) return;
         // 「お残し禁止」「五徳の十字火」進行中は通常弾を止める（食べる/避けるに集中させる。レイの安置リレーと同じ流儀）。
         if (_mealPhase != 0 || _gotoPhase != 0) return;
+        if (TickForm2Technique(delta, _mover, _caster!)) return;
         if (_finale) { FireFinale(pool, delta); return; }
         _fireT += delta;
         switch (_pattern)
@@ -364,9 +363,11 @@ public partial class BossKoharu : Enemy
     // サイズは「受け止める対象」であることが一目でわかる中サイズ（配膳の料理弾 ServeMeal と同格）。
     // 2026-09-17 ユーザー指示：真下（Pi/2）固定をやめ、自機方向を中心に張る（あかりの扇と同じ直し）。
     //   受け止め遊びはむしろ成立しやすくなる＝正面から来る弾に自機弾を合わせる形になる。
+    // 2026-10-03：本数が偶数だと中心線（t=0）に弾が無く、棒立ちの自機の両脇をすり抜ける。
+    //   DnOdd で必ず奇数＝正面の1本は必ず来る（あかりの扇と同じ直し）。受け止める的も中央に立つ。
     private void FanDown(BulletPool pool)
     {
-        int k = Dn(_fanCount);
+        int k = DnOdd(_fanCount);
         var aim = AimAtPlayer();
         float baseA = Mathf.Atan2(aim.Y, aim.X);
         for (int i = 0; i < k; i++)
@@ -700,12 +701,7 @@ public partial class BossKoharu : Enemy
     //   2026-09-26（docs/20260926/主人公の存在_診断と本文 §3.2(a)）：「みんな見てる」と言い張る子が本当に見ているのは手だけ。
     //   自機の足取りはご主人様のもの（正典）＝ミナの後ろの手を見つける行。取り繕い「楽しいってば」は最後のまま。
     private static readonly string[] RecloseLines =
-    {
-        "みんな見てる。……見てるもん。ちゃんとしなきゃ、だめだもん。",
-        "やめないで……止まったら——",
-        "……ねえ。いま動いてるの、そっちの手じゃ、ないでしょ。……あたし、手は、見るもん。",
-        "……なんでもない。楽しいってば。",
-    };
+    { "みんな見てる。……見てるもん。ちゃんとしなきゃ、だめだもん。", "やめないで……止まったら——", "……ねえ、ミナ。ペンライト、止まってるよ。楽しく、なくなっちゃった？", "……なんでもない。楽しいってば。" };
     private int _recloseIdx;
     protected override void OnRecloseLine()
     {
@@ -776,7 +772,8 @@ public partial class BossKoharu : Enemy
                 _memoryTalk = CharacterStoryTalk.Start(CharacterStory.Memory(game.SelectedJob, "koharu"),
                     GetHud, ShowStoryLine, ResumeBattle);
             }
-            else KoharuStoryFilm.Play(GetHud()!, GetParent(), aftermath: false, completed: ResumeBattle);
+            else _memoryTalk = CharacterStoryTalk.Start(MemoryLeadIn, GetHud, ShowStoryLine,
+                () => KoharuStoryFilm.Play(GetHud()!, GetParent(), aftermath: false, completed: ResumeBattle));
             return;
         }
         if (!_seq && !_memoryPending && _mealPhase == 0 && _gotoPhase == 0 && _posts.TryStart()) return;

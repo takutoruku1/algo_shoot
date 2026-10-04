@@ -72,13 +72,15 @@ public partial class StageZero : Node
     private static readonly (int who, string text, string face)[] Tut5Bomb = System.Array.Empty<(int, string, string)>();
     private static readonly (int who, string text, string face)[] Tut6Purify =
     {
-        (1, "倒すのではなく、届ける。……これが、わたくしの役目なんですね。", "res://char/mina_face.png"),
+        (0, "ここは練習用の場所だ。道と危険は僕が伝える。焦らなくていい。", ""),
+        (1, "はい。……迷子のメイド、第一話にはしたくありませんので。", "res://char/mina_face.png"),
+        (0, "その場合は、案内役の責任だね。ちゃんと帰すよ。", ""),
     };
     private static readonly (int who, string text, string face)[] Tut8End =
     {
-        // ユーザー承認済み: docs/20260914/ストーリー添削_2026-09-14.md 【3】（感情アークの厳格運用）
-        //   れんしゅう＝あかり面より前＝ミナはまだ何も獲得していない。笑顔の立ち絵は出さない。
-        (1, "……あ。暗闇に、ひとつ。行く先の光が、灯りました。", "res://char/mina_face.png"),
+        (1, "暗闇に、ひとつ。行く先の光が灯りました。", "res://char/mina_face.png"),
+        (0, "僕が開いた出口だ。そこから戻れる。最初の練習、お疲れさま。", ""),
+        (1, "ありがとうございます。出発だけでなく、帰り道も覚えました。", "res://char/mina_face.png"),
     };
 
     private (int who, string text, string face)[] _playerIntro = null!;

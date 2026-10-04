@@ -147,12 +147,12 @@ public partial class MinaPhaseQa : Node
         await Frames(3);
         caster.BeginPhase(3);
         caster._Process(2d);
+        Check(caster.Active && !caster.OpenerCompleted, "the interrupted opener starts with its HP gate closed");
         typeof(Enemy).GetMethod("EnterBreak", Private)!.Invoke(boss, null);
+        caster._Process(1d / 60);
+        Check(caster.OpenerCompleted && !caster.Active,
+            "breaking the shield interrupts the opener and releases its HP gate for high-power shots");
         boss._PhysicsProcess(2d);
-        await Frames(3);
-        Check(Read<CollisionShape2D>(boss, "_bodyShape", typeof(Enemy)).Disabled,
-            "opening the damage window cannot restore contact during an AOE");
-        caster.CancelPendingAttacks();
         await Frames(3);
         Check(!Read<CollisionShape2D>(boss, "_bodyShape", typeof(Enemy)).Disabled,
             "ordinary combat restores body contact");

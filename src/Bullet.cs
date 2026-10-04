@@ -861,11 +861,18 @@ public partial class Bullet : Area2D
     // 全探索は RetargetInterval に1回だけ＝毎フレーム探索ではないので負荷は旧実装以下。
     private void SteerToTarget(float delta)
     {
+        var player = GetTree().GetFirstNodeInGroup("player") as Player;
+        var locked = BackwardHoming ? null : player?.LockTarget as Enemy;
         var tgt = _homeTarget;
         bool lost = tgt == null || !IsInstanceValid(tgt) || (tgt is Enemy en && en.IsPurified)
             || (Charged && _chargeHits.Contains(tgt.GetInstanceId()));
         _retargetT -= delta;
-        if (lost)
+        if (locked != null && !locked.IsPurified && !HasChargeHit(locked))
+        {
+            tgt = _homeTarget = locked;
+            _retargetT = RetargetInterval;
+        }
+        else if (lost)
         {
             tgt = _homeTarget = AcquireTarget();
             _retargetT = RetargetInterval;
@@ -886,11 +893,10 @@ public partial class Bullet : Area2D
         if (spd < 0.01f) return;
         float cur = Velocity.Angle();
         Vector2 aim = tgt.GlobalPosition;
-        if (tgt is Enemy boss && boss.UnfolderStyle != UnfolderKind.None)
+        if (tgt is Enemy enemy)
         {
-            var player = GetTree().GetFirstNodeInGroup("player") as Player;
-            var preferred = player?.LockTarget == boss ? player.LockedUnfolder : _homeUnfolder;
-            _homeUnfolder = boss.SelectUnfolder(GlobalPosition, preferred, this);
+            var preferred = player?.LockTarget == enemy ? player.LockedUnfolder : _homeUnfolder;
+            _homeUnfolder = enemy.SelectUnfolder(GlobalPosition, preferred, this);
             if (_homeUnfolder != null) aim = _homeUnfolder.GlobalPosition;
         }
         float want = (aim - GlobalPosition).Angle();

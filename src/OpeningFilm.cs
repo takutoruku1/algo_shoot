@@ -38,18 +38,9 @@ public partial class OpeningFilm : Node2D
     };
     private static readonly string[] Characters = { "akari", "koharu", "rei", "mina" };
     private static readonly string[] DailyLines =
-    {
-        "……好きって、\n言えばよかった。",
-        "ちゃんと、応援しなきゃ。\n……好きで、始めたはずなのに。",
-        "今日はちょっと、疲れてて……。\n……なんて。始めるわよ。",
-    };
+    { "……好きって、\n言えばよかった。", "ちゃんと、応援しなきゃ。\n……好きで、始めたはずなのに。", "今日はちょっと、疲れてて……。\n……なんて。始めるわよ。" };
     private static readonly string[] CutinLines =
-    {
-        "今度は、あたしの言葉で。",
-        "あたしの「好き」を、\n嫌いになりたくない。",
-        "わたしの声で、\n話したいことがあるの。",
-        "……聞こえています。\nあなたが、消した言葉も。",
-    };
+    { "今度は、あたしの言葉で。", "あたしの「好き」を、\n嫌いになりたくない。", "わたしの声で、\n話したいことがあるの。", "……聞こえています。\nあなたが、消した言葉も。" };
     // 単独の字幕（DrawOverlay が描く本文と同じ文字列。会話ログにも同じものを積む＝LogCaption）。
     private const string HeardLine = "……聞こえました。";
     private const string GoLine = "行きましょう。\nあの声の向こうへ。";

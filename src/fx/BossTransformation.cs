@@ -21,6 +21,8 @@ public partial class BossTransformation : Node2D
     private Node _world = null!;
     private GameManager _game = null!;
     private ProcessModeEnum _worldMode, _gameMode;
+    private Node? _player;          // 止めている間だけ物理処理を預かる自機（下の _Ready／Restore 参照）
+    private bool _playerPhysics;
     private Frame _before, _after;
     private Sprite2D _old = null!, _new = null!;
     private readonly Sprite2D[] _echoes = new Sprite2D[2];
@@ -49,14 +51,64 @@ public partial class BossTransformation : Node2D
         return effect;
     }
 
+    // ── ルナティック用：戦闘を止めない形態変化の合図 ──
+    //   ルナティックは「物語ギミックを全部切った、止まらない純粋シューティング」（GameManager.IsLunatic の
+    //   コメント）で、回想・改心会話・下書き選択・HoldBubble・ボス投稿・段間カットシーンを畳んである。
+    //   World を3秒止めるこの演出だけがその規則の外に居たので、同じ作法で畳む：止めるのは「演出のために
+    //   戦闘を凍らせること」だけで、形態変化そのものは起こす。
+    //   止めずに「姿が変わった」を読ませる手は、全部すでに盤面にある語彙でそろえる：
+    //     ・ガワの差し替えと squash→pop … 呼び出し側（Enemy.AdvanceForm2／BossMina.BeginPhaseTransition）が
+    //       SwapBody で起動済み。World が止まらないぶん、_PhysicsProcess が自前の尺でクロスフェードを流す
+    //       ＝体が一度弾んで新しい姿になる（本編では止めている間に進まないので FinishFormReveal で畳んでいた）。
+    //     ・Hud.Flash() … HPバーが1本割れた瞬間（Enemy.OnBarBroken）と同じ白フラッシュ＝「節目」の同語彙。
+    //     ・画面揺れと着地音 … 本編の ImpactTime で鳴るものをそのまま、尺ゼロで一度だけ。
+    public static void FlashForm(Enemy boss)
+    {
+        var style = boss.UnfolderStyle;
+        (boss.GetTree().GetFirstNodeInGroup("hud") as Hud)?.Flash();
+        GameCamera.Instance?.Shake(style == UnfolderKind.Mina ? 2.8f : 1.7f, .18f);
+        ImpactSe(style);
+    }
+
     public override void _Ready()
     {
         AddToGroup("boss_transform");
         _game = GetNode<GameManager>("/root/Game");
         _worldMode = _world.ProcessMode;
         _gameMode = _game.ProcessMode;
-        _world.ProcessMode = ProcessModeEnum.Disabled;
+        // ── World を止めるのは「物理コールバックの外」で ──
+        //   変身の起点は敵本体の当たり判定コールバックの中にある（Area2D.area_entered →
+        //   Enemy.OnBodyHitByPlayerBullet → AdvanceForm2 → RevealForm → この _Ready。ミナの龍だけは
+        //   _Process 側）。その最中に World の ProcessMode を落とすと、配下の Area2D（自機・敵・パネル）が
+        //   コールバック中に物理空間から外れることになり、Godot は
+        //   "Disabling a CollisionObject node during a physics callback" を出して**落としを破棄する**
+        //   （collision_object_2d.cpp:244 の _apply_disabled）＝通知の出元だったボス本体の判定だけが
+        //   生き残る、まさに undesired behavior。遅延させれば適用が物理ステップ末尾の
+        //   MessageQueue flush ＝コールバックの外になり、全員が同じ瞬間に外れる。
+        // ★遅延しても「止めたはずの1フレーム」は開かない。World 配下が今フレームの _PhysicsProcess を
+        //   もらってしまう穴を、二重に塞いでいる：
+        //   ・下の SetCinematicMode(true) は同期的に Hud.BubblePaused を立てる（UpdateDialoguePause）。
+        //     World 配下は移動・発射の手前で必ずこれを見て return する（Enemy／Panel／Player の各ゲート）。
+        //     ゲートより前に居るのは色味・差し替えアニメ・無防備窓の時計など「会話中も進めたい」と
+        //     決めてある類だけ＝会話で止めたときと同じ振る舞いになる。
+        //   ・BubblePaused を跨いで自機の位置を動かす経路（回避ダッシュと仕切り直しの帰還）はゲートの外なので、
+        //     自機の物理処理そのものを同期的に預かる（下の数行）。当たり判定には触らないので上のエラーは出ない。
+        //   ・被弾は構造的に起きない：接触通知はこの tick ぶんを配り終えた時点に居て、弾は下の DespawnAll で
+        //     消え、次の tick には World が止まっている。
+        //   遅延先は「World の property」ではなく自分のメソッドにする。property へ直に SetDeferred すると、
+        //   流れる前に演出が畳まれた場合（Restore→ProcessMode を戻す→その後に遅延の Disabled が着弾）に
+        //   World が止まったまま取り残される。自分のメソッドなら解放済みの遅延呼び出しは捨てられ、
+        //   既に Restore 済みなら下の _restored で降りられる。
+        CallDeferred(MethodName.SuspendWorld);
+        // GameManager は当たり判定を持たない子無しの autoload＝遅延する理由が無い。即落として
+        // コンボ時計の凍結（GameManager._Process）を1 tick も漏らさない。
         _game.ProcessMode = ProcessModeEnum.Disabled;
+        _player = GetTree().GetFirstNodeInGroup("player");
+        if (_player != null)
+        {
+            _playerPhysics = _player.IsPhysicsProcessing();
+            _player.SetPhysicsProcess(false);
+        }
         _visible = _boss.Visible;
         _boss.Visible = false;
         _suppressed = _hud.SuppressCallouts;
@@ -135,6 +187,14 @@ public partial class BossTransformation : Node2D
             AddChild(_crack);
         }
         Audio.Instance?.Se(Audio.Instance.SfxCalm, -15, _style == UnfolderKind.Mina ? .55f : .85f);
+    }
+
+    // _Ready から遅延で呼ばれる World の停止（理由は _Ready のコメント）。
+    //   畳むのが先に来ていたら（_restored）何もしない＝止めっぱなしで取り残さない。
+    private void SuspendWorld()
+    {
+        if (_restored) return;
+        if (IsInstanceValid(_world)) _world.ProcessMode = ProcessModeEnum.Disabled;
     }
 
     private static Texture2D Load(string name) => GD.Load<Texture2D>($"res://char/v3/fx/{name}.png");
@@ -407,10 +467,13 @@ public partial class BossTransformation : Node2D
         }
     }
 
-    private void PlayImpact()
+    private void PlayImpact() => ImpactSe(_style);
+
+    // 変身の着地音。ルナティックは演出を出さないので、ここだけを FlashForm から単体で鳴らす。
+    private static void ImpactSe(UnfolderKind style)
     {
         if (Audio.Instance is not { } audio) return;
-        switch (_style)
+        switch (style)
         {
             case UnfolderKind.Akari:
                 audio.Se(audio.SfxStrip, -11, .7f); audio.Se(audio.SfxSpell, -17, .9f); break;
@@ -432,6 +495,11 @@ public partial class BossTransformation : Node2D
             _boss.FinishFormReveal();
             _boss.Visible = _visible;
         }
+        // 戻し側は遅延しない。Restore を呼ぶのは _Process（＝idle。物理コールバックの外）と _ExitTree
+        //   （ノード解放は _flush_delete_queue＝物理コールバックの外）だけで、Godot が弾くのは
+        //   「コールバック中の disable」のみ＝enable は同じ制約を持たない。遅延させると預かった自機の
+        //   物理処理が戻る順番が1フレームぶれるので、ここは即時でそろえる。
+        if (IsInstanceValid(_player)) _player!.SetPhysicsProcess(_playerPhysics);
         if (IsInstanceValid(_world)) _world.ProcessMode = _worldMode;
         if (IsInstanceValid(_game)) _game.ProcessMode = _gameMode;
         if (IsInstanceValid(_hud))

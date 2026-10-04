@@ -1,5 +1,6 @@
 using Godot;
 using System;
+using System.Linq;
 using System.Reflection;
 using System.Threading.Tasks;
 
@@ -55,6 +56,7 @@ public partial class LockHandoffShotQa : Node
         Write(player, "_invincible", true); Write(player, "_invincibleTimer", 999f);
         player.GlobalPosition = new Vector2(Field.Left + 40, 108);
         _hud.HoldBubble = false; _hud.HideBubble();
+        Write(_hud, "_bannerTimer", 0d);
         await Frames(4);
         var pool = GetNode<BulletPool>("/root/Pool");
         pool.DespawnPlayerBullets();
@@ -64,15 +66,18 @@ public partial class LockHandoffShotQa : Node
         var e1 = Spawn(world, spec, new Vector2(Field.Left + 200, 100));
         var e2 = Spawn(world, spec, new Vector2(Field.Left + 260, 130));
         await Frames(4);
-        await Tap(Key.S);
+        _hud.HideBubble();
+        Cycle(player, Key.S);
         Check($"{tag} S で最寄り e1 をロック", player.LockedOn && ReferenceEquals(player.LockTarget, e1));
+        await CheckTargetHierarchy(player, e1, e2, tag);
         // 撃ち込み。直前に盤面の自弾を空にしてから 0.5 秒＝加速球はタメ 0.8 秒の途中＝全部まだ自機の前に「設置」されている。
         pool.DespawnPlayerBullets();
         await Frames(30);
         Check($"{tag} (a) 前提：撃ち込み中に e1 はまだ倒れていない", !e1.IsPurified);
         var (fly0, charging0) = CountShots();
         // 倒す＝Redeem を通す。直後（物理フレームを挟まない）の数を比べる＝撃破そのものが消したかだけを見る。
-        e1.Purify();
+        foreach (var remaining in e1.GetChildren().OfType<Panel>().ToArray()) remaining.Shatter();
+        Check($"{tag} (a) 最後の板の破壊で本体が浄化される", e1.IsPurified);
         var (fly1, charging1) = CountShots();
         GD.Print($"[LH] {tag} 撃破の直前 自弾={fly0}（タメ中={charging0}） → 直後 自弾={fly1}（タメ中={charging1}）");
         Check($"{tag} (a) 撃ち込み中に自弾が飛んでいる", fly0 > 0);
@@ -80,6 +85,7 @@ public partial class LockHandoffShotQa : Node
         if (job == Job.Melee) Check($"{tag} (a) タメ中の加速球が消えない", charging0 > 0 && charging1 >= charging0);
         await Frames(4);
         Check($"{tag} (a) ロックは残った e2 へ引き継ぐ", player.LockedOn && ReferenceEquals(player.LockTarget, e2));
+        Check($"{tag} (a) サブ照準も次の敵のアンフォールダーへ移る", player.LockedUnfolder?.GetParent() == e2);
 
         // ── (b) 集中の光：引き継ぎでスタックを持ち越す ──
         if ((game.FocusFireMaxStack) <= 0)
@@ -95,9 +101,14 @@ public partial class LockHandoffShotQa : Node
         }
 
         // ── (c) 敵ゼロ（待機）でも撃ち続ける ──
-        if (IsInstanceValid(e2) && !e2.IsPurified) e2.Purify();
+        if (IsInstanceValid(e2) && !e2.IsPurified)
+        {
+            foreach (var panel in e2.GetChildren().OfType<Panel>().ToArray()) panel.Shatter();
+            Check($"{tag} (c) 最後のアンフォールダーを破壊すると本体も浄化される", e2.IsPurified);
+        }
         await Frames(4);
         Check($"{tag} (c) 敵ゼロでもモードは残る（待機）", player.LockArmed && !player.LockedOn);
+        Check($"{tag} (c) 待機中はサブ照準も残らない", player.LockedUnfolder == null);
         pool.DespawnPlayerBullets();
         int spawned = 0;
         var seen = new System.Collections.Generic.HashSet<ulong>();
@@ -125,6 +136,73 @@ public partial class LockHandoffShotQa : Node
         await Tap(Key.Shift);
         root.QueueFree(); await Frames(5);
         pool.DespawnAll();
+    }
+
+    private async Task CheckTargetHierarchy(Player player, Enemy first, Enemy second, string tag)
+    {
+        var panel = player.LockedUnfolder;
+        Check($"{tag} メインは本体・サブは同じ敵のアンフォールダー", player.LockTarget == first && panel?.GetParent() == first);
+        if (panel == null) return;
+        var position = player.GlobalPosition;
+        player.GlobalPosition = first.GlobalPosition + new Vector2(0, 50);
+        Check($"{tag} 距離が変わってもサブ照準を保持する", player.LockedUnfolder == panel);
+        player.GlobalPosition = position;
+        Check($"{tag} 射撃はサブ照準へ向く",
+            player.ShotDir.DistanceTo((panel.GlobalPosition - position).Normalized()) < 0.001f);
+
+        var pool = GetNode<BulletPool>("/root/Pool");
+        var shot = pool.Spawn(second.GlobalPosition - new Vector2(4, 0), Vector2.Right * 200, false, 3, 1, homing: true);
+        Write(shot, "_homeTarget", second);
+        Write(shot, "_retargetT", 1f);
+        void Steer() => typeof(Bullet).GetMethod("SteerToTarget", P)!.Invoke(shot, new object[] { 0.02f });
+        Steer();
+        Check($"{tag} 誘導弾は近い別の敵よりメイン対象を優先する",
+            Read<Node2D>(shot, "_homeTarget") == first && Read<Panel>(shot, "_homeUnfolder") == panel);
+        Cycle(player, Key.S);
+        Check($"{tag} 次へは本体とそのサブ照準を切り替える",
+            player.LockTarget == second && player.LockedUnfolder?.GetParent() == second);
+        Steer();
+        Check($"{tag} 飛行中の誘導弾も新しいメイン対象へ追従する",
+            Read<Node2D>(shot, "_homeTarget") == second && Read<Panel>(shot, "_homeUnfolder") == player.LockedUnfolder);
+        Cycle(player, Key.A);
+        Check($"{tag} 前へで元の本体に戻る", player.LockTarget == first);
+        panel = player.LockedUnfolder!;
+        panel.Shatter();
+        Check($"{tag} 一枚破壊してもメインは保持し、同じ敵の残りへ移る",
+            !first.IsPurified && player.LockTarget == first && player.LockedUnfolder != panel && player.LockedUnfolder?.GetParent() == first);
+        Steer();
+        Check($"{tag} 誘導弾も破壊後のサブ照準を追う", Read<Panel>(shot, "_homeUnfolder") == player.LockedUnfolder);
+        shot.MakeCharged(Job.Heal);
+        shot.RegisterChargeHit(player.LockedUnfolder!);
+        Steer();
+        Check($"{tag} 貫通弾は命中済みの板を周回しない", Read<Panel>(shot, "_homeUnfolder") != player.LockedUnfolder);
+        pool.DespawnPlayerBullets();
+
+        if (OS.GetCmdlineUserArgs().Contains("--lh-shot") && GameManager.Instance!.SelectedJob == Job.Tank)
+        {
+            player.SetPhysicsProcess(false);
+            DisplayServer.WindowSetMode(DisplayServer.WindowMode.Windowed);
+            DisplayServer.WindowSetSize(new Vector2I(1280, 720));
+            first.QueueRedraw();
+            await Frames(3);
+            await ToSignal(RenderingServer.Singleton, RenderingServer.SignalName.FramePostDraw);
+            string output = ProjectSettings.GlobalizePath("res://build/qa_story/target_hierarchy");
+            DirAccess.MakeDirRecursiveAbsolute(output);
+            using var image = GetViewport().GetTexture().GetImage();
+            image.SavePng($"{output}/mob_targets.png");
+            player.SetPhysicsProcess(true);
+        }
+    }
+
+    private static void Cycle(Player player, Key key)
+    {
+        var tick = typeof(Player).GetMethod("TickLockOn", P)!;
+        foreach (bool pressed in new[] { false, true, false })
+        {
+            KeyEvent(key, pressed);
+            Input.FlushBufferedEvents();
+            tick.Invoke(player, null);
+        }
     }
 
     private (int Fly, int Charging) CountShots()

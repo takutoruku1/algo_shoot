@@ -52,7 +52,11 @@ public partial class Stage0Root : Node2D
 
         Player = new Player { Name = "Player" };
         World.AddChild(Player);
-        Player.GlobalPosition = new Vector2(Field.Left + 60f, 140f); // 練習場の定位置（盤面左寄り）
+        // 練習場の定位置（盤面左寄り）。横は本編と同じ Field.PlayerStartX、縦だけ低い＝チュートリアルの
+        // 的／説明カードと重ならない高さ。仕切り直しの帰還（Player.ReturnToStart）はここでは呼ばないが、
+        // 初期位置の定義そのものは本編と同じ窓口（StartPosition）に通しておく。
+        Player.StartPosition = new Vector2(Field.PlayerStartX, 140f);
+        Player.SnapToStart();
         g?.SetContamination(0f);
         Player.SetCorruption(0f);
 

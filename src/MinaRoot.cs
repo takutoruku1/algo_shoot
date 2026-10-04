@@ -25,6 +25,7 @@ public partial class MinaRoot : Node2D
     public override void _Ready()
     {
         var g = GetNodeOrNull<GameManager>("/root/Game");
+        if (g?.SelectedJob == Job.Tank) g.SelectedJob = Job.Magic;
         g?.ResetRun();
         g?.SetContamination(1f); // ミナの内側は穢れが頂点
 
@@ -40,7 +41,7 @@ public partial class MinaRoot : Node2D
 
         Player = new Player { Name = "Player" };
         World.AddChild(Player);
-        Player.GlobalPosition = new Vector2(Field.Left + 60f, 108f); // 盤面の左端から60px（サイドパネル裏に湧かない）
+        Player.SnapToStart(); // 初期位置＝Field.PlayerStart（盤面の左端から60px＝サイドパネル裏に湧かない）。仕切り直しで戻る先と同じ1点
         Player.SetCorruption(0f);
 
         Hud = new Hud { Name = "Hud" };

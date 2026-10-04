@@ -51,6 +51,8 @@ public partial class AreaSpellCaster : Node2D
 
     public void CancelPendingAttacks()
     {
+        _owner ??= GetParent() as Enemy;
+        _owner?.CancelAnimalTechnique();
         CancelEdgeAttack();
         _pending = _aoePending = false;
         _pendArt = AreaStrike.Art.None;
@@ -346,7 +348,7 @@ public partial class AreaSpellCaster : Node2D
         }
 
         if (Hud.BubblePaused) return; // 会話中は出さない
-        if (Suppressed) return;       // ボス側ギミック中（お残し禁止 等）は宣告も発火も保留
+        if (Suppressed || (_owner?.AnimalTechniqueActive ?? false)) return;
 
         // ★集中モード（#10）：宣告→出現の待ち時間も敵側の時計で進める（AreaStrike の _t と同じ倍率）。
         delta = GameManager.EnemyDelta(delta);

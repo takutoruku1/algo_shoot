@@ -342,7 +342,7 @@ public sealed class BossMover
     }
 
     // 次フレームの本体位置（= 当たり判定の中心 GlobalPosition に入れる値）を返す。
-    public Vector2 Step(Vector2 currentPos, double delta)
+    public Vector2 Step(Vector2 currentPos, double delta, float speedMultiplier = 1f)
     {
         float dt = (float)delta;
         if (dt <= 0f) return currentPos;
@@ -360,7 +360,7 @@ public sealed class BossMover
             float dist = to.Length();
             if (dist > _arriveDist)
             {
-                float speed = _cruiseSpeed * Mathf.Clamp(dist / 36f, 0.3f, 1f);
+                float speed = _cruiseSpeed * speedMultiplier * Mathf.Clamp(dist / 36f, 0.3f, 1f);
                 desiredVel = (to / dist) * speed;
             }
         }
@@ -374,9 +374,9 @@ public sealed class BossMover
             float dx = want.X - currentPos.X;
             float dy = want.Y - currentPos.Y;
             float vx = Mathf.Abs(dx) > _arriveDist
-                ? Mathf.Sign(dx) * _cruiseSpeed * Mathf.Clamp(Mathf.Abs(dx) / 40f, 0.25f, 1f) : 0f;
+                ? Mathf.Sign(dx) * _cruiseSpeed * speedMultiplier * Mathf.Clamp(Mathf.Abs(dx) / 40f, 0.25f, 1f) : 0f;
             float vy = Mathf.Abs(dy) > _arriveDist
-                ? Mathf.Sign(dy) * _cruiseSpeed * 0.7f * Mathf.Clamp(Mathf.Abs(dy) / 40f, 0.25f, 1f) : 0f;
+                ? Mathf.Sign(dy) * _cruiseSpeed * speedMultiplier * 0.7f * Mathf.Clamp(Mathf.Abs(dy) / 40f, 0.25f, 1f) : 0f;
             desiredVel = new Vector2(vx, vy);
         }
 

@@ -1,0 +1,153 @@
+using Godot;
+using System;
+using System.Collections.Generic;
+
+public partial class BossAnimalTechnique : Node2D
+{
+    private Enemy _boss = null!;
+    private AreaSpellCaster _caster = null!;
+    private BulletPool _pool = null!;
+    private Texture2D _art = null!;
+    private string _id = "";
+    private Color _color;
+    private Vector2 _origin, _target, _aim, _side;
+    private double _time, _warning;
+    private int _wave, _count;
+    private readonly List<(Bullet Bullet, ulong Activation)> _bullets = new();
+    public bool Finished { get; private set; }
+    public string SpellName { get; private set; } = "";
+    private const int Waves = 3;
+    private const double WaveInterval = 0.32;
+
+    public static BossAnimalTechnique Begin(Enemy boss, string id, AreaSpellCaster caster)
+    {
+        var technique = new BossAnimalTechnique { _boss = boss, _id = id, _caster = caster };
+        boss.GetParent().AddChild(technique);
+        return technique;
+    }
+
+    public override void _Ready()
+    {
+        AddToGroup("boss_animal_techniques");
+        ZIndex = -9;
+        Material = new CanvasItemMaterial { LightMode = CanvasItemMaterial.LightModeEnum.Unshaded };
+        _pool = GetNode<BulletPool>("/root/Pool");
+        var game = GetNode<GameManager>("/root/Game");
+        _warning = game.Difficulty == GameManager.Diff.Easy ? 1.6 : 1.25;
+        _count = game.ScaleBulletsOdd(_id == "rei" ? 11 : 5);
+        _origin = _boss.ShotCenter;
+        _target = GetTree().GetFirstNodeInGroup("player") is Node2D player ? player.GlobalPosition : Field.PlayerStart;
+        _aim = _origin.DirectionTo(_target);
+        if (_aim.IsZeroApprox()) _aim = Vector2.Left;
+        _side = new Vector2(-_aim.Y, _aim.X);
+        var (name, speaker, handle, art, tint) = _id switch
+        {
+            "akari" => ("狐火・三尾の便り", "あかり", BossHandles.AkariSpell, BulletArt.AkariEnvelope!, "a6d8ed"),
+            "koharu" => ("枝角・結び目の檻", "こはる", BossHandles.KoharuMain, BulletArt.KoharuTicket!, "b6efca"),
+            _ => ("星翼・追い越す流星", "レイ", BossHandles.ReiMain, BulletArt.Get("rei_subscriber")!, "e0b6ff"),
+        };
+        SpellName = name;
+        _art = art;
+        _color = new Color(tint);
+        (GetTree().GetFirstNodeInGroup("hud") as Hud)?.AnnounceSpell(speaker, handle, name, _color);
+        _boss.SetAnimalWindup(true);
+    }
+
+    private IEnumerable<(Vector2 Origin, Vector2 Direction)> Volley(int wave)
+    {
+        if (_id == "koharu")
+        {
+            for (int side = -1; side <= 1; side += 2)
+            {
+                Vector2 origin = _origin + _side * side * (22 + wave * 4);
+                Vector2 aim = origin.DirectionTo(_target);
+                for (int i = -_count / 2; i <= _count / 2; i++)
+                    yield return (origin, aim.Rotated(Mathf.DegToRad(i * 10f)));
+            }
+        }
+        else if (_id == "rei" && wave != 1)
+        {
+            for (int i = 0; i < _count; i++)
+                yield return (_origin, _aim.Rotated(Mathf.Tau * i / _count + (wave == 2 ? Mathf.Pi / _count : 0)));
+        }
+        else
+        {
+            int count = _id == "rei" ? 3 : _count;
+            Vector2 origin = _origin + (_id == "akari" ? _side * (wave - 1) * 18f : Vector2.Zero);
+            float sweep = _id == "akari" ? (wave - 1) * 24f : 0;
+            for (int i = -count / 2; i <= count / 2; i++)
+                yield return (origin, _aim.Rotated(Mathf.DegToRad(sweep + i * 7f)));
+        }
+    }
+
+    private static bool Owns((Bullet Bullet, ulong Activation) shot)
+        => IsInstanceValid(shot.Bullet) && shot.Bullet.Active && shot.Bullet.ActivationId == shot.Activation;
+
+    public override void _PhysicsProcess(double delta)
+    {
+        if (Finished) return;
+        if (!IsInstanceValid(_boss) || _boss.IsQueuedForDeletion() || _boss.IsPurified || !_boss.IsVisibleInTree()
+            || _boss.GaugeVulnerable || _boss.GaugeReforming || _caster.Suppressed || _caster.AoeActive)
+        {
+            Cancel();
+            return;
+        }
+        if (Hud.BubblePaused) { QueueRedraw(); return; }
+        _time += GameManager.EnemyDelta(delta);
+        if (_wave < Waves && _time >= _warning + _wave * WaveInterval)
+        {
+            _boss.ShowAnimalAttack();
+            float speed = _id == "rei" ? (_wave == 1 ? 155f : 68f) : 92f + _wave * 12f;
+            foreach (var shot in Volley(_wave))
+            {
+                var bullet = _pool.Spawn(_boss.ShotCenter, shot.Direction * speed, true, 3.2f, 1, BulletShape.Diamond, _color);
+                bullet.SetSprite(_art);
+                bullet.MakeLeadIn(shot.Origin);
+                if (_id == "akari") bullet.MakeAccel(18f, speed, 0.28f);
+                _bullets.Add((bullet, bullet.ActivationId));
+            }
+            _wave++;
+        }
+        _bullets.RemoveAll(shot => !Owns(shot));
+        if (_wave == Waves && _bullets.Count == 0) { Cancel(); return; }
+        QueueRedraw();
+    }
+
+    public void Cancel()
+    {
+        if (Finished) return;
+        Finished = true;
+        if (IsInstanceValid(_boss)) _boss.SetAnimalWindup(false);
+        ClearBullets();
+        Hide();
+        QueueFree();
+    }
+
+    private void ClearBullets()
+    {
+        foreach (var shot in _bullets)
+            if (Owns(shot)) _pool.Despawn(shot.Bullet);
+        _bullets.Clear();
+    }
+
+    public override void _ExitTree()
+    {
+        if (IsInstanceValid(_boss)) _boss.SetAnimalWindup(false);
+        ClearBullets();
+    }
+
+    public override void _Draw()
+    {
+        if (Finished || Hud.BubblePaused || _wave >= Waves) return;
+        float pulse = 0.3f + 0.2f * (float)Math.Sin(_time * 9);
+        var origins = new HashSet<Vector2>();
+        for (int wave = _wave; wave < Waves; wave++)
+            foreach (var shot in Volley(wave))
+            {
+                DrawLine(shot.Origin, shot.Origin + shot.Direction * 110f, new Color(_color, pulse * (wave == _wave ? 1f : 0.35f)), 0.7f, true);
+                origins.Add(shot.Origin);
+            }
+        foreach (var origin in origins)
+            DrawArc(origin, 6f + (float)(_time % 0.6) * 4f, 0, Mathf.Tau, 20, new Color(_color, 0.5f), 1f, true);
+    }
+}

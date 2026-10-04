@@ -1,13 +1,6 @@
 using Godot;
 using System.Linq;
 
-// StageAkari : STAGE1「あかり（雨の降りやまない退勤後のフロア）」進行。
-//   1: 導入会話（ミナの独白。案C では少年は存在しない＝who=0 は「あなた」の送った下書きのみ）
-//   2: あかりボス出現
-//   3: ボス戦（自責の弾雨＋あかりの自責弾。浄化＝改心で会話完了まで）
-//   4: クリア（灯がともる）
-// ボス戦中は天井の自責の雨が降り続ける（会話中は止む）。
-// 台詞の正典: docs/20260928/wiki_仮台本_退避/06_粗い台本_案C_1_冒頭とあかり.md（ユーザー承認済み・2026-09-05）の S1-1〜S1-11。
 public partial class StageAkari : Node
 {
     public Player Player = null!;
@@ -44,10 +37,10 @@ public partial class StageAkari : Node
 
     private Spawner _spawner = null!;
     private int _waveBase;
-    private const int MidWave0 = 30;
-    private const int MidWaveA = 12;
-    private const int MidWaveB = 13;
-    private const int MidWaveC = 14;
+    private const int MidWave0 = 60;
+    private const int MidWaveA = 24;
+    private const int MidWaveB = 26;
+    private const int MidWaveC = 28;
     // ボスの“チラ見せ”（カメオ）＝本戦ボスと同じ土台の短いミニボス戦（CameoBoss＝Enemy 派生・シールド制）。
     // あかり＝怯え・自責で、攻撃も悲嘆寄り。撃破（HP/サイクル削り切り＝改心）まで Stage は進まない。保険退場は廃止。
     private CameoBoss _cameo = null!;
@@ -59,16 +52,15 @@ public partial class StageAkari : Node
     // who: 0=あなた（送信された下書き） / 1=ミナ / 2=あかり / 3=システム表示 / 4=投稿。who=5（中継）は使わない。
     private static readonly (int who, string text, string face)[] Intro =
     {
-        (4, "「すき、すき、すき。……ひとつでいいから、本物になって。」", ""),   // A35。H0 と同文
-        (1, "……いいねが、ひとつ。この方にも、投稿しようとして、送れなかった言葉があるようです。", MFace),
-        (1, "着きました。……雨が、降りやみません。誰もいない、退勤後のフロア。机も、椅子も——天井へ、落ちていく。", MFace),
-        (1, "雨の中を、通知の吹き出しが、いくつも漂っています。数字は、どれも「1」。", MFace),
-        // ユーザー承認済み: docs/20260914/ストーリー添削_2026-09-14.md 【11】
-        //   一文にルール二つを詰めた説明台詞だったので、二行に割って体言止めで切る
-        //   ＝同じ情報量のまま「説明」ではなく「観測の報告」に見せる。
-        (1, "飛んでくるのは、言葉です。……本人では、ありません。", MFace),   // 世界の決まり
-        (1, "祓って、いちばん奥へ。——本人は、そこに。", MFace),
-        (1, "では、ご主人様。——まいります。", MSmile),
+        (4, "すき、すき、すき。……ひとつでいいから、本物になって。", ""),
+        (0, "到着した。回線はつながってる。ミナ、聞こえる？", ""),
+        (1, "はい。雨が、下から上へ……。机も椅子も、天井へ落ちていきます。", "res://char/mina_face.png"),
+        (0, "ここはあかりさんの心が映る場所だ。会社そのものじゃない。見えている床より、僕のつける道のしるしを追って。", ""),
+        (1, "承知しました。……初出勤にしては、通勤路が過酷ですね。", "res://char/mina_face.png"),
+        (0, "悪いね。退勤の道まで、ちゃんと案内する。", ""),
+        (1, "言いましたね。記録しましたよ。", "res://char/mina_face.png"),
+        (0, "前方、アンチャー。飛んでくる言葉はよけて。進み方は、一つずつ伝える。", ""),
+        (1, "はい。あの方のところへ、行きましょう。", "res://char/mina_face.png"),
     };
 
     // S1-9 ボス戦「あふれるわたし」の頭（仮台本 06）。ボスは出現済みだが会話中は止まる。
@@ -76,8 +68,10 @@ public partial class StageAkari : Node
     //   RECLOSE と最終形の宣言（「……返して。読んだなら、返してよ。」）は BossAkari 側に置いた。
     private static readonly (int who, string text, string face)[] BossIntro =
     {
-        (2, "ねえ、こっち見て。", AFace),   // カットイン『ねえ、こっち見て』
-        (2, "すきって言って。あたしも言う。……ずっと一緒。離さないから。", AFace),   // 『すきって言って』『ずっと一緒』『離さない』の宣言
+        (2, "ねえ、こっち見て。", "res://char/v3/akari_face.png"),
+        (2, "すきって言って。あたしも言う。……ずっと一緒。離さないから。", "res://char/v3/akari_face.png"),
+        (1, "わたくしはミナです。あなたが待っている方ではありません。でも、ここでお話を聞かせてほしいのです。", "res://char/mina_face.png"),
+        (2, "代わりじゃ、だめなの。……誰でもいいわけじゃ、ないの。", "res://char/v3/akari_face.png"),
     };
 
     // S1-2 小話 Mid（仮台本 06）。「返して」「すき」の声。ホワイトボードの字と置き傘を、ミナが自分で見つける。
@@ -88,37 +82,34 @@ public partial class StageAkari : Node
     //   下書き選択（s1_5）を挟んでから、受け＋この配列（S1-2 の小話）へ戻る。
     private static readonly (int who, string text, string face)[] MidPre =
     {
-        (1, "……スマホの光を、顔に浴びたまま。……画面のほうは、こちらから見えません。", MFace),   // S1-5。観測のみ
-        (1, "……あの人、降りやまない雨の奥へ。逃げるみたいに、消えてしまいました。", MWorried),   // S1-5
-        // ここから 17 の S1-5（きっかけ2行）。捨て台詞「ぜったいだよ?」の問いだけが残る。宛先はミナが決めない。
-        (1, "……「ぜったいだよ?」。——問いだけが、残っています。宛先は、こちらでは、ありませんが。", MWorried),
-        (1, "ご主人様。お返事の下書きが、開いています。……誰に何を伝えるかは、お任せします。", MFace),
+        (1, "雨の奥へ、行ってしまいました。……追っても、よろしいですか。", "res://char/mina_face.png"),
+        (0, "道はつながってる。ただ、僕らを待っていた人と取り違えている。誰かの代わりに、約束はできない。", ""),
+        (1, "分かっています。それでも、あのまま一人にはしたくありません。", "res://char/mina_face.png"),
+        (0, "僕もだ。ミナ、君と一緒に、もう一度会いに行きたい。", ""),
     };
     private static readonly (int who, string text, string face)[] Mid =
     {
-        (1, "ここの声は……どれも、「返して」「すき」と、すがりついてきます。……返事の声だけが、ひとつも、混じっていません。", MFace),
-        (1, "この“声”、ひとつ祓うたびに、少し肩が軽くなります。……重さの数値は、変わっていないのですが。", MSmile),
-        (1, "ホワイトボードに、字が。「あたしのせいだ」。……消しても消しても、浮いてくる、そういう字です。", MWorried),
-        (1, "傘立てに、置き傘が二本。……色が、違います。それだけ、言っておきます。", MFace),   // 持ち主は言わない
-        // ユーザー承認済み: docs/20260914/ストーリー添削_2026-09-14.md 【7】（緩急＝「緩」の補強）
-        //   案C には相方がいないので掛け合いが作れない。ミナが**観測を外して自分でツッコむ**形にすると、
-        //   一人でも緩急が立つ（笑うのは画面のこちら側＝感情アークは壊れない）。
-        //   八百円の値札は、後段「傘立てに、二本とも、残ったままです」＝傘を持たずに雨の奥へ、の小道具にもなる。
-        (1, "……ちなみに。片方の柄に、値札が付いたままです。八百円。", MFace),
-        (1, "……値段は、集計に関係ありません。……つい、読んでしまいました。", MFace),
-        (1, "雨の音は、嫌いではありません。……うるさい、と思いながら、消していないので。", MSmile),
+        (1, "ここの声は……どれも、「返して」「すき」と、すがりついてきます。……返事の声だけが、ひとつも、混じっていません。", "res://char/mina_face.png"),
+        (0, "アンチャーがほどけて、道が広がってる。ミナ、身体は重くない？", ""),
+        (1, "少し肩が軽くなった気がします。……今のところは。", "res://char/mina_face.png"),
+        (1, "ホワイトボードに、字が。「あたしのせいだ」。……消しても消しても、浮いてくる、そういう字です。", "res://char/mina_face.png"),
+        (0, "傘が二本あるね。片方には、まだ値札がついてる。", ""),
+        (1, "……ちなみに。片方の柄に、値札が付いたままです。八百円。", "res://char/mina_face.png"),
+        (0, "そこまで読んだの？　僕は色しか見てなかった。", ""),
+        (1, "八百円でも、置いていくには惜しい傘です。……誰も取りに来ないのでしょうか。", "res://char/mina_face.png"),
+        (1, "雨の音は、嫌いではありません。……うるさい、と思いながら、消していないので。", "res://char/mina_face.png"),
     };
 
     // S1-7 道中B／MidStory／道中C（仮台本 06）。向かいの席の暗いモニタと読めない付箋。「同じ部署」の声。
     //   返事の声だけが無い。「ぜんぶ浴びる」をミナ自身の方針として言う＝S1-10 の「証人」の仕込み。
     private static readonly (int who, string text, string face)[] BossTalk =
     {
-        (1, "……向かいの席。モニタは、暗いまま。キーボードの上に、付箋が一枚。……字は、読めません。", MFace),   // S1-10 の一通に繋ぐ
-        (4, "「向かいの席、空いたまま。……三日目。」", ""),   // A38。層2
-        (1, "「気づいてほしい、でも気づかれたら困る」……そういう声が、「同じ部署」という言葉と、いっしょに流れていきます。", MFace),   // A28
-        (1, "……返事の声だけが、ここまで来ても、ひとつも、ありません。", MWorried),
-        (1, "取り消されたぶんの言葉を、ぜんぶ、浴びていきます。ひとつ残らず。——そう、決めました。", MFace),   // 改心の「証人」の仕込み
-        (1, "……雨は、まだ、止みませんね。——先へ。", MFace),
+        (1, "……向かいの席。モニタは、暗いまま。キーボードの上に、付箋が一枚。……字は、読めません。", "res://char/mina_face.png"),
+        (4, "「向かいの席、空いたまま。……三日目。」", ""),
+        (1, "「気づいてほしい、でも気づかれたら困る」……そういう声が、「同じ部署」という言葉と、いっしょに流れていきます。", "res://char/mina_face.png"),
+        (1, "……返事の声だけが、ここまで来ても、ひとつも、ありません。", "res://char/mina_face.png"),
+        (0, "消された言葉が残ってる。全部を一度に抱えなくていい。聞こえた順に、僕にも教えて。", ""),
+        (1, "……はい。自分だけで持たなくてよいのですね。では、まずこの付箋から。", "res://char/mina_face.png"),
     };
 
     // S1-5 中ボス あかり（仮台本 06）。先出しの本人。退勤後のカーディガンに社員証、片手のスマホの光が顔に当たっている。
@@ -128,17 +119,20 @@ public partial class StageAkari : Node
     //   顔は「画面の光を浴びた」akari_face_lit（片手のスマホの光が顔に当たっている状態）。
     private static readonly (int who, string text, string face)[] CameoTalk1 =
     {
-        (2, "あ、来た！　読んだよね？　返事、まだ？", AFaceLit),
+        (2, "あ、来た！　読んだよね？　返事、まだ？", "res://char/v3/akari_face.png"),
+        (1, "読んだのは、わたくしです。どなたからのお返事を待っているのですか？", "res://char/mina_face.png"),
+        (2, "……あなたじゃ、ない。あの人に、返してほしいの。", "res://char/v3/akari_face.png"),
     };
     // RECLOSE（サイクルごとに順送り）。
     private static readonly (int who, string text, string face)[] CameoTalk3 =
     {
-        (2, "ひとりにしないで。……ねえ、ひとりに、しないでってば。", AFaceLit),
-        (2, "来ないで……っ。……ちがう、来て。……来ないで。", AFaceLit),
+        (2, "ひとりにしないで。……ねえ、ひとりに、しないでってば。", "res://char/v3/akari_face.png"),
+        (2, "来ないで……っ。……ちがう、来て。……来ないで。", "res://char/v3/akari_face.png"),
     };
     private static readonly (int who, string text, string face)[] CameoPost =
     {
-        (2, "ぜったい、また会いに来てよね。ぜったいだよ?", AFaceLit),   // 捨て台詞
+        (2, "ぜったい、また会いに来てよね。ぜったいだよ?", "res://char/v3/akari_face.png"),
+        (1, "また会いに来ます。今度は、お名前を聞かせてください。", "res://char/mina_face.png"),
     };
 
     // ───────── S1-4 束（ミッドシナリオ枠＝後半Bと終盤Cの境・ボス前の“溜め”）─────────
@@ -147,67 +141,66 @@ public partial class StageAkari : Node
     // 吹き出し会話（Step_Lines）で出す＝弾は止まる。
     private static readonly (int who, string text, string face)[] MidStory =
     {
-        (4, "「送信取消。今日で十二回目。……全部、同じ人宛。」", ""),   // A42。層3
-        (1, "ご主人様、これ。宙に浮いた机の上に、束が。……「メッセージの送信を取り消しました」。その一行だけが、縦に、積み上がっています。", MWorried),
-        (1, "本文は、ひとつも残っていません。取り消しの行だけ。……数えました。十二。——いまの投稿と、同じ数です。", MWorried),   // 数えただけ
-        (1, "ご主人様。——拾います。……どこまで、拾いましょう。", MFace),
+        (4, "「送信取消。今日で十二回目。……全部、同じ人宛。」", ""),
+        (1, "ご主人様、机の上に束が。「メッセージの送信を取り消しました」。こればかりです。", "res://char/mina_face.png"),
+        (0, "十二通。さっきの投稿と同じだ。本文が見えないぶん、何を書こうとしたのか気になる。", ""),
+        (1, "わたくしもです。……一通、開いてみても？", "res://char/mina_face.png"),
     };
 
     private static readonly string[] S14Choices = { "あの人の言葉、消えたままにしたくない", "一つずつ聞こう。ミナも無理しないで" };
     private static (int who, string text, string face)[] S14Reply(int sel) => sel switch
     {
-        0 => new (int, string, string)[]
-        {
-            (0, S14Choices[0], ""),
-            (1, "……はい。消す前には、伝えたかった言葉があったはずです。一つずつ、聞いていきましょう。", MFace),
-            (1, "十二件ぶん。……ご主人様も、一緒に聞いていてください。", MFace),
-        },
-        _ => new (int, string, string)[]
-        {
-            (0, S14Choices[1], ""),
-            (1, "……わたくしのことまで。ありがとうございます。では、いちばん上の一通から。", MFace),
-            (1, "残りは、今は開かずにおきます。……急がなくてよいと、言っていただけたので。", MWorried),
-        },
+        0 => new (int, string, string)[] {
+        (0, "あの人の言葉、消えたままにしたくない", ""),
+        (1, "……はい。消す前には、伝えたかった言葉があったはずです。一つずつ、聞いていきましょう。", "res://char/mina_face.png"),
+        (1, "十二件ぶん。……ご主人様も、一緒に聞いていてください。", "res://char/mina_face.png"),
+    },
+        _ => new (int, string, string)[] {
+        (0, "一つずつ聞こう。ミナも無理しないで", ""),
+        (1, "……わたくしのことまで。ありがとうございます。では、いちばん上の一通から。", "res://char/mina_face.png"),
+        (1, "残りは、今は開かずにおきます。……急がなくてよいと、言っていただけたので。", "res://char/mina_face.png"),
+    },
     };
     // 選択の受けの後に必ず流す締め（中ボスが来る予感）。
     private static readonly (int who, string text, string face)[] S14Tail =
     {
-        (1, "——来ます。雨の奥から、足音が。……スマホの光が、先に見えます。", MWorried),
+        (0, "前方に反応。雨の奥から、あかりさんが来る。ミナ、いったん足を止めて。", ""),
+        (1, "見えました。……今度は、こちらを見てくださるでしょうか。", "res://char/mina_face.png"),
     };
 
     // ───────── 道中の下書き選択（正典: wiki/08_仮台本/17_道中の選択肢_案C.md・承認 2026-09-06）─────────
     //   s1_5 … 中ボスの捨て台詞の直後（Mid の頭＝step 4）。効果＝ハブ返信（ミナ→@akari）に一語混ざる。
 
-    private static readonly string[] S15Choices = { "うん。また会いに行く。約束する", "うまく言えないけど、ひとりにしたくない" };
+    private static readonly string[] S15Choices = { "ミナ、もう一度会いに行こう。放っておけない。", "うまく言えないけど、ひとりにしたくない" };
     private static (int who, string text, string face)[] S15Reply(int sel) => sel switch
     {
-        0 => new (int, string, string)[]
-        {
-            (0, S15Choices[0], ""),
-            (1, "……また会いに行く、と。はい。その約束を持って、あの方を探しましょう。", MFace),
-        },
-        _ => new (int, string, string)[]
-        {
-            (0, S15Choices[1], ""),
-            (1, "……いまの言葉で、伝わりました。うまく言えなくても、そばへ行くことはできます。わたくしも、ご一緒します。", MFace),
-        },
+        0 => new (int, string, string)[] {
+        (0, "ミナ、もう一度会いに行こう。放っておけない。", ""),
+        (1, "はい。今度は、わたくしたちの名前も伝えましょう。", "res://char/mina_face.png"),
+    },
+        _ => new (int, string, string)[] {
+        (0, "うまく言えないけど、ひとりにしたくない", ""),
+        (1, "……いまの言葉で、伝わりました。うまく言えなくても、そばへ行くことはできます。わたくしも、ご一緒します。", "res://char/mina_face.png"),
+    },
     };
     private static readonly (int who, string text, string face)[] S15Tail =
     {
-        (1, "……雨の奥からは、返事がありません。——先へ、まいりましょう。", MFace),
+        (0, "返事はまだない。雨の奥へ続く道が見えた。ミナ、右の通路へ。", ""),
+        (1, "はい。……次は、置き去りの問いだけにしません。", "res://char/mina_face.png"),
     };
 
     // S1-8 小話 MidEnd（仮台本 06）。投稿の直後、通知の吹き出しが「1」のまま四つ同じ形で降ってくる。
     //   フロアが「すき」で埋まっていく。ボス戦直前の引き。
     private static readonly (int who, string text, string face)[] MidEnd =
     {
-        (4, BossPostStory.Get("akari").Posts[0], ""),
-        (1, "……公開された本文の下に、何度も書き直した跡が、重なっています。", MFace),
-        (4, "「いいねが、ひとつ。……増えてないの、知ってるのに、今日だけで四回も、見にきちゃった。」", ""),   // A40
-        (1, "……通知の吹き出しが、「1」のまま。同じ形で、四つ、降ってきました。", MWorried),   // 数えただけ。投稿の「四回」とは結び付けて言わない
-        (1, "ホワイトボードも、モニタも、窓も……ぜんぶ「すき」で、埋まっていきます。取り消したぶんが、フロアじゅうに、あふれている。", MFace),
-        (1, "この吹き出し、ぜんぶ「またね」と書いてあります。……祓います。ご主人様は、見なくていいです。", MFace),
-        (1, "奥に、あの人が。……行きます。今度こそ、奥まで。", MFace),
+        (4, "同期が、新しい職場へ。\nあたしも、負けずに頑張らなきゃ。\nおめでとう！", ""),
+        (1, "……公開された本文の下に、何度も書き直した跡が、重なっています。", "res://char/mina_face.png"),
+        (4, "「いいねが、ひとつ。……増えてないの、知ってるのに、今日だけで四回も、見にきちゃった。」", ""),
+        (0, "同じ通知を、何度も確かめた跡だ。増えていないと知ってても、開いてしまうんだね。", ""),
+        (1, "ホワイトボードも、モニタも、窓も……ぜんぶ「すき」で、埋まっていきます。取り消したぶんが、フロアじゅうに、あふれている。", "res://char/mina_face.png"),
+        (1, "吹き出しに、全部「またね」と。……ご主人様、これを祓うのは、少し嫌です。", "res://char/mina_face.png"),
+        (0, "消すのは言葉じゃない。言葉を閉じ込めているアンチャーのほうだ。狙う場所を示すよ。", ""),
+        (1, "奥に、あの人が。……行きます。今度こそ、奥まで。", "res://char/mina_face.png"),
     };
 
     // S1-11 クリア（仮台本 06）。あかりの投稿が変わる。空の問い（一度目）。
@@ -216,26 +209,44 @@ public partial class StageAkari : Node
     //   ★の行は迷い秒ゲート（s1_4 で p2 より長く迷ったときだけ＝ChoiceEffects.Hesitated）。実行時に ClearFor が残す／外す。
     private static readonly (int who, string text, string face)[] Clear =
     {
-        (4, "「ほんと、バカなんだから。……あたしも、だけど。」", ""),   // A44。投稿が変化
-        (2, "……あったかい声が、した。……知らない声なのに。変なの。", AFace),
-        (2, ClearHesitated, AFace),          // ★s1_4 で迷ったときだけ
-        (2, "……知らない声のくせに。……言い方だけ、どこかで、聞いたことある。", AFace),
-        (1, "……言い方は、わたくしのです。……たぶん。", MWorried),
-        (2, "……その向こうにも、読んでる人がいるんだね。あの人の返事は、代わりにくれなくていいから。", AFace),
-        (2, "いまのあたしの言葉を、あなたに渡しておく。……聞いてくれて、ありがと。これは、消さない。", AFace),
-        // ユーザー承認済み: docs/20260914/ストーリー添削_2026-09-14.md 【14】
-        //   字の変化は StageImagery.TriggerReversal() が**絵で**見せている＝台詞で言うと説明になる。
-        //   ミナは数えることしかしない人格なので、数字（♥1）だけを言う。字の変化はプレイヤーが自分で見つける。
-        (1, "……♥が、ひとつ。", MFace),   // 読み上げるだけ。解釈しない
-        (1, "ねえ、ご主人様。外の世界は、今日はどんな天気ですか。", MFace),
+        (2, "……あったかい声がした。ミナの声。知らない人なのに、変なの。", "res://char/v3/akari_face.png"),
+        (1, "知らない人同士から、始めてもよろしいでしょう。わたくしも、今日初めてあなたに会いました。", "res://char/mina_face.png"),
+        (2, "ふふ。そうだね。……あの人の返事は、代わりにくれなくていいから。", "res://char/v3/akari_face.png"),
+        (1, "はい。あかりさんの言葉を、聞いていました。", "res://char/mina_face.png"),
+        (2, "ありがと。これは、消さない。", "res://char/v3/akari_face.png"),
+        (1, "もしよければ、今度は帰ってからのお話も。相談に乗ってくれた方を、ご紹介したいのです。", "res://char/mina_face.png"),
+        (2, "ミナにも、そんな人がいるんだ。……うん、話してみたい。", "res://char/v3/akari_face.png"),
+        (0, "あかりさん。初めまして。ミナと一緒に、あなたの話を聞いていた。", ""),
+        (2, "あ……今、初めて聞こえた。あなたが、ミナと？", "res://char/v3/akari_face.png"),
+        (0, "うん。話してくれてありがとう。寂しかった気持ちまで、消さなくてよかった。", ""),
+        (2, "……ミナに似たこと言うんだね。そっか。二人で来てくれたんだ。", "res://char/v3/akari_face.png"),
+        (0, "帰還の道を開くよ。ミナ、お疲れさま。", ""),
+        (1, "……ご主人様。外の世界は、今日はどんな天気ですか。", "res://char/mina_face.png"),
+        (0, "ずっと画面を見てたから、分からないや。", ""),
+        (1, "道案内の方にも、見落としがあるのですね。……あとで、教えてください。", "res://char/mina_face.png"),
     };
 
     // 迷い秒ゲートの行（★）と、フィルム前／後の割り目。
     //   割り目は行数（旧 Take(2)）ではなく本文「……♥が、ひとつ。」で引く＝ゲートで前半の行数が揺れても崩れない。
-    private const string ClearHesitated = "……ねえ。あのとき、すぐ決めなかったでしょ。……うん。それで、いい。";
-    private const string ClearFilmSplit = "……♥が、ひとつ。";
-    private static (int who, string text, string face)[] ClearFor(GameManager? game)
-        => ChoiceEffects.Hesitated(game, "s1_4") ? Clear : Clear.Where(l => l.text != ClearHesitated).ToArray();
+
+    private const string ClearFilmSplit = "帰還の道を開くよ。ミナ、お疲れさま。";
+    private static readonly string[] SkyChoices = { "あとで空を見よう。ミナと一緒に。", "今は、ミナが無事でほっとしてる。" };
+
+    private static (int who, string text, string face)[] SkyReply(int sel) => sel switch
+    {
+        0 => new (int, string, string)[] {
+        (0, "あとで空を見よう。ミナと一緒に。", ""),
+        (1, "一緒に。はい。ご主人様が見上げた空も、聞かせてください。", "res://char/mina_face.png"),
+        (0, "約束する。今度は、窓のところまで行ってみるよ。", ""),
+    },
+        _ => new (int, string, string)[] {
+        (0, "今は、ミナが無事でほっとしてる。", ""),
+        (1, "……わたくしを、心配してくださっていたのですね。ただいま、ご主人様。", "res://char/mina_face.png"),
+        (0, "おかえり。初めてのダイブ、一緒に帰れてよかった。", ""),
+    },
+    };
+
+    private static (int who, string text, string face)[] ClearFor(GameManager? game) => Clear;
     private static (int who, string text, string face)[] ClearBeforeFor(GameManager? game)
         => ClearFor(game).TakeWhile(l => l.text != ClearFilmSplit).ToArray();
     private static (int who, string text, string face)[] ClearAfterFor(GameManager? game)
@@ -263,11 +274,6 @@ public partial class StageAkari : Node
     //   フィルムの代わりに会話で流し、そのあと _storyReturn（帰還ビート）へ続ける。
     private (int who, string text, string face)[] _storyAftermath = System.Array.Empty<(int, string, string)>();
 
-    // ── ルナティック（2026-09-26 作者指示「回想・エンディング・選択肢はカット、常に敵が出続け、ボス戦は止まらない」）──
-    //   GameManager.IsLunatic のとき true。会話 step（イントロ／小話／下書き選択／ボス口上／クリアの独白）を踏まず、
-    //   波→中ボス→波→本ボス→クリア を切れ目なく繋ぐ。回想・撃破後のアフターも流さない（ボス側の改心会話は BossAkari）。
-    //   チュートリアル系の once（StageTutorial.Take*）も消費しない＝見せていないものを既読にしない。
-    //   従来難易度は _lunatic=false で従来の分岐をそのまま通る。
     private bool _lunatic;
     // 会話・選択の step 一覧（1 イントロ／4 s1_5／6 道中会話／8 S1-4 束／10 MidEnd／12 ボス口上）。ルナティックはここを飛ばす。
     private static bool IsTalkStep(int step) => step is 1 or 4 or 6 or 8 or 10 or 12;
@@ -446,11 +452,6 @@ public partial class StageAkari : Node
         StageTutorial.SyncCard(Hud, lines, _introLine);
     }
 
-    // ---- S1-4 束（ミッドシナリオ枠）：問いかけまで流す → 下書き選択 → 受け＋締め ----
-    // 台本 06 の S1-4。ミナの「拾って、いいですか」で ChoiceOverlay（3択・N択対応版）を重ね、
-    // 決まったら受けの1行と共通の締め（足音）を続けて流してから終盤Cへ。
-    // 会話バブルは提示中も保持（HoldBubble）＝BubblePaused が続いて弾・敵は止まったまま。
-    // 自動プレイ（--qa/--demo）は BubblePaused 中 Z をパルスし続けるので既定カーソルのまま即決される＝詰まらない。
     private ChoiceOverlay? _s14Choice;
     private double _s14ChoiceT;                       // 提示からの経過＝迷い秒数（RecordChoice へ渡す）
     private (int who, string text, string face)[] _s14After = System.Array.Empty<(int, string, string)>();
@@ -661,6 +662,12 @@ public partial class StageAkari : Node
     {
         if (_spawner != null) return;
         (GetTree().GetFirstNodeInGroup("stagebg") as StageBackground)?.BeginRoute();
+        // 道中の段の頭（0/A/B/C の各波）＝直前の波で盤面の弾とザコを掃き切ってから湧き直す仕切り直し。
+        //   敵がゼロから湧き直すのに自機だけ前の段の位置に残るのが非対称なので、自機も初期位置へ戻す。
+        //   ・ルナティックは除外：会話の区切りを全部飛ばして戦闘を途切れさせない難易度なので、ここで
+        //     段ごとに入力を預かると「途切れない」設計を壊す（中ボス・ボス・形態変化は向こうでも戻す）。
+        //   ・ステージ開始直後の波0 では自機がもう初期位置に居る＝ReturnToStart 側が距離を見て何もしない。
+        if (!_lunatic) Player?.ReturnToStart();
         _spawner = new Spawner { Name = "Spawner", World = World, Theme = StageTheme.Akari, StartIntensity = startIntensity };
         AddChild(_spawner);
         _spawner.Begin();
@@ -709,6 +716,10 @@ public partial class StageAkari : Node
             };
             World.AddChild(_cameo);
             _cameo.GlobalPosition = new Vector2(SpawnX, 70f);
+            // 中ボス戦の開始＝中ボスが湧き位置(SpawnX,70)に立つ仕切り直し。自機も初期位置へ戻す
+            //   （ルナティックでも戻す＝新しい敵が定位置に現れる瞬間はどの難易度でも仕切り直し）。
+            //   実際に滑り出すのは中ボス登場のカットシーン／会話が明けたフレーム（Player.ReturnToStart 参照）。
+            Player?.ReturnToStart();
         }
 
         // 撃破→捨て台詞を流し切ったら次フェーズへ（型崩し後：道中突入の小話 Mid へ）。
@@ -745,6 +756,10 @@ public partial class StageAkari : Node
             _boss = new BossAkari { Name = "BossAkari" };
             World.AddChild(_boss);
             _boss.GlobalPosition = new Vector2(SpawnX, 70f);
+            // ボス戦の開始＝ボスが湧き位置に立つ仕切り直し。自機も初期位置へ戻す（ルナティックでも戻す）。
+            //   ここはボス登場のカットシーン（CameoIntroScene.PlayBoss の arriving）の中なので、実際に
+            //   滑るのは口上の会話が明けて操作が戻ったフレーム（Player.ReturnToStart 参照）。
+            Player?.ReturnToStart();
             _bossActive = true;
             (GetTree().GetFirstNodeInGroup("stagebg") as StageBackground)?.EnterBoss();
             Advance();
@@ -790,7 +805,6 @@ public partial class StageAkari : Node
             _clearBefore = ClearBeforeFor(game);   // 迷い秒ゲート（s1_4）をここで確定
             _clearAfter = ClearAfterFor(game);
         }
-        // ルナティック：アフター（独白→フィルム→独白）は流さない。リザルトを読む間だけ置いてハブへ。
         if (_lunatic)
         {
             _lunaticClearT += delta;
@@ -809,8 +823,8 @@ public partial class StageAkari : Node
         else if (_clearPhase == 2)
         {
             if (_charStory) Step_Lines(delta, _storyReturn);
-            else Step_Choice(delta, "s1_sky", _clearAfter, ChoiceEffects.SkyChoices,
-                ChoiceEffects.SkyReply, System.Array.Empty<(int, string, string)>());
+            else Step_Choice(delta, "s1_sky", _clearAfter, SkyChoices,
+                SkyReply, System.Array.Empty<(int, string, string)>());
         }
     }
 

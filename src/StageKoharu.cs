@@ -45,9 +45,9 @@ public partial class StageKoharu : Node
     // 体数より“密度と変化”で長さを作る（§3 緩急）：3波で圧と構成を変えて間延びさせない。
     private Spawner _spawner = null!;
     private int _waveBase;
-    private const int MidWaveA = 36;
-    private const int MidWaveB = 14;
-    private const int MidWaveC = 16;
+    private const int MidWaveA = 72;
+    private const int MidWaveB = 28;
+    private const int MidWaveC = 32;
     // ボスの“チラ見せ”（カメオ）＝本戦ボスと同じ土台の短いミニボス戦（CameoBoss＝Enemy 派生・シールド制）。
     // こはる＝無力・他責で、弾は“落ちる祈り”。撃破（HP/サイクル削り切り＝改心）まで Stage は進まない。保険退場は廃止。
     private CameoBoss _cameo = null!;
@@ -58,28 +58,25 @@ public partial class StageKoharu : Node
     // who: 0=あなた（送信された下書き） / 1=ミナ / 2=こはる / 3=システム表示 / 4=投稿。who=5（中継）は使わない。
     private static readonly (int who, string text, string face)[] Intro =
     {
-        (1, "ご主人様。……暗いですね。電気の消えた部屋に、画面の光だけ。", MFace),
-        (4, "「今日の配信も最高だった。これで、明日も学校、行ける。」", ""),   // 層1。本人の主投稿。明るい
-        (1, "……楽しそうな投稿ですね。でも、送る前に消した言葉も、聞こえます。……ずいぶん、小さな声で。", MWorried),
-        (1, "壁一面が、画面。中で、笑っている人がひとり。……こちらへ向いて、笑っています。", MFace),   // 映るのはガワの笑顔だけ
-        (1, "机の下に、箱が三つ。……開けられた跡は、ひとつだけ。", MFace),
-        // ユーザー承認済み: docs/20260914/ストーリー添削_2026-09-14.md 構造指摘（足すべき）＋【9】
-        //   ①あかり面クリアで「困る」が解禁される設計なのに、本文のどこにも獲得が書かれていなかった。
-        //     ミナが初めて感情語を口にし、自分でも処理できずに言い直す一拍をここに置く（獲得の可視化）。
-        //   ②「放っておけないので」＝ミナが動機を言い切るのをやめる（放っておけないのはプレイヤー側）。
-        //     観測の帰結として降りる形へ。レイ面と同文だった問題も同時に解消。
-        (1, "……小さいのに、消えません。……どう、処理すべきか。", MWorried),
-        (1, "……困り、ますね。……いまのは、適切な語ではありません。訂正します。", MWorried),   // 「困る」の獲得
-        (1, "……ここから呼びかけても、あの方には届きません。もっと近くへ、まいりましょう。", MFace),
+        (0, "次は、こはるさんの投稿だ。ダイブを始める。足元の光が落ち着くまで、そのままで。", ""),
+        (4, "今日の配信も最高だった。これで、明日も学校、行ける。", ""),
+        (1, "着きました。電気の消えた部屋に、画面の光だけ……。あかりさんのフロアとは、ずいぶん違います。", "res://char/mina_face.png"),
+        (0, "映っているのは、この人が隠してきた気持ちだ。投稿の明るさだけでは、分からない。", ""),
+        (1, "壁一面に配信の画面。机の下には、開けていない箱まで。", "res://char/mina_face.png"),
+        (0, "画面の前に、こはるさんがいる。まず、声の届くところまで行こう。", ""),
+        (1, "……好きなものに囲まれているのに、寂しい部屋ですね。", "res://char/mina_face.png"),
+        (0, "うん。何があったのか、本人の言葉で聞きたい。", ""),
     };
 
     // S2-3 Mid（部屋）＋ Chat1（軽口）（仮台本 07）。ペンライトの光が画面に届かない。
     //   「むだだ」の合間に学校の声と家の声が同じ色で混じる。責める宛先がどこにもない。
     private static readonly (int who, string text, string face)[] Mid =
     {
-        (1, "ペンライトの光が、画面に向かって、振られています。……届いていません。画面まで。", MWorried),
-        (1, "「むだだ」という声の合間に、学校や家でかけられた言葉も。「今日も明るいね」「模試、どうだった」。……繰り返し、響いています。", MFace),
-        (1, "わたくしも振ってみたいのですが。……どちらへ振るのでしょう。集計するより、難しそうです。", MSmile),
+        (1, "ペンライトの光が、画面に向かって、振られています。……届いていません。画面まで。", "res://char/mina_face.png"),
+        (0, "学校や家の声も混ざってる。「今日も明るいね」「模試、どうだった」。配信の話だけじゃなさそうだ。", ""),
+        (1, "わたくしも、ペンライトを振ってみたいのですが。……方向に、決まりは？", "res://char/mina_face.png"),
+        (0, "僕も詳しくないけど、まずは画面のほうかな。世界の案内役にも、専門外はあるよ。", ""),
+        (1, "では、あとでこはるさんに伺いましょう。話したいことが、一つできました。", "res://char/mina_face.png"),
     };
 
     // S2-2 中ボスの受け（仮台本 07）。CameoBoss は who=2（本人）の行だけを一行オーバーレイで流すので、
@@ -90,25 +87,31 @@ public partial class StageKoharu : Node
     private const string KLit = "res://char/v3/koharu_face_lit.png";    // 配信画面の光を浴びた顔
     private static readonly (int who, string text, string face)[] BossTalk =
     {
-        (1, "……画面の中の人。星逢レイ、と、名前が出ています。笑顔が、こちらを向いたまま、動きません。", MFace),   // 観測のみ。裏は見せない
+        (1, "画面の中の人は、星逢レイさん。笑顔が、ずっとこちらを向いています。", "res://char/mina_face.png"),
+        (0, "投稿を観測していたときにも、よく見かけた名前だ。こはるさんには、大切な人なんだね。", ""),
     };
 
     // S2-2 中ボス こはる（仮台本 07）。制服、片手に消えたペンライト、もう片手にスマホ。
     //   明るさと蒼白を往復する。第一声→RECLOSE（順送り）→捨て台詞、の三段で CameoBoss に渡す。
     private static readonly (int who, string text, string face)[] CameoTalk1 =
     {
-        (2, "あ、来た！　今日も全部、見なきゃ！", KFace),
+        (2, "あ、来た！　今日も全部、見なきゃ！", "res://char/v3/koharu_face.png"),
+        (1, "初めまして。ミナと申します。隣にいても、よろしいですか。", "res://char/mina_face.png"),
+        (2, "うん、見てって。楽しいから。絶対、楽しいから。", "res://char/v3/koharu_face.png"),
     };
     // RECLOSE（サイクルごとに順送り）。「やめないで……止まったら」の型。
     private static readonly (int who, string text, string face)[] CameoTalk3 =
     {
-        (2, "見てって、これ。推しの配信。今日も来てるんだ、あたし。……", KLit),
-        (2, "……何時間、見てるんだろ。塾……", KPale),   // 途中で蒼白
-        (2, "——なんでもない。ね、楽しいでしょ? 楽しいってば。", KFace),   // すぐ明るく戻る
+        (2, "見てって、これ。推しの配信。今日も来てるんだ、あたし。……", "res://char/v3/koharu_face.png"),
+        (2, "……何時間、見てるんだろ。塾……", "res://char/v3/koharu_face.png"),
+        (1, "塾のことが、気になっているのですか。", "res://char/mina_face.png"),
+        (2, "——なんでもない。ね、楽しいでしょ? 楽しいってば。", "res://char/v3/koharu_face.png"),
     };
     private static readonly (int who, string text, string face)[] CameoPost =
     {
-        (2, "はい、これ。ペンライト。振ってみて。楽しいから。ぜったい、楽しいから。", KFace),   // 捨て台詞
+        (2, "はい、これ。ペンライト。振ってみて。楽しいから。ぜったい、楽しいから。", "res://char/v3/koharu_face.png"),
+        (1, "ありがとうございます。振り方は、教えていただけますか。", "res://char/mina_face.png"),
+        (2, "好きに振っていいんだよ。……あたしは、ずっと振ってるけど。", "res://char/v3/koharu_face.png"),
     };
 
     // こはる面・中ボスの第一声（s2_1 差分・2026-09-25）。道中の新規選択（壁の予定表・step 3）を拾う。
@@ -118,20 +121,26 @@ public partial class StageKoharu : Node
 
     private static readonly (int who, string text, string face)[] CameoTalk1_S21Rest =
     {
-        (2, "「そんなに頑張ったんだね。今日は休もう」……頑張った、って。ほんとに？　でも、休んだら……置いてかれちゃう。", KPale),
+        (1, "ずっと起きていらしたのですか。少し、休める場所を一緒に探しませんか。", "res://char/mina_face.png"),
+        (2, "……でも、休んだら、置いてかれちゃう。", "res://char/v3/koharu_face.png"),
+        (1, "置いていかれるのが、怖いのですね。", "res://char/mina_face.png"),
+        (2, "うん。……ここにも、いられなくなりそうで。", "res://char/v3/koharu_face.png"),
     };
 
     private static readonly (int who, string text, string face)[] CameoTalk1_S21Keep =
     {
-        (2, "「大好きなんだね。その気持ちは消さなくていい」……うん。好きなの。やめなよって、言われると思ってた。", KLit),
+        (1, "レイさんのこと、大好きなのですね。やめさせに来たのではありません。お話がしたいのです。", "res://char/mina_face.png"),
+        (2, "……好きでいて、いいの？　やめなよって言われると思ってた。", "res://char/v3/koharu_face.png"),
+        (1, "はい。どんなところがお好きなのか、伺っても？", "res://char/mina_face.png"),
+        (2, "いっぱいあるよ。……いっぱい、あったんだ。", "res://char/v3/koharu_face.png"),
     };
 
     // 中ボスの第一声を s2_1 の選択から選ぶ。選んでいない／（送らない）なら既存の CameoTalk1（フォールバック）。
     //   引用（「」の中）は S21Choices と一字一句そろえる＝「もう聞かれていた」の画が成立する条件。
     private static (int who, string text, string face)[] CameoIntroFor(GameManager? game) => (game?.ChosenAt("s2_1") ?? "") switch
     {
-        "そんなに頑張ったんだね。今日は休もう" => CameoTalk1_S21Rest,
-        "大好きなんだね。その気持ちは消さなくていい" => CameoTalk1_S21Keep,
+        "眠れているか心配だ。休める場所を探そう。" => CameoTalk1_S21Rest,
+        "好きな気持ちは、取り上げたくないんだ。" => CameoTalk1_S21Keep,
         _ => CameoTalk1,
     };
 
@@ -146,82 +155,78 @@ public partial class StageKoharu : Node
     //   ミナは価値判断をしない＝集計の結果だけを差し出して、あなたに聞く。
     private static readonly (int who, string text, string face)[] S21Cue =
     {
-        (1, "壁に、配信の予定表が。……ほとんどの日に、丸がついています。", MFace),
-        (1, "丸の下に、小さい字で、時間が足してあります。……直近の三日。足された時間が、日ごとに、増えています。", MFace),
-        (1, "丸のない日が、一日。……そこには、丸の代わりに、二文字。「模試」。", MWorried),
-        (1, "……かごに、栄養ドリンクが三本。買われたまま、開けられていません。", MWorried),
-        (1, "ご主人様。……あの方に、何と声をかけましょう。休む日を、こちらで勝手に決めるわけにはいきませんので。", MFace),
+        (1, "壁に、配信の予定表が。……ほとんどの日に、丸がついています。", "res://char/mina_face.png"),
+        (0, "三日続けて、時間を足してる。寝る時間を削ってないといいけど。", ""),
+        (1, "丸のない日が、一日。……そこには、丸の代わりに、二文字。「模試」。", "res://char/mina_face.png"),
+        (1, "……かごに、栄養ドリンクが三本。買われたまま、開けられていません。", "res://char/mina_face.png"),
+        (1, "ご主人様。……休んでほしいです。でも、大切な時間なのですよね。どう話せばよいでしょう。", "res://char/mina_face.png"),
     };
-    private static readonly string[] S21Choices = { "そんなに頑張ったんだね。今日は休もう", "大好きなんだね。その気持ちは消さなくていい" };
+    private static readonly string[] S21Choices = { "眠れているか心配だ。休める場所を探そう。", "好きな気持ちは、取り上げたくないんだ。" };
     private static (int who, string text, string face)[] S21Reply(int sel) => sel switch
     {
-        0 => new (int, string, string)[]
-        {
-            (0, S21Choices[0], ""),
-            (1, "……これだけ予定を詰めて、眠る時間は残っていたのでしょうか。わたくしも、心配です。", MWorried),
-            (1, "会えたら、休もうと伝えましょう。休むのが怖いなら、その理由も聞いてから。", MFace),
-        },
-        _ => new (int, string, string)[]
-        {
-            (0, S21Choices[1], ""),
-            (1, "……はい。大切にしてきたものまで、取り上げたくはありませんね。", MFace),
-            (1, "全部を見られない日も、好きでいてよい。……あの方にも、そう伝えたいです。", MFace),
-        },
+        0 => new (int, string, string)[] {
+        (0, "眠れているか心配だ。休める場所を探そう。", ""),
+        (1, "……これだけ予定を詰めて、眠る時間は残っていたのでしょうか。わたくしも、心配です。", "res://char/mina_face.png"),
+        (1, "会えたら、休もうと伝えましょう。休むのが怖いなら、その理由も聞いてから。", "res://char/mina_face.png"),
+    },
+        _ => new (int, string, string)[] {
+        (0, "好きな気持ちは、取り上げたくないんだ。", ""),
+        (1, "……はい。大切にしてきたものまで、取り上げたくはありませんね。", "res://char/mina_face.png"),
+        (1, "全部を見られない日も、好きでいてよい。……あの方にも、そう伝えたいです。", "res://char/mina_face.png"),
+    },
     };
     private static readonly (int who, string text, string face)[] S21Tail =
     {
-        (1, "——先へ。予定表は、壁に、残しておきます。……消す権利は、こちらにありませんので。", MFace),
+        (0, "予定表はそのままにしておこう。僕らが勝手に消しても、休めるようにはならないから。", ""),
+        (1, "はい。本人に聞いてからにします。", "res://char/mina_face.png"),
     };
 
     private static readonly (int who, string text, string face)[] PenlightTalk =
     {
-        (1, "……押しつけられました。ペンライト。——消えたままの、ほうです。", MFace),
-        (1, "……あの方、二本持っていて。点くほうを、ご自分で持って行かれました。", MFace),
-        (1, "……消えたままでも、振ってみます。——先へ。", MFace),
+        (1, "……押しつけられました。ペンライト。——消えたままの、ほうです。", "res://char/mina_face.png"),
+        (0, "ミナ、手元のスイッチを押してみて。……点かないか。電池が切れてるみたいだ。", ""),
+        (1, "それでも、振ってみます。あの方が渡してくださったので。", "res://char/mina_face.png"),
+        (0, "うん。僕も見てる。光っていなくても、君が振ってるのは分かるよ。", ""),
     };
 
     // S2-4 直後・カーソル。入力欄は閉じず、カーソルだけが点いたまま、あなたの下書きが開く。
     //   P4 で言った「消された言葉は、消えていない」が、ここでは、あなたの側に向く。宛先は決めない。
     private static readonly (int who, string text, string face)[] S24Cue =
     {
-        (1, "……入力欄の、カーソル。——まだ、点いています。", MFace),
-        (1, "……これ、あの方のでは、ありませんね。——ご主人様の画面です。", MWorried),
-        (1, "……打ちかけて、消すこと。ご主人様にも、ありますか。……話せるぶんだけで、結構です。", MFace),
+        (1, "……入力欄の、カーソル。——まだ、点いています。", "res://char/mina_face.png"),
+        (0, "あ、それは僕の画面。君の話を聞いて、昔の下書きを思い出してた。", ""),
+        (1, "……打ちかけて、消すこと。ご主人様にも、ありますか。……話せるぶんだけで、結構です。", "res://char/mina_face.png"),
     };
     private static readonly string[] S24Choices = { "あるよ。嫌われるのが怖くて、消しちゃう", "まだ話すのは怖い。でも、聞いてくれてうれしい" };
     private static (int who, string text, string face)[] S24Reply(int sel) => sel switch
     {
-        0 => new (int, string, string)[]
-        {
-            (0, S24Choices[0], ""),
-            (1, "……嫌われたくなくて、言いたいことを引っ込めてしまうのですね。", MWorried),
-            (1, "今は、消さずに話してくださった。……わたくしには、うれしい一通です。", MSmile),
-        },
-        _ => new (int, string, string)[]
-        {
-            (0, S24Choices[1], ""),
-            (1, "……はい。続きは、話したくなったときに。今は、ここまで聞かせてくださって、ありがとうございます。", MFace),
-            (1, "では、しばらくわたくしの話を。……黙って聞いていてくださるだけでも、うれしいです。", MSmile),
-        },
+        0 => new (int, string, string)[] {
+        (0, "あるよ。嫌われるのが怖くて、消しちゃう", ""),
+        (1, "……嫌われたくなくて、言いたいことを引っ込めてしまうのですね。", "res://char/mina_face.png"),
+        (1, "今は、消さずに話してくださった。……わたくしには、うれしい一通です。", "res://char/mina_face.png"),
+    },
+        _ => new (int, string, string)[] {
+        (0, "まだ話すのは怖い。でも、聞いてくれてうれしい", ""),
+        (1, "……はい。続きは、話したくなったときに。今は、ここまで聞かせてくださって、ありがとうございます。", "res://char/mina_face.png"),
+        (1, "では、しばらくわたくしの話を。……黙って聞いていてくださるだけでも、うれしいです。", "res://char/mina_face.png"),
+    },
     };
     private static readonly (int who, string text, string face)[] S24Tail =
     {
-        (1, "——カーソルが、消えました。……先へ。", MFace),
+        (0, "カーソルは閉じた。でも、君に話した分は消さないよ。……先の部屋まで、道をつなぐ。", ""),
+        (1, "承知しました。次のお話も、そのまま聞かせてください。", "res://char/mina_face.png"),
     };
 
     // S2-3 BossTalk（教室）＋ Chat2／Chat3（仮台本 07）。場所が変わる。席は全部埋まっているのに
     //   どの席もこちらを見ていない。視線だけがある。黒板に「期待」。文字はここ一箇所。
     private static readonly (int who, string text, string face)[] ClassTalk =
     {
-        (1, "……場所が、変わりました。教室。席は、ぜんぶ埋まっています。——誰とも目が合わないのに、視線だけが、こちらに。", MWorried),
-        (1, "黒板に、二文字。「期待」。……消す人が、いないようです。", MFace),
-        (4, "「今日も明るいねって言われた。……何の話してたか、覚えてない。」", ""),   // 層3
-        (1, "……明るい声で、投稿しています。明るい、と、言われたことを。", MFace),
-        // ユーザー承認済み: docs/20260914/ストーリー添削_2026-09-14.md 構造指摘（切るべき）
-        //   Mid（部屋）と ClassTalk（教室）が「観測3行＋軽口1行」の同型だったので、こちらを1行削る。
-        //   残す軽口は「画数」の側＝黒板の「期待」に掛かっていて場面から浮かないほう。
-        (1, "机を、数えました。四十。……座っている人の顔は、ひとつも、見えません。", MFace),   // Chat2（日常）
-        (1, "期待、という字は、画数が多いですね。……消すのも、手間がかかりそうです。", MFace),   // Chat3（軽口）
+        (1, "……場所が、変わりました。教室。席は、ぜんぶ埋まっています。——誰とも目が合わないのに、視線だけが、こちらに。", "res://char/mina_face.png"),
+        (0, "本音に近づくと、景色も変わる。ここは教室の記憶だ。黒板に「期待」って書いてある。", ""),
+        (4, "「今日も明るいねって言われた。……何の話してたか、覚えてない。」", ""),
+        (1, "……明るい声で、投稿しています。明るい、と、言われたことを。", "res://char/mina_face.png"),
+        (0, "視線が集まってる。端の通路へ行こう。机の間なら、囲まれずに済む。", ""),
+        (1, "期待という字は、消すのも大変そうですね。……画数の話では、ありません。", "res://char/mina_face.png"),
     };
 
     // ───────── S2-4 入力欄（ミッドシナリオ枠。仮台本 07）─────────
@@ -233,13 +238,14 @@ public partial class StageKoharu : Node
     //   （Step_InputField 参照）。行末の「|」は表示側がカーソルとして描くので渡す前に落とす。
     private static readonly (int who, string text, string face)[] InputField =
     {
-        (1, "ご主人様、これ。配信画面の下に、コメントの入力欄が。……文字が、打たれています。", MFace),
-        (3, "レイちゃんが|", ""),   // 入力欄。カーソル付き
-        (1, "……消えていきます。一文字ずつ。", MWorried),
+        (1, "ご主人様、これ。配信画面の下に、コメントの入力欄が。……文字が、打たれています。", "res://char/mina_face.png"),
+        (3, "レイちゃんが|", ""),
+        (1, "……消えていきます。一文字ずつ。", "res://char/mina_face.png"),
         (3, "今日も来ました|", ""),
-        (1, "……「今日も来ました」。それだけが、残って——送られました。", MFace),
-        (1, "送る前に消した言葉も、覚えておきます。……ご本人に会えたら、確かめましょう。", MFace),
-        (1, "……画面の中の笑顔は、いまの一行を、読んだでしょうか。——観測できません。向こう側ですので。", MFace),   // レイの側は言わない
+        (1, "……「今日も来ました」。それだけが、残って——送られました。", "res://char/mina_face.png"),
+        (0, "下書きの続きは残ってる。でも、僕らが代わりに投稿することはできない。会ったとき、話してもらおう。", ""),
+        (1, "送る前に消した言葉も、覚えておきます。……ご本人に会えたら、確かめましょう。", "res://char/mina_face.png"),
+        (1, "レイさんは、この一行に気づいたのでしょうか。……ご本人に、聞いてみたいです。", "res://char/mina_face.png"),
     };
 
     // S2-5 道中C／MidEnd（仮台本 07）。投稿の直後、配信画面が消えて、黒い画面に自分の顔が映る。
@@ -247,24 +253,20 @@ public partial class StageKoharu : Node
     //   末尾の {n} は直前の行に留まっていた実秒（補助観測・表示専用で保存しない）。
     private static readonly (int who, string text, string face)[] MidEnd =
     {
-        (4, "「配信終わった。部屋の電気つけた。……自分なにしてんだろ。」", ""),   // 層3
-        (1, "……画面が、消えました。黒い画面に、顔が映っています。ペンライトを、持ったまま。", MWorried),
-        (1, "「むだだ」の声。ここまでで、ぜんぶ、祓いました。——ぜんぶ、数えました。", MFace),   // 決定打（回数）の仕込み
-        // ユーザー承認済み: docs/20260914/ストーリー添削_2026-09-14.md 【13】
-        //   旧「気のせい、ということにしておきます」＝ミナが自分の否認を実況していた（show-don't-tell 違反）。
-        //   言い切らせる（「誤差です」）とプレイヤーが先に気づき、三面目「気のせいでは、なさそうです」で
-        //   ミナが遅れて追いつく＝濁りの階段が初めて段になる。
-        (1, "……光が、少し、重い。", MDoubt),   // 【濁】兆候
-        (1, "……計測の誤差です。", MDoubt),
-        (1, "……ちなみに、いまの間。{n}秒。……いえ、集計しただけです。", MSmile),   // 補助観測
+        (4, "「配信終わった。部屋の電気つけた。……自分なにしてんだろ。」", ""),
+        (1, "……画面が、消えました。黒い画面に、顔が映っています。ペンライトを、持ったまま。", "res://char/mina_face.png"),
+        (0, "アンチャーの反応は薄くなった。でも、君の光まで弱くなってる。", ""),
+        (1, "……光が、少し、重い。", "res://char/mina_face.png"),
+        (0, "誤差で済ませたくない。少し止まろう。僕はここで待ってる。", ""),
+        (1, "……ありがとうございます。では、少しだけ。待たせるのは、得意ではないのですが。", "res://char/mina_face.png"),
     };
 
     // S2-6 ボス出現（仮台本 07）。消えた画面の前の部屋で戦う。穢れは灰色の視線の線。
     private static readonly (int who, string text, string face)[] BossIntro =
     {
-        (1, "消えた画面の前に、あの人が。……顔が映るほうを、向いたまま。", MFace),
-        (1, "視線が、部屋じゅうに。……どれも、顔が、ありません。", MWorried),
-        (1, "——ぜんぶ、数えます。ひとつ残らず。", MFace),
+        (1, "消えた画面の前に、あの人が。……顔が映るほうを、向いたまま。", "res://char/mina_face.png"),
+        (0, "こはるさんの周りに、視線を集めるアンチャーがいる。まず、あれをほどこう。", ""),
+        (1, "はい。……こはるさん、もう一度、隣に伺います。", "res://char/mina_face.png"),
     };
 
     // S2-9 クリア（仮台本 07）。消えていた配信画面が灯り、ペンライトの光が画面に届く。
@@ -272,26 +274,38 @@ public partial class StageKoharu : Node
     //   答えの下書きは出さず、無言のまま流す。
     private static readonly (int who, string text, string face)[] Clear =
     {
-        (4, "「送れなかったコメント、送った。読まれたかは、知らない。……送った。」", ""),   // 救済後
-        // ユーザー承認済み: docs/20260914/ストーリー添削_2026-09-14.md 【3】（感情アークの可視化）
-        //   ここが「笑う」の獲得点。作中でミナが笑顔を見せるのは、この一行が初めてになる。
-        //   本人は説明しない（何が起きたか言わせない）＝次の行で自分の顔に気づいて言い直すだけ。
-        (1, "……画面が、灯りました。ペンライトの光が——届いています。画面まで。", MSmileUnlocked),
-        (1, "……いま。……わたくし、どういう顔を、していましたか。", MSmileUnlocked),
-        (1, "入力欄に、一行、増えました。……読み上げは、しません。もう、送られたものですので。", MFace),
-        // 2026-09-26（docs/20260926/主人公の存在_診断と本文 §3.2(b)）：捨て台詞「振ってみて。楽しいから。」の日常語の再来。
-        //   振っていたのは自機の手＝ご主人様（「足取りは、ご主人様のままで」）。点かないペンライトを振り続けた手を、こはるが肯定する。
-        //   ★の行は迷い秒ゲート（s2_4 で p2 より長く迷ったときだけ＝ChoiceEffects.Hesitated）。実行時に ClearFor が残す／外す。
-        (2, ClearHesitated, KFace),          // ★s2_4 で迷ったときだけ
-        (2, "……あの手。……ペンライト、ちゃんと振ってた。……点いてなくても。", KFace),
-        (2, "画面の向こうの、あなた。……あたし、ちゃんとしてないとこまで見られちゃったね。", KFace),
-        (2, "でも今、話しかけたい。できた話ばっかりじゃなくても、また聞いてほしいな。", KFace),
-        (1, "……ご主人様。外の世界は、今日はどんな天気ですか。", MFace),   // 空の問い・二度目
+        (4, "送れなかったコメント、送った。読まれたかは、知らない。……送った。", ""),
+        (2, "ミナ、見て。今度は、消さなかったよ。", "res://char/v3/koharu_face.png"),
+        (1, "はい。……見せてくださって、ありがとうございます。", "res://char/mina_face.png"),
+        (2, "あのペンライト、点いてなくても振ってくれたね。ちゃんと見てた。", "res://char/v3/koharu_face.png"),
+        (1, "教わったとおり、好きに振りました。……少し、楽しかったです。", "res://char/mina_face.png"),
+        (2, "ふふ。ね、ミナと一緒に来た人にも、ありがとうって言える？", "res://char/v3/koharu_face.png"),
+        (0, "聞こえるよ。こはるさん。僕も、君の話を聞いてた。", ""),
+        (2, "わ、ほんとだ。……かっこ悪いところまで？", "res://char/v3/koharu_face.png"),
+        (0, "うん。助けてって言えなかった話も。話してくれて、うれしかった。", ""),
+        (2, "じゃあ、できたことばっかりじゃなくても、また聞いてほしいな。", "res://char/v3/koharu_face.png"),
+        (0, "もちろん。今日は、ちゃんと帰って寝よう。帰り道は、僕に任せて。", ""),
+        (1, "帰ったら、少し空のお話をしませんか。今日は、明るいところも見たいので。", "res://char/mina_face.png"),
     };
     // 迷い秒ゲートの行（★）。s2_4 で迷っていなければ Clear から外して流す。
-    private const string ClearHesitated = "……迷ってくれたよね。あたし、それ、見てたよ。";
-    private static (int who, string text, string face)[] ClearFor(GameManager? game)
-        => ChoiceEffects.Hesitated(game, "s2_4") ? Clear : Clear.Where(l => l.text != ClearHesitated).ToArray();
+
+    private static readonly string[] SkyChoices = { "今日は、ミナが見た空の話を聞きたい。", "僕の窓から見える空を、君にも話すよ。" };
+
+    private static (int who, string text, string face)[] SkyReply(int sel) => sel switch
+    {
+        0 => new (int, string, string)[] {
+        (0, "今日は、ミナが見た空の話を聞きたい。", ""),
+        (1, "わたくしの見たものを、ですか。……うれしいです。では、雨の向こうにあった光から。", "res://char/mina_face.png"),
+        (0, "うん。僕の画面に映らなかったところも、聞かせて。", ""),
+    },
+        _ => new (int, string, string)[] {
+        (0, "僕の窓から見える空を、君にも話すよ。", ""),
+        (1, "はい。天気予報ではなく、ご主人様が見た空を。", "res://char/mina_face.png"),
+        (0, "分かった。窓を開けて、ちゃんと見てくる。", ""),
+    },
+    };
+
+    private static (int who, string text, string face)[] ClearFor(GameManager? game) => Clear;
 
     private (int who, string text, string face)[] _playerIntro = null!;
     private (int who, string text, string face)[] _playerMid = null!;
@@ -314,10 +328,6 @@ public partial class StageKoharu : Node
     private (int who, string text, string face)[] _storyAftermath = System.Array.Empty<(int, string, string)>();
     private static readonly (int who, string text, string face)[] NoLines = System.Array.Empty<(int, string, string)>();
 
-    // ── ルナティック（2026-09-26 作者指示「回想・エンディング・選択肢はカット、常に敵が出続け、ボス戦は止まらない」）──
-    //   GameManager.IsLunatic のとき true。会話 step（イントロ／小話／下書き選択／入力欄／ボス口上／クリアの独白）を
-    //   踏まず、波→中ボス→波→本ボス→クリア を切れ目なく繋ぐ。回想・撃破後のアフターも流さない（改心会話は BossKoharu）。
-    //   チュートリアル系の once（StageTutorial.Take*）も消費しない。従来難易度は _lunatic=false で従来の分岐のまま。
     private bool _lunatic;
     // 会話・選択の step 一覧（1 イントロ／2 Mid／3 予定表 s2_1／5 中ボスの受け／8 教室／9 入力欄 s2_4／11 MidEnd／13 ボス口上）。
     private static bool IsTalkStep(int step) => step is 1 or 2 or 3 or 5 or 8 or 9 or 11 or 13;
@@ -797,6 +807,10 @@ public partial class StageKoharu : Node
     {
         if (_spawner != null) return;
         (GetTree().GetFirstNodeInGroup("stagebg") as StageBackground)?.BeginRoute();
+        // 道中の段の頭（A/B/C の各波）＝直前の波で盤面の弾とザコを掃き切ってから湧き直す仕切り直し。
+        //   敵がゼロから湧き直すのに自機だけ前の段の位置に残るのが非対称なので、自機も初期位置へ戻す。
+        //   ルナティックは除外（理由は StageAkari.StartMidwaveSpawner と同じ＝戦闘を途切れさせない設計）。
+        if (!_lunatic) Player?.ReturnToStart();
         _spawner = new Spawner { Name = "Spawner", World = World, Theme = StageTheme.Koharu, StartIntensity = startIntensity };
         AddChild(_spawner);
         _spawner.Begin();
@@ -849,6 +863,9 @@ public partial class StageKoharu : Node
             };
             World.AddChild(_cameo);
             _cameo.GlobalPosition = new Vector2(SpawnX, 70f);
+            // 中ボス戦の開始＝中ボスが湧き位置に立つ仕切り直し。自機も初期位置へ戻す（ルナティックでも戻す）。
+            //   実際に滑るのは登場カットシーン／会話が明けたフレーム（Player.ReturnToStart 参照）。
+            Player?.ReturnToStart();
         }
 
         // 撃破→捨て台詞を流し切ったら次フェーズへ（道中後半）。
@@ -897,6 +914,8 @@ public partial class StageKoharu : Node
             _boss = new BossKoharu { Name = "BossKoharu" };
             World.AddChild(_boss);
             _boss.GlobalPosition = new Vector2(SpawnX, 70f);
+            // ボス戦の開始＝ボスが湧き位置に立つ仕切り直し。自機も初期位置へ戻す（ルナティックでも戻す）。
+            Player?.ReturnToStart();
             _bossActive = true;
             (GetTree().GetFirstNodeInGroup("stagebg") as StageBackground)?.EnterBoss();
             Advance();
@@ -946,12 +965,7 @@ public partial class StageKoharu : Node
             var recScore = game?.RecordScore("koharu", game.Difficulty, score) ?? (true, (long?)null);
             Hud.ShowClearBanner("STAGE 2 CLEAR", _clearTime, rec.isBest, rec.prev, score, recScore.isBest, recScore.prev);
             GetNodeOrNull<BulletPool>("/root/Pool")?.DespawnAll(); // クリア時に自弾・残弾を一掃(#17)
-            // ルナティック：アフター（フィルム→独白）は流さない。下のホールドでリザルトを読ませてから帰る。
             if (_lunatic) return;
-            // 撃破後のアフター：
-            //   ミナ本編＝こはるのフィルム → 明けの Clear（ミナの独白）。
-            //   他ジョブ潜行＝一枚絵を起こさず CharacterStory.Aftermath（潜行キャラ×この面のボスの9通り）を
-            //     会話で流し、そのまま帰還ビートへ繋げる（アフター→帰還挨拶の順。2026-09-23 ユーザー指示）。
             if (_charStory)
             {
                 _clearLines = _storyAftermath.Concat(_storyReturn).ToArray();
@@ -982,8 +996,8 @@ public partial class StageKoharu : Node
         if (_clearPhase == 2)
         {
             if (_charStory) Step_Lines(delta, _clearLines!);
-            else if (RunChoice(delta, "s2_sky", _clearLines!, ChoiceEffects.SkyChoices,
-                ChoiceEffects.SkyReply, NoLines)) Advance();
+            else if (RunChoice(delta, "s2_sky", _clearLines!, SkyChoices,
+                SkyReply, NoLines)) Advance();
         }
     }
 

@@ -2,18 +2,6 @@ using Godot;
 using System;
 using System.Collections.Generic;
 
-// StoryFilm : 戦闘中の回想（memory＝モノクロ）と撃破後のアフター（aftermath＝カラー）の共通基盤。
-//
-// ── 選択の規則（2026-09-23 確定）──
-//   どのフィルムを流すかは**潜っている面のボス**で決まり、操作キャラ（GameManager.SelectedJob）には依らない。
-//   STAGE1＝AkariStoryFilm／STAGE2＝KoharuStoryFilm／STAGE3＝ReiStoryFilm／FINAL＝MinaStoryFilm。
-//   呼び元は各 Boss*（memory）と各 Stage*.Step_Clear（aftermath）で、そこでは _charStory を見て分岐しない。
-//   ・経緯：他ジョブ潜行（CharacterStory）では当初「回想フィルムは流さない」、その後 cc4e3c3 で
-//     操作キャラ×章の CharacterStoryFilm へ差し替えていた。結果「あかりで STAGE2／3 に潜ると面を問わず
-//     あかりの回想・アフターになる」をユーザーが不具合として報告（「こはるの話であかりの回想シーンや
-//     アフターシーンが入ってる」「レイのときも同様」）。期待は「こはるの面ならこはるの、レイの面ならレイの」。
-//   ・他ジョブ潜行で変わるのはフィルムの**前後の会話**だけ（Clear のミナ独白 → CharacterStory の帰還ビート）。
-//   ・_Ready のログ `film=<FilmId> job=<CharacterId>` が、面×操作キャラの組み合わせ検証（StoryFilmQa --matrix）の根拠。
 public partial class StoryFilm : Node2D
 {
     protected readonly record struct Line(int Shot, string Time, string Speaker, string Text, double Hold = 0.2);
@@ -251,6 +239,7 @@ public partial class StoryFilm : Node2D
         _lineT = _readT = 0;
         var line = _lines[_line];
         if (line.Speaker.Length == 0) _hud.ShowMessage(line.Text);
+        else if (line.Speaker == "主人公") _hud.ShowDialog(Hud.LineKind.Boy, line.Text);
         else _hud.ShowDialog(Hud.LineKind.Other, line.Text, otherName: line.Speaker);
     }
 
@@ -379,16 +368,6 @@ public partial class StoryFilm : Node2D
             _hud.SuppressCallouts = _suppressed;
         }
 
-        // 回想明けの曲の担当（2026-09-14②）。**memory と aftermath で違う**ので、ここでは何もしない:
-        //   ・memory（戦闘へ戻る）＝呼び出し側の completed: が各ボス曲を張り直している
-        //     （BossRei/BossAkari/BossKoharu/BossMina の4箇所）。ここで触ると同フレーム帯で Music() が
-        //     二重に走り、以前直した「ボス曲が消える」事故（_musicFadeTween の Kill 漏れ）と同型の
-        //     競合を招く。**触らない**のが正しい。
-        //   ・aftermath（撃破後のクリア会話へ戻る）＝**回想曲をそのまま鳴らし続ける**。
-        //     クリア会話はミナが独白する感情の後日談（例: StageRei.Clear の6行）で、
-        //     回想 aftermath と**同じ「癒えたあと」の一続きの場面**なので、ここで切ると
-        //     会話が無音に落ちる（＝ユーザー指摘の無音がクリア会話に残る）。
-        //     曲は次のシーン（Hub / Final）の _Ready が張る Music() が自然に上書きする。
     }
 
     public override void _ExitTree() => Restore();

@@ -16,18 +16,9 @@ using System.Collections.Generic;
 //   ＝セーブは RecordChoice の既存キーで足りる（新しい id を足すだけで後方互換）。
 public static class ChoiceEffects
 {
-    public static readonly string[] SkyChoices = { "あとで空を見よう。ミナと一緒に", "今は、ミナが無事でほっとしてる" };
 
-    public static (int who, string text, string face)[] SkyReply(int sel)
-    {
-        const string face = "res://char/mina_face.png";
-        string reply = sel switch
-        {
-            0 => "……一緒に。はい。ご主人様が見上げた空のこと、聞かせてください。わたくしも、こちらの空をお話しします。",
-            _ => "……わたくしを、心配してくださっていたのですね。ただいま、ご主人様。少し、ここでお話ししていきましょう。",
-        };
-        return new[] { (0, SkyChoices[sel], ""), (1, reply, face) };
-    }
+
+
 
     public static bool Record(GameManager? game, string id, string[] choices, int sel, float hesitationSec)
     {

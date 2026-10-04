@@ -139,6 +139,72 @@ public partial class Player : Area2D
     private const float MinY = Field.Top;
     private const float MaxY = Field.Bottom;
 
+    // ───────── 初期位置と「仕切り直しで戻る」（2026-10-03 ユーザー指示）─────────
+    // この自機の初期位置。各ルートが湧かせる場所（SnapToStart）と、場が仕切り直される瞬間に戻る先
+    // （ReturnToStart）は同じ1点。既定は全ステージ共通の Field.PlayerStart で、練習場（Stage0Root）だけ
+    // 縦が違うので Root が湧かせる前に上書きする。
+    public Vector2 StartPosition { get; set; } = Field.PlayerStart;
+
+    // ── 仕切り直し（中ボス戦の開始・ボス戦の開始・道中の波の継ぎ目・ボスの形態変化）で初期位置へ戻す ──
+    //   これらの瞬間は敵が湧き直し（または湧き位置へ戻り）、盤面の弾も掃かれる。自機だけが前の段の位置に
+    //   取り残されるのが非対称なので、同じ瞬間に自機も初期位置へ戻す。
+    //
+    //   ■ 瞬間移動ではなく短く滑らせる
+    //     ワープさせると「気づいたら位置が変わっていた」になる。回避(TryDodge)と同じイーズアウトで寄せ、
+    //     同じ残像(SpawnTrail)を置いて軌跡を残す＝どこからどこへ行ったのかが目で追える。
+    //
+    //   ■ 「いつ」滑らせるか＝呼ばれた瞬間ではなく、操作が戻る最初のフレーム
+    //     これらの節目はたいてい会話（Hud.BubblePaused）やカットシーン（World の ProcessMode を落とす
+    //     CameoIntroScene／BossTransformation／MinaPhaseScene）の中にある。そこで動かすと
+    //       ・カットシーン中 … 全画面の絵の裏で動く＝誰も見ていない
+    //       ・会話中         … 自機は吹き出しの奥（TickBubbleDepth の ZBehindBubble）に潜っている＝文字の裏で動く
+    //     のどちらかで、移動が見えない。だから呼び出し側は「予約」だけして、BubblePaused が明けた最初の
+    //     物理フレーム（カットシーン中は World ごと止まるのでこの関数自体が回らない＝明けが起点になる）で
+    //     滑らせる。プレイヤーが盤面を見ている瞬間に動くので、吹き出しの奥へ潜る処理とも喧嘩しない。
+    //
+    //   ■ 被弾させない
+    //     呼び出し側はどこも弾を掃いているが、滑っている最中に新しい弾・敵が湧く経路（ボス出現直後の開幕
+    //     スペル／波頭の Spawner／ルナティックのミナ段替わり＝MinaPhaseScene を出さないので掃かない）がある。
+    //     滑走ぶん＋HomeInvulTail 秒の無敵を重ねて、移動中〜直後の被弾を断つ。扱いはスポーン無敵と同じ
+    //     （_hitInvincible は立てない＝グレイズ経済に触らない／点滅も出る＝「いま無敵」が読める）。
+    // 尺は既存の手触りに合わせる＝新しい速度感を一つも増やさない。
+    //   HomeSpeed  … 自機の連射弾と同じ 360px/s（素の移動 NormalSpeed=75 の 4.8 倍）。「自分の弾と同じ速さで
+    //                 戻る」＝盤面の中で既に見慣れた速さなので目で追える。
+    //   HomeMaxDur … 回避1回ぶん（DodgeDuration=0.55s）。初期位置から最も遠い隅までが約280px＝
+    //                 360px/s なら 0.78s かかるので、そこだけこの上限で詰める（＝実効 509px/s）。
+    //                 これ以上は戦闘の頭で操作を預かりすぎる。
+    private const float HomeSpeed = 360f;
+    private const float HomeMinDur = 0.18f;     // 近くても一拍は見せる（目で追える下限）
+    private const float HomeMaxDur = DodgeDuration;
+    private const float HomeSnapDist = 2f;      // もう初期位置に居るなら動かさない（無意味な入力ロックを作らない）
+    private const float HomeTrailGap = DodgeTrailGap; // 残像の間隔。回避と同じ密度＝同じ「滑った」記号に見える
+    private const float HomeInvulTail = 0.35f;  // 着地後も少し無敵を残す（戻り先に湧いた弾の初動を避けられる）
+    private bool _homePending;                  // 予約済み（まだ滑り始めていない）
+    private float _homeT, _homeDur;             // 滑走の残り時間 / 全長
+    private Vector2 _homeFrom, _homeTo;
+    private float _homeTrailAccum;
+    // いま帰還中か（予約も含む）。QA（tools/PlayerHomeQa.cs）が「戻り切ったか」を待つのに読む。
+    public bool ReturningToStart => _homePending || _homeT > 0f;
+
+    // 初期位置へ即座に置く＝各ルートがステージ開始で湧かせるときだけ使う（演出も無敵も足さない）。
+    public void SnapToStart()
+    {
+        _homePending = false;
+        _homeT = 0f;
+        GlobalPosition = StartPosition;
+    }
+
+    // 仕切り直しの帰還を予約する。実際に滑り出すのは TickReturnHome（上のコメント参照）。
+    public void ReturnToStart()
+    {
+        if (_gameOver) return;
+        _homePending = true;
+    }
+
+    // 盤面の自機を探して帰還を予約する。Enemy/Boss 側は Player の参照を持たないのでこちらを呼ぶ。
+    public static void SendToStart(Node from)
+        => (from.GetTree()?.GetFirstNodeInGroup("player") as Player)?.ReturnToStart();
+
     // 残機
     public int Lives { get; private set; } = 3;
 
@@ -288,7 +354,7 @@ public partial class Player : Area2D
     {
         get
         {
-            _lockUnfolder = LockTarget is Enemy boss ? boss.SelectUnfolder(GlobalPosition, _lockUnfolder) : null;
+            _lockUnfolder = LockTarget is Enemy enemy ? enemy.SelectUnfolder(GlobalPosition, _lockUnfolder) : null;
             return _lockUnfolder;
         }
     }
@@ -425,6 +491,30 @@ public partial class Player : Area2D
         ZIndex = want ? ZBehindBubble : ZNormal;
     }
 
+    // 予約された帰還（ReturnToStart）を、操作が戻った最初のフレームで滑走へ起こす。
+    //   起こす条件を「会話が明けている」に絞っている理由は StartPosition 付近のコメントのとおり
+    //   ＝カットシーンの絵や吹き出しの裏で動かすと、移動が見えないまま位置が変わってしまう。
+    private void TickReturnHome(float dt)
+    {
+        if (_gameOver) { _homePending = false; _homeT = 0f; return; }
+        if (!_homePending || Hud.BubblePaused) return;
+        _homePending = false;
+        // もう初期位置に居る（ステージ開始直後・前の節目で戻した直後）なら動かさない＝入力を預からない。
+        if (GlobalPosition.DistanceTo(StartPosition) <= HomeSnapDist) return;
+        if (_dodgeTimer > 0f) EndDodge();   // 回避と同時に走らせない（位置の駆動元を1つに保つ）
+        _homeFrom = GlobalPosition;
+        _homeTo = StartPosition;
+        _homeDur = Mathf.Clamp(_homeFrom.DistanceTo(_homeTo) / HomeSpeed, HomeMinDur, HomeMaxDur);
+        _homeT = _homeDur;
+        _homeTrailAccum = 0f;
+        // 滑走ぶん＋余韻を無敵に（弾を掃いていない経路でも移動中〜直後に被弾しない）。
+        ExtendInvincible(_homeDur + HomeInvulTail);
+        // 発進の合図は既存の語彙を流用（専用アセットを増やさない）＝グレイズの閃光＋残像1枚。
+        FxLayer.Instance?.Graze(_homeFrom);
+        Audio.Instance?.PlayGraze();
+        SpawnTrail();
+    }
+
     private void TickLockOn()
     {
         // ── 対象の維持：倒された／浄化された／画面外へ出たら、**一番近い敵へ引き継ぐ** ──
@@ -533,8 +623,6 @@ public partial class Player : Area2D
         var prev = _lockTarget;
         _lockTarget = cands[next];
         _locked = true;
-        if (n == 1 && prev == _lockTarget && _lockTarget is Enemy boss)
-            _lockUnfolder = boss.CycleUnfolder(LockedUnfolder, step, GlobalPosition);
         if (!wasArmed) _lockByShift = shiftEdge;   // 武装した入力が Shift か（S・A・RB・クリックなら false）
         _lockArmed = true;
         // 対象が変わったら前の敵の照準マーカーを消す（雑魚は毎フレーム再描画しないので明示的に促す）。
@@ -754,6 +842,8 @@ public partial class Player : Area2D
         // ポーズ中は _PhysicsProcess 自体が止まり、会話中は下の BubblePaused ゲートで無効化される。
         bool mouse = Pad.UsingMouse;
         TickBubbleDepth();
+        // 予約された「仕切り直しの帰還」を、操作が戻ったこのフレームで滑走へ起こす（下の移動分岐より先）。
+        TickReturnHome(dt);
 
         // 移動入力。会話中（吹き出し表示中）・ゲームオーバー後は動けない。
         Vector2 dir = Vector2.Zero;
@@ -789,7 +879,8 @@ public partial class Player : Area2D
         _bubblePausedPrev = Hud.BubblePaused;
         bool dodgeKey = (spaceRaw && !_dodgeKeyLocked) || Pad.Pressed(JoyButton.LeftStick)
                         || (mouse && Pad.MouseRightDown());
-        if (dodgeKey && !_dodgeHeld && !Hud.BubblePaused)
+        // 帰還の滑走中は回避を受け付けない＝位置の駆動元を1つに保つ（押下は _dodgeHeld で食うのでエッジも漏らさない）。
+        if (dodgeKey && !_dodgeHeld && !Hud.BubblePaused && _homeT <= 0f)
         {
             // マウス時は方向キーが無いので「カーソルの方向」を回避方向として使う（十分離れている時だけ）。
             // カーソルにほぼ張り付いている＝行き先が無いときは従来どおりその場回避（変位ゼロ）になる。
@@ -806,7 +897,27 @@ public partial class Player : Area2D
         if (_dodgeInv > 0f) _dodgeInv -= dt;
 
         Vector2 pos;
-        if (_dodgeTimer > 0f)
+        if (_homeT > 0f)
+        {
+            // 仕切り直しの帰還：入力（キー／パッド／マウス追従）を無視して初期位置へ寄せる。
+            //   マウス追従はカーソルへ毎フレーム引き戻すので、この分岐を最優先に置かないと帰還が勝てない。
+            _homeT = Mathf.Max(0f, _homeT - dt);
+            float u = _homeDur <= 0f ? 1f : 1f - _homeT / _homeDur;   // 0→1
+            pos = _homeFrom.Lerp(_homeTo, 1f - (1f - u) * (1f - u));  // ease-out quad（回避の滑りと同じ式＝出だしが速く着地が静か）
+            _homeTrailAccum += dt;
+            if (_homeTrailAccum >= HomeTrailGap) { _homeTrailAccum = 0f; SpawnTrail(); }
+            if (_homeT <= 0f)
+            {
+                pos = _homeTo;
+                SpawnTrail();              // 最後の1枚で着地点に印を残す
+                // マウス操作中は、着いた次のフレームに据え置きのカーソルへ引き戻されて帰還が無かったことに
+                //   なる（カーソルが自機の位置そのものだから）。追従を一旦手放して初期位置に留まらせ、
+                //   プレイヤーがカーソルを動かした瞬間から追従へ戻す。
+                Pad.ReleaseMouseFollow();
+            }
+            dir = (_homeTo - _homeFrom).Normalized();                 // 体の傾き（_lean）も進行方向へ付ける
+        }
+        else if (_dodgeTimer > 0f)
         {
             // 回避中は入力移動を無視し、ダッシュ軌道で位置を駆動する。
             _dodgeTimer -= dt;
@@ -1217,16 +1328,18 @@ public partial class Player : Area2D
     // 貫通（#12「貫通」）：全モード共通で敵を 1 体貫通（Bullet.Pierce。消費側が減算する）。
     private void FireRapid(Vector2 muzzle, int dmg)
     {
-        Vector2 vel = ShotDir * 360f;
+        Vector2 direction = ShotDir;
+        Vector2 side = new(-direction.Y, direction.X);
+        Vector2 vel = direction * 360f;
         int pierce = _game?.ShotPierceCount ?? 0;
         int rdmg = dmg + (_game?.RapidPowerBonus ?? 0); // 連射モード専用の威力上乗せ
         int lines = 2 + (_game?.ExtraLines ?? 0) + LinePower;
         float[] offs = lines <= 2 ? new[] { -4f, 4f }
                      : lines == 3 ? new[] { -6f, 0f, 6f }
-                     : lines == 4 ? new[] { -10f, -4f, 4f, 10f }
+                     : lines == 4 ? new[] { -9f, -3f, 3f, 9f }
                                   : new[] { -12f, -6f, 0f, 6f, 12f };
-        foreach (float dy in offs)
-            _pool.Spawn(muzzle + new Vector2(0f, dy), vel, isEnemy: false, 3f, rdmg, BulletShape.Dart).Pierce = pierce;
+        foreach (float offset in offs)
+            _pool.Spawn(muzzle + side * offset, vel, isEnemy: false, 3f, rdmg, BulletShape.Dart).Pierce = pierce;
     }
 
     // 加速球：発射したら自機のすぐ前でほぼ静止して“タメ”を作り、タメ後にロケットのように急加速して発進する。
@@ -1235,6 +1348,8 @@ public partial class Player : Area2D
     //   数値は GameManager のアクセサを毎発射時に読む＝ショップ購入・トレーニングの付け外しで即反映。
     private void FireAccel(Vector2 muzzle, int dmg)
     {
+        Vector2 direction = ShotDir;
+        Vector2 side = new(-direction.Y, direction.X);
         const float charge = 12f;
         float fast = _game?.AccelLaunchSpeed ?? 640f;
         float delay = _game?.AccelChargeDelay ?? 0.8f;
@@ -1254,11 +1369,11 @@ public partial class Player : Area2D
         int pierce = _game?.ShotPierceCount ?? 0;
         float[] adys = lines <= 2 ? new[] { -4f, 4f }
                      : lines == 3 ? new[] { -8f, 0f, 8f }
-                     : lines == 4 ? new[] { -10f, -4f, 4f, 10f }
+                     : lines == 4 ? new[] { -9f, -3f, 3f, 9f }
                                   : new[] { -12f, -6f, 0f, 6f, 12f };
-        foreach (float dy in adys)
+        foreach (float offset in adys)
         {
-            var b = _pool.Spawn(muzzle + new Vector2(0f, dy), ShotDir * fast, isEnemy: false, 3.4f, admg);
+            var b = _pool.Spawn(muzzle + side * offset, direction * fast, isEnemy: false, 3.4f, admg);
             b.MakeAccel(charge, fast, delay); // タメ(ほぼ静止)→delay秒後に発進
             b.Pierce = pierce;
             _accelCharging.Add(b);
@@ -1775,6 +1890,17 @@ public partial class Player : Area2D
         _hitInvincible = fromHit;
         // 被弾フラッシュ（一瞬非表示にして点滅開始の合図）
         SetSpriteVisible(false);
+    }
+
+    // 既存の無敵を縮めずに、少なくとも dur 秒は無敵にする（仕切り直しの帰還が使う）。
+    //   ゲームオーバーの 9999 や被弾無敵の残りを上書きしないよう、短い側は伸ばすだけ。
+    //   _hitInvincible は立てない＝スポーン無敵・ボム無敵・回避無敵と同じ扱いでグレイズ経済に触らない。
+    private void ExtendInvincible(float dur)
+    {
+        if (_invincibleTimer < dur) _invincibleTimer = dur;
+        if (_invincible) return;
+        _invincible = true;
+        _blinkPhase = 0f;
     }
 
     private void SetSpriteVisible(bool visible)

@@ -41,10 +41,9 @@ public partial class FinalRouteQa : Node
 
     // ---- 判定のしきい値 ----
     private const double GapLimit = 2.0;        // 道中の「敵ゼロ」の最長（作者指示：2 秒以内）
-    // FINAL の道中の実測（2026-09-27・三波 66 体）: Normal 66 秒 / Lunatic 48 秒（ルナティックは湧き間隔が
-    //   0.62 倍なので同じ体数でも短く出る＝難易度の密度差。長さを難易度で変えてはいない）。
-    private const double FinalRouteMin = 38.0;  // これ未満＝波が飛んでいる（短すぎ）
-    private const double FinalRouteMax = 110.0; // これ超＝間延び（人間では更に伸びる）
+    // Twice as many enemies at 0.8 times the spawn interval gives roughly 1.6 times the route duration.
+    private const double FinalRouteMin = 60.0;
+    private const double FinalRouteMax = 180.0;
     // FINAL のザコ戦秒 ÷ あかり面のザコ戦秒。狙いは 0.6〜0.8（実測 0.74）。湧き間隔の乱数ぶれ（±0.8〜1.2）を見て幅を持たせる。
     private const double RatioMin = 0.55;
     private const double RatioMax = 0.95;
@@ -331,10 +330,13 @@ public partial class FinalRouteQa : Node
                 if (n is MidEnemy me && n.GetType().GetField("_spec", Private)?.GetValue(me) is EnemySpec spec)
                     _routeSkins.Add(spec.PreTexPath);
             if (Hud.BubblePaused) _routePaused++; else _routeFightSec += delta;
-            if (GetTree().GetNodesInGroup("enemies").Count == 0) { _gapT += delta; if (_gapT > _maxGap) _maxGap = _gapT; }
-            else _gapT = 0;
+            bool spawning = false;
             foreach (Node child in _stage.GetChildren())
-                if (child is Spawner { Active: true }) { _spawnerSec += delta; break; }
+                if (child is Spawner { Active: true }) { spawning = true; _spawnerSec += delta; break; }
+            // Scripted dialogue and boss entrances are not gaps between active enemy waves.
+            if (spawning && !Hud.BubblePaused && GetTree().GetNodesInGroup("enemies").Count == 0)
+            { _gapT += delta; if (_gapT > _maxGap) _maxGap = _gapT; }
+            else _gapT = 0;
         }
         if (ReadObj(_stage, "_boss") is Enemy boss && IsInstanceValid(boss) && boss.IsPurified) _bossDefeated = true;
 

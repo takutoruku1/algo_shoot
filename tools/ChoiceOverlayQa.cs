@@ -315,7 +315,7 @@ public partial class ChoiceOverlayQa : Node
         game.SelectedEntry = GameManager.StageEntry.Start;
         GameManager.MinaNamed = true;
         foreach (var route in new[] { ("Akari", "StageAkari", 14), ("Koharu", "StageKoharu", 15), ("Rei", "StageRei", 13) })
-            for (int sel = 0; sel < ChoiceEffects.SkyChoices.Length; sel++)
+            for (int sel = 0; sel < 2; sel++)
             {
                 _root.QueueFree();
                 await Frames(2);
@@ -364,7 +364,8 @@ public partial class ChoiceOverlayQa : Node
                     await Frames(1);
                 }
                 string id = route.Item1 == "Akari" ? "s1_sky" : route.Item1 == "Koharu" ? "s2_sky" : "s3_sky";
-                Check(selected && game.HasChoiceAt(id) && game.ChosenAt(id) == ChoiceEffects.SkyChoices[sel],
+                var skyChoices = (string[])stage.GetType().GetField("SkyChoices", Static)!.GetValue(null)!;
+                Check(selected && game.HasChoiceAt(id) && game.ChosenAt(id) == skyChoices[sel],
                     $"{route.Item1}/{sel}: weather answer is recorded accurately");
                 Check(Read<int>(stage, "_step") == route.Item3 + 1 && !hud.HoldBubble,
                     $"{route.Item1}/{sel}: clear dialogue finishes without a stuck choice");

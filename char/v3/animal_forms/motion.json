@@ -1,0 +1,276 @@
+{
+  "generator": "built-in image_gen",
+  "processing": "Existing key_trim_scale.ps1, alpha preserved, registered cell regions, 720 px output height. Torso registration follows BossAnimalArt.Frame.",
+  "characters": [
+    {
+      "id": "akari",
+      "source": "exec-5f1781c9-7e9d-4377-a38f-0d9e0d677e7d.png",
+      "prompts": [
+        "Use case: identity-preserve. Asset: Refrain 2D game boss animation sprite atlas, transparent PNG. Reference is the approved character design, preserve its exact animal anatomy, proportions, face, colors, ornaments and detailed anime cel-shaded illustration style. Create ONE atlas with exactly six full-body illustrations in a regular 3 columns x 2 rows grid, equal square cells, generous transparent margins and gutters, no labels or borders. Every sprite faces LEFT in the same side/three-quarter view. Preserve identical torso/head scale across all six. Anchor torso center at the exact center of each cell. All tails, antlers, wings, feet, ribbons fully visible within their own cells. Top row and bottom-left are a four-frame airborne locomotion cycle: 1 compact floating pose, 2 front limbs/wings rising while rear limbs/tail trail, 3 extended gliding stride or wing downstroke, 4 limbs/wing recovering inward. Clear natural anatomy changes, not translation, rotation or scaled duplicates. Bottom-middle: distinct attack WINDUP pose, gathering energy physically, head and shoulders drawn back. Bottom-right: distinct attack RECOVERY pose, head and limbs relaxing after emission, returning toward the first floating pose. No projectiles, aura, trails, particles, background, ground, shadow, text or humans. TRUE transparent alpha background, crisp clean silhouette. Keep the animal beautiful, expressive and faithful to the supplied design. Output high resolution square atlas.\nCharacter: Golden fox with white chest and black paws, blue eyes, several fluffy tails bearing ivory envelopes and cyan ribbons. Animate a floating running cycle and breathing anticipation, keep mail details.",
+        "Use case: compositing. Re-layout this exact six-pose character sprite sheet for reliable game slicing. Keep ALL SIX illustrated poses, their design, anatomy, colors, ornaments, and style unchanged. Output a LANDSCAPE 3:2 aspect-ratio atlas, 1536 by 1024 or proportional. Three equal columns and two equal rows, six square cells. Reduce each whole sprite to occupy at most 75 percent of its cell width and 80 percent of its cell height, centered, preserving aspect ratio. At least 50 pixels of FULLY TRANSPARENT empty gutter between any two characters and 25 pixels of margin from canvas edges. ALL wings/antlers/tails/ribbons entirely inside the respective cell. No silhouette can touch a neighboring sprite. No labels, frames or background; genuine alpha transparency. Preserve the four airborne motion poses in cells 1-4, windup cell 5, recovery cell 6. Do not redraw into different characters.",
+        "Use case: background-extraction. EDIT THIS IMAGE: remove its entire brown/purple/black cloudy backdrop and all glow outside character silhouettes. Replace with ACTUAL FULLY TRANSPARENT ALPHA, alpha=0 in every empty area. This is a GAME SPRITE SHEET and ANY opaque background makes it unusable. Retain ONLY the six character silhouettes, with crisp anti-aliased cutout edges. Preserve the same exact 1536x1024 canvas layout, all six positions, pose drawings, facial expressions, fur/feather colors and accessories, scale and margins. Do not recolor or redesign, do not shift/crop anything. No ground, shadow, background light, checkerboard, text, extra objects, or backdrop. Output transparent PNG."
+      ],
+      "pixelScale": 0.24,
+      "frames": [
+        {
+          "pose": "move_0",
+          "region": [
+            0,
+            0,
+            512,
+            512
+          ],
+          "core": [
+            212,
+            293
+          ]
+        },
+        {
+          "pose": "move_1",
+          "region": [
+            512,
+            0,
+            512,
+            512
+          ],
+          "core": [
+            213,
+            286
+          ]
+        },
+        {
+          "pose": "move_2",
+          "region": [
+            1024,
+            0,
+            512,
+            512
+          ],
+          "core": [
+            227,
+            306
+          ]
+        },
+        {
+          "pose": "move_3",
+          "region": [
+            0,
+            512,
+            512,
+            512
+          ],
+          "core": [
+            206,
+            293
+          ]
+        },
+        {
+          "pose": "windup",
+          "region": [
+            512,
+            512,
+            512,
+            512
+          ],
+          "core": [
+            246,
+            281
+          ]
+        },
+        {
+          "pose": "recover",
+          "region": [
+            1024,
+            512,
+            512,
+            512
+          ],
+          "core": [
+            217,
+            289
+          ]
+        }
+      ]
+    },
+    {
+      "id": "koharu",
+      "source": "exec-00a092ec-afcb-4720-93ce-b36bad933c64.png",
+      "prompts": [
+        "Use case: identity-preserve. Asset: Refrain 2D game boss animation sprite atlas, transparent PNG. Reference is the approved character design, preserve its exact animal anatomy, proportions, face, colors, ornaments and detailed anime cel-shaded illustration style. Create ONE atlas with exactly six full-body illustrations in a regular 3 columns x 2 rows grid, equal square cells, generous transparent margins and gutters, no labels or borders. Every sprite faces LEFT in the same side/three-quarter view. Preserve identical torso/head scale across all six. Anchor torso center at the exact center of each cell. All tails, antlers, wings, feet, ribbons fully visible within their own cells. Top row and bottom-left are a four-frame airborne locomotion cycle: 1 compact floating pose, 2 front limbs/wings rising while rear limbs/tail trail, 3 extended gliding stride or wing downstroke, 4 limbs/wing recovering inward. Clear natural anatomy changes, not translation, rotation or scaled duplicates. Bottom-middle: distinct attack WINDUP pose, gathering energy physically, head and shoulders drawn back. Bottom-right: distinct attack RECOVERY pose, head and limbs relaxing after emission, returning toward the first floating pose. No projectiles, aura, trails, particles, background, ground, shadow, text or humans. TRUE transparent alpha background, crisp clean silhouette. Keep the animal beautiful, expressive and faithful to the supplied design. Output high resolution square atlas.\nCharacter: Dark teal deer, ivory chest, amber eyes, crystalline mint antlers edged violet, violet and mint trailing ribbons, padlock collar. Animate a floating gallop and lowered antler windup, keep antler identity.",
+        "Use case: compositing. Re-layout this exact six-pose character sprite sheet for reliable game slicing. Keep ALL SIX illustrated poses, their design, anatomy, colors, ornaments, and style unchanged. Output a LANDSCAPE 3:2 aspect-ratio atlas, 1536 by 1024 or proportional. Three equal columns and two equal rows, six square cells. Reduce each whole sprite to occupy at most 75 percent of its cell width and 80 percent of its cell height, centered, preserving aspect ratio. At least 50 pixels of FULLY TRANSPARENT empty gutter between any two characters and 25 pixels of margin from canvas edges. ALL wings/antlers/tails/ribbons entirely inside the respective cell. No silhouette can touch a neighboring sprite. No labels, frames or background; genuine alpha transparency. Preserve the four airborne motion poses in cells 1-4, windup cell 5, recovery cell 6. Do not redraw into different characters.",
+        "Use case: background-extraction. EDIT THIS IMAGE: remove its entire brown/purple/black cloudy backdrop and all glow outside character silhouettes. Replace with ACTUAL FULLY TRANSPARENT ALPHA, alpha=0 in every empty area. This is a GAME SPRITE SHEET and ANY opaque background makes it unusable. Retain ONLY the six character silhouettes, with crisp anti-aliased cutout edges. Preserve the same exact 1536x1024 canvas layout, all six positions, pose drawings, facial expressions, fur/feather colors and accessories, scale and margins. Do not recolor or redesign, do not shift/crop anything. No ground, shadow, background light, checkerboard, text, extra objects, or backdrop. Output transparent PNG."
+      ],
+      "pixelScale": 0.222,
+      "frames": [
+        {
+          "pose": "move_0",
+          "region": [
+            0,
+            0,
+            512,
+            530
+          ],
+          "core": [
+            232,
+            342
+          ]
+        },
+        {
+          "pose": "move_1",
+          "region": [
+            512,
+            0,
+            512,
+            530
+          ],
+          "core": [
+            220,
+            343
+          ]
+        },
+        {
+          "pose": "move_2",
+          "region": [
+            1024,
+            0,
+            512,
+            530
+          ],
+          "core": [
+            227,
+            350
+          ]
+        },
+        {
+          "pose": "move_3",
+          "region": [
+            0,
+            530,
+            512,
+            494
+          ],
+          "core": [
+            233,
+            303
+          ]
+        },
+        {
+          "pose": "windup",
+          "region": [
+            512,
+            530,
+            512,
+            494
+          ],
+          "core": [
+            269,
+            332
+          ]
+        },
+        {
+          "pose": "recover",
+          "region": [
+            1024,
+            530,
+            512,
+            494
+          ],
+          "core": [
+            222,
+            310
+          ]
+        }
+      ]
+    },
+    {
+      "id": "rei",
+      "source": "exec-29743a6f-df32-43c5-af25-5a4f41f87703.png",
+      "prompts": [
+        "Use case: identity-preserve. Asset: Refrain 2D game boss animation sprite atlas, transparent PNG. Reference is the approved character design, preserve its exact animal anatomy, proportions, face, colors, ornaments and detailed anime cel-shaded illustration style. Create ONE atlas with exactly six full-body illustrations in a regular 3 columns x 2 rows grid, equal square cells, generous transparent margins and gutters, no labels or borders. Every sprite faces LEFT in the same side/three-quarter view. Preserve identical torso/head scale across all six. Anchor torso center at the exact center of each cell. All tails, antlers, wings, feet, ribbons fully visible within their own cells. Top row and bottom-left are a four-frame airborne locomotion cycle: 1 compact floating pose, 2 front limbs/wings rising while rear limbs/tail trail, 3 extended gliding stride or wing downstroke, 4 limbs/wing recovering inward. Clear natural anatomy changes, not translation, rotation or scaled duplicates. Bottom-middle: distinct attack WINDUP pose, gathering energy physically, head and shoulders drawn back. Bottom-right: distinct attack RECOVERY pose, head and limbs relaxing after emission, returning toward the first floating pose. No projectiles, aura, trails, particles, background, ground, shadow, text or humans. TRUE transparent alpha background, crisp clean silhouette. Keep the animal beautiful, expressive and faithful to the supplied design. Output high resolution square atlas.\nCharacter: Indigo/purple star bird with gold star accents, white chest, purple eyes, long feather tail and purple to gold wing tips. Four distinct natural wingbeat frames, raised-wing attack anticipation then lowering-wing recovery, preserve wing feather pattern.",
+        "Use case: compositing. Re-layout this exact six-pose character sprite sheet for reliable game slicing. Keep ALL SIX illustrated poses, their design, anatomy, colors, ornaments, and style unchanged. Output a LANDSCAPE 3:2 aspect-ratio atlas, 1536 by 1024 or proportional. Three equal columns and two equal rows, six square cells. Reduce each whole sprite to occupy at most 75 percent of its cell width and 80 percent of its cell height, centered, preserving aspect ratio. At least 50 pixels of FULLY TRANSPARENT empty gutter between any two characters and 25 pixels of margin from canvas edges. ALL wings/antlers/tails/ribbons entirely inside the respective cell. No silhouette can touch a neighboring sprite. No labels, frames or background; genuine alpha transparency. Preserve the four airborne motion poses in cells 1-4, windup cell 5, recovery cell 6. Do not redraw into different characters.",
+        "Use case: background-extraction. EDIT THIS IMAGE: remove its entire brown/purple/black cloudy backdrop and all glow outside character silhouettes. Replace with ACTUAL FULLY TRANSPARENT ALPHA, alpha=0 in every empty area. This is a GAME SPRITE SHEET and ANY opaque background makes it unusable. Retain ONLY the six character silhouettes, with crisp anti-aliased cutout edges. Preserve the same exact 1536x1024 canvas layout, all six positions, pose drawings, facial expressions, fur/feather colors and accessories, scale and margins. Do not recolor or redesign, do not shift/crop anything. No ground, shadow, background light, checkerboard, text, extra objects, or backdrop. Output transparent PNG."
+      ],
+      "pixelScale": 0.23,
+      "frames": [
+        {
+          "pose": "move_0",
+          "region": [
+            0,
+            0,
+            512,
+            530
+          ],
+          "core": [
+            227,
+            285
+          ]
+        },
+        {
+          "pose": "move_1",
+          "region": [
+            512,
+            0,
+            512,
+            530
+          ],
+          "core": [
+            198,
+            310
+          ]
+        },
+        {
+          "pose": "move_2",
+          "region": [
+            1024,
+            0,
+            512,
+            530
+          ],
+          "core": [
+            195,
+            327
+          ]
+        },
+        {
+          "pose": "move_3",
+          "region": [
+            0,
+            530,
+            512,
+            494
+          ],
+          "core": [
+            235,
+            256
+          ]
+        },
+        {
+          "pose": "windup",
+          "region": [
+            512,
+            530,
+            512,
+            494
+          ],
+          "core": [
+            228,
+            271
+          ]
+        },
+        {
+          "pose": "recover",
+          "region": [
+            1024,
+            530,
+            512,
+            494
+          ],
+          "core": [
+            219,
+            264
+          ]
+        }
+      ]
+    }
+  ]
+}

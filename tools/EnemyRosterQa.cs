@@ -114,7 +114,7 @@ public partial class EnemyRosterQa : Node
             Check(sprite.FlipH == characters[i].FlipH && Mathf.IsEqualApprox(sprite.Scale.Y * sprite.Texture.GetHeight(), 30f),
                 "new sprite faces left at a stable character size");
             Check(Read<float>(enemy, "BodyRadius", typeof(Enemy)) == 8f && Read<int>(enemy, "PanelCount", typeof(Enemy)) == 3,
-                "contact radius and shield strength remain unchanged");
+                "contact radius and shield panel count remain unchanged");
         }
         var firstWave = world.GetChildren().OfType<MidEnemy>().ToArray();
         await Frames(140);
@@ -382,6 +382,7 @@ public partial class EnemyRosterQa : Node
     private async Task CheckCameoAttacks(GameManager game, Node stage, Player player, Hud hud, string scene)
     {
         var pool = GetNode<BulletPool>("/root/Pool");
+        game.MarkIdleDialogSeen("once_midboss_shield");
         Write(stage, "_stepStarted", false);
         // 中ボスの登場カットシーン（CameoIntroScene）は会話送りを待つ＝ここでは通り抜けられない。
         // ルナティック経路はカットシーンを流さずその場で中ボスを出すので、この一歩だけ借りて弾幕に入る
@@ -417,20 +418,23 @@ public partial class EnemyRosterQa : Node
             Check(EnemyBullets().Length == 0, $"{scene}/{diff}: cameo preserves its firing interval");
             Call(cameo, "FirePattern", 0.00002d);
             int expectedFirst = scene == "Rei" ? firstCount : game.ScaleBullets(firstCount);
+            // こはる中ボスの2つ目は自機狙いの扇（FanDown）＝本数は必ず奇数（2026-10-03）。
+            // あかり/レイの2つ目はリング・雨なので従来どおり ScaleBullets。
+            int expectedSecond = scene == "Koharu" ? game.ScaleBulletsOdd(secondCount) : game.ScaleBullets(secondCount);
             CheckVolley(firstArt, expectedFirst, firstSpeed, rain: scene != "Rei");
             pool.DespawnAll();
             Write(cameo, "_fireT", 0d);
             Write(cameo, "_fireT2", secondInterval * game.DanmakuIntervalMul);
             Call(cameo, "FirePattern", 0d);
-            CheckVolley(secondArt, game.ScaleBullets(secondCount), secondSpeed, rain: false);
+            CheckVolley(secondArt, expectedSecond, secondSpeed, rain: false);
             pool.DespawnAll();
             Write(cameo, "_fireT", threshold);
             Write(cameo, "_fireT2", secondInterval * game.DanmakuIntervalMul);
             Call(cameo, "FirePattern", 0d);
-            Check(EnemyBullets().Length == expectedFirst + game.ScaleBullets(secondCount),
+            Check(EnemyBullets().Length == expectedFirst + expectedSecond,
                 $"{scene}/{diff}: simultaneous cameo attacks keep their bullet counts");
             CheckVolley(firstArt, expectedFirst, firstSpeed, rain: scene != "Rei");
-            CheckVolley(secondArt, game.ScaleBullets(secondCount), secondSpeed, rain: false);
+            CheckVolley(secondArt, expectedSecond, secondSpeed, rain: false);
         }
         game.Difficulty = GameManager.Diff.Normal;
         pool.DespawnAll();
@@ -524,14 +528,20 @@ public partial class EnemyRosterQa : Node
                     Call(enemy, "TickFire", 2.0d);
                 var bullets = SettleLeadIn(EnemyBullets());
                 int Expected(int n) => game.ScaleBullets(n);
+                // 扇（CharacterFan）だけは本数が必ず奇数＝中心の1本が予告方向の正面を通る（2026-10-03）。
+                int Fan(int n) => game.ScaleBulletsOdd(n);
+                // 片側払い（CharacterSweep：未送信・比較）は必ず2本以上＝内縁の1本が狙いそのものに載る。
+                int Sweep(int n) => Math.Max(2, game.ScaleBullets(n));
                 int count = spec.Pattern switch
                 {
-                    AttackPattern.AkariDeadline or AttackPattern.KoharuComparison => Expected(3),
-                    AttackPattern.AkariUnsent or AttackPattern.ReiClipper => Expected(2) * 2,
-                    AttackPattern.AkariVacant => Math.Max(3, Expected(5)) - 1,
-                    AttackPattern.KoharuCheer => Expected(3) * 2,
+                    AttackPattern.AkariDeadline => Fan(3),
+                    AttackPattern.KoharuComparison => Sweep(3),
+                    AttackPattern.AkariUnsent => Sweep(2) * 2,
+                    AttackPattern.ReiClipper => Fan(2) * 2,
+                    AttackPattern.AkariVacant => Math.Clamp(Expected(5), 3, 13) - 1,
+                    AttackPattern.KoharuCheer => Fan(3) * 2,
                     AttackPattern.KoharuParcel => Expected(2) * 3,
-                    AttackPattern.ReiAnonymous => Expected(1) * 3,
+                    AttackPattern.ReiAnonymous => Fan(1) * 3,
                     AttackPattern.ReiMetrics => Math.Max(2, Expected(4)),
                     _ => throw new Exception("Unexpected character attack"),
                 };

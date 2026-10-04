@@ -125,6 +125,12 @@ public partial class Enemy : Area2D
     public bool Transforming => IsInstanceValid(_transformation) && !_transformation!.IsQueuedForDeletion();
     private double _attackPoseT;
     private const double AttackPoseDur = 0.55;
+    private double _animalMotionT, _animalTechniqueCooldown = 3.0;
+    private bool _animalWindup;
+    private BossAnimalTechnique? _animalTechnique;
+    private Texture2D[] _animalFrames = System.Array.Empty<Texture2D>();
+    private string AnimalId => Form2TexPath.GetFile().Split('_')[0];
+    internal bool AnimalTechniqueActive => IsInstanceValid(_animalTechnique) && !_animalTechnique!.Finished;
 
     // ─── ボス用：言葉のシールド＋無防備窓サイクル（HPバー方式リワーク）───
     // SHIELDED（周回パネル・通常弾幕。弾はパネルのInkを削るだけ。本体HPは減らない）
@@ -538,11 +544,16 @@ public partial class Enemy : Area2D
 
     // 難易度別HPバー本数（総HP=BarHp×本数）。派生ボスが OnEnemyReady で BarCount に設定する。
     protected int DiffBars(bool finalBoss) =>
-        GetNodeOrNull<GameManager>("/root/Game")?.DiffBarBonus(finalBoss) ?? (finalBoss ? 5 : 4);
+        GetNodeOrNull<GameManager>("/root/Game")?.DiffBarBonus(finalBoss) ?? (finalBoss ? 12 : 8);
 
     // 難易度に応じた弾数。派生ボスが弾幕パターンの本数を安全にスケールするために使う。
     protected int Dn(int baseCount) =>
         GetNodeOrNull<GameManager>("/root/Game")?.ScaleBullets(baseCount) ?? baseCount;
+
+    // 自機狙いの扇はこちら（必ず奇数＝中心の1本が自機の正面を通る）。Dn は偶数を返しうる＝
+    // 中心線が空き、棒立ちの自機の両脇を弾がすり抜ける（GameManager.ScaleBulletsOdd のコメント参照）。
+    protected int DnOdd(int baseCount) =>
+        GetNodeOrNull<GameManager>("/root/Game")?.ScaleBulletsOdd(baseCount) ?? (baseCount | 1);
 
     // 難易度に応じた発射間隔。やさしいほど長く（連射が遅く）なる。
     // 派生ボスは `_fireT >= Di(基準秒)` の形でしきい値に掛けて使う。
@@ -672,10 +683,10 @@ public partial class Enemy : Area2D
         _attackPoseT -= delta;
         if (_attackPoseT > 0)
         {
-            if (_attackPoseT <= 0.2 && !_form2 && !_purified && !_crying && !_bodyDown && RecoveryTexPath.Length > 0)
+            if (_attackPoseT <= 0.2 && !_purified && !_crying && !_bodyDown && RecoveryTexPath.Length > 0)
             {
                 SetBodyPose(BossParts.Pose.Idle);
-                SetMotionFrame(ResourceLoader.Load<Texture2D>(RecoveryTexPath));
+                SetMotionFrame(_form2 ? _animalFrames[5] : ResourceLoader.Load<Texture2D>(RecoveryTexPath));
             }
             return;
         }
@@ -696,10 +707,61 @@ public partial class Enemy : Area2D
         ApplyBodyOffset();
     }
 
-    protected virtual void TickBodyMotion(double delta) { }
+    protected virtual void TickBodyMotion(double delta)
+    {
+        if (!_form2 || !BodyMotionReady || BodyAttacking) return;
+        _animalMotionT += delta;
+        SetMotionFrame(_animalFrames[_animalWindup ? 4 : (int)(_animalMotionT / 0.16) % 4]);
+    }
 
+    protected bool TickForm2Technique(double delta, BossMover mover, AreaSpellCaster caster)
+    {
+        if (!_form2) return false;
+        if (AnimalTechniqueActive) return true;
+        _animalTechniqueCooldown -= delta;
+        if (_animalTechniqueCooldown > 0 || caster.AoeActive || caster.EdgeAttackActive || caster.Suppressed) return false;
+        caster.CancelPendingAttacks();
+        mover.DeclareAttack(BossMover.Attack.Spell);
+        _animalTechnique = BossAnimalTechnique.Begin(this, AnimalId, caster);
+        _animalTechniqueCooldown = Di(8.0);
+        return true;
+    }
+
+    internal void SetAnimalWindup(bool active)
+    {
+        _animalWindup = active;
+        if (active) _attackPoseT = 0;
+    }
+
+    internal void ShowAnimalAttack()
+    {
+        _animalWindup = false;
+        TriggerAttackPose();
+    }
+
+    internal void CancelAnimalTechnique()
+    {
+        if (AnimalTechniqueActive) _animalTechnique!.Cancel();
+        _animalTechnique = null;
+        _animalWindup = false;
+    }
+
+    // 形態変化の見せ場。通常難易度は BossTransformation（World を3秒止める演出）、
+    //   ルナティックは戦闘を止めない合図（BossTransformation.FlashForm。理由はそちらのコメント）に差し替える。
+    //   ルナティックでは _transformation を持たない＝Transforming が立たない＝この瞬間も被弾も与弾も通る。
+    //   FinishFormReveal も呼ばない：止まっていないので squash→pop は自前の尺で流れ切る。
+    //   Akari／Koharu／Rei の第二形態（AdvanceForm2）とミナの龍（BossMina.CompletePhaseTransition）の
+    //   両方がここを通るので、4体ぶんの切り分けがこの1点に集まる。
     protected void RevealForm(BossTransformation.Frame previous, System.Action? completed = null)
-        => _transformation = BossTransformation.Play(this, previous, completed);
+    {
+        if (GameManager.LunaticActive)
+        {
+            BossTransformation.FlashForm(this);
+            completed?.Invoke();
+            return;
+        }
+        _transformation = BossTransformation.Play(this, previous, completed);
+    }
 
     internal void FinishFormReveal() => TickSwapAnim(1d);
 
@@ -718,7 +780,7 @@ public partial class Enemy : Area2D
 
     public Panel? SelectUnfolder(Vector2 from, Panel? current, Bullet? shot = null)
     {
-        if (UnfolderStyle == UnfolderKind.None || !UnfoldersActive) return null;
+        if (!UnfoldersActive) return null;
         bool Eligible(Panel p) => p.CanLock && (shot == null || !shot.HasChargeHit(p));
         if (current != null && IsInstanceValid(current) && _panels.Contains(current) && Eligible(current))
             return current;
@@ -731,19 +793,6 @@ public partial class Enemy : Area2D
             if (distance < nearest) { best = panel; nearest = distance; }
         }
         return best;
-    }
-
-    public Panel? CycleUnfolder(Panel? current, int step, Vector2 from)
-    {
-        var first = SelectUnfolder(from, current);
-        if (first == null) return null;
-        int at = _panels.IndexOf(first);
-        for (int i = 1; i <= _panels.Count; i++)
-        {
-            var panel = _panels[(at + (i * step) % _panels.Count + _panels.Count) % _panels.Count];
-            if (panel.CanLock) return panel;
-        }
-        return first;
     }
 
     private void SpawnOnePanel(float baseAngle)
@@ -991,6 +1040,10 @@ public partial class Enemy : Area2D
         var previous = BossTransformation.Frame.Capture(_bodySprite);
         _form2 = true;
         _attackPoseT = 0;
+        string[] poses = { "move_0", "move_1", "move_2", "move_3", "windup", "recover" };
+        _animalFrames = new Texture2D[poses.Length];
+        for (int i = 0; i < poses.Length; i++)
+            _animalFrames[i] = ResourceLoader.Load<Texture2D>(BossAnimalArt.Path(AnimalId, poses[i]));
 
         PreTexPath = Form2TexPath;
         if (Form2AttackTexPath.Length > 0) AttackTexPath = Form2AttackTexPath;
@@ -1009,6 +1062,15 @@ public partial class Enemy : Area2D
         if (_parts != null && BossAnimalArt.Contains(_bodySprite.Texture)) _parts.Visible = false;
 
         RevealForm(previous);
+        // 第二形態への切り替わり＝盤面の仕切り直し。BossTransformation が World を3秒止めて弾を全消しし、
+        //   明けると敵は新しいガワで徘徊を始める。自機だけ前の形態の位置に残るのが非対称なので、ここで
+        //   初期位置へ戻す（あかり／こはる／レイの3ボスが Form2TexPath を持つ＝3面ぶんをこの1点でまとめる）。
+        //   難易度は問わない：ルナティックでも形態変化は盤面の仕切り直しなので、ここは戻す。
+        //   実際に滑るのは変身演出が明けて World が動き出したフレーム（Player.ReturnToStart 参照）。
+        //   ルナティックは演出を出さない（RevealForm 参照＝World も弾もそのまま）ので、呼ばれたフレームから
+        //   すぐ滑り出す。弾を掃く経路が無いぶんは帰還に重ねる無敵（Player.ReturnToStart）が引き受ける
+        //   ＝ミナの段替わり（BossMina.BeginPhaseTransition）と同じ扱い。
+        Player.SendToStart(this);
         return true;
     }
 
@@ -1737,8 +1799,7 @@ public partial class Enemy : Area2D
     private void DrawLockOn(Job job, Panel? panel)
     {
         float pulse = 0.5f + 0.5f * Mathf.Sin((float)Time.GetTicksMsec() * 0.0034f);
-        float r = panel == null ? Mathf.Max(BodyHalfH, BodyRadius) + 9f + pulse : 13f + pulse;
-        DrawSetTransform(panel?.Position ?? Vector2.Zero);
+        float r = Mathf.Max(BodyHalfH, BodyRadius) + 9f + pulse;
         var color = new Color(BulletArt.PlayerColor(job), 0.65f + pulse * 0.2f);
         for (int i = 0; i < 4; i++)
         {
@@ -1774,6 +1835,17 @@ public partial class Enemy : Area2D
         }
         DrawTextureRect(art, new Rect2(markPosition, new Vector2(size, size)), false,
             new Color(Colors.White, 0.88f));
+        if (panel != null)
+        {
+            DrawSetTransform(panel.Position);
+            float subRadius = (UnfolderStyle == UnfolderKind.None ? 8f : 13f) + pulse * 0.5f;
+            for (int i = 0; i < 4; i++)
+            {
+                float angle = Mathf.Pi / 2 * i;
+                DrawArc(Vector2.Zero, subRadius, angle + 0.15f, angle + Mathf.Pi / 2 - 0.15f,
+                    10, new Color(color, 0.95f), 0.8f, true);
+            }
+        }
         DrawSetTransform(Vector2.Zero);
     }
 

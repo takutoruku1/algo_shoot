@@ -54,28 +54,13 @@ public partial class TrainingRoot : Node2D
     private bool _idleFired;     // このアイドル継続中に一度でも独り言を出したか（連呼防止。入力が戻るまで再発火しない）。
 
     private static readonly string[] TrainEnter =
-    {
-        "試し打ちですね。……ええ、思う存分どうぞ。ここでは誰も痛みません。",
-        "的が一つきり。ずいぶん寂しい射撃場ですこと。",
-        "整備の時間です。……こういう時間、嫌いではありません。",
-    };
+    { "練習に付き合っていただけるのですね。……はい、準備できております。", "的が一つきり。ずいぶん寂しい射撃場ですこと。", "整備の時間です。……こういう時間、嫌いではありません。" };
 
     private static readonly string[] TrainShoot =
-    {
-        "……いい音です。今のは、手応えがありました。",
-        "数字が増えるのは、少し気持ちがいいですね。単純です、わたくし。",
-        "この的、文句ひとつ言いませんね。……えらいです。",
-        "肩慣らしのつもりが、つい本気に。……いけませんね。",
-    };
+    { "……いい音です。今のは、手応えがありました。", "数字が増えるのは、少し気持ちがいいですね。単純です、わたくし。", "この的、文句ひとつ言いませんね。……えらいです。", "肩慣らしのつもりが、つい本気に。……いけませんね。" };
 
     private static readonly string[] TrainIdle =
-    {
-        "……ご主人様? 手が、止まっておりますよ。",
-        "お休みですか。どうぞ、ゆっくり。逃げませんので、わたくしも、的も。",
-        "静かですね。……たまには、こういう日もいいものです。",
-        "この時間、記録には残らないんですよ。もったいない話です。",
-        "暇なので、的の数を数えていました。……一つでした。",
-    };
+    { "……ご主人様? 手が、止まっておりますよ。", "お休みですか。どうぞ、ゆっくり。逃げませんので、わたくしも、的も。", "静かですね。……たまには、こういう日もいいものです。", "この時間、記録には残らないんですよ。もったいない話です。", "暇なので、的の数を数えていました。……一つでした。" };
 
     // ───── スキルパネル（トグル開閉方式）─────
     //   普段は隠して画面全体を試し打ちに使い、Tab か右上のタブをクリックしたときだけスライド表示する。
@@ -131,7 +116,10 @@ public partial class TrainingRoot : Node2D
 
         _player = new Player { Name = "Player" };
         _world.AddChild(_player);
-        _player.GlobalPosition = new Vector2(Field.Left + 30f, 120f); // 盤面の左端寄り（可動域は Field でクランプ済み）
+        // 実験場の定位置（盤面の左端寄り・可動域は Field でクランプ済み）。ダミーしか居ないので仕切り直しの
+        // 帰還（Player.ReturnToStart）は起きないが、初期位置の定義は本編と同じ窓口（StartPosition）に通す。
+        _player.StartPosition = new Vector2(Field.Left + 30f, 120f);
+        _player.SnapToStart();
         _player.SetCorruption(0f);
 
         // ダミー敵（数値が見える実験台）。被弾ごとに DPS 計へ通知。
@@ -300,7 +288,8 @@ public partial class TrainingRoot : Node2D
         GetNodeOrNull<BulletPool>("/root/Pool")?.DespawnPlayerBullets();
         _player = new Player { Name = "Player" };
         _world.AddChild(_player);
-        _player.GlobalPosition = pos;
+        _player.StartPosition = new Vector2(Field.Left + 30f, 120f); // 作り直しでも実験場の定位置を引き継ぐ
+        _player.GlobalPosition = pos;                                // 位置そのものは付け外しの前を保つ
         _player.SetCorruption(0f);
     }
 

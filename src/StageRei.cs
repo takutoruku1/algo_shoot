@@ -36,14 +36,14 @@ public partial class StageRei : Node
     private Spawner _spawner = null!;
     private int _waveBase;
     private bool _waveSpawnDone;       // 道中ステップ内：規定数を浄化してスポーン停止済み（あとは残ザコ全滅待ち）。各ステップ開始でリセット。
-    private const int MidWaveA = 36;
-    private const int MidWaveB = 14;
-    private const int MidWaveC = 16;
+    private const int MidWaveA = 72;
+    private const int MidWaveB = 28;
+    private const int MidWaveC = 32;
     // 引用の嵐（step 18）で薄く回す道中弾ぶんの見込み体数。この波は「規定数で止める」ゲートを持たず
     // 嵐が終わるまで湧き続けるので、浄化目標(StageTarget)に含めていないと嵐の途中で目標に達し、
     // Spawner が StageCleared で自動停止して以降ずっと敵ゼロになる（＝道中Cが空になる進行不能ぎみの間）。
     // 実測: 嵐の約38秒・StartIntensity 0.35 で 12体前後。取りこぼしを見て余裕を持たせる。
-    private const int StormWave = 16;
+    private const int StormWave = 32;
 
     // ボスの“チラ見せ”（カメオ）＝本戦ボスと同じ土台の短いミニボス戦（CameoBoss＝Enemy 派生・シールド制）。
     // 撃破（HP/サイクル削り切り＝改心）まで Stage は進まない。保険タイマー退場は廃止（撃たないと進めない）。
@@ -73,18 +73,14 @@ public partial class StageRei : Node
     // who: 0=あなた（送信された下書き） / 1=ミナ / 2=レイ / 3=システム表示 / 4=投稿。who=5（中継）は使わない。
     private static readonly (int who, string text, string face)[] Intro =
     {
-        // ユーザー承認済み: docs/20260914/ストーリー添削_2026-09-14.md 【12】【9】
-        //   【12】面の1行目でいきなり本人が弱音（「潜れる、はずです」）を言語化していたのを、
-        //         数字（出力八割）による観測へ置換。揺れは中盤 S3-2「見えていますか」まで取っておく。
-        //   【9】ミナが動機（「放っておけないので」）を言い切るのをやめる＝放っておけないのはプレイヤー側。
-        //         観測の帰結として足が動く形にする。こはる面と同文だった問題も同時に解消。
-        (1, "……ご主人様。潜ります。", MFace),
-        (1, "……光の出力、平常の八割ほど。——問題ありません。集計の話です。", MDoubt),   // 弱体化は数字で置く
-        (4, "「今日も20時から! 初見さん大歓迎。コメント、全部読みます。」", ""),   // 層1。配信中の声
-        (1, "……明るい投稿ですね。でも、送れなかった言葉からは、疲れた声が聞こえます。", MWorried),
-        (1, "狭い部屋です。壁一面が、配信の画面。視聴者数は「11」。……画面の中で、星逢レイが、等身大より大きく、笑っています。", MFace),
-        (1, "コメント欄が、流れています。……ひとつだけ、同じ場所に、同じ一行。「今日も来ました」。", MFace),   // こはるの結線。名前は出さない
-        (1, "……この部屋の奥に、声のもとが。——行きます。", MFace),
+        (0, "レイさんの投稿を開いた。ミナ、光の出力が落ちてる。出る前に、調子を聞かせて。", ""),
+        (1, "平常の八割ほどです。……行きたい気持ちは、減っていません。", "res://char/mina_face.png"),
+        (0, "分かった。でも、つらくなったら途中でも戻ろう。僕からも様子を見る。", ""),
+        (1, "はい。今度は、集計だけで済ませません。", "res://char/mina_face.png"),
+        (4, "今日も20時から！　初見さん大歓迎。コメント、全部読みます。", ""),
+        (1, "明るい声ですね。……でも、その下に、疲れた声も。", "res://char/mina_face.png"),
+        (0, "コメント欄に「今日も来ました」。こはるさんが話していた、一行だ。", ""),
+        (1, "声が、つながっていたのですね。……会いに行きましょう。", "res://char/mina_face.png"),
     };
 
     // S3-2 小話 Mid（仮台本 07）。「気づいて」「見て」の声の合間に、家の声「ふーん」が同じ色で混じる。
@@ -92,13 +88,13 @@ public partial class StageRei : Node
     //   ミナは自分の数字（十万）を言わない＝「比べません」で流す。
     private static readonly (int who, string text, string face)[] Mid =
     {
-        (1, "ここの声は……「気づいて」「見て」と、画面の外へ向かって、言っています。", MFace),
-        (1, "……その合間に、誰かの「ふーん」という、そっけない返事も。", MFace),
-        (4, "「登録者2000人、ありがとう。……去年の今日も、2000人。」", ""),   // 層2
-        (1, "……机の上の、伏せたスマホが。いま、一度だけ、光りました。——誰も、拾いません。", MWorried),
-        (1, "視聴者数が「8」に。……減りました。そのうち一人分は、ご本人が確認用につけている、この端末です。", MFace),
-        (1, "わたくしの光と、あの数字と、どちらが薄いか。……比べません。どちらも、集計はしますが。", MSmile),
-        (1, "……画面を見ていても、向こうの人数には入りません。——ここにある声を、祓います。", MFace),
+        (1, "ここの声は……「気づいて」「見て」と、画面の外へ向かって、言っています。", "res://char/mina_face.png"),
+        (0, "家で言われた言葉も、重なってる。「ふーん」って短い返事が、何度も。", ""),
+        (4, "「登録者2000人、ありがとう。……去年の今日も、2000人。」", ""),
+        (1, "……机の上の、伏せたスマホが。いま、一度だけ、光りました。——誰も、拾いません。", "res://char/mina_face.png"),
+        (0, "視聴者数が八に変わった。この端末は確認用だから、一人分はレイさん自身だね。", ""),
+        (1, "一人減っただけで、こんなに部屋が暗くなるのですね。……わたくしの光も、気になってしまいます。", "res://char/mina_face.png"),
+        (0, "君のことは、数字だけで決めないよ。顔を上げて。進める道は、まだ見えてる。", ""),
     };
 
     // S3-3 道中A／BossTalk（仮台本 07）。削除済みの一行を投稿の下に聞く（中身は S3-8 まで言わない）。
@@ -106,12 +102,12 @@ public partial class StageRei : Node
     //   末尾で中ボス（＝中の人）が画面の外から来る予感を置く＝ボス（ガワ）と別人格に見える仕込み。
     private static readonly (int who, string text, string face)[] BossTalk =
     {
-        (4, "「企画メモ、下書き十四件。……出せるの、ゼロ件。」", ""),   // 層2
-        (1, "……十四件。集計に、入れておきます。", MFace),   // 評価しない。H3r 小話（1）で拾う
-        (1, "公開する前に消した下書きが、一行。……ご本人に会えたら、確かめましょう。", MWorried),
-        (1, "コメント欄の、あの一行。……まだ、同じ場所にあります。", MFace),
-        (1, "……画面の笑顔が、いま、コメントをひとつ、読み上げました。……声は、明るいです。", MFace),
-        (1, "——来ます。画面の外から、足音が。……画面の中の笑顔は、動きません。", MWorried),
+        (4, "「企画メモ、下書き十四件。……出せるの、ゼロ件。」", ""),
+        (0, "十四件も、消さずに残してたんだ。話したいことが、たくさんあるんだね。", ""),
+        (1, "公開する前に消した下書きが、一行。……ご本人に会えたら、確かめましょう。", "res://char/mina_face.png"),
+        (1, "コメント欄の、あの一行。……まだ、同じ場所にあります。", "res://char/mina_face.png"),
+        (1, "……画面の笑顔が、いま、コメントをひとつ、読み上げました。……声は、明るいです。", "res://char/mina_face.png"),
+        (0, "画面の外に反応がある。ミナ、左を見て。笑っている映像とは別に、本人が来る。", ""),
     };
 
     // S3-4 中ボス レイ（仮台本 07）。先出しの本人＝中の人。ヘッドセットを首に掛けたパーカー、
@@ -119,17 +115,19 @@ public partial class StageRei : Node
     //   捨て台詞も笑顔のまま。第一声→RECLOSE（順送り）→捨て台詞、の三段で CameoBoss に渡す。
     private static readonly (int who, string text, string face)[] CameoTalk1 =
     {
-        (2, "……だれ？　配信なら、終わったけど。", RFace),
+        (2, "……だれ？　配信なら、終わったけど。", "res://char/v3/rei_face.png"),
+        (1, "ミナと申します。配信のお願いではなく、レイさんとお話をしたくて。", "res://char/mina_face.png"),
     };
     // RECLOSE（サイクルごとに順送り）。切り替わったあとは笑顔のまま崩れない。
     private static readonly (int who, string text, string face)[] CameoTalk3 =
     {
-        (2, "——はじめまして! 星逢レイです。今日も来てくれて、ありがとう。", RSmile),   // すぐ配信用の笑顔
-        (2, "逃げないで。……初見さん、まだ、いてくれるでしょう?", RSmile),
+        (2, "——はじめまして! 星逢レイです。今日も来てくれて、ありがとう。", "res://char/v3/rei_face.png"),
+        (2, "逃げないで。……初見さん、まだ、いてくれるでしょう?", "res://char/v3/rei_face.png"),
+        (1, "ここにおります。配信が終わったあとの声でも、聞かせてください。", "res://char/mina_face.png"),
     };
     private static readonly (int who, string text, string face)[] CameoPost =
     {
-        (2, "逃げたら……承知しないんだから。", RSmile),   // 捨て台詞。笑顔のまま
+        (2, "逃げたら……承知しないんだから。", "res://char/v3/rei_face.png"),
     };
 
 
@@ -138,24 +136,22 @@ public partial class StageRei : Node
     //   （step 構成は変えない前提での置き場所。こはる面と同じ流儀）。
     private static readonly (int who, string text, string face)[] CameoAfter =
     {
-        (1, "……切り替わるまで、一秒九。……画面の中の笑顔より、小さいですね。", MFace),   // 観測のみ。同一人物とは言わない
-        (1, "……あの人、画面の中へ。——画面の笑顔は、いまも、動いていません。", MWorried),
+        (1, "……急に、配信の声になりました。さっきの声を、まだ聞きたかったのに。", "res://char/mina_face.png"),
+        (0, "画面の中に隠れたみたいだ。追おう。ここからは引用が道を塞いでいる。", ""),
     };
 
     // ───────── S3-5a 道中B ＋ S3-5b 引用の嵐の接続（ミッドシナリオ枠。仮台本 07）─────────
     // 投稿「読まなきゃよかった」の直後、ガワの上に顔のない引用が貼られはじめる。
     // 07 の「接続3行」でピン留めまでを立て、そのまま step 18（嵐の本体・仮台本 11）へ落ちる。
     // 剥がし切った下に、消した一行がある（中身は S3-8 まで言わない＝改心の一段目で返す）。
-    private static readonly (int who, string text, string face)[] MidStory = CameoAfter.Concat(new (int, string, string)[]
-    {
-        // S3-5a（2行）
-        (4, "「今日のコメント、全部読んだ。……読まなきゃよかった。」", ""),   // 層3
-        (1, "……投稿の上に、引用が。一枚。……二枚。——顔のない、引用です。", MWorried),   // 嵐へ
-        // S3-5b 接続3行（この直後が嵐の本体＝step 18 QuoteStorm）
-        (4, "[星逢レイ " + Handles.Rei + "] 配信おわり 来てくれてありがとう 人数じゃないから 全部読めた それだけで十分", ""),   // ピン留め
-        (1, "……この投稿の上に、貼られていきます。——剥がします。ご主人様、撃つのは、貼りついたほうを。", MFace),
-        (3, "引用: 0", ""),   // 引用カウンタ（嵐の本体が 0→17 を刻む）
-    }).ToArray();
+    private static readonly (int who, string text, string face)[] MidStory = {
+        (4, "「今日のコメント、全部読んだ。……読まなきゃよかった。」", ""),
+        (1, "……投稿の上に、引用が。一枚。……二枚。——顔のない、引用です。", "res://char/mina_face.png"),
+        (4, "[星逢レイ @rëi_____] 配信おわり 来てくれてありがとう 人数じゃないから 全部読めた それだけで十分", ""),
+        (0, "元の投稿に、アンチャーが言葉を貼りつけてる。狙うのは、貼りついたほうだ。場所を示すよ。", ""),
+        (1, "はい。元の言葉を、傷つけずに剥がします。", "res://char/mina_face.png"),
+        (3, "引用: 0", ""),
+    };
 
     // ───────── S3-5b 引用の嵐・剥がし切りの受け（仮台本 11「剥がし切り 40〜50秒」の台詞）─────────
     // 嵐の本体（十七枚・3段階・約50秒）は step 18（QuoteStorm）が持ち、剥がし切ってからこの4行が流れる。
@@ -163,10 +159,10 @@ public partial class StageRei : Node
     // わたしを、見てよ」＝09 R47）とは別。中身は本人の前まで言わない（11 の境界）。
     private static readonly (int who, string text, string face)[] StormAfter =
     {
-        (1, "…………。", MWorried),
-        (1, "……剥がし切りました。下に、送られなかった下書きが、一件。", MFace),
-        (1, "薄い字で、一行。……覚えておきます。ご本人に、この言葉のことを聞くために。", MFace),
-        (1, "覚えておきます。……返しに行く先は、もう分かっていますので。", MFace),
+        (1, "…………。", "res://char/mina_face.png"),
+        (1, "……剥がし切りました。下に、送られなかった下書きが、一件。", "res://char/mina_face.png"),
+        (0, "「もう、いいかな」。……ここで終わりにしようとしてたのかもしれない。", ""),
+        (1, "決めつけずに、聞きに行きましょう。わたくしは、まだお話ししたいです。", "res://char/mina_face.png"),
     };
 
     // S3-5c 道中C／MidEnd（仮台本 07）。同接「3」。壁の画面が部屋を呑みこみはじめる。【濁】広がる。
@@ -174,32 +170,37 @@ public partial class StageRei : Node
     //   17（道中の選択肢 案C）: 一行目の直後に S3-5c の下書き選択が入り、受けのあと残り2行（MidEndTail）へ戻る。
     private static readonly (int who, string text, string face)[] MidEnd =
     {
-        (1, "右上の数字。「3」。……残った三つの席の、ひとつに、あの一行が。", MFace),
-        (1, "……光が、重い。……気のせいでは、なさそうです。", MDoubt),   // 【濁】広がる
-        (1, "画面が、部屋を、呑みこんでいきます。……奥に、笑顔だけが。", MFace),
+        (1, "右上の数字。「3」。……残った三つの席の、ひとつに、あの一行が。", "res://char/mina_face.png"),
+        (0, "その一行を、レイさんにも見てほしい。ここに誰がいたのか、数字だけで終わらせたくない。", ""),
+        (1, "……光が、重い。……気のせいでは、なさそうです。", "res://char/mina_face.png"),
+        (0, "画面に巻き込まれる前に、左へ。ミナ、手の重さは戻った？　短くでいい、返事して。", ""),
+        (1, "……はい。動けます。呼んでくださって、助かりました。", "res://char/mina_face.png"),
     };
 
 
-    private static readonly (int who, string text, string face)[] S35cCue = MidEnd.Take(1).Concat(new (int, string, string)[]
-    {
-        (1, "……誰も見ていないと、思っておられるのでしょうか。ご主人様。レイさんへ、何と伝えましょう。", MFace),
-    }).ToArray();
-    private static readonly string[] S35cChoices = { "誰も見てないなんて、思ってほしくない", "強がらなくていいよ。今のレイの話が聞きたい" };
+    private static readonly (int who, string text, string face)[] S35cCue = {
+        (1, "右上の数字。「3」。……残った三つの席の、ひとつに、あの一行が。", "res://char/mina_face.png"),
+        (0, "その一行を、レイさんにも見てほしい。ここに誰がいたのか、数字だけで終わらせたくない。", ""),
+        (1, "……誰も見ていないと、思っておられるのでしょうか。ご主人様。レイさんへ、何と伝えましょう。", "res://char/mina_face.png"),
+    };
+    private static readonly string[] S35cChoices = { "誰も見てないなんて、思ってほしくない", "強がっていないときの、レイさんの話が聞きたい。" };
     private static (int who, string text, string face)[] S35cReply(int sel) => sel switch
     {
-        0 => new (int, string, string)[]
-        {
-            (0, S35cChoices[0], ""),
-            (1, "……はい。客席にいること、黙っているだけでは伝わりませんものね。ご主人様の言葉を、届けます。", MFace),
-        },
-        _ => new (int, string, string)[]
-        {
-            (0, S35cChoices[1], ""),
-            (1, "……拍手をもらえるお話でなくても、聞いてほしいことはあるのでしょうね。わたくしも、一緒に聞きたいです。", MSmile),
-        },
+        0 => new (int, string, string)[] {
+        (0, "誰も見てないなんて、思ってほしくない", ""),
+        (1, "はい。黙って見ているだけでは、伝わりませんね。わたくしが見ていたことを、言葉にします。", "res://char/mina_face.png"),
+    },
+        _ => new (int, string, string)[] {
+        (0, "強がっていないときの、レイさんの話が聞きたい。", ""),
+        (1, "……拍手をもらえるお話でなくても、聞いてほしいことはあるのでしょうね。わたくしも、一緒に聞きたいです。", "res://char/mina_face.png"),
+    },
     };
     // 締めは 07 の残り2行を流用（MidEnd の二行目・三行目）。
-    private static readonly (int who, string text, string face)[] S35cTail = MidEnd.Skip(1).ToArray();
+    private static readonly (int who, string text, string face)[] S35cTail = {
+        (1, "……光が、重い。……気のせいでは、なさそうです。", "res://char/mina_face.png"),
+        (0, "画面に巻き込まれる前に、左へ。ミナ、手の重さは戻った？　短くでいい、返事して。", ""),
+        (1, "……はい。動けます。呼んでくださって、助かりました。", "res://char/mina_face.png"),
+    };
 
     // S3-6 ボス出現。ユーザー承認済み: docs/20260914/ストーリー添削_2026-09-14.md 構造指摘
     //   旧稿は空配列＝三面目のラスボスだけ口上がゼロで、無言で出現して無言で撃ってきた
@@ -207,41 +208,58 @@ public partial class StageRei : Node
     //   ガワに一言だけ言わせる＝配信の第一声そのもの。説明はしない（笑顔のまま撃ってくる怖さだけ置く）。
     private static readonly (int who, string text, string face)[] BossIntro =
     {
-        (2, "——初見さん、いらっしゃい。", RGawa),
+        (2, "——初見さん、いらっしゃい。", "res://char/v3/rei_gawa_face_v1.png"),
+        (1, "二度目です。先ほど、廊下でお会いしました。", "res://char/mina_face.png"),
+        (2, "……そうだった？　ごめん。笑って、挨拶しなきゃって、そればっかり。", "res://char/v3/rei_gawa_face_v1.png"),
     };
 
     // S3-9 クリア（仮台本 07）。同接が「4」になる（誰が増えたかは言わない）。
     //   【濁】危険域手前。「三人分」はここで初めて言う（S3-7 では「二人ぶん」に留めてある）。
     private static readonly (int who, string text, string face)[] Clear =
     {
-        (4, "「次は、本気のあなたと。——逃げたら、承知しないから。」", ""),   // 救済後
-        (1, "右上の数字が、「4」に。……ひとつ、増えました。", MSmile),
-        // 2026-09-26（docs/20260926/主人公の存在_診断と本文 §3.3(c)）：S3-2 の受け「こちらは、向こう側の数に、入りませんので」の反転。
-        //   ミナは画面の内側だから同接に入らない。入るのは画面の外＝ご主人様。「誰が増えたかは言わない」は守る（レイが問い、ミナは答えない）。
-        //   ★の行は迷い秒ゲート（s3_5c で p2 より長く迷ったときだけ＝ChoiceEffects.Hesitated）。実行時に ClearFor が残す／外す。
-        (2, "……四。……あんたは、数に入らないんでしょう。……なら、増えたの、誰。", RFace),
-        (1, "……集計は、向こう側の、ものですので。", MFace),
-        (2, ClearHesitated, RFace),          // ★s3_5c で迷ったときだけ
-        (2, "画面の向こうのあんた。……次は、好きな本の話も聞いてよ。数字が増える話じゃないけど。", RFace),
-        (2, "いまのは、初見さん向けの挨拶じゃないから。また話したい相手に、言ってるの。", RFace),
-        (1, "コメント欄の、あの一行。……まだ、同じ場所にあります。", MFace),   // 「今日も来ました」。説明しない
-        (1, "……そういえば。今日の空は、晴れていましたか。", MFace),   // 空の問い・三度目
+        (4, "次は、本気のあなたと。——逃げたら、承知しないから。", ""),
+        (1, "レイさん。視聴者数が、四に。", "res://char/mina_face.png"),
+        (2, "……誰か一人、来たのね。今日は、その人にも最後まで話せた。", "res://char/v3/rei_face.png"),
+        (1, "はい。わたくしも、本の続きを聞きたいです。", "res://char/mina_face.png"),
+        (2, "ミナがさっき話してた、案内役の人にも。話してみても、いい？", "res://char/v3/rei_face.png"),
+        (0, "初めまして、レイさん。君がその本を片づけずにいたの、気になってたんだ。", ""),
+        (2, "……見てたのね。じゃあ、前置きはいらないか。", "res://char/v3/rei_face.png"),
+        (0, "好きな場面からでいい。聞かせてほしい。", ""),
+        (2, "長いわよ。視聴者一名だからって、手を抜かないから。", "res://char/v3/rei_face.png"),
+        (0, "歓迎するよ。……ただ、今日は二人とも休んでからね。", ""),
+        (2, "分かってる。続きがあるって、悪くないわね。", "res://char/v3/rei_face.png"),
+        (1, "帰ったら、今日の空のお話も。……ご主人様、まだお時間はありますか。", "res://char/mina_face.png"),
     };
     private static readonly (int who, string text, string face)[] ClearTail =
     {
-        (1, "三人分の祈りを、抱えてしまったので。……この重さくらい、わたくしが、持ちます。", MWorried),   // 【濁】危険域手前
-        // ユーザー承認済み: docs/20260914/ストーリー添削_2026-09-14.md 構造指摘（足すべき）
-        //   「泣く」はレイ面クリアで獲得する設計なのに、本文のどこにも獲得が書かれていなかった
-        //   （mina_tears.png は FINAL と END でしか出ていない）。ここが最後の解禁点。
-        //   ミナは自分に何が起きたか説明しない＝観測できないものとして報告するだけ（獲得の可視化）。
-        (1, "……ご主人様。ひとつ、観測できないものが。", "res://char/mina_tears.png"),
-        (1, "……光が、顔のあたりから、こぼれています。……原因は、不明です。", "res://char/mina_tears.png"),
-        (1, "……集計には、入れません。……入れ方が、分かりませんので。", "res://char/mina_tears.png"),
+        (1, "三人分の声を抱えました。……この重さくらい、わたくしが。", "res://char/mina_face.png"),
+        (0, "「くらい」で済ませないで。帰ったら、一緒に整理しよう。", ""),
+        (1, "はい。……あれ。顔のあたりから、光が。", "res://char/mina_face.png"),
+        (0, "泣いてるんだと思う。うれしいのか、つらいのか、僕が決めていいことじゃないけど。", ""),
+        (1, "両方です。……両方、あってもよいのでしょうか。", "res://char/mina_face.png"),
+        (0, "うん。笑ってても、泣いてても、ちゃんと聞くよ。", ""),
     };
     // 迷い秒ゲートの行（★）。s3_5c で迷っていなければ Clear から外して流す。
-    private const string ClearHesitated = "……即答されてたら、たぶん、信じてなかった。";
-    private static (int who, string text, string face)[] ClearFor(GameManager? game)
-        => ChoiceEffects.Hesitated(game, "s3_5c") ? Clear : Clear.Where(l => l.text != ClearHesitated).ToArray();
+
+    private static readonly string[] SkyChoices = { "あるよ。帰ったら、少し一緒に休もう。", "ミナの話も、もっと聞きたい。" };
+
+    private static (int who, string text, string face)[] SkyReply(int sel) => sel switch
+    {
+        0 => new (int, string, string)[] {
+        (0, "あるよ。帰ったら、少し一緒に休もう。", ""),
+        (1, "はい。では、次のお仕事は探さずにおきます。少しだけ、何もしない時間を。", "res://char/mina_face.png"),
+        (0, "少しで足りなければ、長くしていいよ。僕も休むから。", ""),
+        (1, "ありがとうございます。……帰り道、よろしくお願いします。", "res://char/mina_face.png"),
+    },
+        _ => new (int, string, string)[] {
+        (0, "ミナの話も、もっと聞きたい。", ""),
+        (1, "報告にまとめなくても、よいでしょうか。……今日は、うまくまとまりません。", "res://char/mina_face.png"),
+        (0, "そのままでいい。僕に言いたいところから、話して。", ""),
+        (1, "ありがとうございます。……帰り道、よろしくお願いします。", "res://char/mina_face.png"),
+    },
+    };
+
+    private static (int who, string text, string face)[] ClearFor(GameManager? game) => Clear;
 
     // ───────── S3-7 戦闘中の割り込み（仮台本 07。ユーザー承認済み・2026-09-05）─────────
     // 回想の終了から選択への受け渡しでは、戦闘とBGMを再開しない。
@@ -251,23 +269,22 @@ public partial class StageRei : Node
     //   本籍がレイ面になったため、こはる面側の到達不能になった現物は撤去した（2026-09-24）＝正典はここ。
     private static readonly (int who, string text, string face)[] MidChoicePre =
     {
-        (1, "——ひとつ、ご報告を。わたくしの光、二割ほど、濁っています。", MDoubt),
-        (1, "二人ぶんの声と、貼られた引用と、いまの声を、浴びすぎました。……つづけて、いいですか。", MFace),
+        (1, "ご主人様。……ごまかすのは、やめます。光が濁って、重いです。", "res://char/mina_face.png"),
+        (1, "続けたい。でも、少し怖い。……ご主人様は、どう思いますか。", "res://char/mina_face.png"),
     };
     private static readonly string[] S37Choices = { "一緒に行こう。つらくなったら教えて", "ミナまで傷つくのは嫌だ。少し休もう" };
     private static (int who, string text, string face)[] S37Reply(int sel) => sel switch
     {
-        0 => new (int, string, string)[]
-        {
-            (0, S37Choices[0], ""),
-            (1, "……はい。つらくなったら、お伝えします。……ご主人様にも頼ってよいのだと、覚えておきます。", MFace),
-        },
-        _ => new (int, string, string)[]
-        {
-            (0, S37Choices[1], ""),
-            (1, "……わたくしが傷つくのは、嫌。そう言っていただけるとは、思っていませんでした。少しだけ、お言葉に甘えます。", MWorried),
-            (1, "……もう大丈夫です。待っていてくださって、ありがとうございました。ここからは、一つずつ。", MFace),
-        },
+        0 => new (int, string, string)[] {
+        (0, "一緒に行こう。つらくなったら教えて", ""),
+        (1, "……はい。つらくなったら、お伝えします。……ご主人様にも頼ってよいのだと、覚えておきます。", "res://char/mina_face.png"),
+    },
+        _ => new (int, string, string)[] {
+        (0, "ミナまで傷つくのは嫌だ。少し休もう", ""),
+        (1, "……はい。休みたいです。待っていただけますか。", "res://char/mina_face.png"),
+        (0, "もちろん。君の返事を待つくらい、何でもないよ。呼んでくれるまで、ここにいる。", ""),
+        (1, "……もう大丈夫です。待っていてくださって、ありがとうございました。ここからは、一つずつ。", "res://char/mina_face.png"),
+    },
     };
     private double _s37RestRemaining;
     private int _s37RestLine;
@@ -294,11 +311,6 @@ public partial class StageRei : Node
     private (int who, string text, string face)[] _storyAftermath = System.Array.Empty<(int, string, string)>();
     private static readonly (int who, string text, string face)[] NoLines = System.Array.Empty<(int, string, string)>();
 
-    // ── ルナティック（2026-09-26 作者指示「回想・エンディング・選択肢はカット、常に敵が出続け、ボス戦は止まらない」）──
-    //   GameManager.IsLunatic のとき true。会話 step（イントロ／小話／下書き選択／嵐の前後の受け／ボス口上／クリアの独白）と
-    //   S3-7 の戦闘中割り込みを踏まず、波→中ボス→波→引用の嵐→波→本ボス→クリア を切れ目なく繋ぐ。
-    //   引用の嵐（step 18）は射撃ギミックなので残す。回想・アフターも流さない（改心会話は BossRei）。
-    //   チュートリアル系の once（StageTutorial.Take*）も消費しない。従来難易度は _lunatic=false で従来の分岐のまま。
     private bool _lunatic;
     // 会話・選択の step 一覧（1 イントロ／2 道中会話／4 道中A後の観測／9 s3_5c／11 ボス口上）。
     //   7（嵐の接続）と 19（嵐の受け）は飛び先が 18／8 なので Step_MidStory／Step_StormAfter の側で飛ばす。
@@ -757,6 +769,9 @@ public partial class StageRei : Node
             };
             World.AddChild(_cameo);
             _cameo.GlobalPosition = new Vector2(SpawnX, 70f);
+            // 中ボス戦の開始＝中ボスが湧き位置に立つ仕切り直し。自機も初期位置へ戻す（ルナティックでも戻す）。
+            //   実際に滑るのは登場カットシーン／会話が明けたフレーム（Player.ReturnToStart 参照）。
+            Player?.ReturnToStart();
         }
 
         // 撃破→捨て台詞を流し切ったら次フェーズへ（本ボスへ向かう道中後半）。
@@ -775,6 +790,10 @@ public partial class StageRei : Node
     {
         if (_spawner != null) return;
         (GetTree().GetFirstNodeInGroup("stagebg") as StageBackground)?.BeginRoute();
+        // 道中の段の頭（A/B/引用の嵐/C の各波）＝直前の波で盤面の弾とザコを掃き切ってから湧き直す仕切り直し。
+        //   敵がゼロから湧き直すのに自機だけ前の段の位置に残るのが非対称なので、自機も初期位置へ戻す。
+        //   ルナティックは除外（理由は StageAkari.StartMidwaveSpawner と同じ＝戦闘を途切れさせない設計）。
+        if (!_lunatic) Player?.ReturnToStart();
         // ルナティック：浄化目標に達しても湧きを止めない（嵐の途中で目標に達して以降が敵ゼロになるのを断つ。Spawner 側のコメント参照）。
         _spawner = new Spawner { Name = "Spawner", World = World, Theme = StageTheme.Rei, StartIntensity = startIntensity, IgnoreStageCleared = _lunatic };
         AddChild(_spawner);
@@ -802,6 +821,8 @@ public partial class StageRei : Node
             _boss = new BossRei { Name = "BossRei", MemoryFollowUp = BeginMemoryFollowUp };
             World.AddChild(_boss);
             _boss.GlobalPosition = new Vector2(SpawnX, 70f);
+            // ボス戦の開始＝ボスが湧き位置に立つ仕切り直し。自機も初期位置へ戻す（ルナティックでも戻す）。
+            Player?.ReturnToStart();
             _bossActive = true;
             (GetTree().GetFirstNodeInGroup("stagebg") as StageBackground)?.EnterBoss();
             Advance();
@@ -913,11 +934,6 @@ public partial class StageRei : Node
         }
     }
 
-    // ───── S3-7 の下書き選択（3択。こはる面の Step_MidChoice を案C の温度3択へ組み直したもの）─────
-    //   Pre 最終行「……つづけて、いいですか。」のバブルを保持したまま（＝BubblePaused 継続で弾・敵は
-    //   停止のまま）ChoiceOverlay を重ねる。
-    // 自動プレイ互換（--qa/--demo）: QaPilot/DemoPilot は BubblePaused 中 Z をパルスし続けるため、
-    //   既定カーソルのまま1パルスで即決される＝ここで詰まらない（3択どれでも同じ step 17 へ収束する）。
     private ChoiceOverlay? _midChoice;
     private double _s37ChoiceT;                       // 提示からの経過＝迷い秒数（RecordChoice へ渡す）
     private (int who, string text, string face)[] _s37After = System.Array.Empty<(int, string, string)>();
@@ -1017,12 +1033,7 @@ public partial class StageRei : Node
             var recScore = game?.RecordScore("rei", game.Difficulty, score) ?? (true, (long?)null);
             Hud.ShowClearBanner("STAGE 3 CLEAR", _clearTime, rec.isBest, rec.prev, score, recScore.isBest, recScore.prev);
             GetNodeOrNull<BulletPool>("/root/Pool")?.DespawnAll(); // クリア時に自弾・残弾を一掃(#17)
-            // ルナティック：アフター（フィルム→独白）は流さない。下のホールドでリザルトを読ませてから帰る。
             if (_lunatic) return;
-            // 撃破後のアフター：
-            //   ミナ本編＝レイのフィルム → 明けの Clear（ミナの独白）。
-            //   他ジョブ潜行＝一枚絵を起こさず CharacterStory.Aftermath（潜行キャラ×この面のボスの9通り）を
-            //     会話で流し、そのまま帰還ビートへ繋げる（アフター→帰還挨拶の順。2026-09-23 ユーザー指示）。
             if (_charStory)
             {
                 _clearLines = _storyAftermath.Concat(_storyReturn).ToArray();
@@ -1053,8 +1064,8 @@ public partial class StageRei : Node
         if (_clearPhase == 2)
         {
             if (_charStory) Step_Lines(delta, _clearLines!);
-            else Step_Choice(delta, "s3_sky", _clearLines!, ChoiceEffects.SkyChoices,
-                ChoiceEffects.SkyReply, ClearTail);
+            else Step_Choice(delta, "s3_sky", _clearLines!, SkyChoices,
+                SkyReply, ClearTail);
         }
     }
 

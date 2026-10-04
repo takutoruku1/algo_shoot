@@ -17,6 +17,16 @@ public static class Field
     public const float CenterY = (Top + Bottom) * 0.5f;
     public static Rect2 Rect => new Rect2(Left, Top, Width, Height);
 
+    // ── 自機の初期位置 ──
+    //   「ステージ開始で湧く場所」であり、「場が仕切り直される瞬間（中ボス戦・ボス戦・道中の波の継ぎ目・
+    //   ボスの形態変化）に戻す先」でもある唯一の定義元。2026-10-03 まで各ルート（Akari/Koharu/Rei/Mina/Main）が
+    //   同じ `new Vector2(Field.Left + 60f, 108f)` を5箇所に重複して書いていた＝盤面が動いたときに腐る種だった。
+    //   値そのものは据え置き：盤面の左端から60px（サイドパネル裏に湧かない）／縦は盤面中央のやや上。
+    //   読む側は Player.StartPosition（練習場だけ縦を上書きする）。
+    public const float PlayerStartX = Left + 60f;
+    public const float PlayerStartY = 108f;
+    public static Vector2 PlayerStart => new Vector2(PlayerStartX, PlayerStartY);
+
     // 設計座標(1280×720)版（UiKit.BeginDesign 後の HUD 描画用）。
     //   HUD は BeginDesign で 1280×720 に伸ばして描くので、盤面に揃えたい UI はこちらを見る。
     //   中央寄せは画面全体の中央ではなく DCenterX を使う。

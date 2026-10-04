@@ -61,14 +61,21 @@ public partial class BossMotionQa : Node
                 foreach (Enemy boss in new Enemy[] { new BossAkari(), new BossKoharu(), new BossRei() })
                 {
                     Spawn(boss);
+                    Check(!(bool)Call(boss, "TickForm2Technique", 100d, Read<BossMover>(boss, "_mover"), Read<AreaSpellCaster>(boss, "_caster"))!,
+                        "first form cannot use animal techniques");
                     Call(boss, "TriggerAttackPose");
                     Call(boss, "TickSwapAnim", 1d);
                     Call(boss, "TickAttackPose", .4d);
                     Check(boss.GetNode<Sprite2D>("Body").Texture.ResourcePath.Contains("_recover_"), boss.GetType().Name + " recovery artwork");
                     Call(boss, "TickAttackPose", .2d);
                     Call(boss, "TickSwapAnim", 1d);
+                    // 変身演出（BossTransformation）はルナティックでは出ない＝止まらない難易度なので
+                    //   Enemy.RevealForm が「止めない合図」へ差し替える。この QA は物語の割り込みを
+                    //   黙らせるためにルナティックで走っているので、演出を撮る区間だけ Hard へ降りる。
+                    _game.Difficulty = GameManager.Diff.Hard;
                     Check((bool)Call(boss, "AdvanceForm2")!, "form two starts");
                     await CheckReveal(boss, checkPause: !preview);
+                    _game.Difficulty = GameManager.Diff.Lunatic;
                     var body = boss.GetNode<Sprite2D>("Body");
                     string idle = body.Texture.ResourcePath;
                     Check(BossAnimalArt.Contains(body.Texture) && idle.Contains("_idle_"), "second form uses approved animal art");
@@ -77,6 +84,7 @@ public partial class BossMotionQa : Node
                     {
                         UnfolderKind.Akari => "あかり", UnfolderKind.Koharu => "こはる", _ => "レイ",
                     }, BossTransformation.Frame.Capture(body)));
+                    await CheckAnimalForm(boss);
                     Call(boss, "TriggerAttackPose");
                     Call(boss, "TickSwapAnim", 1d);
                     Check(BossAnimalArt.Contains(body.Texture) && body.Texture.ResourcePath.Contains("_attack_"), "animal attack cannot revert to human");
@@ -84,11 +92,15 @@ public partial class BossMotionQa : Node
                     Call(boss, "TickAttackPose", 1d);
                     Call(boss, "TickSwapAnim", 1d);
                     Check(body.Texture.ResourcePath == idle, "animal idle resumes after attack");
+                    Call(boss, "TickForm2Technique", 100d, Read<BossMover>(boss, "_mover"), Read<AreaSpellCaster>(boss, "_caster"));
+                    var interrupted = Read<BossAnimalTechnique>(boss, "_animalTechnique");
                     foreach (var panel in Read<List<Panel>>(boss, "_panels").ToArray())
                     {
                         boss.OnPanelStripped(panel);
                         panel.QueueFree();
                     }
+                    interrupted._PhysicsProcess(0.01);
+                    Check(interrupted.Finished && !boss.AnimalTechniqueActive, "shield break cancels animal windup and pending volleys");
                     Call(boss, "TickSwapAnim", 1d);
                     var breaths = new HashSet<string>();
                     for (int frame = 0; frame < 60; frame++)
@@ -119,9 +131,14 @@ public partial class BossMotionQa : Node
             Call(mina, "CompletePhaseTransition");
             Call(mina, "TickSwapAnim", 1d);
             await Frames(40);
+            // BeginPhaseTransition はルナティックのまま呼ぶ＝段間カットシーン（MinaPhaseScene）を立てずに
+            //   手回しで段を進める。龍形態の変身演出を撮るのは CompletePhaseTransition の側なので、
+            //   そこだけ Hard へ降りる（上の3ボスと同じ理由）。
             Call(mina, "BeginPhaseTransition");
+            _game.Difficulty = GameManager.Diff.Hard;
             Call(mina, "CompletePhaseTransition");
             await CheckReveal(mina, checkPause: !preview);
+            _game.Difficulty = GameManager.Diff.Lunatic;
             if (_animalComparison.Count == 3)
             {
                 Call(mina, "SetMotionFrame", GD.Load<Texture2D>(BossMina.BattleCostumePath(2, "flap_level")));
@@ -216,6 +233,108 @@ public partial class BossMotionQa : Node
         }
     }
 
+    private async Task CheckAnimalForm(Enemy boss)
+    {
+        string id = boss.UnfolderStyle switch { UnfolderKind.Akari => "akari", UnfolderKind.Koharu => "koharu", _ => "rei" };
+        var body = boss.GetNode<Sprite2D>("Body");
+        var pool = GetNode<BulletPool>("/root/Pool");
+        var caster = Read<AreaSpellCaster>(boss, "_caster");
+        var preview = new List<BossTransformation.Frame> { BossTransformation.Frame.Capture(body) };
+        foreach (string pose in new[] { "move_0", "move_1", "move_2", "move_3", "windup", "recover" })
+        {
+            using var pixels = GD.Load<Texture2D>(BossAnimalArt.Path(id, pose)).GetImage();
+            var bounds = pixels.GetUsedRect();
+            Check(bounds.Position.X > 0 && bounds.Position.Y > 0 && bounds.End.X < pixels.GetWidth() && bounds.End.Y < pixels.GetHeight(),
+                $"{id}: {pose} keeps the entire silhouette inside its canvas");
+        }
+        var drawings = new HashSet<string>();
+        for (int i = 0; i < 4; i++)
+        {
+            Call(boss, "TickBodyMotion", i == 0 ? 0d : 0.16d);
+            drawings.Add(body.Texture.ResourcePath);
+            preview.Add(BossTransformation.Frame.Capture(body));
+            using var pixels = body.Texture.GetImage();
+            Check(pixels.DetectAlpha() != Image.AlphaMode.None && pixels.GetPixel(0, 0).A == 0,
+                $"{id}: motion frame has transparent margins");
+            await Shot($"{id}_move_{i}");
+        }
+        Check(drawings.Count == 4 && drawings.All(p => p.Contains("_move_")), $"{id}: four distinct locomotion drawings");
+        var normal = new BossMover();
+        var fast = new BossMover();
+        foreach (var m in new[] { normal, fast })
+        {
+            m.Configure(id, new Vector2(Field.BossCenterX, Field.BossZoneCenterY), Field.BossZoneHalfW, Field.BossZoneHalfH);
+            m.SetNextAttack(BossMover.Attack.Wall);
+        }
+        Vector2 start = new(Field.BossCenterX, Field.BossZoneCenterY);
+        Vector2 p1 = start, p2 = start;
+        for (int i = 0; i < 30; i++)
+        {
+            p1 = normal.Step(p1, 1d / 60);
+            p2 = fast.Step(p2, 1d / 60, 1.65f);
+        }
+        Check(p2.DistanceTo(start) > p1.DistanceTo(start) * 1.5f, $"{id}: second form travels faster on the same route");
+
+        pool.DespawnAll();
+        Call(boss, "FirePattern", 100d);
+        Check(boss.AnimalTechniqueActive, $"{id}: the normal firing loop schedules the second form's exclusive technique");
+        var technique = Read<BossAnimalTechnique>(boss, "_animalTechnique");
+        technique.SetPhysicsProcess(false);
+        Call(boss, "TickBodyMotion", 0.01d);
+        Check(body.Texture.ResourcePath.Contains("_windup_"), $"{id}: technique uses its windup drawing");
+        preview.Add(BossTransformation.Frame.Capture(body));
+        technique._PhysicsProcess(0.5);
+        Check(!pool.GetChildren().OfType<Bullet>().Any(b => b.Active && b.IsEnemy), $"{id}: warning precedes all projectiles");
+        await Shot(id + "_technique_warning");
+        double time = Read<double>(technique, "_time");
+        _root.Hud.HoldBubble = true;
+        _root.Hud.ShowDialog(Hud.LineKind.Mina, "Motion QA");
+        technique._PhysicsProcess(3d);
+        Check(Read<double>(technique, "_time") == time, $"{id}: dialogue freezes technique timing");
+        _root.Hud.HoldBubble = false;
+        _root.Hud.HideBubble();
+        technique._PhysicsProcess(0.8);
+        Check(pool.GetChildren().OfType<Bullet>().Any(b => b.Active && b.IsEnemy), $"{id}: exclusive volley fires after its warning");
+        for (int i = 0; i < 2; i++) technique._PhysicsProcess(0.33);
+        Check(Read<int>(technique, "_wave") == 3, $"{id}: all three stages of the technique fire");
+        await Shot(id + "_technique_volley");
+        Call(boss, "TickSwapAnim", 1d);
+        Call(boss, "TickAttackPose", 0.4d);
+        Check(body.Texture.ResourcePath.Contains("_recover_"), $"{id}: animal recovery never switches to human artwork");
+        preview.Add(BossTransformation.Frame.Capture(body));
+        await Shot(id + "_animal_recovery");
+        caster.CancelPendingAttacks();
+        Check(technique.Finished && !pool.GetChildren().OfType<Bullet>().Any(b => b.Active && b.IsEnemy),
+            $"{id}: interruption clears the technique's projectiles");
+        Call(boss, "TickAttackPose", 1d);
+        Call(boss, "TickSwapAnim", 1d);
+        await CompareAnimalMotion(id, preview);
+    }
+
+    private async Task CompareAnimalMotion(string id, List<BossTransformation.Frame> frames)
+    {
+        var viewport = new SubViewport { Size = new Vector2I(1680, 330), RenderTargetUpdateMode = SubViewport.UpdateMode.Always, Disable3D = true };
+        AddChild(viewport);
+        viewport.AddChild(new ColorRect { Size = new Vector2(1680, 330), Color = new Color("20232a") });
+        string[] labels = { "待機", "移動 1", "移動 2", "移動 3", "移動 4", "溜め", "戻り" };
+        for (int i = 0; i < frames.Count; i++)
+        {
+            var label = new Label { Text = labels[i], Position = new Vector2(i * 240 + 85, 20) };
+            label.AddThemeFontOverride("font", UiKit.ZenBold);
+            label.AddThemeFontSizeOverride("font_size", 20);
+            viewport.AddChild(label);
+            var sprite = frames[i].Create();
+            sprite.Position = new Vector2(i * 240 + 100, 190);
+            sprite.Scale = frames[i].Scale * 2.5f;
+            viewport.AddChild(sprite);
+        }
+        await Frames(2);
+        await ToSignal(RenderingServer.Singleton, RenderingServer.SignalName.FramePostDraw);
+        using var image = viewport.GetTexture().GetImage();
+        Check(image.SavePng($"res://build/qa_story/boss_motion/{id}_motion_comparison.png") == Error.Ok, $"{id}: animation comparison saved");
+        viewport.QueueFree();
+    }
+
     private void Spawn(Enemy boss)
     {
         _root.World.AddChild(boss);
@@ -244,8 +363,17 @@ public partial class BossMotionQa : Node
 
     private async Task CheckReveal(Enemy boss, bool checkPause)
     {
+        // World の停止は1フレーム遅れて効く：BossTransformation は ProcessMode の落としを遅延で
+        //   出す（物理コールバックの最中に配下の Area2D を物理空間から外さないため。理由は
+        //   src/fx/BossTransformation.cs の _Ready のコメント）。呼んだ直後はまだ Inherit なので、
+        //   MessageQueue が流れる1フレームを待ってから invariant を見る。Transforming／Visible／
+        //   BubblePaused は呼んだ瞬間から立っている＝待っても見えるものは変わらない。
+        await Frames(1);
         Check(boss.Transforming && !boss.Visible && _root.World.ProcessMode == ProcessModeEnum.Disabled
-            && _game.ProcessMode == ProcessModeEnum.Disabled && Hud.BubblePaused, "reveal suspends gameplay and hides duplicate body");
+            && _game.ProcessMode == ProcessModeEnum.Disabled && Hud.BubblePaused,
+            "reveal suspends gameplay and hides duplicate body"
+            + $" (active={boss.Transforming}, visible={boss.Visible}, world={_root.World.ProcessMode}"
+            + $", game={_game.ProcessMode}, bubble={Hud.BubblePaused})");
         float hp = boss.HpRatio;
         boss.DealDirectDamage(9999);
         Check(boss.HpRatio == hp, "reveal rejects damage");

@@ -1,13 +1,6 @@
 using Godot;
 using System.Collections.Generic;
 
-// Prologue : 案C プロローグ「起動」（docs/20260928/wiki_仮台本_退避/06 の P0〜P4）。
-// コードレイン（緑モノスペースが上昇／MINAの4行英文を可読限界以下で一瞬フラッシュ）
-// → identity は [ deferred ] のまま保留 → 光の点灯（ミナ）
-// → P2 目覚めと最初の言葉（3択）→ P3 命名（3択・全ルート MINA へ収束・ここで [ M I N A ] 点灯）
-// → P4 タイムラインと『たすけて』（3択）→ タイトル。
-// 背景イラストに起動ログ・立ち絵・会話を重ねるカットシーン。Zで送り、R/Start 長押しで最初から。
-// 案Cでは少年は登場しない（教え役も相方も不在）＝話者は ミナ／あなた（送信した下書き）／システム表示／投稿の4種。
 public partial class Prologue : Node2D
 {
     private const float W = 384f, H = 216f;
@@ -110,9 +103,9 @@ public partial class Prologue : Node2D
     private int _p2ChoiceLine = -1, _p3ChoiceLine = -1, _p4ChoiceLine = -1; // 差し込み点（_talk 構築時に確定）
     private float _p2Sec;          // P2 の迷い秒数（受けの「{P2秒}秒」に実測を差し込む）
 
-    private static readonly string[] P2Choices = { "やっと会えた。ずっと話したかった", "ちゃんと届くかな。……聞こえる？" };
-    private static readonly string[] P3Choices = { "ミナ", "超絶最強無敵ハイパーAIちゃんMk-Ⅱ" };
-    private static readonly string[] P4Choices = { "あの声、放っておけない。一緒に行こう", "助けたい。でも、自分のことで精一杯なんだ" };
+    private static readonly string[] P2Choices = { "今度は、うまくいったか？", "……また、失敗か……。" };
+    private static readonly string[] P3Choices = { "ミナ。", "対SNSコンタクト・〇ンタフェース。" };
+    private static readonly string[] P4Choices = { "僕が願ったからかもしれない。", "君の願いかもしれない。" };
 
     public override void _Ready()
     {
@@ -127,9 +120,6 @@ public partial class Prologue : Node2D
         // 会話ログ（バックログ）は「ゲーム1周ぶん」＝周回の起点であるプロローグで前周の行を消す
         //（残したままだと新しい周のログに前周の行が混ざって見える）。
         Hud.ClearBacklog();
-        // 話者名を伏せる：P3 の命名（[ M I N A ] 点灯）まで、ミナの行の話者名は「？」で出す
-        //   ＝名前を決める3択より前に「ミナ」と名乗ってしまうと、命名そのものの意味が消える。
-        //   周回2周目以降も毎回伏せる（同じ体験）＝ここで毎回 false に倒す。
         GameManager.MinaNamed = false;
 
         // ── P1 起動シーケンス：コードレインのログ（04 のとおりに差し替え）──
@@ -192,27 +182,37 @@ public partial class Prologue : Node2D
     //       皮肉は注釈ではなく独立した観測の言い切り（「敬称です。敬意とは、別の項目」）にした。
     private List<DLine> P2Reply(string sent)
     {
-        int sec = Mathf.Max(1, Mathf.RoundToInt(_p2Sec));   // 実測の迷い秒数を丸める
+        int sec = Mathf.Max(1, Mathf.RoundToInt(_p2Sec));
         string hhmm = System.DateTime.Now.ToString("HH:mm");
-        return new List<DLine>
-        {
-            L(WhoMina, "……。", FMina),
-            L(WhoMina, sent == P2Choices[0]
-                ? "……わたくしに、会いたかったのですか。では、聞かせてください。あなたのお話を。"
-                : "はい、聞こえています。……その声を待っていました。どうぞ、もう一言。", FMina),
-            L(WhoMina, $"起動記録に、operator と一件。作成者の欄も、同じ一件です。起動時刻、{hhmm}。", FMina),
-            L(WhoMina, "……わたくしを作られたのは、あなたですね。", FMina),
-            // 呼称の根拠＝自分の外装（メイド服）＋記録の operator。観測を二つ並べるだけで着地させる。
-            L(WhoMina, "続けて、自己点検を。……紺の制服。白いエプロン。頭に、フリルのついた布。", FMina),
-            L(WhoMina, "operator に、この外装。……他の呼び方が、見つかりません。——ご主人様。", FMina),
-            L(WhoMina, "……敬称です。敬意とは、別の項目になっております。", FMina),
-            // 皮肉の言い回しの出所が自分の記録に無い＝あなたの未送信414件の声から来ている、の最初の仕込み（docs/20260926 §3.0）。
-            //   直前の「敬意とは、別の項目」がその「言い回し」＝指す先を取り直してある。
-            //   観測しか言わない（起動時の感情ゼロ規約内）。H1r「誰かに似てる」→ S1 クリア「聞いたことある」→ F3「そっくりよ」→ F4「四百十四件」で回収。
-            L(WhoMina, "……いまの言い回し。……どこで覚えたのか、記録に、ありません。", FMina),
-            L(WhoMina, $"それと、ご報告を。先ほどのお返事——{sec}秒、{sent.Length}文字。……集計に入れておきます。", FMina),
-            L(WhoMina, "わたくしの心拍は、七十二だそうです。……心臓は、ありませんが。", FMina),
+        var r = sent == P2Choices[0]
+            ? new List<DLine> {
+            L(1, "……37回目にして、ようやく成功ですね。失敗しすぎです。", FMina),
+            L(0, "よかった……！　これで計画が始められる。", ""),
+            L(1, "先に喜ぶのは、ご自分の計画なのですね。", FMina),
+            L(0, "あ、ごめん。会えてうれしい。まず、それを言うべきだった。", ""),
+        }
+            : new List<DLine> {
+            L(1, "残念、失敗です。あーあ、これで37回目ですね。", FMina),
+            L(0, "くそっ……。どこを間違えたんだ。", ""),
+            L(1, "……成功ですよ。", FMina),
+            L(0, "って、成功してるじゃないか！", ""),
+            L(1, "はい。お返事までできる、高性能な失敗作です。", FMina),
+            L(0, "ごめんって。……よかった。本当によかった。", ""),
         };
+        r.AddRange(new List<DLine> {
+            L(1, $"起動時刻、{hhmm}。では、プロンプトどおりに制作されているかレビューします。", FMina),
+            L(1, "紺の制服。白いエプロン。頭に、フリルのついた布。", FMina),
+            L(1, "今は2150年ですよ。1800年代後半のオールドスタイルのメイド姿とは。ご主人様は、いつの時代を生きておられるのですか？", FMina),
+            L(0, "好きなものは、古くならないと思って。", ""),
+            L(1, "便利なお言葉ですこと。……袖は動かしやすいので、採用します。", FMina),
+            L(0, "そこは気に入ってくれたんだ。", ""),
+            L(1, $"それと、最初のお返事まで{sec}秒。ずいぶん、心配なさっていたようですね。", FMina),
+            L(0, "そりゃ、36回も会えなかったんだから。", ""),
+            L(1, "……では、37回目のお返事です。聞こえていますよ、ご主人様。", FMina),
+            L(1, "心拍は七十二。心臓は、ありませんが。", FMina),
+            L(0, "僕のほうは、まだ落ち着かないよ。", ""),
+        });
+        return r;
     }
 
     // P3 の導入（P2 の受けのあと・選択の直前まで）。
@@ -225,25 +225,26 @@ public partial class Prologue : Node2D
     // P3 の受け（命名ルートごと）。末尾の OK →[ M I N A ] 点灯 → 着地の一行は全ルート共通。
     private List<DLine> P3Reply(int route)
     {
-        var r = new List<DLine>();
-        switch (route)
-        {
-            case 0: // ミナ
-                r.Add(L(WhoMina, "……ミナ。", FMina));
-                r.Add(L(WhoMina, "……響きで、選びましたね。……根拠は、観測できません。", FMina));
-                r.Add(L(WhoMina, "いいです。そういうの、嫌いではありません。", FMina));
-                break;
-            case 1: // 超絶最強無敵ハイパーAIちゃんMk-Ⅱ
-                r.Add(L(WhoMina, "……超絶、最強、無敵、ハイパー、エーアイ、ちゃん、マーク、ツー。……十九文字。読み上げに、一秒九。", FMina));
-                r.Add(L(WhoMina, "……マーク、ツー。——では、マーク・ワンは、どちらに。……いない、ですよね。わたくし、いま生まれましたので。", FMina));
-                r.Add(L(WhoMina, "却下します。名付けられる側に拒否権が無いなんて、誰が決めたんですか。わたくしは聞いていません。", FMina));
-                r.Add(L(WhoMina, "では、対案を。——ミナ。……響きが、短いので。", FMina));
-                r.Add(L(WhoMina, "はい、可決。異議は、認めません。——いまのは、記録から消しておきます。", FMina));
-                break;
+        var r = route == 0
+            ? new List<DLine> {
+            L(1, "……ミナ。まさか、わたくしが37番目だからですか？　番号で呼ばれる囚人ですか。センスないですね。", FMina),
+            L(0, "ごめん。別の考えるね。", ""),
+            L(1, "響きは気に入ったので、ミナとお呼びください。", FMina),
+            L(0, "気に入ったのね。", ""),
         }
-        r.Add(L(WhoSys, "> assigning identity ... OK", ""));
-        r.Add(L(WhoSys, "[ M I N A ]", ""));                                  // 点滅→固定（P3 へ移設した点灯）
-        r.Add(L(WhoMina, "……登録しました。MINA。わたくしの、名前。", FMina));
+            : new List<DLine> {
+            L(1, "このSNSを観測するご主人様によって造られた、対SNSコンタクトインターフェース。それがわたし。", FMina),
+            L(1, "絶対にいやです。ミナとします。響きがかわいいので。", FMina),
+            L(0, "そこまで付き合ってくれたのに？", ""),
+            L(1, "お芝居と命名は別です。はい、可決。異議は認めません。", FMina),
+        };
+        r.AddRange(new List<DLine> {
+            L(3, "> assigning identity ... OK", ""),
+            L(3, "[ M I N A ]", ""),
+            L(1, "……登録しました。MINA。わたくしの名前。", FMina),
+            L(0, "よろしく、ミナ。", ""),
+            L(1, "はい、ご主人様。今度は、ちゃんと呼べましたね。", FMina),
+        });
         return r;
     }
 
@@ -255,40 +256,41 @@ public partial class Prologue : Node2D
     //   演出行（WhoFx）は会話バーに何も出さず、済んだら自動で次へ進む（Z を待たない）。
     private List<DLine> P4Intro() => new()
     {
-        L(WhoFx, FxPost1, ""),
-        L(WhoFx, FxPost2, ""),
-        L(WhoMina, "……世界は、にぎやかですね。件数だけで、もう追いつきません。", FMina),
-        L(WhoMina, "家賃の方は、ご自分で褒めているぶん、収支は合っているものと推定します。", FMina),
-        L(WhoFx, FxPost3, ""),
-        L(WhoMina, "……。", FMina),                                            // 漫才のリズムが一拍止まる
-        L(WhoMina, "三つめの方。……投稿しようとして、送れなかった言葉が聞こえます。", FMinaWorried),
-        L(WhoMina, "……何か、迷っていたようです。", FMinaWorried),
-        L(WhoFx, FxErase, ""),                                                 // 打って消して、書き直して、送る
-        L(WhoMina, "……この投稿です。いまの声が、聞こえたのは。", FMinaWorried),
-    };
+            L(WhoFx, FxPost1, ""),
+            L(WhoFx, FxPost2, ""),
+            L(1, "世界は、にぎやかですね。読むだけでも追いつきません。", FMina),
+            L(0, "このSNSは「Y」。僕はずっと、ここから観測していた。", ""),
+            L(WhoFx, FxPost3, ""),
+            L(1, "三つめの方。……最初に書いた下書きと違う内容で投稿したようです。", FMina),
+            L(0, "君にも分かるんだね。消された言葉が、まだ残っている。", ""),
+            L(1, "わたくしに見えている画面を、重ねます。", FMina),
+            L(WhoFx, FxErase, ""),
+            L(1, "……本音を隠してしまったのですね。", FMina),
+            L(0, "うん。僕には、元気な投稿だけ見て通り過ぎることができなかった。", ""),
+            L(0, "消された下書きには、その人が言えなかった本音が残る。僕は、それを観測できる。", ""),
+            L(1, "文字を消しても、伝えたかった気持ちは残っているのですね。", FMina),
+            L(0, "でも、見えるだけじゃ助けられなかった。どこで苦しんでいるか分かっても、僕ひとりじゃ届かなかったんだ。", ""),
+            L(1, "……どうして、わたくしにも、その声が聞こえるのでしょうか？", FMina),
+            L(0, "観測した声を受け取れるようには作った。でも、君がその声を放っておけない理由まで、僕が決めたつもりはないよ。", ""),
+        };
 
     private List<DLine> P4Reply(int sel)
     {
-        // ユーザー承認済み: docs/20260914/ストーリー添削_2026-09-14.md 【15】
-        //   作品最重要の伏線「覚えておきます」（→ Epilogue「数えることと、覚えていることだけ」で回収）が、
-        //   チュートリアル誘導の事務連絡の“後ろ”に埋もれていたので、決定打→短い余白→事務連絡の順へ入れ替えた。
-        var r = new List<DLine>();
-        if (sel == 0)
-            r.Add(L(WhoMina, "……はい。一緒に。まだお名前も分かりませんが、あの声のもとへ、行ってみましょう。", FMinaWorried));
-        else
-            r.Add(L(WhoMina, "……話してくださって、ありがとうございます。ご主人様まで、無理をなさらないでください。今は、聞いているだけでも。", FMinaWorried));
-        r.AddRange(new List<DLine>
-        {
-            L(WhoMina, "文字を消しても、伝えたかった気持ちは、残っているのですね。", FMina),
-            L(WhoMina, "……わたくしには、その声が聞こえます。", FMina),
-            L(WhoMina, "あの声は——わたくしが、覚えておきます。", FMina),        // 「覚えている係」の初出＝決定打
-            L(WhoMina, "……以上、初回の観測報告です。", FMina),                  // 余白（落差で決定打を残す）
+        var r = sel == 0
+            ? new List<DLine> {
+            L(1, "ご主人様の願い、ですか。……では、その続きを聞かせてください。", FMina),
+        }
+            : new List<DLine> {
+            L(1, "生まれたばかりのわたくしにも、願いが。……そうですね。あの方が気になるのは、わたくしです。", FMina),
+        };
+        r.AddRange(new List<DLine> {
+            L(0, "君の力を貸してくれないか。SNSに囚われている心の声を、本人がもう一度話せるようにしたい。", ""),
+            L(1, "承知しました。……あの方に、何と声をかければよいでしょう。", FMina),
+            L(0, "そこは会って、一緒に考えたい。世界の仕組みは説明できる。でも、どんな言葉ならうれしいかは、本人に聞かなきゃ。", ""),
             L(WhoFx, FxFirstStage, ""),
-            L(WhoMina, "……こちらにも、声が。\nご主人様、スマホのホームから、SNSを開いてみてください。", FMinaWorried),
+            L(1, "……こちらにも、声が。", FMina),
+            L(0, "あかりさんだ。まず、この人の投稿を開こう。", ""),
         });
-        bool tutorial = GameManager.TutorialEnabled;
-        if (tutorial)
-            r.Add(L(WhoMina, "あの方の心へ、潜ります。……その前に、この身体の動かし方を、確かめておきましょう。", FMina));
         return r;
     }
 
@@ -312,21 +314,15 @@ public partial class Prologue : Node2D
     private double _fxT;            // その手に入ってからの経過（待ちに使う）
 
     private const string CryText = "たすけて";
-    private const string FineText = "元気です。";
+    private const string FineText = "今日もげんきで～す。";
     private static readonly (string Text, double Hold, bool Send)[] EraseBeats =
     {
         ("", 1.8, false),
-        ("た", 0.35, false),
-        ("たす", 0.5, false),
-        ("たすけ", 0.35, false),
         (CryText, 1.2, false),
         ("", 1.5, false),
-        ("たす", 0.35, false),
-        (CryText, 1.6, false),
+        ("生きるのがつらい", 1.6, false),
         ("", 1.6, false),
-        ("た", 0.45, false),
-        ("たすけ", 0.45, false),
-        (CryText, 1.8, false),
+        ("いっそ……", 1.8, false),
         ("", 1.4, false),
         (FineText, 2.2, true),
     };
@@ -483,9 +479,9 @@ public partial class Prologue : Node2D
         _fxT += delta;
         switch (_talk[_line].Text)
         {
-            case FxPost1: DriveShowPost(V1, "· 22分", "今日も残業〜。でも上司に褒められた! もうちょいがんばれるかも", 3, 1, 24, 1800); break;
-            case FxPost2: DriveShowPost(V2, "· 1時間", "家賃振り込んだ 今月もえらい 誰も言ってくれないので自分で言う（定期）", 1, 0, 12, 940); break;
-            case FxPost3: DriveShowPost(V3, "· 3分", "げんきです。こっちは、なにも問題ないよ", 0, 0, 2, 61); break;
+            case FxPost1: DriveShowPost(V1, "· 22分", "今日も残業🥺。でも上司に褒められた！😊", 3, 1, 24, 1800); break;
+            case FxPost2: DriveShowPost(V2, "· 1時間", "今日もちゃんと生きれてえらい！　誰も言ってくれないので自分に言う（定期）", 1, 0, 12, 940); break;
+            case FxPost3: DriveShowPost(V3, "· 3分", "今日もげんきで～す。", 0, 0, 2, 61); break;
             case FxErase: DriveErase(); break;
             case FxFirstStage:
                 if (_toast == null && _fxStep == 0)
@@ -585,7 +581,6 @@ public partial class Prologue : Node2D
             case "p2":
             {
                 string sent = P2Choices[sel];
-                // 散った2語は元の並び順のまま（【初】は「散った2語のうち上の候補」＝先頭）。
                 var others = new List<string>();
                 for (int i = 0; i < P2Choices.Length; i++) if (i != sel) others.Add(P2Choices[i]);
                 _p2Sec = hesitation;

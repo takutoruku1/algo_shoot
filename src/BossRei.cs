@@ -46,7 +46,6 @@ public partial class BossRei : Enemy
     private bool _relayWatching;   // リレー進行中（完走判定待ち）
     private int _relayStartLives;
 
-    // HPがこの割合を割るたびに攻撃パターンを変える（独白は浄化のかけあいに集約）。
     private static readonly float[] PatternThresholds = { 0.78f, 0.50f, 0.26f };
 
     // ── 「また逃げる」ギミック（#12 機構側）：攻めない時間が続くと弾密度が漸増する圧 ──
@@ -72,13 +71,7 @@ public partial class BossRei : Enemy
 
     // 挑発（ボスの動的セリフ演出＝ShowBossLine。弾は止めない。中継 who=5 は使わない）。
     private static readonly string[] TauntLines =
-    {
-        "初見さん、いらっしゃい!",                  // カットイン『初見さんいらっしゃい』と同じ入り
-        "戦ってよ。わたしを、ちゃんと見てよ。",       // 動詞「見て」の本家。ガワの口から
-        // 2026-09-26（docs/20260926 §3.3(a)）：与ダメゼロ＝ご主人様の手が止まったときにしか出ない行＝文字どおり手を見ている。
-        //   3本目以降はこの行が繰り返される（Min(idx, len-1)）。同接が 1 増える理屈（S3-9「4」）の予告。
-        "……手、止まってる。……見てるだけの人、ひとり、増えたのね。",   // 笑顔のまま。ガワは割らない
-    };
+    { "初見さん、いらっしゃい!", "戦ってよ。わたしを、ちゃんと見てよ。", "……ミナ、手が止まってる。わたしの話、つまらなかった？" };
 
     // スペルカード（仮台本 07 の S3-6。弾形・色は v3 の銀菫金ティールのまま、名前だけ案C へ）。
     // index は _pattern と一致。切替時に弾形・色を変え、X風スペル宣言を出す。
@@ -111,31 +104,17 @@ public partial class BossRei : Enemy
         GetHud()?.AnnounceSpell("レイ", BossHandles.ReiMain, s.name, s.tint);
     }
 
-    // S3-8 改心（仮台本 07。ユーザー承認済み・2026-09-05）。二段で抜く：
-    //   (1) ミナが S3-5b の引用を剥がし切った下から拾った「消した一行」を本人へ返す
-    //   (2) 見ていた証人として、ミナ自身の言葉で決定打（「だれも見ていない場所に、あなたが書いて、消した一行を」）
-    // 案C に少年は居ないので中継（who=5）も使わない＝決定打はミナが自分の声で言う。
-    // 式の語彙も順位の語彙も使わず、叩いた側の話もしない。ガワの姿のまま、笑顔のまま声だけが崩れていく。
-    // 「見ていました。」の行で BGM を落とし、決定打を無音のまま置く（あかり・こはる面と同型）。
-    // 決定打でガワが割れ、笑っていない中の人が出る＝割れるのは「もう隠れなくていい」の意味で、
-    // ガワを壊す言葉は誰も言わない。
-    // ユーザー承認済み: docs/20260914/ストーリー添削_2026-09-14.md 【6】
-    //   三面の改心が「消した一行を提示 → 回数の証言 → 相手の絶句」の同一フォーマット三連発で、
-    //   三面目には次の行が読めてしまっていた（構造が透ける＝シナリオ感）。
-    //   レイだけ順序を反転する：**先に判決、後から証拠**。
-    //   「見ていました。」を単独で置いて相手に「なにを」と言わせる＝プレイヤーも一緒に問い返す。
-    //   その一拍後に答えが来る（遅延した理解）。レイの芯＝「気づいてほしい／気づかれるのが怖い」とも合う。
     private const string RCry = "res://char/v3/rei_face_cry.png";
     private static readonly (int who, string text, string face)[] Lines =
     {
-        (2, "初見さん、大歓迎。コメント、全部読むから。……ぜんぶ、読んだから。", ""),
-        (2, "登録者、二千。去年も、二千。……減ってない。減ってないでしょう?", ""),
-        (2, "だから……だからなんで、だれも、中にいるわたしに、気づいてくれないのよ!", ""),   // ガワの姿のまま、笑顔のまま
-        (1, "見ていました。", ""),                                              // (2) 決定打の前半。ここで BGM 停止
-        (2, "……は? ……なに、それ。……見てたって、なにを——", ""),              // 笑顔のまま、声だけが崩れる
-        (1, "だれも見ていない場所に、あなたが書いて、消した一行を。", ""),      // 決定打の後半。ここでガワが割れる
-        (1, "「わたしに、気づいてよ。わたしを、見てよ」。", ""),                 // (1) 証拠は最後。S3-5b の回収
-        (2, "…………。", RCry),   // 中の人。笑っていない
+        (2, "初見さん、大歓迎。コメント、全部読むから。……ぜんぶ、読んだから。", "res://char/v3/rei_gawa_face_v1.png"),
+        (2, "登録者、二千。去年も、二千。……減ってない。減ってないでしょう?", "res://char/v3/rei_gawa_face_v1.png"),
+        (2, "だから……だからなんで、だれも、中にいるわたしに、気づいてくれないのよ!", "res://char/v3/rei_gawa_face_v1.png"),
+        (1, "見ていました。", "res://char/mina_face.png"),
+        (2, "……は? ……なに、それ。……見てたって、なにを——", "res://char/v3/rei_gawa_face_v1.png"),
+        (1, "だれも見ていない場所に、あなたが書いて、消した一行を。", "res://char/mina_face.png"),
+        (1, "「わたしに、気づいてよ。わたしを、見てよ」。", "res://char/mina_face.png"),
+        (2, "…………。", "res://char/v3/rei_face_cry.png"),
     };
     // 決定打の手前で BGM を落とす行（0始まり。Lines の「見ていました。」）＝ここから無音のまま置く。
     private const int SilenceAtLine = 3;
@@ -151,6 +130,16 @@ public partial class BossRei : Enemy
     private (int who, string text, string face)[] _lines = Lines;
     private int _storySilenceAt = -1;
     // 他ジョブ潜行の回想（CharacterStory.Memory）を会話枠だけで送るドライバ。null＝ミナ潜行（＝フィルム）。
+    private static readonly (int who, string text, string face)[] MemoryLeadIn = {
+        (1, "その「いらっしゃい」は、最初から今の言い方だったのですか。", "res://char/mina_face.png"),
+        (2, "……もっと、下手だったわよ。誰もいない画面に、何しゃべればいいか分からなくて。", "res://char/v3/rei_gawa_face_v1.png"),
+        (1, "それでも、始めたかったのですね。", "res://char/mina_face.png"),
+        (2, "帰ってきた人に、おかえりって言える場所が欲しかったの。わたしも、誰かに言ってほしかったから。", "res://char/v3/rei_gawa_face_v1.png"),
+        (1, "最初に、言葉を返してくれた人は？", "res://char/mina_face.png"),
+        (2, "一行だけ。「今日、誰とも話してなかった」って。……まだ、覚えてる。", "res://char/v3/rei_gawa_face_v1.png"),
+        (1, "聞かせてください。その一行を読んだ、レイさんのお話を。", "res://char/mina_face.png"),
+    };
+
     private CharacterStoryTalk? _memoryTalk;
 
     protected override void OnEnemyReady()
@@ -166,7 +155,6 @@ public partial class BossRei : Enemy
         PanelsFire = false;
         EnemyBulletSpeed = BossTuning.F("rei", "bullet_speed", 82f);
 
-        // HPバー本数は難易度別（通常ボス：Easy2/Normal4/Hard5/Lunatic6）。総HP=BarHp×本数。
         // INI hp_bars > 0 で全難易度を固定本数に上書きできる。
         int bars = BossTuning.I("rei", "hp_bars", 0);
         BarCount = bars > 0 ? bars : DiffBars(finalBoss: false);
@@ -275,7 +263,7 @@ public partial class BossRei : Enemy
     {
         // 自機の位置は毎フレーム渡す（自機狙いの追従＝x と y の両方、向きの反転判定に要る）。
         if (GetTree().GetFirstNodeInGroup("player") is Node2D pl) _mover.SetPlayerPos(pl.GlobalPosition);
-        GlobalPosition = _mover.Step(GlobalPosition, delta);
+        GlobalPosition = _mover.Step(GlobalPosition, delta, IsForm2 ? 1.65f : 1f);
         ApplyBossMotion(_mover.VisualOffset, _mover.Lean, IsForm2 ? !_mover.FacingLeft : _mover.FacingLeft, _mover.SquashScale);
         FxLayer.Instance?.EmitBossAura(FxLayer.BossAura.Rei, GlobalPosition, (float)delta, 32f);
         TickRelayWatch();
@@ -343,6 +331,7 @@ public partial class BossRei : Enemy
         // 安置リレー（最終選考）の宣告〜最終着弾中は通常弾を止める（避け先＝安置へ集中させる）。
         // このあいだは「宣告付きの大技」の立ち位置＝中央の高めに据わって動かない（見せ場を固定する）。
         if (_caster != null && (_caster.AoeActive || _caster.EdgeAttackActive)) { _mover.SetNextAttack(BossMover.Attack.Spell); return; }
+        if (TickForm2Technique(delta, _mover, _caster!)) return;
         if (_finale) { FireFinale(pool, delta); return; }
         _fireT += delta;
         // 「また逃げる」圧：リング系は弾数+_pressure、自機狙いは扇の枚数が増える（Aimed 内）。
@@ -487,12 +476,7 @@ public partial class BossRei : Enemy
     // RECLOSE のキャラ別弱気セリフ（序盤=虚勢→終盤=弱気。サイクルごとに index を進め、超えたら最後を使い回す）。
     // S3-6 の RECLOSE（仮台本 07）。笑顔のまま。ガワは崩れず、言葉だけが逃げ腰になっていく。
     private static readonly string[] RecloseLines =
-    {
-        "……逃げるの? また。——いいわ。切り抜かれないんだから、わたし。",
-        "初見さん、まだ、いてくれるでしょう?",
-        "……あんたの後ろ。初見さん、いるでしょう? ……いらっしゃい。",   // 2026-09-26（docs/20260926 §3.3(b)）：ミナの後ろの初見＝あなた。最終形「見てて」は最後のまま
-        "見てて。……ちゃんと、見ててよ。",
-    };
+    { "……逃げるの? また。——いいわ。切り抜かれないんだから、わたし。", "初見さん、まだ、いてくれるでしょう?", "……ミナ。初見さんって呼ばないほうが、ここにいてくれる？", "見てて。……ちゃんと、見ててよ。" };
     private int _recloseIdx;
     protected override void OnRecloseLine()
     {
@@ -565,11 +549,12 @@ public partial class BossRei : Enemy
                 _memoryTalk = CharacterStoryTalk.Start(CharacterStory.Memory(game.SelectedJob, "rei"),
                     GetHud, ShowStoryLine, ResumeBattle);
             }
-            else ReiStoryFilm.Play(GetHud()!, GetParent(), aftermath: false, completed: () =>
-            {
-                if (MemoryFollowUp != null) MemoryFollowUp(ResumeBattle);
-                else ResumeBattle();
-            });
+            else _memoryTalk = CharacterStoryTalk.Start(MemoryLeadIn, GetHud, ShowStoryLine,
+                () => ReiStoryFilm.Play(GetHud()!, GetParent(), aftermath: false, completed: () =>
+                {
+                    if (MemoryFollowUp != null) MemoryFollowUp(ResumeBattle);
+                    else ResumeBattle();
+                }));
             return;
         }
         if (!_seq && !_memoryPending && !_relayWatching && _posts.TryStart()) return;

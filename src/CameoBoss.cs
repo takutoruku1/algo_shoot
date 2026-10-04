@@ -43,7 +43,7 @@ public partial class CameoBoss : Enemy
 {
     // ───────── スケール調整用の定数（道中ミニボス相当に縮小。本戦ボスより控えめ）─────────
     // 後で調整しやすいよう、ここ1か所に集約する。総HP = Enemy.BarHp(100) × CameoBars。
-    private const int CameoBars = 2;          // HPバー本数（=サイクル数の目安。本戦は難易度別3〜6本）
+    private const int CameoBars = 4;
     private const int CameoPanels = 3;        // 周回パネル枚数（本戦5より少なめ）
     private const int CameoPanelInk = 8;
     private const float CameoOrbitR = 24f;    // パネル周回半径
@@ -108,9 +108,10 @@ public partial class CameoBoss : Enemy
     private readonly RandomNumberGenerator _rng = new RandomNumberGenerator();
 
     // 撃破後の捨て台詞ドライバ（Enemy.Redeem→OnCryStart で起動）。
-    private bool _defeatSeq;
-    private int _defeatIdx;
-    private double _defeatT;
+
+    private CharacterStoryTalk? _defeatTalk;
+
+
 
     private const string ShieldIntroKey = "once_midboss_shield";
     private bool _shieldIntroduced;
@@ -156,24 +157,21 @@ public partial class CameoBoss : Enemy
 
     private static (int who, string text, string face)[] ShieldIntroLines(Job job)
     {
-        var (shield, panels, opening) = job switch
-        {
-            Job.Melee => ("あの板がシールドになってる。\nこのままじゃ、本体まで届かないね。",
-                "周りの板を全部砕けば、シールドが剥がれるよ。",
-                "張り直される前に、本体を狙おう！"),
-            Job.Heal => ("周りの板が、シールドを張ってる……！\nこれじゃ、本体に攻撃が届かない。",
-                "まずは板を全部砕こう。そうすれば、シールドが剥がれるよ。",
-                "張り直される前に、本体を狙うんだね！"),
-            Job.Magic => ("周りの板がシールドを張ってるわ。\n今は、本体を狙っても届かない。",
-                "板を全部砕けば、シールドは剥がれる。",
-                "張り直される前に、本体を狙うわよ。"),
-            _ => ("あの板が、シールドを張っています。\n本体には、まだ攻撃が届きません。",
-                "周りの板をすべて砕けば、シールドが剥がれます。",
-                "張り直される前に、本体を狙いましょう。"),
-        };
         int who = (int)(job == Job.Tank ? Hud.LineKind.Mina : Hud.LineKind.Companion);
-        string face = job == Job.Tank ? "res://char/v3/mina_conversation_v1.png" : CompanionDialogue.Portrait(job);
-        return new[] { (who, shield, face), (who, panels, face), (who, opening, face) };
+        string face = job == Job.Tank ? "res://char/mina_face.png" : CompanionDialogue.Portrait(job);
+        string reply = job switch
+        {
+            Job.Melee => "板がなくなったら、本体に届くんだね。分かった、やってみる！",
+            Job.Heal => "全部砕いてから、本体だね。焦らず、一つずつやってみる。",
+            Job.Magic => "分かった。板をほどいて、本人に声を届けるわ。",
+            _ => "板をほどいてから、ご本人へ。承知しました。見ていてください、ご主人様。",
+        };
+        return new[]
+        {
+            (0, "周りの板がシールドを張ってる。今は、本体まで光が届かない。", ""),
+            (0, "板を全部砕けば、シールドが剥がれる。張り直される前に、本体を狙おう。", ""),
+            (who, reply, face),
+        };
     }
 
     protected override void OnEnemyReady()
@@ -298,7 +296,7 @@ public partial class CameoBoss : Enemy
         }
     }
 
-    // こはる：落ちる祈り（上から落ちる弾）＝帯なので端へ／足元からの下向きの扇＝自機の側へ寄って落とす。
+    // こはる：落ちる祈り（上から落ちる弾）＝帯なので端へ／自機方向へ張る扇＝自機の側へ寄って落とす。
     private void FireKoharu(BulletPool pool, double delta)
     {
         _fireT += delta; _fireT2 += delta;
@@ -314,7 +312,7 @@ public partial class CameoBoss : Enemy
             _fireT2 = 0;
             Declare(BossMover.Attack.Aimed);
             SetSpellVisual(Theme.SpellShape, Theme.SpellTint, BulletArt.KoharuTicket, -26f);
-            FanDown(pool, Dn(5), 50f, CameoBulletSpd * 0.7f);
+            FanDown(pool, DnOdd(5), 50f, CameoBulletSpd * 0.7f);
         }
     }
 
@@ -353,11 +351,18 @@ public partial class CameoBoss : Enemy
         OverheadCast.Begin(this, bullets, CurSprite, CurTint);
     }
 
+    // 2026-10-03：基準角を真下（Pi/2）固定から自機方向へ変えた。本戦ボスの扇が 2026-09-17 に受けた
+    //   同じ直しの取り残しで、Declare(Attack.Aimed) と宣告しているのに自機と高さがずれていると
+    //   一発も掛からない＝棒立ちが最も安全だった。本数は呼び元で DnOdd（必ず奇数）＝中心の1本が
+    //   自機の正面を通る。1本のときは t=0 を使う（旧式だと単発が -spread/2 へ逸れて必ず外した）。
     private void FanDown(BulletPool pool, int fan, float spreadDeg, float spd)
     {
+        var aim = AimAtPlayer();
+        float baseA = Mathf.Atan2(aim.Y, aim.X);
         for (int i = 0; i < fan; i++)
         {
-            float a = Mathf.Pi / 2f + Mathf.DegToRad(((float)i / Mathf.Max(1, fan - 1) - 0.5f) * spreadDeg);
+            float t = fan > 1 ? (float)i / (fan - 1) - 0.5f : 0f;
+            float a = baseA + Mathf.DegToRad(t * spreadDeg);
             FireBullet(pool, GlobalPosition, new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * spd, 3.2f);
         }
     }
@@ -420,7 +425,11 @@ public partial class CameoBoss : Enemy
             EndCryNow();
             return;
         }
-        _defeatSeq = true; _defeatIdx = -1; _defeatT = DefeatLineDur; // 即・最初の行へ
+        var lines = GetNode<GameManager>("/root/Game").SelectedJob == Job.Tank
+            ? Theme.DefeatLines : System.Array.FindAll(Theme.DefeatLines, line => line.who == 2);
+        _defeatTalk = CharacterStoryTalk.Start(lines, GetHud,
+            (hud, who, text, face) => hud.ShowDialog((Hud.LineKind)who, text, face, otherName: Theme.DisplayName),
+            EndCryNow);
     }
 
     protected override void OnCryEnd()
@@ -432,7 +441,16 @@ public partial class CameoBoss : Enemy
     }
 
     // 保険タイムアウトで cry が強制終了されたとき、捨て台詞ドライバも畳む。
-    protected override void AbortCrySequence() => _defeatSeq = false;
+    protected override void AbortCrySequence()
+    {
+        _defeatTalk = null;
+        if (GetHud() is { } hud)
+        {
+            hud.HoldBubble = false;
+            hud.BattleMemoryTempo = false;
+            hud.HideBubble();
+        }
+    }
 
     public override void _Process(double delta)
     {
@@ -441,24 +459,18 @@ public partial class CameoBoss : Enemy
             if (!Pad.UiBlocked(this)) _shieldTalk.Update(delta);
             return;
         }
-        if (!_defeatSeq) return;
-        _defeatT += delta;
-        if (_defeatT < DefeatLineDur) return;
-        _defeatT = 0;
-        _defeatIdx++;
-        NotifyCryProgress(); // 自動送りだが、進んでいる間は保険タイムアウトを起こさない
-        string? line = NextBossLine(Theme.DefeatLines, ref _defeatIdx);
-        if (line == null)
+        if (_defeatTalk is { Active: true })
         {
-            _defeatSeq = false;
-            EndCryNow(); // cry→post（笑顔）へ着地し OnCryEnd（Finished=true）
+            if (!Pad.UiBlocked(this)) _defeatTalk.Update(delta);
+            NotifyCryProgress();
             return;
         }
-        GetHud()?.ShowBossLine(Theme.DisplayName, line, UiKit.Kegare, DefeatLineDur);
+
     }
 
     public override void _ExitTree()
     {
+        if (_defeatTalk is { Active: true }) AbortCrySequence();
         if (_shieldTalk is { Active: true } && IsInstanceValid(_shieldTalkHud))
         {
             _shieldTalkHud!.HoldBubble = false;

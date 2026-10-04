@@ -31,60 +31,34 @@ public static class StageTutorial
     private const string MWorried = "res://char/mina_worried.png";
     private static readonly (int who, string text, string face)[] None = System.Array.Empty<(int, string, string)>();
 
-    // ① 道中チュートリアル（ブロック1・16行）。who=1（ミナ）のみ。
     private static readonly (int who, string text, string face)[] Route =
     {
-        (1, "偽りの世界——「フェイクレルム」。ここは、本音を隠した世界です。……観測を、はじめます。", MFace),
-        (1, "悪い者たち——通称「アンチャー」が、ここを汚染して、本音を隠しています。ひとつずつ、浄化していきます。", MFace),
-        (1, "左のパネルの「浄化」。あれが100%になれば——この偽りの世界を作った方の、本音を、引き出せます。", MFace),
-        (1, "ご注意を。アンチャーの攻撃や接触を、わたくしの中心の「コア」に受けると、LIFEが減ります。", MWorried),
-        (1, "操作を、お伝えします。まず、移動を。……この盤面のどこへでも、お連れします。", MFace),
-        (1, "光は、自動で放ちます。撃つボタンは、ありません。……狙うことだけを、考えてください。", MFace),
-        (1, "攻撃をよけながら、アンチャーを浄化してください。——数えるのは、わたくしがやります。", MFace),
-        (1, "アンチャーの周りを、板が回っています。あれが「アンフォールダー（苦しめる者）」。砕けば、アンチャーごと浄化できます。", MFace),
-        (1, "アンチャーは、背後からも来ます。狙い撃ちには、ロックオンを。", MFace),
-        (1, "押すたびに、いちばん近い敵から、次に近い敵へ——狙いが移ります。そのあいだ、少し、足が重くなります。", MFace),
-        (1, "狙いを捨てたいときは、解除を。その場ですぐ外せます。……相手を浄化すれば、狙いは次の相手へ移りますので、急がずとも結構です。", MFace),
-        (1, "よけきれないとき、まとめて祓いたいときは——BOMB を。", MWorried),
-        (1, "画面の弾ごと、アンチャーを一掃します。……残数の、あるかぎり、ですが。", MFace),
-        (1, "浄化したアンチャーからは、「心の欠片」がこぼれます。拾っておいてください。のちほど、必ず、役に立ちます。", MFace),
-        (1, "——起動記録には、operator と、ありました。", MFace),
-        (1, "では。オペレータのお仕事を、よろしくお願いいたします。……ご主人様。", MFace),
+        (0, "まず移動から。入力した方向へ進める。攻撃が当たるのは、身体の中心にあるコアだ。そこを守ろう。", ""),
+        (1, "こちらですね。服の端をかすめるくらいなら、大丈夫、と。", "res://char/mina_face.png"),
+        (0, "うん。光は自動で放たれる。最初は、よけることと狙うことに慣れよう。", ""),
+        (1, "余計なボタンを探しておりました。少なくて助かります。", "res://char/mina_face.png"),
+        (0, "アンチャーの周りを回る板は、アンフォールダー。まず、あれを砕く。浄化が進めば、本人の本音へ近づける。", ""),
+        (1, "言葉を消すのではなく、塞いでいるものをほどくのですね。", "res://char/mina_face.png"),
+        (0, "その通り。背後の相手を狙うときはロックオン。押すたびに近い相手から順に切り替わる。その間は少し移動が遅くなるよ。", ""),
+        (1, "狙いに夢中で、ぶつからないようにします。", "res://char/mina_face.png"),
+        (0, "解除すれば、すぐ元の動きに戻る。相手を浄化したあとは、次の相手へ狙いが移る。", ""),
+        (0, "囲まれたらBOMB。弾とアンチャーをまとめて祓える。残数は見ておこう。", ""),
+        (1, "温存したまま倒れては、元も子もありませんね。", "res://char/mina_face.png"),
+        (0, "うん。使って帰ってきてくれるほうが、僕はうれしい。心の欠片も、拾える範囲で集めよう。帰ったあとに力へ変えられる。", ""),
+        (1, "承知しました。危ないところは、遠慮なく教えてください。ご主人様。", "res://char/mina_face.png"),
     };
 
-    // 道中16行それぞれで盤面中央に出す操作カードの話題（Route と同じ並び・同じ長さ）。
-    //   None の区間はカードを畳む＝世界観の語り（フェイクレルム／アンチャー／欠片／締め）に集中させる。
-    //   同じ話題が続く行ではカードを出しっぱなしにする＝1行ごとに点滅しない。
-    //   5行目=移動 / 6〜7行目=撃つ（自動射撃の念押しまで） / 9〜10行目=ロックオン送り（宣言・送りと減速）/
-    //   11行目=ロックオン解除（別ボタン・2026-09-17 追加）/ 12〜13行目=ボム（宣言と効果）。
     private static readonly ControlCard.Topic[] RouteCues =
-    {
-        ControlCard.Topic.None,   //  1 フェイクレルムの説明
-        ControlCard.Topic.None,   //  2 アンチャー
-        ControlCard.Topic.None,   //  3 浄化ゲージ
-        ControlCard.Topic.None,   //  4 コアとLIFE
-        ControlCard.Topic.Move,   //  5 移動
-        ControlCard.Topic.Shot,   //  6 自動射撃
-        ControlCard.Topic.Shot,   //  7 よけながら浄化（撃つ話の続き＝カードは据え置き）
-        ControlCard.Topic.None,   //  8 アンフォールダー
-        ControlCard.Topic.Lock,   //  9 ロックオン
-        ControlCard.Topic.Lock,   // 10 送りと減速
-        ControlCard.Topic.LockClear, // 11 解除（送りとは別ボタン）
-        ControlCard.Topic.Bomb,   // 12 BOMB
-        ControlCard.Topic.Bomb,   // 13 一掃と残数
-        ControlCard.Topic.None,   // 14 心の欠片
-        ControlCard.Topic.None,   // 15 operator
-        ControlCard.Topic.None,   // 16 締め
-    };
+    { ControlCard.Topic.Move, ControlCard.Topic.Move, ControlCard.Topic.Shot, ControlCard.Topic.Shot, ControlCard.Topic.None, ControlCard.Topic.None, ControlCard.Topic.Lock, ControlCard.Topic.Lock, ControlCard.Topic.LockClear, ControlCard.Topic.Bomb, ControlCard.Topic.Bomb, ControlCard.Topic.None, ControlCard.Topic.None };
 
     // ② 本ボス戦チュートリアル（ブロック2・5行）。ボスの口上（who=2）の直後に続く。
     private static readonly (int who, string text, string face)[] Boss =
     {
-        (1, "——あの方が、このフェイクレルムを作った、主です。", MWorried),
-        (1, "心の周りを、アンフォールダーが回っています。すべて砕けば——ご本人へ、直接の浄化が、届きます。", MFace),
-        (1, "ただし。主のアンフォールダーは、アンチャーのものとは、比べものになりません。時間が経てば、よみがえります。", MWorried),
-        (1, "よみがえるたび、砕いて。——届くまで、何度でも。", MFace),
-        (1, "はじめましょう、ご主人様。……あの方の本音を、引き出します。", MFace),
+        (0, "この先が、フェイクレルムの主だ。周りのアンフォールダーをほどけば、本人へ働きかけられる。", ""),
+        (1, "あの方の姿まで、変わっているのですね。", "res://char/mina_face.png"),
+        (0, "心を閉じ込めるものが、姿にも重なってる。アンフォールダーは時間がたつと戻るから、何度でもほどこう。", ""),
+        (1, "その間に、わたくしがお話しします。", "res://char/mina_face.png"),
+        (0, "うん。僕の声は本人には届かない。こちらで危険を見てるから、君の言葉を聞かせてあげて。", ""),
     };
 
     // ③ アンチャー紹介（2026-09-17）。道中へ入る直前に、その面のアンチャー「全体の性格」だけを掴ませる。
@@ -94,24 +68,26 @@ public static class StageTutorial
     //   本文の正典: docs/20260917/アンチャー紹介_本文_2026-09-17.md（ユーザー確認済み・一字も変えない）。
     private static readonly (int who, string text, string face)[] AnkerAkari =
     {
-        (1, "この階のアンチャーは、間合いを詰めてまいります。落ちてくるもの、途中から速くなるもの。", MWorried),
-        (1, "立っていられる場所を、少しずつ削られます。……あの方が、そうされてきたように。", MWorried),
-        (1, "同じ場所に留まらないでください。それだけで、だいぶ違います。", MFace),
+        (0, "このフロアのアンチャーは、距離を詰めてくる。落ちる途中で速くなるものにも気をつけて。", ""),
+        (1, "立てる場所を、少しずつ削られますね。", "res://char/mina_face.png"),
+        (0, "同じ場所に留まらず、空いた側へ。次は左が広い。", ""),
+        (1, "はい。道を教えていただけるのは、助かります。", "res://char/mina_face.png"),
     };
 
     private static readonly (int who, string text, string face)[] AnkerKoharu =
     {
-        (1, "ここのアンチャーは、一度に、たくさん寄越してきます。構えたと思った次の瞬間には、もう来ています。", MWorried),
-        (1, "そのくせ、置いていくだけのものも混じっています。……速いものと、遅いものが、同じ部屋に。", MFace),
-        (1, "来る合図は必ず出ます。合図を見てから、一歩。欲張らないでいただければ。", MFace),
+        (0, "ここは速い攻撃と、遅く残る攻撃が混ざる。構えた合図を見てから、一歩ずつよけよう。", ""),
+        (1, "全部に反応すると、別のものにぶつかりそうです。", "res://char/mina_face.png"),
+        (0, "近いものからでいい。僕も、後ろを見てる。", ""),
+        (1, "では、前はわたくしが。お願いします。", "res://char/mina_face.png"),
     };
 
     private static readonly (int who, string text, string face)[] AnkerRei =
     {
-        (1, "この枠のアンチャーは、正面から来ません。上から、まわりから、背中から。", MWorried),
-        (1, "見られている方向が、多すぎるのです。逃げ場が、読みにくい。", MWorried),
-        (1, "光る線が走ったら、そこは通れません。……ただ、線を引いた者を先に浄化すれば、線ごと消えます。", MFace),
-        (1, "落ち着いて、正面を空けてください。ご主人様。", MFace),
+        (0, "この場所では、上からも背後からも来る。光る線が走ったところは、通らないで。", ""),
+        (1, "見られる方向が多すぎますね。……落ち着かないです。", "res://char/mina_face.png"),
+        (0, "線を引いたアンチャーを先にほどけば、線も消える。右側の相手にしるしをつけた。", ""),
+        (1, "見えました。そちらから行きます。", "res://char/mina_face.png"),
     };
 
     // ④ 強化アイテム説明（2026-09-22・ユーザー要望「最初のステージの一番最初に強化弾の説明を」）。
@@ -125,10 +101,11 @@ public static class StageTutorial
     //   本文の正典: docs/20260922/強化アイテム説明_本文_2026-09-22.md。
     private static readonly (int who, string text, string face)[] ItemsAkari =
     {
-        (1, "もうひとつ。浄化を重ねていると、ときどき、欠片に混じって——色の枠がついたものが、こぼれます。", MFace),
-        (1, "拾えば、そのぶん、わたくしが変わります。光が増える。足が速くなる。LIFEが増える。被弾を、一度、肩代わりする。", MFace),
-        (1, "いま何を身につけているかは、左のパネル——LIFEの上に、出ます。", MFace),
-        (1, "ただし。攻撃を受けると、消えます。持ったまま進めるのは、当たらないでいるあいだだけです。", MWorried),
+        (0, "色の枠がある欠片は、拾うとその場で力になる。光が増えたり、速く動けたり、LIFEや身を守る力が増えたりする。", ""),
+        (1, "お着替えなしで変われるのは、手軽ですね。", "res://char/mina_face.png"),
+        (0, "変身中に待ってくれる相手でもないしね。効果は、左のパネルに出るよ。", ""),
+        (1, "ご主人様の趣味で、長い変身シーンがついていなくて安心しました。", "res://char/mina_face.png"),
+        (0, "……付けなくてよかった。攻撃を受けると効果が消えるから、そこは気をつけよう。", ""),
     };
 
     // ⑤ 習得スキルの説明（2026-09-22・ユーザー要望「回避とチャージショットが追加されたときはステージに
@@ -152,18 +129,21 @@ public static class StageTutorial
     //   ・キー名は書かない＝どのボタンかは操作カード（SkillDodgeCues / SkillChargeCues / SkillCharge2Cues）が担う。
     private static readonly (int who, string text, string face)[] SkillDodge =
     {
-        (1, "集めていただいた欠片で、わたくしの足が、変わりました。——「回避」。身体が、覚えています。", MFace),
-        (1, "押せば、一瞬、向かっている方向へ、駆け抜けます。方向がなければ、その場で。……そのあいだだけ、何も、当たりません。", MFace),
-        (1, "逃げるためでは、ありません。弾の濃いところを、抜けてください。かすめたぶんだけ、わたくしが数えます。", MFace),
-        (1, "ただし。一度抜けると、しばらく、次は出ません。……抜けた先に、立てる場所を。", MWorried),
+        (0, "回避が使えるようになった。向かっている方向へ、一瞬で駆け抜けられる。方向を入れていなければ、その場で避けるよ。", ""),
+        (1, "その間だけ、攻撃が当たらないのですね。", "res://char/mina_face.png"),
+        (0, "うん。でも、連続では使えない。抜けた先が空いているか、先に見よう。", ""),
+        (1, "逃げるために使っても？", "res://char/mina_face.png"),
+        (0, "もちろん。無事でいるための力だよ。", ""),
     };
 
     private static readonly (int who, string text, string face)[] SkillCharge =
     {
-        (1, "わたくしの光には、溜めるという使い方があります。——「溜め打ち」。お伝えします。", MFace),
-        (1, "押し続けているあいだ、わたくしの前に、光が集まります。頭上の弧が満ちて、白く脈打ったら——合図です。", MFace),
-        (1, "そこで、離してください。ひときわ重い一発が、板を貫き、アンチャーを貫いて、なお進みます。", MFace),
-        (1, "溜めているあいだ、いつもの光は止まります。満ちる前に離せば、重い一発は出ず、いつもの光に戻ります。", MFace),
+        (0, "次はチャージ。押し続けると光が集まる。頭上の弧が満ちて、白く光ったら離して。", ""),
+        (1, "……今ですか。", "res://char/mina_face.png"),
+        (0, "そう。板を貫く、重い一発になる。ただ、溜めている間は通常の光が止まるよ。", ""),
+        (1, "必殺技の名前を考えている間に、囲まれそうですね。", "res://char/mina_face.png"),
+        (0, "名前は帰ってから考えよう。溜まる前に離したときは、通常の光へ戻る。", ""),
+        (1, "では、今は無言で。……えい。", "res://char/mina_face.png"),
     };
 
     // ⑥ 2段階チャージの説明（2026-09-25）。ショップの n_charge（「溜め打ち 二段」1200）を買うと
@@ -173,37 +153,22 @@ public static class StageTutorial
     //   キー名は書かない（操作カードが担う）。数値も書かない＝倍率調整で嘘にならない。
     private static readonly (int who, string text, string face)[] SkillCharge2 =
     {
-        (1, "集めていただいた欠片で、溜めの先が、もう一段、開きました。——「二段目」。", MFace),
-        (1, "満ちた合図のところで、手を止めずに。……そのまま、押し続けてください。外側に、もう一本、弧が。", MFace),
-        (1, "そちらが満ちて、金に変わったら——離してください。ひときわ重い一発が、もっと重く、もっと太く、進みます。", MFace),
-        (1, "ただし。待つぶん、こちらの光は、長く止まります。……抜けるところを、先に決めてから。", MWorried),
+        (0, "チャージの二段目が開いた。白い合図でも離さず、もう少し待つ。外側の弧が金色になったら、二段目だ。", ""),
+        (1, "強いぶん、溜める時間も長いのですね。", "res://char/mina_face.png"),
+        (0, "うん。その間は通常の光が止まる。安全な場所を決めてから使おう。", ""),
+        (1, "承知しました。欲張って、帰り道まで失わないようにします。", "res://char/mina_face.png"),
     };
 
     // ⑤の各行で出す操作カードの話題（本文の [card: ...] 注記どおり。RouteCues と同じ考え方＝
     //   1行目（提示）は畳み、押す・離すを語る 2〜4 行目は同じ話題を出しっぱなしにする）。
     private static readonly ControlCard.Topic[] SkillDodgeCues =
-    {
-        ControlCard.Topic.None,    // 1 提示（欠片で足が変わった）
-        ControlCard.Topic.Dodge,   // 2 押す・方向・無敵
-        ControlCard.Topic.Dodge,   // 3 弾の濃いところを抜ける
-        ControlCard.Topic.Dodge,   // 4 クールダウン
-    };
+    { ControlCard.Topic.Dodge, ControlCard.Topic.Dodge, ControlCard.Topic.Dodge, ControlCard.Topic.Dodge, ControlCard.Topic.Dodge };
     private static readonly ControlCard.Topic[] SkillChargeCues =
-    {
-        ControlCard.Topic.None,    // 1 提示（備わっている使い方）
-        ControlCard.Topic.Charge,  // 2 押し続ける・合図
-        ControlCard.Topic.Charge,  // 3 離す・貫く
-        ControlCard.Topic.Charge,  // 4 満ちる前に離すと不発
-    };
+    { ControlCard.Topic.Charge, ControlCard.Topic.Charge, ControlCard.Topic.Charge, ControlCard.Topic.Charge, ControlCard.Topic.Charge, ControlCard.Topic.Charge };
     // ⑥（2段目）の cue。ControlCard.Topic に Charge2 は無いので既存の Charge を流用する
     //   ＝どのボタンかは 1段目と同じ（押し続ける／離す）ため、カード面を分ける必要が無い。
     private static readonly ControlCard.Topic[] SkillCharge2Cues =
-    {
-        ControlCard.Topic.None,     // 1 提示（欠片で、先がもう一段）
-        ControlCard.Topic.Charge,   // 2 止めずに押し続ける・外側の弧
-        ControlCard.Topic.Charge,   // 3 金になったら離す
-        ControlCard.Topic.Charge,   // 4 待つあいだ通常弾が止まる
-    };
+    { ControlCard.Topic.Charge, ControlCard.Topic.Charge, ControlCard.Topic.Charge, ControlCard.Topic.Charge };
 
     // カードを同期する本文ブロックの一覧（本文と cue の対）。SyncCard はここを順に引く。
     private static readonly ((int who, string text, string face)[] lines, ControlCard.Topic[] cues)[] CardBlocks =

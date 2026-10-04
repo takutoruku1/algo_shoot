@@ -32,7 +32,6 @@ public partial class BossAkari : Enemy
     private int _beatsFired;    // 流した独白の数
     private const int PatternCount = 4;
 
-    // HPがこの割合を割るたびに攻撃パターンを変える（独白は浄化のかけあいに集約）。
     private static readonly float[] PatternThresholds = { 0.78f, 0.52f, 0.26f };
 
     // 予測攻撃キャスター（フィールド化：通路中は宣告ごと止めるため）。
@@ -90,31 +89,29 @@ public partial class BossAkari : Enemy
     private int _line;
     private double _lineT;
     private bool _zHeld;
-    // S1-10 改心（仮台本 06。ユーザー承認済み・2026-09-05）。二段で抜く：
-    //   (1) ミナが束の底の一通（取り消されていない本物）を読み上げて返す
-    //   (2) ミナ自身の言葉で決定打（証人型）「十二通、読みました。——汚れた“好き”は、ひとつも、ありませんでした。」
-    // 案C に少年は居ないので中継（who=5）も使わない＝決定打はミナが自分の声で言う。
-    // 「取り消された十二通は、ぜんぶ、わたくしに当たりました。」の行で BGM を落とし、決定打を無音のまま置く。
-    // 相手の返事は代弁しない＝最後は「……ぁ……」の涙のまま抜く（cry 保持）。
     private const string ACry = "res://char/v3/akari_face_cry.png";
     private static readonly (int who, string text, string face)[] MemoryLeadIn =
     {
-        (2, "……待って。まだ、言えてないのに。", ""),
-        (1, "……誰に、伝えたかったのですか。", "res://char/mina_face.png"),
-        (2, "西野くん。最後の日も、あたし、いつもみたいに仕事してた。", ""),
-        (1, "最後の日に、何があったのですか。……聞かせてください。", "res://char/mina_face.png"),
-        (2, "……三日前。あの人が、会社を辞める日。帰る前に、あたしの席へ来てね……。", ""),
+        (2, "……待って。まだ、言えてないのに。", "res://char/v3/akari_face.png"),
+        (1, "はい。ここにおります。誰に、何を伝えたかったのですか。", "res://char/mina_face.png"),
+        (2, "西野くん。同じ年に会社に入って、向かいの席で……。", "res://char/v3/akari_face.png"),
+        (1, "その方が、いなくなったのですね。", "res://char/mina_face.png"),
+        (2, "三日前に辞めたの。最後の日も、あたし、普通に仕事してた。", "res://char/v3/akari_face.png"),
+        (1, "普通にしているほうが、楽でしたか。", "res://char/mina_face.png"),
+        (2, "……そう思ってた。ちゃんと「またね」って言えれば、終わらない気がして。", "res://char/v3/akari_face.png"),
+        (1, "その日は、どこまで言えたのでしょう。", "res://char/mina_face.png"),
+        (2, "帰る前に、あたしの席へ来たの。そしたら、電話が鳴って……。", "res://char/v3/akari_face.png"),
     };
     private static readonly (int who, string text, string face)[] Lines =
     {
-        (2, "……返事がほしかった。おめでとう、より先に。", ACry),
-        (2, "だから、何度も送って……怖くなって、取り消した。", ACry),
-        (1, "……いま、見えた下書き。あの一通だけは、消さずに残していたのですね。", ""),
-        (1, "——「おめでとう ほんとだよ 元気でね」。……宛名は、ありません。", ""),   // (1) 本物の一通。A43
-        (2, "……ほんとは、ちゃんと笑って、見送りたかった。", ACry),
-        (1, "取り消された十二通は、ぜんぶ、わたくしに当たりました。", ""),           // ここで BGM 停止
-        (1, "十二通、読みました。——汚れた“好き”は、ひとつも、ありませんでした。", ""),   // (2) 決定打。無音のまま
-        (2, "……ぁ……", ACry),                                                      // 言わせない（涙のまま抜く＝cry 保持）
+        (2, "……返事がほしかった。おめでとう、より先に。", "res://char/v3/akari_face_cry.png"),
+        (2, "だから、何度も送って……怖くなって、取り消した。", "res://char/v3/akari_face_cry.png"),
+        (1, "……いま、見えた下書き。あの一通だけは、消さずに残していたのですね。", "res://char/mina_face.png"),
+        (1, "——「おめでとう ほんとだよ 元気でね」。……宛名は、ありません。", "res://char/mina_face.png"),
+        (2, "……ほんとは、ちゃんと笑って見送りたかった。でも、寂しいほうが先に出ちゃった。", "res://char/v3/akari_face_cry.png"),
+        (1, "取り消された十二通は、ぜんぶ、わたくしに当たりました。", "res://char/mina_face.png"),
+        (1, "十二通、読みました。寂しかったのですね。……「好き」まで悪いものにしなくて、よいと思います。", "res://char/mina_face.png"),
+        (2, "……ぁ……", "res://char/v3/akari_face_cry.png"),
     };
     // 決定打の手前で音を落とす行（本文一致で拾う）。ここから BGM 無しで決定打を置く。
     private const string BgmStopLine = "取り消された十二通は、ぜんぶ、わたくしに当たりました。";
@@ -140,7 +137,6 @@ public partial class BossAkari : Enemy
         PanelsFire = false;      // 攻撃は本体の自責弾
         EnemyBulletSpeed = BossTuning.F("akari", "bullet_speed", 80f);
 
-        // HPバー本数は難易度別（通常ボス：Easy2/Normal4/Hard5/Lunatic6）。INI hp_bars > 0 で固定上書き。
         int bars = BossTuning.I("akari", "hp_bars", 0);
         BarCount = bars > 0 ? bars : DiffBars(finalBoss: false);
 
@@ -243,7 +239,7 @@ public partial class BossAkari : Enemy
     {
         // 自機の位置を渡す＝自機狙いの追従（x と y の両方に寄る）と、反転の判定（40px 以上・0.6秒）に使う。
         if (GetTree().GetFirstNodeInGroup("player") is Node2D pl) _mover.SetPlayerPos(pl.GlobalPosition);
-        GlobalPosition = _mover.Step(GlobalPosition, delta);
+        GlobalPosition = _mover.Step(GlobalPosition, delta, IsForm2 ? 1.65f : 1f);
         ApplyBossMotion(_mover.VisualOffset, _mover.Lean, IsForm2 ? !_mover.FacingLeft : _mover.FacingLeft, _mover.SquashScale);
         FxLayer.Instance?.EmitBossAura(FxLayer.BossAura.Akari, GlobalPosition, (float)delta, 32f);
         if (_corridorPhase != 0) { TickCorridor(); return; } // 通路中は撃たない（避けに集中させる）
@@ -387,6 +383,7 @@ public partial class BossAkari : Enemy
         if (_caster != null && _caster.EdgeAttackActive) return;
         var pool = GetNodeOrNull<BulletPool>("/root/Pool");
         if (pool == null) return;
+        if (TickForm2Technique(delta, _mover, _caster!)) return;
         if (_finale) { FireFinale(pool, delta); return; }
         _fireT += delta;
         switch (_pattern)
@@ -411,9 +408,11 @@ public partial class BossAkari : Enemy
     //   自機狙いの精密弾(AimedSpread)=大。当たり芯ドットは全形状共通描画＝大きくしても被弾点は埋もれない。
     // 2026-09-17 ユーザー指示：真下（Pi/2）固定の扇をやめ、自機方向を中心に張る。
     // 左に張り付いているだけでは当たらない＝どこにいても避ける動きを要求する。扇の幅は据え置き。
+    // 2026-10-03 ユーザー指摘「止まってたら必ず弾が当たらない位置になってる」：本数が偶数だと
+    //   t=0（＝自機の正面）になる i が存在せず、中心に安全車線ができていた。DnOdd で必ず奇数にする。
     private void FanDown(BulletPool pool)
     {
-        int k = Dn(_fanCount);
+        int k = DnOdd(_fanCount);
         var aim = AimAtPlayer();
         float baseA = Mathf.Atan2(aim.Y, aim.X);
         for (int i = 0; i < k; i++)
@@ -516,12 +515,7 @@ public partial class BossAkari : Enemy
     //   2026-09-26（docs/20260926/主人公の存在_診断と本文 §3.1(b)）：弱気と最終形の間に、画面の前で読んでいる
     //   もう一人（ミナの後ろ＝あなた）へ返事を求める行。最終形「返して」は最後のまま（Min(idx, len-1) で以後ずっと出る行）。
     private static readonly string[] RecloseLines =
-    {
-        "既読も三秒でつけるし。返事も、すぐ書くし。……だから、ね?",
-        "バカ。……バカ、バカ。",
-        "……読んでるの、あなただけじゃ、ないでしょ。……後ろの人。ねえ、そっちも、返して。",
-        "……返して。読んだなら、返してよ。",
-    };
+    { "既読も三秒でつけるし。返事も、すぐ書くし。……だから、ね?", "バカ。……バカ、バカ。", "……ねえ、ミナ。黙らないで。読んだなら、あなたの言葉で返してよ。", "……返して。読んだなら、返してよ。" };
     private int _recloseIdx;
     protected override void OnRecloseLine()
     {
@@ -561,7 +555,6 @@ public partial class BossAkari : Enemy
     // 保険タイムアウトで cry が強制終了されたとき、会話ドライバも畳む（_seq が残ると台詞が出続ける）。
     protected override void AbortCrySequence() => _seq = false;
 
-    // 戦闘中の独白・浄化のかけあいを Z で手動送り。
     public override void _Process(double delta)
     {
         if (_post != null || _revealingDraft) return;

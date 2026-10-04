@@ -62,15 +62,9 @@ public partial class GameManager : Node
         string need = Jobs.Get(j).UnlockStageId;
         return need.Length == 0 || IsStageCleared(need);
     }
-    // ───── FINAL 初挑戦のミナ封じ（2026-09-17 ユーザー指示「ラスボスに初めて入るときはミナは使えなくしてほしい」）─────
-    //   FINAL のボスはミナ本人（「穢れたわたし」）で、三人が救援に来る構成。そこへ自機もミナで入ると
-    //   「結び手のミナが、ボスのミナを撃ち、三人に助けられる」という二重になる。初挑戦だけは
-    //   あかり／こはる／レイ の誰かで潜る＝救援に来る三人の側に立つ。
-    //   一度クリアすれば（IsFinalCleared）周回として結び手でも入れる＝やり込みは塞がない。
-    //   --job= 固定中（JobForcedByCmdline）は QA のため素通し＝IsJobUnlocked と同じ逃し口。
-    public bool IsMinaLockedForFinal => !JobForcedByCmdline && !IsFinalCleared;
+    public bool IsMinaLockedForFinal => true;
     // FINAL のカード／ジョブ選択が出す1行。ミナ本人が自分を指す言い方は「わたくし」（ミナの口調）。
-    public const string MinaFinalLockHint = "この投稿には、わたくし自身では潜れません";
+    public const string MinaFinalLockHint = "ミナを迎えに行く仲間を選ぼう";
 
     // 未解禁ジョブの1行説明（選択画面が出す）。解禁済み／条件なしは null。
     //   文言は既存のステージ見出し（StageDef.Title の "STAGE 1 — あかり" の左側）から作る
@@ -140,14 +134,14 @@ public partial class GameManager : Node
     public static int BaseBombsFor(Diff d) => 2;
     public float BulletSpeedMul => Difficulty switch { Diff.Easy => 0.62f, Diff.Hard => 1.05f, Diff.Lunatic => 1.18f, _ => 0.85f };
     // 難易度は敵の体力ではなく「弾の数」で調整する（やさしいほど弾が少ない）。
-    public float BulletCountMul => Difficulty switch { Diff.Easy => 0.38f, Diff.Hard => 1.1f, Diff.Lunatic => 1.9f, _ => 0.7f };
+    public float BulletCountMul => Difficulty switch { Diff.Easy => 0.57f, Diff.Hard => 1.65f, Diff.Lunatic => 2.85f, _ => 1.05f };
     public float DanmakuIntervalMul => Difficulty switch { Diff.Easy => 2.1f, Diff.Hard => 1.0f, Diff.Lunatic => 0.85f, _ => 1.35f };
     // 道中ザコの出現間隔倍率（Spawner が基準間隔に掛ける。小さいほど速く湧く）。
     // 上の Dn/Di/弾速はどれも「撃った後の弾」にしか効かず、道中の圧＝出現密度は全難易度で同じだった
     // （Spawner に Difficulty の参照がゼロ）。難しいほど「敵が多い」を成立させる軸をここに足す（2026-09-06）。
-    public float SpawnIntervalMul => Difficulty switch { Diff.Easy => 1.3f, Diff.Hard => 0.78f, Diff.Lunatic => 0.62f, _ => 1.0f };
+    public float SpawnIntervalMul => Difficulty switch { Diff.Easy => 1.04f, Diff.Hard => 0.62f, Diff.Lunatic => 0.50f, _ => 0.8f };
     // 同時に画面へ出せるザコの上限（Spawner の過密ガード）。間隔だけ縮めても上限で頭打ちになるので対で動かす。
-    public int MaxAliveEnemies => Difficulty switch { Diff.Easy => 6, Diff.Hard => 10, Diff.Lunatic => 12, _ => 8 };
+    public int MaxAliveEnemies => Difficulty switch { Diff.Easy => 9, Diff.Hard => 15, Diff.Lunatic => 18, _ => 12 };
     public string DiffName => Difficulty switch { Diff.Easy => "EASY", Diff.Hard => "HARD", Diff.Lunatic => "LUNATIC", _ => "NORMAL" };
     // ルナティック（難易度選択の「底まで」）＝物語ギミックを全部切った、止まらない純粋シューティング（2026-09-26 作者指示）。
     //   回想フィルム・撃破後のアフター・下書き選択・戦闘を止める会話（HoldBubble）・ボス投稿の割り込み・
@@ -174,11 +168,8 @@ public partial class GameManager : Node
 
     // ボスHPバー本数（言葉のシールド＋無防備窓リワーク）。1本=BarHp(=100)で、総HP=本数×BarHp。
     // 難易度で本数が増える＝堅くなる（弾数調整とは別軸の「殴る回数」調整）。
-    // 通常ボス: Easy2/Normal4/Hard5/Lunatic6（#25: Easyは据え置き＝入口を守り、Normal以上を+1本）。
-    // ラスボス格(Mina)は +2本（finalBoss=true。Easy4/Normal6/Hard7/Luna8。B-5: 強化が伸びた終盤でも
-    // シールド段の攻防が痩せないよう +1→+2）。無防備窓のキャップは据え置き。
     public int DiffBarBonus(bool finalBoss) =>
-        (Difficulty switch { Diff.Easy => 2, Diff.Hard => 5, Diff.Lunatic => 6, _ => 4 }) + (finalBoss ? 2 : 0);
+        (Difficulty switch { Diff.Easy => 4, Diff.Hard => 10, Diff.Lunatic => 12, _ => 8 }) + (finalBoss ? 4 : 0);
 
     // ルナティック解禁条件（①-9）：フォロワーが一定 or 一本道 #5「火力 2倍」を持っている。
     public const int LunaticFollowerReq = 200;
@@ -281,6 +272,16 @@ public partial class GameManager : Node
 
     // 弾幕の本数を難易度でスケール（最低1発は残す）。各ボスのリング/扇の本数に掛ける。
     public int ScaleBullets(int baseCount) => Mathf.Max(1, Mathf.RoundToInt(baseCount * BulletCountMul));
+
+    // 自機を狙う扇だけが使う本数。必ず奇数を返す＝扇の中心に1本が立ち、棒立ちの自機を射抜く。
+    //   偶数だと中心線に弾が無く（左右の弾が自機の両脇を通り抜ける）、「動かないほうが安全」になる。
+    //   2026-10-03 ユーザー指摘「あかりの扇、止まってたら必ず弾が当たらない位置になってる」の本体＝
+    //   fan_count=9 に BulletCountMul を掛けた結果が Normal 6 / Hard 10 と偶数になっていた。
+    //   丸め方：スケール後の実数値を含む区間 [2k, 2k+2) の奇数 2k+1 を採る（全難易度で同じ式）。
+    //   元の密度から必ず ±1 以内＝Easy は薄く Lunatic は濃いという難易度の性格は崩さない。
+    //   リング（全方位）には「中心」が無いので ScaleBullets のまま＝呼び元を変えない。
+    public int ScaleBulletsOdd(int baseCount) =>
+        Mathf.Max(1, Mathf.FloorToInt(baseCount * BulletCountMul * 0.5f) * 2 + 1);
 
     // 累計浄化数。
     public int PurifiedCount { get; private set; }
@@ -1495,9 +1496,6 @@ public partial class GameManager : Node
     // --boss 起動中か（消費される SelectedEntry と違い、ランを通して残る）。
     public bool DebugAlwaysBoss { get; private set; }
 
-    // [一時/デバッグ] --choice : レイ面のボス戦中割り込み（S3-7 の下書き選択）を HP 条件を待たずに即発火させる。
-    // 選択シーンの確認専用。通常プレイ・配布ビルドでは付けない前提。
-    //   （--choice3 ＝ 3択表示の検証フラグは、読む側だったこはる面の2択ごと撤去した＝2026-09-24）
     public bool DebugChoiceNow { get; private set; }
 
     // [一時/デバッグ] --input-field : こはる面を S2-4「入力欄」（StageKoharu の step 8）から始める。
@@ -1916,9 +1914,6 @@ public partial class GameManager : Node
         if (_gameOverChoice == null || !IsInstanceValid(_gameOverChoice))
         {
             if (hud == null) return false;
-            // 「ボスから」は今ランでボス戦に到達しているときだけ（2026-09-23 ユーザー報告「ボスまでいってないのに
-            //   ボスからやり直しができる」＝道中 27 秒・ボス未到達でも3択が出ていた）。未到達なら2択（最初から／抜ける）。
-            //   判定はセーブの記録（過去のクリア／中ボス撃破）ではなく BossReached＝今ランの到達事実。
             _gameOverFirst = (game?.BossReached ?? false) ? 0 : 1;
             _gameOverChoice = ChoiceOverlay.Show(hud, GameOverChoices[_gameOverFirst..],
                 defaultSel: 0, onBoard: true);   // 既定は先頭＝いちばん続けやすい手（ボスから／未到達なら最初から）
@@ -1950,8 +1945,6 @@ public partial class GameManager : Node
         // 選択が決まったら、その行の処理へ。
         if (!_gameOverChoice.Decided) return false;
         int sel = _gameOverChoice.Selected + _gameOverFirst;   // GameOverChoices の添字へ戻す（2択なら +1）
-        // 3択はいずれもシーンが変わる（やり直し2つ＝ReloadCurrentScene / 抜ける＝Hubへ）ので、
-        //   曲は遷移先の _Ready に任せる＝ここでは道中曲へ戻さない。
         ClearGameOverChoice(hud, restoreMusic: false);
         switch (sel)
         {

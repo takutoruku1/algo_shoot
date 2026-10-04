@@ -11,18 +11,7 @@ public partial class EndingFilm : Node2D
     private static readonly double[] Cuts = { 0, 4, 10, 15, 20, 26, 31, 37, 42, 49, Duration };
     private static readonly string[] Speakers = { "ミナ", "あかり", "こはる", "こはる", "レイ", "レイ", "あかり", "レイ", "ミナ", "" };
     private static readonly string[] Lines =
-    {
-        "……覚えている声が、あります。",
-        "返事を待つだけじゃなくて。\nあたしの明日も、決めていいんだ。",
-        "……ひとりで、なんとかしなくても。\n少しだけ、頼ってみよう。",
-        "ねえ。ここ、分かんないんだけど……\n聞いてもいい？",
-        "好きなところ、まだあるの。\n……今日は、最後まで話すね。",
-        "……ちゃんと、話せた。",
-        "ミナ。待っててくれて、ありがと。",
-        "次は、ミナの話も聞かせて。\n……急がなくて、いいから。",
-        "……ええ。\nわたくしも、ここにいて、よいのですね。",
-        "",
-    };
+    { "……覚えている声が、あります。", "返事を待つだけじゃなくて。\nあたしの明日も、決めていいんだ。", "……ひとりで、なんとかしなくても。\n少しだけ、頼ってみよう。", "ねえ。ここ、分かんないんだけど……\n聞いてもいい？", "好きなところ、まだあるの。\n……今日は、最後まで話すね。", "……ちゃんと、話せた。", "ミナ。待っててくれて、ありがと。", "次は、ミナの話も聞かせて。\n……急がなくて、いいから。", "……ええ。\nわたくしも、ここにいて、よいのですね。", "" };
     private static readonly Rect2 SkipRect = DialogToolbar.FilmSkipRect;
     private Texture2D[] _art = null!;
     private bool _inputArmed, _leaving;
@@ -44,16 +33,16 @@ public partial class EndingFilm : Node2D
         Scale = Vector2.One * UiKit.Scale;
         TextureFilter = TextureFilterEnum.Linear;
         const string dir = "res://char/bg2/ending/";
-        var together = GD.Load<Texture2D>(dir + "cg_ep_together_v2.png");
+        var akari = GD.Load<Texture2D>(dir + "cg_ep_akari_v1.png");
         var koharu = GD.Load<Texture2D>(dir + "cg_ep_koharu_v1.png");
         var rei = GD.Load<Texture2D>(dir + "cg_ep_rei_v1.png");
         _art = new Texture2D[]
         {
-            GD.Load<Texture2D>(dir + "cg_ep_rest.png"),
-            GD.Load<Texture2D>(dir + "cg_ep_akari_v1.png"),
+            GD.Load<Texture2D>(dir + "cg_ep_mina_sky_v3.png"),
+            akari,
             koharu, koharu,
             rei, rei,
-            together, together,
+            akari, rei,
             GD.Load<Texture2D>(dir + "cg_ep_goodbye_v2.png"),
             GD.Load<Texture2D>(dir + "bg_ep_dawn_v2.png"),
         };
@@ -79,7 +68,8 @@ public partial class EndingFilm : Node2D
             {
                 _loggedShot = Shot;
                 string sp = Speakers[_loggedShot];
-                Hud.PushLog(sp == "ミナ" ? Hud.LineKind.Mina : Hud.LineKind.Other, sp, Lines[_loggedShot], AccentFor(sp));
+                if (Lines[_loggedShot].Length > 0)
+                    Hud.PushLog(sp == "ミナ" ? Hud.LineKind.Mina : Hud.LineKind.Other, sp, Lines[_loggedShot], AccentFor(sp));
             }
             bool held = SkipHeld();
             if (!held) _inputArmed = true;

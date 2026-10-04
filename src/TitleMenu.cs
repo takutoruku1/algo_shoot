@@ -20,26 +20,10 @@ public partial class TitleMenu : Node2D
         System.Array.FindAll(AllItems, e => GameManager.TutorialEnabled || e.item != Item.Tutorial);
 
     private static readonly string[] BootTalk =
-    {
-        "……おはようございます。今日も、来てくださったんですね。",
-        "起動、確認しました。ご主人様、お加減はいかがです。",
-        "はい、ミナです。今日も、おそばにおります。",
-        "また来たんですか。……よろこんでますよ、わたくし。",
-        "準備はできております。ご一緒いたしますね。",
-        "電源、ちゃんと落として寝ましたか。……疑っております。",
-    };
+    { "……おはようございます。今日も、来てくださったんですね。", "起動、確認しました。ご主人様、お加減はいかがです。", "はい、ミナです。今日も、おそばにおります。", "また来たんですか。……よろこんでますよ、わたくし。", "準備はできております。ご一緒いたしますね。", "電源、ちゃんと落として寝ましたか。……疑っております。" };
 
     private static readonly string[] IdleTalk =
-    {
-        "……お迷いですか。急がなくて結構ですよ。",
-        "眺めているだけの時間も、悪くありませんね。",
-        "……こんなに静かな夜も、あるんですね。",
-        "もう少し、ここにいましょうか。",
-        "…………まだ、いらっしゃいますか。",
-        "画面の前で固まらないでください。心配になります。",
-        "ここは、はじまりの前です。何度でも、ここに戻ってこられます。",
-        "お茶でも淹れてきては。冷める前に戻ってきてくださいね。",
-    };
+    { "……お迷いですか。急がなくて結構ですよ。", "眺めているだけの時間も、悪くありませんね。", "……こんなに静かな夜も、あるんですね。", "もう少し、ここにいましょうか。", "…………まだ、いらっしゃいますか。", "画面の前で固まらないでください。心配になります。", "ここは、はじまりの前です。何度でも、ここに戻ってこられます。", "お茶でも淹れてきては。冷める前に戻ってきてくださいね。" };
 
     private int _sel, _pick;
     private bool _navHeld, _zHeld, _backHeld, _hasSave, _picking;
@@ -286,7 +270,6 @@ public partial class TitleMenu : Node2D
         switch (Items[_sel].item)
         {
             case Item.NewGame:
-                // はじめから＝まっさらスタートしてそのままプロローグへ（操作表示の3択は 2026-09-13 に削除）。
                 _game.ResetPersistent();
                 Go("res://Prologue.tscn");
                 break;
@@ -329,7 +312,7 @@ public partial class TitleMenu : Node2D
         DrawTitleBlock();
         DrawMenu();
         DrawTalk();
-        UiKit.Text(this, UiKit.Mono, new Vector2(98, 679), "ver 2.029", UiKit.FontSmall, new Color(Muted, 0.7f * Reveal(0.6f, 0.7f)));
+        UiKit.Text(this, UiKit.Mono, new Vector2(98, 679), "ver 2.030", UiKit.FontSmall, new Color(Muted, 0.7f * Reveal(0.6f, 0.7f)));
         DrawRect(new Rect2(0, 0, UiKit.DesignW, UiKit.DesignH), new Color(Ink, 0.8f * (1 - Reveal(0, 0.9f))));
         DrawToast();
         if (_picking) DrawSlotPicker();

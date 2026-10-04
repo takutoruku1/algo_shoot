@@ -52,10 +52,10 @@ public partial class Main : Node2D
         World.AddChild(new FxLayer { Name = "FxLayer" });
         AddChild(new GameCamera { Name = "GameCamera" });
 
-        // Player を盤面左端+60 / y=108 に生成
+        // Player を初期位置（Field.PlayerStart＝盤面左端+60 / y=108）に生成
         Player = new Player { Name = "Player" };
         World.AddChild(Player);
-        Player.GlobalPosition = new Vector2(Field.Left + 60f, 108f); // 盤面の左端から60px（サイドパネル裏に湧かない）
+        Player.SnapToStart(); // 初期位置＝Field.PlayerStart（盤面の左端から60px＝サイドパネル裏に湧かない）。仕切り直しで戻る先と同じ1点
 
         // Hud を生成（CanvasLayer）
         Hud = new Hud { Name = "Hud" };

@@ -48,7 +48,12 @@ public partial class MinaPhaseAttacks : Node
     public override void _Process(double delta)
     {
         if (_boss.IsPurified || _boss.GaugeVulnerable || _boss.GaugeReforming)
-        { CancelPendingAttacks(); return; }
+        {
+            // Breaking the shield interrupts the opener successfully and must release its HP gate.
+            if (_boss.GaugeVulnerable) OpenerCompleted = true;
+            CancelPendingAttacks();
+            return;
+        }
         if (Hud.BubblePaused || _boss.Transitioning) return;
         delta = GameManager.EnemyDelta(delta);
         if (!Active)

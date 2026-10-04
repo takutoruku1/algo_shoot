@@ -86,8 +86,17 @@ public partial class BossDraftScene : Node2D
     private void ShowLine()
     {
         _lineTime = _readTime = 0;
-        _hud.ShowDialog(_story.Id == "mina" ? Hud.LineKind.Mina : Hud.LineKind.Other,
-            _story.Lines[_line], _story.Face, otherName: _story.Name);
+        var (who, text, face) = _story.Lines[_line];
+        if (_story.Id == "mina" && who == 6)
+            text = (_game.SelectedJob, text) switch
+            {
+                (Job.Melee, "終わったら、帰って話すの。今日みたいに。誰が先に帰っても、続きはできる。") => "終わったら、帰って話そうよ。誰が先に帰っても、続きはできるんだから。",
+                (Job.Heal, "終わったら、帰って話すの。今日みたいに。誰が先に帰っても、続きはできる。") => "終わったら、帰って話そ。誰が先に帰っても、続きを話せるよ。",
+                (Job.Melee, _) => "うん。たまには、あたしにも聞かせてよ。",
+                (Job.Heal, _) => "うん。何もできない日も。今度は、あたしが聞くから。",
+                _ => text,
+            };
+        _hud.ShowDialog((Hud.LineKind)who, text, face, otherName: _story.Name);
     }
 
     public override void _Draw()

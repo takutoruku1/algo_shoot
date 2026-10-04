@@ -70,13 +70,6 @@ public static class Fury
     private static float InitialAkari(GameManager g)
     {
         float v = 0f;
-        // p4 : 冒頭。声の持ち主を知ろうとしたか、見なかったことにしたか。
-        v += g.ChosenAt("p4") switch
-        {
-            "あの声、放っておけない。一緒に行こう" => +6f,           // 声のほうへ手を伸ばした＝「返事を待つ相手が居る」を起こす
-            "助けたい。でも、自分のことで精一杯なんだ" => -6f,
-            _ => 0f,
-        };
         // s1_4 : 取り消された十二通を、どれだけ浴びるか。あかりの本体はその十二通。
         v += g.ChosenAt("s1_4") switch
         {
@@ -88,7 +81,7 @@ public static class Fury
         v += g.ChosenAt("s1_5") switch
         {
             "うまく言えないけど、ひとりにしたくない" => +3f,
-            "うん。また会いに行く。約束する" => +4f,                 // 並走。あかりでは「一緒に居る」が執着を焚く
+            "ミナ、もう一度会いに行こう。放っておけない。" => +4f,                 // 並走。あかりでは「一緒に居る」が執着を焚く
             _ => g.HasChoiceAt("s1_5") ? -6f : 0f,
         };
         return v;
@@ -99,8 +92,8 @@ public static class Fury
         float v = 0f;
         v += g.ChosenAt("s2_1") switch
         {
-            "そんなに頑張ったんだね。今日は休もう" => -12f,
-            "大好きなんだね。その気持ちは消さなくていい" => +6f,
+            "眠れているか心配だ。休める場所を探そう。" => -12f,
+            "好きな気持ちは、取り上げたくないんだ。" => +6f,
             _ => g.HasChoiceAt("s2_1") ? -6f : 0f,
         };
         return v;
@@ -111,7 +104,7 @@ public static class Fury
         float v = 0f;
         v += g.ChosenAt("s3_5c") switch
         {
-            "誰も見てないなんて、思ってほしくない" or "強がらなくていいよ。今のレイの話が聞きたい" => +4f,
+            "誰も見てないなんて、思ってほしくない" or "強がっていないときの、レイさんの話が聞きたい。" => +4f,
             _ => g.HasChoiceAt("s3_5c") ? -6f : 0f,
         };
         return v;

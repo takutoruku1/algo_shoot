@@ -204,6 +204,12 @@ public static class Pad
     //（1フレームに複数の WheelUp/Down が来ても取りこぼさない）。
     public static void FeedWheel(float delta) { _wheelAccum += delta; _wheelTurned = true; }
 
+    // 「据え置きのカーソル位置はもう命令ではない」と宣言して、マウス追従を一旦手放す。
+    //   ゲーム側が自機を動かした直後（仕切り直しの帰還＝Player.ReturnToStart）に、動かしていない
+    //   カーソルへ即座に引き戻されるのを防ぐ。次にカーソルが動けば PollMouse のしきい値で
+    //   そのフレームからマウス追従へ戻る＝プレイヤーの操作は奪わない。
+    public static void ReleaseMouseFollow() => _usingMouse = false;
+
     // 弾幕パートが使う「ホイールを回した」の消費読み。読んだ瞬間にラッチを落とす＝1回転につき1回だけ true。
     // 上下どちらの回転でも立つ（集中モードの発動はどちらでもよい、というユーザー決定）。
     public static bool ConsumeWheelTurn()

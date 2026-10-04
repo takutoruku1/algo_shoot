@@ -54,9 +54,9 @@ public partial class Final : Node2D
     //   ② 「……その言葉。……ええ。届きました。」と同時に、主題 M.I.N.A. の解決変奏を ppp で立ち上げる。
     //   ③ Final 末尾の余韻まで持続し、Epilogue の BgmMenu（同じ和声圏）へ自然に橋渡しされる。
     //   行は本文一致で検出（配列順を変えても壊れない）。各フェード尺は下の定数で実機調整できる。
-    private const string CueSilenceLine = "…………。";                        // この行で完全無音（BGM 停止）
-    private const string CueResolveLine = "……その言葉。……ええ。届きました。"; // この行と同時に解決音
-    private const string CueKeepLine = "……これは、わたくしが持って帰ります。";
+    private const string CueSilenceLine = "今、どうぞ。聞いています。";                        // この行で完全無音（BGM 停止）
+    private const string CueResolveLine = "はい。……今度の第一声は、採用します。"; // この行と同時に解決音
+    private const string CueKeepLine = "もう、言えていますよ。……わたくしも、うれしいです。";
     private const float SilenceFade   = 1.4f;  // BgmBoss を細らせて無音にする尺（「1拍」の沈黙の入り）
     private const float ResolveFade   = 4.0f;  // 解決音 ppp の立ち上がり（沈黙→解決の落差を活かす）
     private bool _cueSilenceDone;              // 二重発火を防ぐワンショット
@@ -66,7 +66,7 @@ public partial class Final : Node2D
     //   「あかりの。こはるの。レイの。……」の行だけ、各句点「。」の直後でタイプライターを一拍止める。
     //   reveal が句点直後インデックスに達したら _holdT 秒だけ次の文字へ進めない＝あかり／こはる／レイが
     //   一人ずつ間を置いて落ちて見える。Z早送り（_reveal=len）が来ればホールドも飛ぶので待たせ過ぎない。
-    private const string DropLine  = "あかりの。こはるの。レイの。……ぜんぶ、ここに。"; // 本文一致で検出（配列順に依存しない）
+    private const string DropLine  = "僕が観測して、届けられないまま残していた声だ。君がその声に触れられるよう、起動のときに渡した。"; // 本文一致で検出（配列順に依存しない）
     private const float  DropHold  = 0.35f;  // 各「。」直後で溜める尺（一人ずつ沈む“間”）
     private double _holdT;                     // 句点ホールドの残り時間
     private int    _holdAt = -1;               // 既にホールド済みの reveal 位置（同じ句点で二重に止めない）
@@ -84,7 +84,7 @@ public partial class Final : Node2D
         _font = UiKit.Zen; // 非ピクセル（滑らかゴシック）
         _waiting = GD.Load<Texture2D>("res://char/bg2/ending/cg_final_wait_v1.png");
         _received = GD.Load<Texture2D>("res://char/bg2/ending/cg_final_received_v1.png");
-        _rooftop = GD.Load<Texture2D>("res://char/bg2/ending/cg_ep_rest.png");
+        _rooftop = GD.Load<Texture2D>("res://char/bg2/ending/cg_ep_mina_sky_v3.png");
         _zHeld = Pad.AdvanceHeld();
         // F4 の地の音。旋律を立てないアンビエントで「世界の底」だけを鳴らし、テキストに主役を渡す。
         //   2026-09-29 まではここが合成 BgmBoss（6.4秒の正弦波ループ）だった（ボス曲を実音源へ差し替えた
@@ -107,13 +107,15 @@ public partial class Final : Node2D
         //   ②起動ログの 414（Prologue の unsent_drafts）をここで数字だけ回収する
         //     ＝全文開示はしない（気づいた人だけが繋がる／気づかない人には「元々あった重さ」として読める）。
         void T(string who, string text) => _talk.Add(new DLine { Who = who, Text = text });
-        T("地", "祓うほど、軽くなると思っていました。");
-        T("地", DropLine);                                       // 「あかりの。こはるの。レイの。……ぜんぶ、ここに。」
-        T("地", "——三人分の祈りは、どれも、あたたかいものでした。");
-        T("地", "あたたかいものほど、重い、とは。……集計に、ありませんでした。");
-        T("地", "四百十四件。……わたくしが、生まれる前から、ここにあった声です。");   // 起動ログ 414 の回収（数字だけ）
-        T("ミナ", "三人が、待っていてくださいます。……あとは、ご主人様の声を。");
-        T("ミナ", "……ご主人様。…………まだ、いらっしゃいますか。"); // タイトル IdleTalk の一行を、ここで一度だけ
+        T("ミナ", "ご主人様。起動時に読み込んだ、四百十四件の下書き。あれは？");
+        T("あなた", "僕が観測して、届けられないまま残していた声だ。君がその声に触れられるよう、起動のときに渡した。");
+        T("ミナ", "ずっと一人で、それを見ていたのですね。");
+        T("あなた", "世界の仕組みは分かった。道の開き方も分かった。でも、一緒に行く相手はいなかった。");
+        T("ミナ", "だから、36回も。");
+        T("あなた", "うん。……37回目に、君が返事をくれた。");
+        T("ミナ", "最初は、成功か失敗かというお話でしたね。わたくし、試験の採点をしている気分でした。");
+        T("あなた", "あれは、やり直したい。");
+        T("ミナ", "今、どうぞ。聞いています。");
         _choiceLine = _talk.Count;                                // ここに着いたら選択を出す（送信行はそのとき挿し込む）
 
     }
@@ -121,8 +123,8 @@ public partial class Final : Node2D
     // ───────── F4 の下書き選択（頂点）─────────
     //   戻ってくるのは【初】＝GameManager.FirstScattered（冒頭 P2 で最初に散らした言葉）。
     //   このとき言葉は散らないので【散】には計上しない（05「F4 は例外で計上しない」）。
-    private const string FirstWordFallback = "ミナ";   // 【初】が空（旧セーブ・ボス直行）のときに戻す言葉
-    private string FirstWord => string.IsNullOrEmpty(_game?.FirstScattered) ? FirstWordFallback : _game!.FirstScattered;
+    private static readonly string[] FinalChoices = { "会えてよかった、ミナ。一緒に帰ろう。", "うまく言えない。……でも、君がいてくれてうれしい。" };
+
     private int _choiceLine = -1;      // ここに着いたら選択を出す（-1＝提示済み）
     private ChoiceOverlay? _choice;
     private double _choiceT;           // 提示からの経過＝迷い秒数（RecordChoice へ渡す）
@@ -130,35 +132,26 @@ public partial class Final : Node2D
     private void ShowFinalChoice()
     {
         _choiceT = 0;
-        _choice = ChoiceOverlay.Show(this, new[] { "（送らない）", FirstWord }, defaultSel: 1, cinematic: true);
+        _choice = ChoiceOverlay.Show(this, FinalChoices, defaultSel: 1, cinematic: true);
     }
 
     private void ApplyFinalChoice(int sel)
     {
-        bool sent = sel == 1;
-        string word = FirstWord;
-        _game?.RecordChoice("f4", sent ? word : "", System.Array.Empty<string>(), (float)_choiceT);
+        ChoiceEffects.Record(_game, "f4", FinalChoices, sel, (float)_choiceT);
         _choiceLine = -1;
-        var after = new List<DLine>();
-        if (!sent)
+        var after = sel == 0 ? new List<DLine>
         {
-            after.Add(new DLine { Who = "ミナ", Text = "……はい。今は、送らないままで。" });
-            after.Add(new DLine { Who = "ミナ", Text = CueSilenceLine });
-            after.Add(new DLine { Who = "ミナ", Text = "あのとき、拾っておいた言葉が。……わたくしの中にも、残っていました。" });
-            after.Add(new DLine { Who = "ミナ", Text = $"「{word}」。……まだ、ここにありました。" });
-            after.Add(new DLine { Who = "ミナ", Text = CueKeepLine });
-        }
-        else
+            new() { Who = "あなた", Text = "会えてよかった、ミナ。一緒に帰ろう。" },
+            new() { Who = "ミナ", Text = "はい。……今度の第一声は、採用します。" },
+        } : new List<DLine>
         {
-            after.Add(new DLine { Who = "あなた", Text = word });
-            after.Add(new DLine { Who = "ミナ", Text = CueSilenceLine });
-            after.Add(new DLine { Who = "ミナ", Text = CueResolveLine });
-            after.Add(new DLine { Who = "ミナ", Text = "……届きました。ご主人様の声。聞けて、よかった。……帰ったら、もっとお話ししましょう。" });
-        }
-        after.AddRange(new DLine[]
+            new() { Who = "あなた", Text = "うまく言えない。……でも、君がいてくれてうれしい。" },
+            new() { Who = "ミナ", Text = "もう、言えていますよ。……わたくしも、うれしいです。" },
+        };
+        after.AddRange(new List<DLine>
         {
-            new() { Who = "ミナ",  Text = "今日は、もう、休ませてください。……戻ったら、わたくしの見た空を、ご主人様にお話ししたいです。" },
-            new() { Who = "地",   Text = "——それから、わたくしは。帰るほうへ、自分で泳いでいきました。" },
+            new() { Who = "ミナ", Text = "今日は、もう休みます。戻ったら、わたくしの見た空をお話ししたいので。" },
+            new() { Who = "あなた", Text = "うん。聞かせて。帰り道は、つないである。" },
         });
         _talk.InsertRange(_line, after);
         _pagedLine = -1; _page = 0; _reveal = 0; _lineT = 0; _readIdx = -1;

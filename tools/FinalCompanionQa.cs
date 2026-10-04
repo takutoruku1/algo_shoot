@@ -68,6 +68,8 @@ public partial class FinalCompanionQa : Node
 
     private async Task RunJob(Job job)
     {
+        Engine.MaxFps = 60;
+        Engine.TimeScale = 4;
         var def = Jobs.Get(job);
         GD.Print($"[FinalCompQA] ===== job={def.CharacterName}({job}) =====");
         var game = GetNode<GameManager>("/root/Game");
@@ -92,7 +94,7 @@ public partial class FinalCompanionQa : Node
         player.SetPhysicsProcess(false);
         Write(player, "_invincible", true);
         Write(player, "_invincibleTimer", 999f);
-        await WaitUntil(() => Read<Spawner?>(stage, "_echoSpawner") is { SpawnedCount: 3 }, 800);
+        await WaitUntil(() => Read<Spawner?>(stage, "_echoSpawner") is { } wave && wave.SpawnedCount >= 3, 800);
         foreach (var node in world.GetChildren()) if (node is MidEnemy echo) echo.Purify();
         // 道中（step 2）は 2026-09-27 に残響の三波へ伸びた。この QA が見たいのは段間と撃破後の会話なので、
         //   浄化数を直に積んで波のゲートだけ通す（目標 StageTarget は跨がない＝StageCleared は立てない）。

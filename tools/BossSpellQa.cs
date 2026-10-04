@@ -29,6 +29,7 @@ public partial class BossSpellQa : Node
             var game = GetNode<GameManager>("/root/Game");
             game.ResetPersistent();
             game.AutoSaveEnabled = false;
+            if (OS.GetCmdlineUserArgs().Contains("--unfolders")) game.MarkIdleDialogSeen("once_midboss_shield");
             DisplayServer.WindowSetMode(DisplayServer.WindowMode.Windowed);
             DisplayServer.WindowSetSize(new Vector2I(1280, 720));
             await Frames(1);
@@ -619,7 +620,16 @@ public partial class BossSpellQa : Node
         Hud.BubblePaused = false;
         if (boss.UnfolderStyle == UnfolderKind.None)
         {
-            Check(boss.SelectUnfolder(player.GlobalPosition, null) == null, $"{scene}: existing lock-on is unchanged");
+            Write(player, "_locked", true);
+            Write(player, "_lockTarget", boss);
+            var panel = player.LockedUnfolder;
+            Check(panel?.GetParent() == boss, $"{scene}: secondary target belongs to the main boss");
+            panel!.Shatter();
+            Check(player.LockTarget == boss && player.LockedUnfolder != panel && player.LockedUnfolder?.GetParent() == boss,
+                $"{scene}: broken panel hands off within the same boss");
+            foreach (var remaining in panels) remaining.Shatter();
+            Check(player.LockedUnfolder == null && player.LockAimPosition == boss.GlobalPosition && boss.GaugeVulnerable,
+                $"{scene}: breaking all panels targets the exposed body");
             return;
         }
         string output = ProjectSettings.GlobalizePath("res://build/qa_story/unfolders");
@@ -658,13 +668,12 @@ public partial class BossSpellQa : Node
         player.GlobalPosition = playerPosition;
         Check(player.ShotDir.DistanceTo((target!.GlobalPosition - player.GlobalPosition).Normalized()) < 0.001f,
             $"{scene}: shot direction aims at the real panel");
-        Check(boss.CycleUnfolder(boss.CycleUnfolder(target, 1, playerPosition), -1, playerPosition) == target,
-            $"{scene}: forward/backward cycling is reversible");
         Call(player, "TickLockOn");
         Input.ParseInputEvent(new InputEventKey { Keycode = Key.S, Pressed = true });
         Input.FlushBufferedEvents();
         Call(player, "TickLockOn");
-        Check(player.LockTarget == boss && player.LockedUnfolder != target, $"{scene}: next-target input cycles boss panels");
+        Check(player.LockTarget == boss && player.LockedUnfolder == target,
+            $"{scene}: next-target input keeps the sole boss and its panel selected");
         Input.ParseInputEvent(new InputEventKey { Keycode = Key.S, Pressed = false });
         Input.FlushBufferedEvents();
         Call(player, "TickLockOn");

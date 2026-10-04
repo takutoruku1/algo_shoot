@@ -214,10 +214,10 @@ public partial class DialogToolbarQa : Node
                 Check(size.Y >= 14 && size.Y <= 20 && size.X >= 15 && size.X <= 24,
                     $"(vi) illustration {i} stays small and legible at {size}");
             }
-            var boardChoices = ChoiceOverlay.Show(root, ChoiceEffects.SkyChoices, 3, onBoard: true);
+            var boardChoices = ChoiceOverlay.Show(root, new[] { "一緒に空を見よう", "おかえり、ミナ" }, 1, onBoard: true);
             await Frames(3);
             var rows = Read<Rect2[]>(boardChoices, "_rows");
-            Check(rows[^1].End.Y + 8 <= r0.Position.Y - 4, "(vi) toolbar dock stays below all four choices");
+            Check(rows[^1].End.Y + 8 <= r0.Position.Y - 4, "(vi) toolbar dock stays below both choices");
             boardChoices.QueueFree();
             await Frames(3);
 

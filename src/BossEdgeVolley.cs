@@ -75,12 +75,27 @@ public partial class BossEdgeVolley : Node2D
         var player = (Player)GetTree().GetFirstNodeInGroup("player");
         float low = vertical ? Field.Left + 20 : Field.Top + 40;
         float high = vertical ? Field.Right - 20 : Field.Bottom - 22;
-        float axisTarget = vertical ? player.GlobalPosition.X : player.GlobalPosition.Y;
-        float start = Mathf.Clamp(axisTarget - (count / 2) * Spacing, low, high - (count - 1) * Spacing);
-        _gates = new Vector2[count];
-        for (int i = 0; i < count; i++)
+        // 中心の1列は「予兆が出た瞬間の自機の軸」にぴったり乗せる。ここは盤面の縁までしか詰めない
+        //   （自機の可動域＝盤面そのもの）＝どこに居ても必ず1列が自機を通る。
+        //   2026-10-03 ユーザー指摘「上下左右から予兆してくる弾も当たるように配置して」。旧実装は
+        //   列の並びごと Mathf.Clamp(low, high-…) で内側へスライドさせていたため、自機が場の端へ
+        //   寄っているとどの列も自機の軸から外れ＝端で棒立ちしているのが最も安全だった。
+        float axisTarget = Mathf.Clamp(vertical ? player.GlobalPosition.X : player.GlobalPosition.Y,
+            vertical ? Field.Left : Field.Top, vertical ? Field.Right : Field.Bottom);
+        // 残りの列は中心から外へ Spacing 刻みで交互に置き、門の絵が場からはみ出す側は飛ばして
+        //   反対側へ回す（門の数も間隔も不変＝避け場の広さは変えない。詰める方向だけが変わる）。
+        var axes = new List<float>(count) { axisTarget };
+        for (int step = 1; axes.Count < count && step * Spacing <= high - low + Spacing; step++)
+            foreach (int sign in new[] { -1, 1 })
+            {
+                float axis = axisTarget + sign * step * Spacing;
+                if (axes.Count < count && axis >= low && axis <= high) axes.Add(axis);
+            }
+        axes.Sort();
+        _gates = new Vector2[axes.Count];
+        for (int i = 0; i < axes.Count; i++)
         {
-            float axis = start + i * Spacing;
+            float axis = axes[i];
             _gates[i] = Side switch
             {
                 Edge.Top => new Vector2(axis, Field.Top + 5),

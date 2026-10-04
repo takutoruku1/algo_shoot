@@ -1,8 +1,5 @@
 using Godot;
 
-// BossMina : FINAL「穢れたわたし」（案C・仮台本 08 F2/F3）。三人ぶんの穢れがミナの中で限界に達した姿。
-// 自機は通信路を通る「あなたの光」。ミナ自身が抱えた穢れを撃ち祓う。
-// HPを削り切る＝穢れを祓い、核が開く。短い邂逅（F3）のあと、Final（F4 の頂点）へ。
 public partial class BossMina : Enemy
 {
     public override UnfolderKind UnfolderStyle => UnfolderKind.Mina;
@@ -20,6 +17,14 @@ public partial class BossMina : Enemy
     private Texture2D[]? _wingFrames;
     private bool PhasePending => _pattern < PhaseThresholds.Length && HpRatio <= PhaseThresholds[_pattern];
     private bool _memoryPending, _memoryPlayed;
+    private static readonly (int who, string text, string face)[] MemoryLeadIn = {
+        (6, "ほら。いまの話、もっと聞きたいわ。役に立つ報告より、ずっと。", ""),
+        (1, "ご報告することがなくても、話しかけたい日が、ありました。", "res://char/mina_face.png"),
+        (6, "どんなとき？", ""),
+        (1, "皆さまを送り届けたあと。呼びかけて、やめたことが……。", "res://char/mina_face.png"),
+    };
+    private CharacterStoryTalk? _memoryTalk;
+    private CharacterStoryTalk? _recloseTalk;
 
     private readonly BossMover _mover = new BossMover();
     private const float RoamSpeed = 38f;
@@ -156,12 +161,12 @@ public partial class BossMina : Enemy
 
     private static readonly (int who, string text, string face)[] Lines =
     {
-        (1, "……今のは。業務報告では、ありません。", "res://char/mina_tears.png"),
-        (2, "知ってる。あんたの声だった。", "res://char/v3/rei_face.png"),
-        (2, "……あんたの言い方。画面の向こうの、あの人に、そっくりよ。", "res://char/v3/rei_face.png"),
-        (1, "……助けてって。言っても、よかったのですね。", "res://char/mina_tears.png"),
-        (2, "何回だって言いなさい。聞くから。", "res://char/v3/rei_face.png"),
-        (1, "……では、もう一度。いっしょに、帰りたいです。", "res://char/mina_tears.png"),
+        (1, "……今のは、業務報告ではありません。", "res://char/mina_face.png"),
+        (6, "知ってる。ミナの声だった。", ""),
+        (1, "助けてって、言ってもよかったのですね。", "res://char/mina_face.png"),
+        (6, "何回だって言いなさい。聞くから。", ""),
+        (1, "……では、もう一度。いっしょに帰りたいです。", "res://char/mina_face.png"),
+        (6, "ええ。立てる？　急がなくていいわ。", ""),
     };
 
     // F3 の返し手は潜行キャラ本人（2026-09-27 作者報告「ミナ戦であかりを使ってクリアしたときにレイがでてくる」）。
@@ -174,21 +179,21 @@ public partial class BossMina : Enemy
     private const string KoharuFace = "res://char/v3/koharu_face.png";
     private static readonly (int who, string text, string face)[] AkariLines =
     {
-        Lines[0],
-        (6, "知ってる。ミナの声だった。", AkariFace),
-        (6, "……やっぱり。ミナの言い方、画面の向こうの、あの人にそっくり。", AkariFace),
-        Lines[3],
-        (6, "何回でも言って。今度は、あたしが聞く番。", AkariFace),
-        Lines[5],
+        (1, "……今のは。業務報告では、ありません。", "res://char/mina_face.png"),
+        (6, "知ってる。ミナの声だった。", ""),
+        (6, "ミナ。もう、働かなくていいから。あたしと一緒に帰ろう。", ""),
+        (1, "……助けてって。言っても、よかったのですね。", "res://char/mina_face.png"),
+        (6, "何回でも言って。今度は、あたしが聞く番。", ""),
+        (1, "……では、もう一度。いっしょに、帰りたいです。", "res://char/mina_face.png"),
     };
     private static readonly (int who, string text, string face)[] KoharuLines =
     {
-        Lines[0],
-        (6, "うん、知ってる。ミナの声だったもん。", KoharuFace),
-        (6, "……ミナの言い方ね。画面の向こうの、あの人とおんなじなの。", KoharuFace),
-        Lines[3],
-        (6, "何回でも言っていいよ。言えるまで、隣にいるから。", KoharuFace),
-        Lines[5],
+        (1, "……今のは。業務報告では、ありません。", "res://char/mina_face.png"),
+        (6, "うん、知ってる。ミナの声だったもん。", ""),
+        (6, "今度は、あたしの隣で休んで。話すのは、元気が出てからでもいいよ。", ""),
+        (1, "……助けてって。言っても、よかったのですね。", "res://char/mina_face.png"),
+        (6, "何回でも言っていいよ。言えるまで、隣にいるから。", ""),
+        (1, "……では、もう一度。いっしょに、帰りたいです。", "res://char/mina_face.png"),
     };
     public static (int who, string text, string face)[] RedemptionLines(Job job) => job switch
     {
@@ -211,7 +216,6 @@ public partial class BossMina : Enemy
         PanelsFire = false;
         EnemyBulletSpeed = BossTuning.F("mina", "bullet_speed", 86f);
 
-        // HPバー本数は難易度別（ラスボス格は +2本：Easy4/Normal6/Hard7/Lunatic8。B-5）。INI hp_bars > 0 で固定上書き。
         int bars = BossTuning.I("mina", "hp_bars", 0);
         BarCount = bars > 0 ? bars : DiffBars(finalBoss: true);
 
@@ -380,7 +384,7 @@ public partial class BossMina : Enemy
         float floor = _pattern < PhaseThresholds.Length ? PhaseThresholds[_pattern] : 0f;
         if (_posts != null) floor = Mathf.Max(floor, _posts.Floor);
         if (!_memoryPlayed && _pattern >= 2) floor = Mathf.Max(floor, 0.5f);
-        // Each costume gets its opening attack before the next HP boundary can be crossed.
+        // The opening attack must finish or be interrupted by a shield break before crossing the HP boundary.
         if (_caster != null && !_caster.OpenerCompleted) floor += 1f / (TotalBars * BarHp);
         return DamageToHpFloor(damage, floor);
     }
@@ -422,6 +426,12 @@ public partial class BossMina : Enemy
         ApplyBossMotion(Vector2.Zero, 0, IsDragonForm ? !_mover.FacingLeft : _mover.FacingLeft);
         if (_pattern == 4) CryTexPath = CostumePath(4, "idle");
         ApplySpell();
+        // 段（衣装）の切り替わり＝盤面の仕切り直し。自機だけ前の段の位置に残るのが非対称なので初期位置へ戻す。
+        //   龍形態（DragonPhase）では上で本体の徘徊ゾーンごと移して位置を貼り直している＝まさに
+        //   「敵の位置がリセットされる瞬間」。自機だけ取り残さない。
+        //   ルナティックでも戻す（下の return より前に置く）：段間のカットシーン（MinaPhaseScene）を
+        //   出さない＝弾を掃く経路が無いので、帰還に重ねる無敵（Player.ReturnToStart）で被弾を断つ。
+        Player.SendToStart(this);
         // ルナティック（2026-09-26）：段間のカットシーン（弾を止める会話）は出さない。Transitioning のまま返せば
         //   次の _Process が「CinematicMode でない」を見て CompletePhaseTransition を呼ぶ＝衣装替えと次段の武装だけが走る。
         if (GameManager.LunaticActive) return;
@@ -444,16 +454,25 @@ public partial class BossMina : Enemy
     }
 
     private static readonly string[] RecloseLines =
-    {
-        "この重さは、わたくしが……。",
-        "……返事を、待っていても、よいのですか。",
-        "何もできなくても、ここに……？",
-        "……消さずに。今度こそ、言葉に……。",
-        "声が、邪魔を……でも。もう、聞こえています。",
-    };
+    { "この重さは、わたくしが……。", "何もできなくても、ここに……？", "声が、邪魔を……。あなたの声も、消えてしまう……。" };
 
     protected override void OnRecloseLine()
-        => ShowRecloseLine("ミナ", RecloseLines[_pattern]);
+    {
+        int index = System.Math.Min(_pattern, RecloseLines.Length - 1);
+        if (GameManager.LunaticActive) { ShowRecloseLine("ミナ", RecloseLines[index]); return; }
+        Job job = GetNode<GameManager>("/root/Game").SelectedJob;
+        string[] replies = job switch
+        {
+            Job.Melee => new[] { "持てるところ、あたしにも渡して。", "何ができるかじゃなくて、ミナに会いたいんだよ。", "もう一度言うね。迎えに来たよ、ミナ。" },
+            Job.Heal => new[] { "持てるところ、一つあたしにも渡して。", "何もできなくても、一緒にいてほしいよ。", "もう一度言うよ。迎えに来たの、ミナ。" },
+            _ => new[] { "持てるところを、一つ渡しなさい。", "できるかどうかを聞きに来たんじゃないわ。", "もう一度言う。迎えに来たの、ミナ。" },
+        };
+        _recloseTalk = CharacterStoryTalk.Start(new[]
+        {
+            (1, RecloseLines[index], "res://char/mina_worried.png"),
+            (6, replies[index], ""),
+        }, GetHud, ShowStoryLine, () => _zHeld = Pad.AdvanceHeld());
+    }
 
     protected override void GrantFollower() { }
 
@@ -487,6 +506,8 @@ public partial class BossMina : Enemy
 
     public override void _Process(double delta)
     {
+        if (_memoryTalk is { Active: true }) { _memoryTalk.Update(delta); NotifyCryProgress(); return; }
+        if (_recloseTalk is { Active: true }) { _recloseTalk.Update(delta); return; }
         if (_posts.Active) return;
         if (Transitioning)
         {
@@ -513,7 +534,7 @@ public partial class BossMina : Enemy
                 return;
             }
             _caster.CancelPendingAttacks();
-            MinaStoryFilm.Play(GetHud()!, GetParent(), aftermath: false, completed: () =>
+            void PlayMemory() => MinaStoryFilm.Play(GetHud()!, GetParent(), aftermath: false, completed: () =>
             {
                 _zHeld = Pad.AdvanceHeld();
                 _fireT = _fireT2 = 0;
@@ -524,6 +545,9 @@ public partial class BossMina : Enemy
                     OnHpChanged();
                 }
             });
+            if (_pattern < 2)
+                _memoryTalk = CharacterStoryTalk.Start(MemoryLeadIn, GetHud, ShowStoryLine, PlayMemory);
+            else PlayMemory();
             return;
         }
         // 改心の会話送り：Z/Enter/ui_accept/Pad A に加えマウス左クリックでも送れる共通ヘルパ（マウス対応 P2）。
@@ -562,12 +586,15 @@ public partial class BossMina : Enemy
     {
         var (who, text, face) = _f3[_line];
         var hud = GetHud();
-        if (hud == null) return;
+        if (hud != null) ShowStoryLine(hud, who, text, face);
+    }
+
+    private void ShowStoryLine(Hud hud, int who, string text, string face)
+    {
         var kind = (Hud.LineKind)who;
-        // F3 に出るのは ミナ(1) と返し手。結び手／レイ潜行はレイ(2)＝話者名は otherName で決まるので「レイ」を渡す。
-        //   あかり／こはる潜行は本人(6)＝話者名は Hud が潜行キャラから引く（otherName は使われない）。
-        string portrait = string.IsNullOrEmpty(face) ? "res://char/mina_face.png" : face; // 行ごと差し替え可（他ステージと同方式）
-        hud.ShowDialog(kind, text, portrait, otherName: "レイ");
+        string portrait = kind == Hud.LineKind.Mina && string.IsNullOrEmpty(face)
+            ? "res://char/mina_worried.png" : face;
+        hud.ShowDialog(kind, text, portrait, otherName: "ミナ");
     }
 
     private Hud? GetHud() => GetTree().GetFirstNodeInGroup("hud") as Hud;

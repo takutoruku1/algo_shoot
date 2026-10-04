@@ -3,7 +3,7 @@ using Godot;
 public partial class Player
 {
     public const int PowerLevelCap = 2;
-    public const int KillsPerPowerDrop = 5;
+    public const int KillsPerPowerDrop = 10;
     public int LinePower { get; private set; }
     public int SpeedPower { get; private set; }
     public int LifePower { get; private set; }

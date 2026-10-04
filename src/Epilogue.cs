@@ -78,9 +78,7 @@ public partial class Epilogue : Node2D
     private string[] _roll = System.Array.Empty<string>();
     private void BuildRoll()
     {
-        string last = (_game?.LastSentWord ?? "").Trim();
-        if (_game != null && _game.HasChoiceAt("f4") && _game.ChosenAt("f4").Length == 0)
-            last = _game.FirstScattered.Trim();
+        string last = (_game?.ChosenAt("f4") ?? "").Trim();
         _roll = new[]
         {
             "", "", "", "",
@@ -166,7 +164,7 @@ public partial class Epilogue : Node2D
     private readonly RetryHold _rollSkip = new();
     private bool _rollSkipArmed;     // 一度離すまで長押しを受けない（映画スキップの押しっぱなしを引き継がない）
 
-    private static readonly string[] E6Choices = { "また会いに来る。次は、何でもない話をしよう", "ミナに会えてよかった。もう、ひとりじゃない" };
+    private static readonly string[] E6Choices = { "また会いに来る。次は、何でもない話をしよう。", "ミナに会えてよかった。もう、ひとりじゃない。" };
     private int _e6ChoiceLine = -1;   // ここに着いたら選択を出す（-1＝提示済み）
     private ChoiceOverlay? _e6Choice;
     private double _e6ChoiceT;        // 提示からの経過＝迷い秒数（RecordChoice へ渡す）
@@ -191,44 +189,39 @@ public partial class Epilogue : Node2D
         _game = GetNodeOrNull<GameManager>("/root/Game");
         BuildRoll();        // E7 のロール（末尾の一行に【終】が入る）
 
-        // ── E5b 見上げる（夜。四人が並んで立ち止まっている。08 E5b 前半10行）──
+        // ── E5b 夜空を共有し、一人ずつ回線をつなぐ ──
         // ユーザー承認済み: docs/20260914/ストーリー添削_2026-09-14.md 【5】
         //   "地" は話者名なしで描かれる＝見た目は第三者の地の文だが、中身は「わたくしも」「わたくしたちは」と
         //   一人称が混じっており、実質ミナの語りだった（＝中身はミナなのに表示だけ第三者という中途半端）。
         //   本作に第三者の語り手はいない（wiki/03_ストーリー/08_伏線と回収.md も明記）ので "ミナ" に寄せる。
         //   いちばん静かな場面で「誰が語っているか」が揺れないようにする。
         void G(string who, string t) => _gaze.Add(new DLine { Who = who, Text = t });
-        G("ミナ", "……その夜。タイムラインは、少しだけ、静かでした。");
-        G("ミナ", "……ご主人様。今夜は、こちらを。——わたくしの目で、見た空です。");
-        G("ミナ", "……数えきれません。……数えるのが、仕事なのですが。");
-        G("ミナ", "ひとつ、ひとつが、どなたかの画面です。……あれで、ぜんぶではありません。");
-        G("ミナ", "……ここからだと、光っているところしか、見えません。");
-        G("ミナ", "……まだ投稿になっていない声も、この空の向こうに、あるのでしょうね。");
-        G("ミナ", "この旅で、声のもとまで辿り着けたのは——三件でした。");   // 三人＝ステージ数の固定値
-        // 三人が並んで立っている場面なのに、ここまで喋るのがミナだけだった（あかりの1行を除く）。
-        //   「三件」＝少なさの数字を、救われた側の二人が受ける。E7 スタッフロールの「その後」
-        //   （こはる＝あと一行／レイ＝同接7・名前覚えた）は追い越さず、いまの場で言えることだけ。
-        G("こはる", "三件、って言った? ……あたし、そのうちの一件だよ。");
-        G("こはる", "ひとりぶんでも、届いたら、その日は学校行けるんだよ。……ほんとだってば。");
-        G("レイ", "三、ね。……わたしは、その数字、笑えないわ。");
-        G("レイ", "一桁のほうが、顔が見えるの。……数えてるんでしょ。なら、胸張りなさいよ。");
-        // H2r「ありがと、知らない人。」（Hub・ミナ宛）の日常語の再来。同じ言葉のまま宛先だけがご主人様に変わる
-        //   （2026-09-26 docs/20260926 §3.5）。曲停止行は本文一致（SilenceLine）なので挿入で番号はずれない。
-        G("こはる", "……ミナの後ろの人も、聞いてるんでしょ。——ありがと、知らない人。");
-        G("こはる", "名前、まだ知らないけど。今度は、なんでもない昼休みの話も、あなたにしたいな。");
-        G("あかり", "……あなたに、またね。すぐ返事がなくても、今度は、このまま置いておくね。");
-        G("レイ", "画面の向こうのあんたにも。次は、数字の話じゃなくて、本の続きを。……またね。");
-        G("ミナ", "…………。");                                       // ここで曲を完全停止（無音）
-        G("ミナ", "誰かが、ひとりで抱えきれなくなる前に。……その声を聞けるところに、いたいと思います。");
-        G("ミナ", "——できることは、数えることと、覚えていることだけ、ですが。");
-        G("ミナ", "……でも。今夜は、次の投稿を開かずにおきます。");
-        G("ミナ", "ご主人様。もう少し、ここにいても、よろしいですか。");
-        G("ミナ", "……まだ、空を見ていたいので。");
-        G("あかり", "うん。もう少し、見てよう。");
-        G("ミナ", "……誰も、わたくしを急かしませんでした。次の仕事は、探しませんでした。");
-
-        // ── E6 END（08 E6）。E7 の後に来る＝作品全体の最後の場面。──
-        _end.Add(new DLine { Who = "ミナ", Text = "ご主人様。本日の業務は、以上です。" });
+        G("ミナ", "今夜は、こちらを。わたくしの目で見た空です。");
+        G("あなた", "こんなふうに見えてたんだ。僕の観測画面より、ずっと明るい。");
+        G("ミナ", "全部を数えるのは、やめました。今は、この一つを見ていただきたいので。");
+        G("あなた", "うん。……きれいだね。");
+        G("地", "あかりとの回線");
+        G("あかり", "ミナ、帰ってきたね。……あなたも、お疲れさま。");
+        G("あなた", "ありがとう。あかりさんの声も、心強かった。");
+        G("あかり", "次は、何でもない話で呼ぶね。返事は、すぐじゃなくてもいいから。");
+        G("地", "こはるとの回線");
+        G("こはる", "ね、次はさ、なんでもない昼休みの話でもいい？　何も解決してないやつ。");
+        G("あなた", "そういうのも聞きたい。今日の抹茶オレの話でも。");
+        G("こはる", "それ、長くなるよ？　銘柄ごとに、けっこう違うんだから。");
+        G("地", "レイとの回線");
+        G("レイ", "あんたも、休みなさい。案内役が寝不足じゃ、こっちも落ち着かないわ。");
+        G("あなた", "分かった。次の本の話までには、ちゃんと寝ておく。");
+        G("レイ", "よろしい。予習はいらない。感想は、あんたの言葉でね。");
+        G("地", "ミナとの回線");
+        G("ミナ", "皆さま、ご主人様に言いたいことが増えたようですね。");
+        G("あなた", "うれしいけど、寝るようにって、二人から言われたよ。");
+        G("ミナ", "もう一度申し上げます。寝てください。これで三件です。");
+        G("あなた", "あと、少しだけ。君の空を見てたい。");
+        G("ミナ", "……はい。では、少しだけ。わたくしも、そうしたかったので。");
+        _end.AddRange(new List<DLine>
+        {
+            new() { Who = "ミナ", Text = "ご主人様。本日の業務は、以上です。" },
+        });
         _e6ChoiceLine = _end.Count;   // ここに着いたら最後の選択を出す
     }
 
@@ -242,30 +235,36 @@ public partial class Epilogue : Node2D
     // E6 の確定：送った言葉と迷い秒数を記録し、受け（対句）と END の2行を挿し込む。
     private void ApplyE6Choice(int sel)
     {
-        float hesitation = (float)_e6ChoiceT;
-        ChoiceEffects.Record(_game, "e6", E6Choices, sel, hesitation);
+        ChoiceEffects.Record(_game, "e6", E6Choices, sel, (float)_e6ChoiceT);
         _e6ChoiceLine = -1;
-        // 最初の返事を待った時間を、最後の会話で振り返る。
-        float p2 = _game?.HesitationAt("p2") ?? 0f;
-        int p2Sec = Mathf.Max(1, Mathf.RoundToInt(p2));
-        string couplet = hesitation <= p2
-            ? $"最初は、{p2Sec}秒。……今は、こんなふうにお話しできるのですね。"
-            : "……ゆっくり選んでくださった言葉ですもの。大切に、覚えておきます。";
-        string nameEcho = (_game?.NameRoute ?? 0) switch
+        _end.Add(new DLine { Who = "あなた", Text = E6Choices[sel] });
+        _end.AddRange(sel == 0 ? new List<DLine>
         {
-            1 => "……最初のご提案は、十九文字でした。……却下したのは、わたくしです。いまでも、そう思います。",
-            _ => "……最初につけていただいた名前も、大切にしております。",
-        };
-        var after = new List<DLine>();
-        after.Add(new DLine { Who = "あなた", Text = E6Choices[sel] });
-        after.Add(new DLine { Who = "ミナ", Text = sel == 0
-            ? "はい。何でもないお話を。うまくいかなかった日も、何もなかった日も。……聞かせてくださいね。"
-            : "……わたくしも、お会いできてよかった。そう言っていただけて、うれしいです。ご主人様。" });
-        after.Add(new DLine { Who = "ミナ", Text = couplet });
-        after.Add(new DLine { Who = "ミナ", Text = nameEcho });
-        after.Add(new DLine { Who = "ミナ", Text = "いってらっしゃいませ、ご主人様。" });     // 送り出す側の反転
-        after.Add(new DLine { Who = "ミナ", Text = "——ええ、ご主人様。わたくしは、どこにも行きませんよ。" }); // END
-        _end.AddRange(after);
+            new() { Who = "ミナ", Text = "はい。うまくいかなかった日も、何もなかった日も。聞かせてください。" },
+        } : new List<DLine>
+        {
+            new() { Who = "ミナ", Text = "わたくしも、お会いできてよかった。……こちらにも、お話しする相手がおりますので。" },
+        });
+        _end.AddRange(new List<DLine>
+        {
+            new() { Who = "あなた", Text = "最初より、ずいぶん普通に話せるようになったね。" },
+            new() { Who = "ミナ", Text = "最初は、起動しただけで疑われましたから。" },
+        });
+        _end.AddRange(_game?.NameRoute == 1 ? new List<DLine>
+        {
+            new() { Who = "ミナ", Text = "それから、あの長い肩書き。今でも却下です。続編で採用する予定もありません。" },
+            new() { Who = "あなた", Text = "ミナがいいよ。僕も、今はそう思ってる。" },
+        } : new List<DLine>
+        {
+            new() { Who = "ミナ", Text = "37番目だから、とつけられた名前。……今では、自分の名前だと思っています。" },
+            new() { Who = "あなた", Text = "うん。呼ぶたびに、君の顔が浮かぶよ。" },
+        });
+        _end.AddRange(new List<DLine>
+        {
+            new() { Who = "ミナ", Text = "では、いってらっしゃいませ。ご主人様。" },
+            new() { Who = "あなた", Text = "またね、ミナ。" },
+            new() { Who = "ミナ", Text = "はい。また。——ええ、わたくしは、どこにも行きませんよ。" },
+        });
         _lineT = 0; _reveal = 0; _page = 0; _pagedKey = -1; _readKey = -1;
     }
 
@@ -382,7 +381,6 @@ public partial class Epilogue : Node2D
                 }
                 break;
         }
-        if (ShowingGoodbye) _goodbyeT += delta;
         QueueRedraw();
     }
 
@@ -415,18 +413,36 @@ public partial class Epilogue : Node2D
         if (_musicStarted) Audio.Instance?.StopMusicOnce(0.3f);
     }
 
-    private Texture2D _skyDawn = null!, _rest = null!, _goodbye = null!, _together = null!;
-    private double _goodbyeT;
-    private bool ShowingGoodbye => _phase == PhEnd && _e6ChoiceLine < 0 && _line >= _end.Count - 2;
-    private float GoodbyeAlpha => Mathf.SmoothStep(0f, 1f, Mathf.Clamp((float)_goodbyeT / 1.2f, 0f, 1f));
+    private Texture2D _skyDawn = null!, _rest = null!, _goodbye = null!;
+    private readonly Dictionary<string, Texture2D> _callArt = new();
 
     private void BuildSky()
     {
         const string dir = "res://char/bg2/ending/";
         _skyDawn = GD.Load<Texture2D>(dir + "bg_ep_dawn_v2.png");
-        _rest = GD.Load<Texture2D>(dir + "cg_ep_rest.png");
+        _rest = GD.Load<Texture2D>(dir + "cg_ep_mina_sky_v3.png");
         _goodbye = GD.Load<Texture2D>(dir + "cg_ep_goodbye_v2.png");
-        _together = GD.Load<Texture2D>(dir + "cg_ep_together_v2.png");
+        _callArt["ミナ"] = _rest;
+        _callArt["あかり"] = GD.Load<Texture2D>("res://char/bg2/story/cg_akari_playable_aftermath_v1.png");
+        _callArt["こはる"] = GD.Load<Texture2D>("res://char/bg2/story/cg_koharu_playable_aftermath_v1.png");
+        _callArt["レイ"] = GD.Load<Texture2D>("res://char/bg2/story/cg_rei_playable_aftermath_v1.png");
+    }
+
+    private string GazePartner
+    {
+        get
+        {
+            for (int i = _line; i >= 0; i--)
+                if (_gaze[i].Who == "地")
+                    return _gaze[i].Text switch
+                    {
+                        "あかりとの回線" => "あかり",
+                        "こはるとの回線" => "こはる",
+                        "レイとの回線" => "レイ",
+                        _ => "ミナ",
+                    };
+            return "ミナ";
+        }
     }
 
     private void DrawArt(Texture2D texture, float alpha = 1f, float zoom = 1f)
@@ -440,7 +456,7 @@ public partial class Epilogue : Node2D
     public override void _Draw()
     {
         if (_phase == PhGaze)
-            DrawArt(_rest, zoom: 1f + 0.025f * (1f - Mathf.Exp(-(float)_t / 22f)));
+            DrawArt(_callArt[GazePartner], zoom: 1f + 0.025f * (1f - Mathf.Exp(-(float)_t / 22f)));
         else DrawArt(_skyDawn);
 
         switch (_phase)
@@ -450,14 +466,21 @@ public partial class Epilogue : Node2D
                 break;
             case PhRoll: DrawStaffroll(); break;
             case PhEnd:
-                DrawArt(_together);
-                if (ShowingGoodbye) DrawArt(_goodbye, GoodbyeAlpha);
+                DrawArt(_goodbye);
                 DrawEnd();
                 break;
         }
 
         // 会話ボックスのボタン列とラッチの印（設計座標・枠より手前）。SKIP はラッチ中か、押しっぱなしの早送り中に点ける。
         UiKit.BeginDesign(this);
+        if (_phase == PhGaze || _phase == PhEnd)
+        {
+            string partner = _phase == PhGaze ? GazePartner : "ミナ";
+            var accent = EdgeFor(partner);
+            DrawRect(new Rect2(42, 30, 270, 42), new Color(0.025f, 0.03f, 0.045f, 0.86f));
+            DrawLine(new Vector2(42, 30), new Vector2(42, 72), accent, 2);
+            UiKit.Text(this, UiKit.Zen, new Vector2(58, 40), partner + "との回線", 20, accent);
+        }
         if (TalkBoxShown) _toolbar.Draw(this, ToolbarAnchor, _game?.AutoAdvanceDialog ?? false, Hud.SkipLatched || _ffNow);
         // 会話ボックスが出ていない間も SKIP ラッチが立っていれば画面右上に「▶▶」の印（ラッチは画面を跨いで残る）。
         _toolbar.DrawLatchMark(this, new Vector2(UiKit.DesignW - 16f, 14f));

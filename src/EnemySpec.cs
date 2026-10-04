@@ -24,7 +24,7 @@ public enum AttackPattern
     KoharuSimmer,    // こはるグッズの箱：とろ火ゆらぎ弾（自機狙い超低速単発）
     DefaultAim,      // アンチくん：自機狙い単発（現状踏襲）
     FlankAim,        // 回り込み「引用リプ」：右から出現→上下端を走行→自機後方(x≈40)に着座→右向き低速単発（全テーマ共通）
-    BuzzWall,        // 盾もち「バズ壁」：撃たない・遅い・硬い（パネル5×インク3）＝DPSチェックの壁（全テーマ・波B/C限定）
+    BuzzWall,        // 盾もち「バズ壁」：撃たない・遅い・硬い（パネル5×インク6）＝DPSチェックの壁（全テーマ・波B/C限定）
     KoharuPrayerCarry, // 祈り運び：消せる祈り弾を3発ぶら下げて横断するボーナス種（こはる面専用・お残し禁止の練習台）
     AkariDeadline,
     AkariUnsent,
@@ -101,7 +101,7 @@ public static class EnemyTable
         // 発射は本体(MidEnemy)が Pattern で行う。fires/fireInterval はパネル発射用の旧値で、
         // 本体発射では参照しない（Panel 側の自前発射は無効化済み）。各種の弾速・間隔・弾数は MidEnemy 内で定義。
         // 欠片の粒数（ShardWeight）：撃つ種＝1.15／撃たない種＝0.85 を基準に、
-        //   「居座って圧をかけてくる度合い」で微調整する。ザコは全種6ヒットなので手間は同じ＝
+        //   「居座って圧をかけてくる度合い」で微調整する。ザコは全種12ヒットなので手間は同じ＝
         //   差をつける根拠は“倒すと楽になる度合い”（脅威度）に置く（§2-1 比例させる）。
         StageTheme.Rei => (
             new EnemySpec("res://char/v3/enemy_rei_icon_pre.png", "res://char/v3/enemy_rei_icon_post.png",
@@ -216,7 +216,7 @@ public static class EnemyTable
     public static EnemySpec Flanker(StageTheme theme)
     {
         var (shooter, _) = For(theme);
-        // 欠片 1.1：手間は通常ザコと同じ6ヒットだが、自機の背後（x≈40）に陣取って左端の安置を潰す＝
+        // 欠片 1.1：手間は通常ザコと同じ12ヒットだが、自機の背後（x≈40）に陣取って左端の安置を潰す＝
         // 「わざわざ振り向いて倒しに行く」リスクへの見返り。無視して前へ出続けると背中を撃たれ続ける。
         return new EnemySpec(shooter.PreTexPath, shooter.PostTexPath, shooter.Points, shooter.BodyRadius,
             moveSpeed: FlankMoveSpeed, spinSpeed: shooter.SpinSpeed, fires: true,
@@ -228,8 +228,8 @@ public static class EnemyTable
     // 撃たない・遅い・硬い（パネル数/インクは MidEnemy が Pattern で上書き）に差し替える。
     // 高ポイント＝剥がし切るDPSチェックへの対価（リスクとリターン：無視もできるが報酬は大きい）。
     //
-    // バランス査定メモ（新奥義バランス査定）：通常ザコはパネル3×インク2＝6ヒットで撃破（MidEnemy.cs:80-81）。
-    // バズ壁はパネル5×インク3＝15ヒット＝通常の2.5倍の手間。旧 points=150 は通常ザコ（平均約90）の
+    // バランス査定メモ（新奥義バランス査定）：通常ザコはパネル3×インク4＝12ヒットで撃破。
+    // バズ壁はパネル5×インク6＝30ヒット＝通常の2.5倍の手間。旧 points=150 は通常ザコ（平均約90）の
     // 約1.67倍にしかならず、「無視もできるが報酬は大きい」という上の設計コメントに対して手間と報酬が
     // 比例していなかった（§2-1）。ヒット数倍率(2.5x)に揃えて 150→220（≒平均90×2.45）に引き上げ、
     // 剥がし切った時の点数リターンを手間に見合わせる。Score は経済(Impression)や進行(PurifiedCount)には
@@ -238,7 +238,7 @@ public static class EnemyTable
     public static EnemySpec BuzzWall(StageTheme theme)
     {
         var (_, drifter) = For(theme);
-        // 欠片 2.5：パネル5×インク3＝15ヒットで、通常ザコ（3×2＝6ヒット）のちょうど 2.5 倍の手間。
+        // 欠片 2.5：パネル5×インク6＝30ヒットで、通常ザコ（3×4＝12ヒット）のちょうど 2.5 倍の手間。
         // points を 150→220（≒2.45倍）へ揃えたのと同じ根拠で粒数も 2.5 倍にする＝
         // 「撃たない壁を、あえて剥がし切った」手間が“こぼれる欠片の量”として目に見える（§2-1 比例／§2-3 即・明確に）。
         // 25〜40粒＝拾い切るのに一拍かかる量で、DPSチェックを通した実感が手触りとして残る。

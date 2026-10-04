@@ -69,7 +69,9 @@ public partial class PlayerShotQa : Node
             DisplayServer.WindowSetSize(new Vector2I(1280, 720));
             await Frames(2);
             CheckArtwork();
-            if (OS.GetCmdlineUserArgs().Contains("--charge-demo"))
+            if (OS.GetCmdlineUserArgs().Contains("--aim-spacing"))
+                await CheckAimSpacing();
+            else if (OS.GetCmdlineUserArgs().Contains("--charge-demo"))
                 foreach (var job in Jobs.All) await DemoCharge(job);
             else if (OS.GetCmdlineUserArgs().Contains("--charge-tier-shot"))
                 foreach (var job in Jobs.All) await ShotChargeTiers(job);
@@ -621,6 +623,65 @@ public partial class PlayerShotQa : Node
             foreach (string input in new[] { "keyboard", "mouse" }) Press(input, false);
             _game.TrainingSetUpgrade("n_charge", true);
         }
+    }
+
+    private async Task CheckAimSpacing()
+    {
+        foreach (var job in new[] { Job.Tank, Job.Melee })
+        {
+            _game.SelectedJob = job;
+            _game.TrainingSetUpgrade("n_lines", false);
+            var root = GD.Load<PackedScene>("res://Akari.tscn").Instantiate<AkariRoot>();
+            GetTree().Root.AddChild(root);
+            GetTree().CurrentScene = root;
+            root.Stage.SetProcess(false);
+            root.Player.SetPhysicsProcess(false);
+            root.Hud.HideBubble();
+            root.Player.GlobalPosition = new Vector2(192, 108);
+            var target = new Node2D();
+            root.World.AddChild(target);
+            Write(root.Player, "_lockTarget", target);
+            Write(root.Player, "_locked", true);
+
+            for (int power = 0; power <= Player.PowerLevelCap; power++)
+            {
+                if (power > 0) Check(root.Player.ApplyPowerup(PowerKind.Line), "line power applied");
+                foreach (bool upgrade in new[] { false, true })
+                {
+                    _game.TrainingSetUpgrade("n_lines", upgrade);
+                    int count = 2 + power + (upgrade ? 1 : 0);
+                    float gap = count == 2 || (job == Job.Melee && count == 3) ? 8f : 6f;
+                    for (int heading = 0; heading < 8; heading++)
+                    {
+                        _pool.DespawnAll();
+                        Vector2 direction = Vector2.Right.Rotated(heading * Mathf.Pi / 4f);
+                        Vector2 side = new(-direction.Y, direction.X);
+                        target.GlobalPosition = root.Player.GlobalPosition + direction * 64f;
+                        Call(root.Player, "Fire");
+                        var shots = Active().OrderBy(b => b.GlobalPosition.Dot(side)).ToArray();
+                        string label = $"{job}: {count} lines, heading {heading * 45}";
+                        Check(shots.Length == count, $"{label}: shot count retained");
+                        Vector2 muzzle = root.Player.GlobalPosition + direction * 20f;
+                        Check(shots.All(b => Mathf.Abs((b.GlobalPosition - muzzle).Dot(direction)) < 0.001f)
+                            && ((shots.First().GlobalPosition + shots.Last().GlobalPosition) * 0.5f).DistanceTo(muzzle) < 0.001f,
+                            $"{label}: volley is centered across the aim direction");
+                        Check(Enumerable.Range(1, count - 1).All(i => Mathf.Abs(shots[i].GlobalPosition.DistanceTo(shots[i - 1].GlobalPosition) - gap) < 0.001f),
+                            $"{label}: every adjacent shot has the same horizontal-fire spacing");
+
+                        int frames = job == Job.Melee ? Mathf.CeilToInt(_game.AccelChargeDelay * 60f) + 2 : 2;
+                        for (int frame = 0; frame < frames; frame++)
+                            foreach (var shot in shots) shot._PhysicsProcess(1.0 / 60.0);
+                        Check(shots.All(b => b.Active && !b.AccelCharging && b.Velocity.Normalized().DistanceTo(direction) < 0.001f)
+                            && Enumerable.Range(1, count - 1).All(i => Mathf.Abs(shots[i].GlobalPosition.DistanceTo(shots[i - 1].GlobalPosition) - gap) < 0.001f),
+                            $"{label}: parallel spacing survives flight and acceleration");
+                    }
+                }
+            }
+            _pool.DespawnAll();
+            root.QueueFree();
+            await Frames(5);
+        }
+        _game.TrainingSetUpgrade("n_lines", false);
     }
 
     private async Task CheckCharacter(JobTuning job)

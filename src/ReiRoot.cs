@@ -79,7 +79,7 @@ public partial class ReiRoot : Node2D
 
         Player = new Player { Name = "Player" };
         World.AddChild(Player);
-        Player.GlobalPosition = new Vector2(Field.Left + 60f, 108f); // 盤面の左端から60px（サイドパネル裏に湧かない）
+        Player.SnapToStart(); // 初期位置＝Field.PlayerStart（盤面の左端から60px＝サイドパネル裏に湧かない）。仕切り直しで戻る先と同じ1点
         // STAGE3：縁の濁りがはっきり広がる段階。漫才の裏で深刻化していく。
         GetNodeOrNull<GameManager>("/root/Game")?.SetContamination(0.45f);
         Player.SetCorruption(0.45f);

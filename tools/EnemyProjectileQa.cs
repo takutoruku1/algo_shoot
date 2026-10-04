@@ -342,7 +342,8 @@ public partial class EnemyProjectileQa : Node
                 {
                     var shots = Bullets();
                     float speed = (float)typeof(Enemy).GetField("EnemyBulletSpeed", Private)!.GetValue(boss)!;
-                    Check(shots.Length == game.ScaleBullets(Read<int>(boss, "_fanCount"))
+                    // 扇は自機狙い＝本数は必ず奇数（ScaleBulletsOdd）。中心の1本が自機の正面を通る。
+                    Check(shots.Length == game.ScaleBulletsOdd(Read<int>(boss, "_fanCount"))
                         && shots.All(b => b.Radius == 3f && Mathf.IsEqualApprox(b.Velocity.Length(), speed * game.BulletSpeedMul)
                             && ReferenceEquals(Read<Texture2D>(b, "_sprite"), BulletArt.AkariSticky)),
                         $"Akari/{diff}: folded paper fan preserves count, speed and hit radius");
@@ -610,34 +611,61 @@ public partial class EnemyProjectileQa : Node
         var ys = bullets.Select(b => b.GlobalPosition.Y).OrderBy(y => y).ToArray();
         switch (pattern)
         {
-            // 切り抜きの人：本体の上下 24px の2点から挟み込む。
+            // 切り抜きの人：鋏の2枚を狙いの直交方向へ開き、それぞれが予告時の自機を向いて閉じる
+            //   ＝交点が自機に重なる（2026-10-03。旧仕様の「本体の上下24px から world 左へ∓24°」は
+            //   自機の位置と無関係で、棒立ちの自機の上下を素通りしていた）。
             case AttackPattern.ReiClipper:
-                Check(xs.All(x => Mathf.Abs(x - at.X) < 0.01f) && ys.Distinct().Count() == 2
-                    && Mathf.Abs(ys.First() - (at.Y - 24f)) < 0.01f
-                    && Mathf.Abs(ys.Last() - (at.Y + 24f)) < 0.01f,
-                    $"{label}: keeps the ±24px pincer around the body");
-                break;
-            // 空席の人：縦一列の壁。1箇所だけ隙間が空く（隙間＝隣り合う間隔のちょうど2倍）。
-            case AttackPattern.AkariVacant:
             {
-                int slots = Math.Max(3, game.ScaleBullets(5));
-                float spacing = Math.Max(16f, 96f / (slots - 1));
-                var gaps = ys.Zip(ys.Skip(1), (a, b) => b - a).ToArray();
-                Check(bullets.Length == slots - 1 && xs.All(x => Mathf.Abs(x - at.X) < 0.01f)
-                    && Mathf.Abs(ys.Last() - ys.First() - spacing * (slots - 1)) < 0.01f
-                    && Mathf.Abs(gaps.Max() - spacing * 2f) < 0.01f,
-                    $"{label}: keeps the {slots - 1}-slot wall and its single {spacing * 2f:0}px escape gap");
+                var target = Read<Vector2>(enemy, "_burstTarget");
+                var aim = Read<Vector2>(enemy, "_burstDir");
+                var perp = new Vector2(-aim.Y, aim.X);
+                float jaw = Mathf.Min(0.4452f * Mathf.Max(32f, (target - at).Length()), 72f);
+                Vector2 Blade(float side) => new(
+                    Mathf.Clamp(at.X + perp.X * jaw * side, Field.Left + 8f, Field.Right - 8f),
+                    Mathf.Clamp(at.Y + perp.Y * jaw * side, Field.Top + 8f, Field.Bottom - 8f));
+                var blades = bullets.Select(b => b.GlobalPosition).Distinct().OrderBy(p => p.Y).ToArray();
+                var want = new[] { Blade(-1f), Blade(1f) }.OrderBy(p => p.Y).ToArray();
+                Check(blades.Length == 2 && blades.Zip(want, (a, b) => a.DistanceTo(b) < 0.01f).All(ok => ok),
+                    $"{label}: opens a {jaw * 2f:0}px pincer across the aim");
+                Check(bullets.All(b => Mathf.Abs(b.Velocity.Normalized()
+                            .AngleTo(target - b.GlobalPosition)) <= Mathf.DegToRad(4.01f))
+                    && blades.All(p => bullets.Any(b => b.GlobalPosition.IsEqualApprox(p)
+                            && Mathf.Abs(b.Velocity.Normalized().AngleTo(target - p)) < 0.001f)),
+                    $"{label}: both blades close on the telegraphed player spot");
                 break;
             }
-            // 数字の人：本体の 24px 上、横 80px に広げた列から降る。
+            // 空席の人：縦一列の壁。格子は「自機の居る行」を含み、空席（隙間）はそこには置かない
+            //   ＝棒立ちは必ず壁に当たり、避けは「見えている空席へ移る」になる（2026-10-03）。
+            case AttackPattern.AkariVacant:
+            {
+                int slots = Math.Clamp(game.ScaleBullets(5), 3, Mathf.FloorToInt((Field.Height - 24f) / 16f) + 1);
+                float spacing = Math.Max(16f, 96f / (slots - 1));
+                float mine = Mathf.Clamp(Read<Vector2>(enemy, "_burstTarget").Y, Field.Top, Field.Bottom);
+                var gaps = ys.Zip(ys.Skip(1), (a, b) => b - a).ToArray();
+                Check(bullets.Length == slots - 1 && xs.All(x => Mathf.Abs(x - at.X) < 0.01f)
+                    && ys.All(y => Mathf.Abs((y - mine) - Mathf.Round((y - mine) / spacing) * spacing) < 0.01f)
+                    && ys.Any(y => Mathf.Abs(y - mine) < 0.01f)
+                    && gaps.Count(g => g > spacing + 0.01f) <= 1
+                    && gaps.Max() <= spacing * 2f + 0.01f,
+                    $"{label}: seats {slots - 1} of {slots} rows on the player's own row ({spacing:0}px apart), "
+                    + "leaving the one empty seat somewhere else");
+                break;
+            }
+            // 数字の人：本体の 24px 上、横 80px に広げた列から降る。車線の束は「自機を通る1本」を含む
+            //   ＝敵の真上に固定していた旧仕様の「列から外れて立てば永久に届かない」を潰す（2026-10-03）。
             case AttackPattern.ReiMetrics:
             {
                 int count = Math.Max(2, game.ScaleBullets(4));
                 float row = Mathf.Max(Field.Top + 16f, at.Y - 24f);
-                float mid = Mathf.Clamp(at.X, Field.Left + 52f, Field.Right - 52f);
+                float step = 80f / (count - 1);
+                var lanes = xs.OrderBy(x => x).ToArray();
                 Check(bullets.Length == count && ys.All(y => Mathf.Abs(y - row) < 0.01f)
-                    && Mathf.Abs(xs.Min() - (mid - 40f)) < 0.01f && Mathf.Abs(xs.Max() - (mid + 40f)) < 0.01f,
-                    $"{label}: keeps the 80px-wide ranking row 24px above the body");
+                    && lanes.Zip(lanes.Skip(1), (a, b) => b - a).All(d => Mathf.Abs(d - step) < 0.01f),
+                    $"{label}: keeps the {count} ranking lanes {step:0.0}px apart, 24px above the body");
+                var spot = Read<Vector2>(enemy, "_burstTarget");
+                if (spot.Y > row)
+                    Check(bullets.Any(b => Mathf.Abs((spot - b.GlobalPosition).Cross(b.Velocity.Normalized())) < 0.02f),
+                        $"{label}: one lane falls straight through the telegraphed player spot");
                 break;
             }
             // 荷物の人：縦 22px 間隔で積んだ置き弾。

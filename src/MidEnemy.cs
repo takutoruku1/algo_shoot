@@ -37,6 +37,10 @@ public partial class MidEnemy : Enemy
     private int _burstLeft;     // ロックオン連射の残り発数
     private double _burstT;     // バースト内の小間隔タイマー
     private Vector2 _burstDir;  // バースト方向（予告で固定した自機方向）
+    // 予告した瞬間の自機の居場所。弾を「置く」種（席順の壁／荷物の列／数字の雨／挟み込みの鋏）が、
+    //   置き場所を自機の居る行・列に合わせるために使う。向き同様ここで固定＝以降の追尾はしない
+    //   ＝予告どおりの場所に来る（§7 理不尽の排除）。2026-10-03「棒立ちが安全であってはならない」。
+    private Vector2 _burstTarget;
     private double _telegraphT;  // 予告中の残り秒（>0 で予告表示中＝まだ撃たない）
     private Vector2 _characterOrigin;
     private int _characterAttackIndex;
@@ -266,7 +270,7 @@ public partial class MidEnemy : Enemy
         Points = _spec.Points;
         BodyRadius = ZakoBodyRadius;    // 全種共通（絵の大小に依らず「体に触れたら痛い」を一定に）
         PanelCount = 3;
-        PanelInk = 2;
+        PanelInk = 4;
         OrbitRadius = 11.5f;            // 一回り小さく（周回をやや内側へ）
         PanelDisplayScale = 0.82f;      // パネル絵＆当たりを縮小
         SpinSpeed = _spec.SpinSpeed;
@@ -281,22 +285,22 @@ public partial class MidEnemy : Enemy
         // 盾の絵は面ごとに Panel 側が解決する（Panel.ResolveTexPath）。ここでは指定しない。
         BodyDisplayH = _spec.Humanoid ? 30f : 23f;
 
-        // 盾もち「バズ壁」：撃たない代わりにパネル5枚×インク3＝“剥がし切る”DPSチェック
+        // 盾もち「バズ壁」：撃たない代わりにパネル5枚×インク6＝“剥がし切る”DPSチェック
         //（拡散/ホーミング/貫通の使い所を作る優先順位の壁）。体も大きく見せて「硬そう」を絵で予告
         //（新規アート無し＝サイズで語る）。
         if (_spec.Pattern == AttackPattern.BuzzWall)
         {
             PanelCount = 5;
-            PanelInk = 3;
+            PanelInk = 6;
             OrbitRadius = 14.5f;        // 5枚が重ならない周回半径
             BodyDisplayH = 30f;         // 通常23より大きく＝壁の圧
         }
-        // 祈り運び：脅威でなくボーナス寄り＝パネルは薄く（2枚×インク1）してすぐ本体を撃ち落とせるように。
+        // 祈り運び：脅威でなくボーナス寄り＝パネルは薄く（2枚×インク2）してすぐ本体を撃ち落とせるように。
         // 横断で去る前に間に合う手応えを守る（撃ち漏らしの学び＝「のこしちゃだめ」は残しつつ）。
         else if (_spec.Pattern == AttackPattern.KoharuPrayerCarry)
         {
             PanelCount = 2;
-            PanelInk = 1;
+            PanelInk = 2;
         }
 
         // GlyphMote/PageShard と同じく、進入後は画面内に居座る（倒すまで去らない）。
@@ -937,18 +941,66 @@ public partial class MidEnemy : Enemy
         return new Vector2(-1, 0);
     }
 
+    // 自機の居場所そのもの（居なければ左方の遠点）。AimDir が「向き」なら、こちらは「点」。
+    // 置き弾の行・列を自機に合わせる種が使う（_burstTarget に焼いてから参照する）。
+    private Vector2 AimPoint()
+    {
+        var players = GetTree().GetNodesInGroup("player");
+        if (players.Count > 0 && players[0] is Node2D pl) return pl.GlobalPosition;
+        return GlobalPosition + new Vector2(-300f, 0f);
+    }
+
     private static Vector2 Rotate(Vector2 v, float deg)
     {
         float r = Mathf.DegToRad(deg), cs = Mathf.Cos(r), sn = Mathf.Sin(r);
         return new Vector2(v.X * cs - v.Y * sn, v.X * sn + v.Y * cs);
     }
 
+    // from → to の単位ベクトル（重なっていたら左向き）。挟み込みの鋏が各発射点から自機を向くのに使う。
+    private static Vector2 DirTo(Vector2 from, Vector2 to)
+    {
+        var d = to - from;
+        return d.LengthSquared() > 0.01f ? d.Normalized() : new Vector2(-1, 0);
+    }
+
+    // 「自機の居る所」を必ず含む等間隔の並び。自機の列を起点に外側へ広げ、[lo,hi] に収まる列だけを count 本返す。
+    //   lanes は昇順・home はその中の自機の列の添字。偶数本でも必ず1本が自機に載るのが要点
+    //   （中心を半ステップずらす従来の置き方だと、偶数本のとき自機が格子の隙間に落ちる）。
+    //   枠の外へ出る列は作らず内側へ詰める＝自機が縁に居ても本数は減らさない（並びが片側に寄るだけ）。
+    private static (System.Collections.Generic.List<float> lanes, int home) LatticeOnPlayer(
+        float playerAt, float spacing, int count, float lo, float hi)
+    {
+        float home = Mathf.Clamp(playerAt, lo, hi);
+        var near = new System.Collections.Generic.List<float>();
+        var far = new System.Collections.Generic.List<float>();
+        for (int step = 1; near.Count + far.Count + 1 < count && step <= count * 4; step++)
+        {
+            float a = home - step * spacing;
+            if (a >= lo && near.Count + far.Count + 1 < count) near.Add(a);
+            float b = home + step * spacing;
+            if (b <= hi && near.Count + far.Count + 1 < count) far.Add(b);
+        }
+        near.Reverse();
+        var lanes = new System.Collections.Generic.List<float>(near) { home };
+        lanes.AddRange(far);
+        return (lanes, near.Count);
+    }
+
+    // 縦の並び（席順の壁・荷物の列）。盤面の上下に収める。
+    private static (System.Collections.Generic.List<float> rows, int home) RowsOnPlayer(
+        float playerY, float spacing, int count)
+        => LatticeOnPlayer(playerY, spacing, count, Field.Top, Field.Bottom);
+
     // ── レイ shooter：ロックオンビーム ──
     // 自機方向へ予測線（予兆＝薄い危険色ライン・当たり判定なし）を BeamWarn 秒出してから、
     // 実体ビーム（着弾フレームのみ判定ON）を撃つ。予兆中の自機方向で固定＝避けられる必殺。
     // 予兆／実体／被弾は AreaStrike（ボスの範囲技と共用の予測攻撃基盤）に一任する。
     private const double BeamWarn = 0.5;       // 予兆時間の基準秒（Di で難易度伸縮：易しいほど猶予増）。
-    private const float BeamLen = 240f;        // 画面を貫く長さ（はみ出しは画面外で見えないだけ）
+    // 盤面の対角＝どこに居る個体が撃っても場の反対の隅まで届く長さ（はみ出しは画面外で見えないだけ）。
+    //   ★2026-10-03：240px だった旧値は盤面の幅(318px)にも足りず、離れて立っている自機には
+    //     予告線が伸びてこなかった＝「自機を狙うと宣言した攻撃なのに、棒立ちの自機に届かない」。
+    //     自機を狙う弾の最たるものなので、宣言どおり必ず届く長さにする（避けは線から退くこと）。
+    private static readonly float BeamLen = Mathf.Sqrt(Field.Width * Field.Width + Field.Height * Field.Height);
     private const float BeamHalfThick = 5.5f;  // ビームの半太さ(px)。細長＝判定は線分への最短距離で取る。
     private void BeginLockBurst()
     {
@@ -982,6 +1034,7 @@ public partial class MidEnemy : Enemy
         if (_spec.Pattern is AttackPattern.KoharuParcel or AttackPattern.ReiClipper)
             _characterOrigin.Y = Mathf.Clamp(_characterOrigin.Y, Field.Top + 40f, Field.Bottom - 40f);
         _burstDir = AimDir();
+        _burstTarget = AimPoint();
         _salvoIndex = 0;
         _salvoRemaining = _spec.Pattern switch
         {
@@ -1038,27 +1091,59 @@ public partial class MidEnemy : Enemy
     {
         switch (_spec.Pattern)
         {
+            // 空席の人：席順（縦の壁）は「自機の居る行」を含む格子に引き、空席＝隙間は自機の行には置かない。
+            //   旧実装は格子を自分（敵）の高さに引いていたので、ほとんど動かないこの種の前では
+            //   「列と列の隙間に立っていれば永久に安全」が成立していた（＝棒立ちが正解）。2026-10-03 是正。
+            //   本数・間隔・弾速は据え置き。避けは「見えている空席へ移る」＝技の読みはそのまま。
             case AttackPattern.AkariVacant:
-                int slots = Mathf.Max(3, Dn(5));
-                int gap = 1 + _characterAttackIndex % (slots - 2);
+                int slots = Mathf.Clamp(Dn(5), 3, Mathf.FloorToInt((Field.Height - 24f) / 16f) + 1);
                 float spacing = Mathf.Max(16f, 96f / (slots - 1));
-                float halfSpan = spacing * (slots - 1) * 0.5f;
-                float center = Mathf.Clamp(_characterOrigin.Y, Field.Top + halfSpan + 12f, Field.Bottom - halfSpan - 12f);
-                for (int i = 0; i < slots; i++)
+                var (seats, mySeat) = RowsOnPlayer(_burstTarget.Y, spacing, slots);
+                // 空席は内側の列から選ぶ（端を空けると壁が1本短いだけで“穴”に見えない＝隙間は間隔の2倍で見せる）。
+                // そのうえで自機の行は空席にしない＝棒立ちは必ず壁に当たり、避けは「見えている空席へ移る」になる。
+                int inner = Mathf.Max(1, seats.Count - 2);
+                int gap = 1 + _characterAttackIndex % inner;
+                if (gap == mySeat)
+                    gap = inner > 1 ? 1 + gap % inner                        // 別の内側の列へ振り替える
+                        : (mySeat == 0 ? seats.Count - 1 : 0);               // 3列しかない時だけ端を空ける
+                for (int i = 0; i < seats.Count; i++)
                     if (i != gap)
-                        yield return new Vector2(_characterOrigin.X, center + (i - (slots - 1) * 0.5f) * spacing);
+                        yield return new Vector2(_characterOrigin.X, seats[i]);
                 break;
+            // 切り抜きの人：鋏の2枚を狙いの直交方向へ開く。開き幅は 24°の鋏を保てる範囲（最大72px）。
+            //   各点は FireCharacterSalvo で自機（_burstTarget）を向く＝鋏の交点が自機に重なる。
+            //   旧実装は上下±24px から world 左へ ∓24°固定で、交点は敵から 54px の一点に居座っていた
+            //   ＝自機の位置と無関係＝棒立ちの自機の上下を素通りしていた。2026-10-03 是正。
             case AttackPattern.ReiClipper:
-                yield return _characterOrigin + new Vector2(0, -24);
-                yield return _characterOrigin + new Vector2(0, 24);
+            {
+                var perp = new Vector2(-_burstDir.Y, _burstDir.X);
+                float reach = (_burstTarget - _characterOrigin).Length();
+                float jaw = Mathf.Min(ClipperJawTan * Mathf.Max(32f, reach), ClipperJawMax);
+                for (int s = -1; s <= 1; s += 2)
+                    yield return new Vector2(
+                        Mathf.Clamp(_characterOrigin.X + perp.X * jaw * s, Field.Left + 8f, Field.Right - 8f),
+                        Mathf.Clamp(_characterOrigin.Y + perp.Y * jaw * s, Field.Top + 8f, Field.Bottom - 8f));
                 break;
+            }
+            // 数字の人：降る車線の束を「自機の居る点を通る1本」に合わせて平行移動する（本数・束の幅80pxは据え置き）。
+            //   旧実装は束を敵の真上に固定していたので、敵の列から外れて立っていれば雨は永久に届かなかった。
+            //   落下方向は自機の側へ鏡映する＝「上から降る」性格は保ったまま、自機が右に居ても届く。
+            //   自機が発射列より上に居るときだけは、降る弾では構造的に届かない＝従来どおり本体の真上へ落とす。
             case AttackPattern.ReiMetrics:
+            {
                 int count = Mathf.Max(2, Dn(4));
-                float x = Mathf.Clamp(_characterOrigin.X, Field.Left + 52f, Field.Right - 52f);
-                for (int i = 0; i < count; i++)
-                    yield return new Vector2(x + Mathf.Lerp(-40f, 40f, i / (float)(count - 1)),
-                        Mathf.Max(Field.Top + 16f, _characterOrigin.Y - 24f));
+                float originY = Mathf.Max(Field.Top + 16f, _characterOrigin.Y - 24f);
+                var fall = MetricsDir();
+                float lane = _burstTarget.Y > originY
+                    ? _burstTarget.X - fall.X / fall.Y * (_burstTarget.Y - originY)
+                    : _characterOrigin.X;
+                // 束は「自機を通る1本」を含む等間隔の並び。盤面の外へ出るぶんは内側へ詰める＝本数は不変。
+                var (lanes, _) = LatticeOnPlayer(lane, MetricsSpan / (count - 1), count,
+                    Field.Left + 4f, Field.Right - 4f);
+                foreach (float lx in lanes)
+                    yield return new Vector2(lx, originY);
                 break;
+            }
             // 記憶の残響：自機ではなく「自分が通った道」へ置きに行く。古い足跡ほど遠い点を選ぶ。
             //   予告(AimFlash)はこの全点に出る＝「どこが埋まるか」を撃つ前に必ず見せる（§7 理不尽の排除）。
             //   足跡がまだ溜まっていない出現直後は現在地へ落とす＝必ず1点は返す（空にしない）。
@@ -1072,9 +1157,12 @@ public partial class MidEnemy : Enemy
                     int back = 1 + i * 3;
                     if (back > _trailCount) break;   // そこまで遡れる足跡が無い＝ここで打ち切る
                     var p = _trail[((_trailHead - back) % TrailLen + TrailLen) % TrailLen];
+                    // 盤面へ収めるのは「進入中の場外の足跡をそのまま使うと湧いた瞬間に消える」ためだけ＝
+                    //   余白は取らない。16px 取っていた旧実装は「盤面の縁に張り付いていれば、そこを通った
+                    //   足跡の痕にも当たらない」＝縁が安置になっていた（2026-10-03）。
                     yield return new Vector2(
-                        Mathf.Clamp(p.X, Field.Left + 16f, Field.Right - 16f),
-                        Mathf.Clamp(p.Y, Field.Top + 16f, Field.Bottom - 16f));
+                        Mathf.Clamp(p.X, Field.Left, Field.Right),
+                        Mathf.Clamp(p.Y, Field.Top, Field.Bottom));
                 }
                 break;
             default:
@@ -1082,6 +1170,22 @@ public partial class MidEnemy : Enemy
                 break;
         }
     }
+    // 切り抜きの人の鋏の開き。tan(24°)＝旧実装の固定角をそのまま「開き幅／射程」の比として残す
+    //   （射程が長いほど大きく開く＝見た目の鋏の角度は 24°前後で一定）。上限は盤面の縦に収まる 72px。
+    private const float ClipperJawTan = 0.4452f;
+    private const float ClipperJawMax = 72f;
+    // 数字の雨の束の幅(px)。旧実装の Lerp(-40,+40) と同じ 80px を、車線間隔の式として持つ。
+    private const float MetricsSpan = 80f;
+
+    // 数字の雨の落下方向。基準は左下へ 0.3:1、攻撃ごとに ±12°振る（従来どおり）。
+    //   自機が敵より右に居るときだけ左右を鏡映する＝「上から降る」ままで、右に居る自機にも届く。
+    private Vector2 MetricsDir()
+    {
+        var dir = Rotate(new Vector2(-0.3f, 1f).Normalized(), _characterAttackIndex % 2 == 0 ? -12f : 12f);
+        if (_burstTarget.X >= _characterOrigin.X) dir.X = -dir.X;
+        return dir;
+    }
+
     // 記憶の残響が一度に置く痕の数。斉射3回×1点＝合計3点が盤面に残る（_salvoRemaining=3 と対）。
     private const int MemoryTraceCount = 3;
     // 予告時に確定した置き場所。斉射の間も本体は動き続ける（_trail が伸びる）ので、
@@ -1096,10 +1200,13 @@ public partial class MidEnemy : Enemy
         return System.Linq.Enumerable.Take(_memoryTraces, _memoryTraceCount);
     }
 
+    // 本数は DnOdd（必ず奇数）。偶数だと Lerp(-spread, spread) の中心（0°）を踏む i が無く、
+    //   dir（＝予告時の自機方向）の正面に安全車線ができる＝棒立ちのほうが安全になる。
+    //   2026-10-03 ユーザー指示「中心の弾が必ず自分に当たるように」。扇の幅・速度は据え置き。
     private void CharacterFan(BulletPool pool, Vector2 origin, Vector2 dir, int count,
         float spread, float speed, float radius = 3.8f, bool accelerate = false)
     {
-        int n = Mathf.Max(1, Dn(count));
+        int n = Mathf.Max(1, DnOdd(count));
         for (int i = 0; i < n; i++)
         {
             float angle = n == 1 ? 0 : Mathf.Lerp(-spread, spread, i / (float)(n - 1));
@@ -1113,6 +1220,18 @@ public partial class MidEnemy : Enemy
         }
     }
 
+    // 「自機の正面から片側だけへ広がる扇」＝左右どちらかへ逃げることを迫る形（割る技の内縁を狙いに乗せる）。
+    //   i=0 が狙いそのもの（0°）／i=n-1 が span。必ず2本以上なので、どの難易度でも内縁の1本は自機を通る。
+    //   2026-10-03：未送信（二斉射で割る）と比較（左右に振る）は、割った"あいだ"が安全地帯になっていた。
+    //   外縁の角度は旧実装と同じに保つ＝盤面を塞ぐ範囲（圧）は変えず、内縁だけを狙いへ寄せる。
+    private void CharacterSweep(BulletPool pool, Vector2 origin, Vector2 aim, int count,
+        float span, float speed, float radius = 3.8f)
+    {
+        int n = Mathf.Max(2, Dn(count));
+        for (int i = 0; i < n; i++)
+            FireBullet(pool, origin, Rotate(aim, span * i / (n - 1)) * speed, radius);
+    }
+
     private void FireCharacterSalvo()
     {
         var pool = GetNode<BulletPool>("/root/Pool");
@@ -1121,36 +1240,48 @@ public partial class MidEnemy : Enemy
             case AttackPattern.AkariDeadline:
                 CharacterFan(pool, _characterOrigin, _burstDir, 3, 14f, 116f, accelerate: true);
                 break;
+            // 送信取消の人：1斉射目は自機の正面から左へ、2斉射目は正面から右へ扇を払う。
+            //   外縁 ∓23° は旧実装（中心∓16°±7°）と同じ＝盤面を覆う幅は不変。内縁を 0°（＝狙いそのもの）
+            //   に寄せたので、棒立ちなら1斉射目で必ず当たる。「どちら側へ逃げるか」の読みはそのまま。
             case AttackPattern.AkariUnsent:
-                CharacterFan(pool, _characterOrigin, Rotate(_burstDir, _salvoIndex == 0 ? -16f : 16f), 2, 7f, 64f);
+                CharacterSweep(pool, _characterOrigin, _burstDir, 2, _salvoIndex == 0 ? -23f : 23f, 64f);
                 break;
             case AttackPattern.AkariVacant:
                 foreach (var origin in CharacterShotOrigins())
                     FireBullet(pool, origin, Vector2.Left * 52f, 3.8f);
                 break;
+            // 比較の人：攻撃ごとに上側／下側を見比べるように扇を振る。旧実装は world 左の ∓22°±16° 固定で
+            //   自機の位置をまったく見ていなかった（＝どこに立っていても当たらない個体が居た）。
+            //   狙いを起点にして外縁 ∓38°（旧実装の外縁と同じ）まで払う＝振る幅は不変、内縁が狙いに載る。
             case AttackPattern.KoharuComparison:
-                CharacterFan(pool, _characterOrigin, Rotate(Vector2.Left, _characterAttackIndex % 2 == 0 ? -22f : 22f), 3, 16f, 84f);
+                CharacterSweep(pool, _characterOrigin, _burstDir, 3,
+                    _characterAttackIndex % 2 == 0 ? -38f : 38f, 84f);
                 break;
             case AttackPattern.KoharuCheer:
                 CharacterFan(pool, _characterOrigin, _burstDir, 3, _salvoIndex == 0 ? 10f : 34f, 72f);
                 break;
+            // 荷物の人：荷物の縦列は「自機の居る行」を含む格子に置く（偶数個でも1つは必ず自機の高さ）。
+            //   斉射ごとの 10px ずらしは奇数回だけ掛ける＝1斉射目は必ず自機の行に載り、以降は段違いに積む。
+            //   旧実装は列を敵の高さに置いていた＝38px/s のほぼ置物の前で「行をずらして立つ」が永久の安置だった。
             case AttackPattern.KoharuParcel:
                 int parcels = Mathf.Max(1, Dn(2));
-                for (int i = 0; i < parcels; i++)
-                    FireBullet(pool, _characterOrigin + new Vector2(0, (i - (parcels - 1) * 0.5f) * 22f + (_salvoIndex % 2) * 10f),
-                        Vector2.Left * 38f, 4f);
+                var (stack, _) = RowsOnPlayer(_burstTarget.Y + (_salvoIndex % 2) * 10f, 22f, parcels);
+                foreach (float row in stack)
+                    FireBullet(pool, new Vector2(_characterOrigin.X, row), Vector2.Left * 38f, 4f);
                 break;
             case AttackPattern.ReiAnonymous:
                 CharacterFan(pool, _characterOrigin, _burstDir, 1, 5f, 100f, 3.6f);
                 break;
+            // 切り抜きの人：開いた鋏の2枚が、それぞれ予告時の自機を向いて閉じる＝交点が自機に重なる。
+            //   「上下から挟まれる／交点から退く」という読みはそのまま、棒立ちだけが通らなくなる。
             case AttackPattern.ReiClipper:
                 foreach (var origin in CharacterShotOrigins())
-                    CharacterFan(pool, origin, Rotate(Vector2.Left, origin.Y < _characterOrigin.Y ? -24f : 24f), 2, 4f, 85f);
+                    CharacterFan(pool, origin, DirTo(origin, _burstTarget), 2, 4f, 85f);
                 break;
             case AttackPattern.ReiMetrics:
                 foreach (var origin in CharacterShotOrigins())
                 {
-                    var bullet = FireBullet(pool, origin, Rotate(new Vector2(-0.3f, 1).Normalized(), _characterAttackIndex % 2 == 0 ? -12f : 12f) * 55f, 3.8f);
+                    var bullet = FireBullet(pool, origin, MetricsDir() * 55f, 3.8f);
                     bullet.Rotation = 0f;
                 }
                 break;
@@ -1186,7 +1317,7 @@ public partial class MidEnemy : Enemy
             //   3方向へ広げるのは「誰に向けたのでもない声」＝自機狙いを外して盤面に薄く残す意図。
             case AttackPattern.MinaUnanswered:
             {
-                int n = Mathf.Max(1, Dn(3));
+                int n = Mathf.Max(1, DnOdd(3)); // 奇数＝中心の1本は _burstDir の正面＝棒立ちには必ず届く
                 for (int i = 0; i < n; i++)
                 {
                     float deg = n == 1 ? 0f : Mathf.Lerp(-26f, 26f, i / (float)(n - 1));
@@ -1230,30 +1361,35 @@ public partial class MidEnemy : Enemy
         }
     }
 
-    // ── あかり shooter：ばらまき投擲 ── 固定左(180°)±35°扇に Dn(5)way、各弾±5°ゆらぎ。予告なし。
+    // ── あかり shooter：ばらまき投擲 ── 固定左(180°)±35°扇に DnOdd(5)way、各弾±5°ゆらぎ。予告なし。
+    //   自機を狙わない「ばらまき」なのは設計どおり（だから予告が無い）。ただし本数が偶数だと扇の中心＝
+    //   真左に1投も無く、「この机と同じ高さに立つ」が安全になっていた＝DnOdd で中心を必ず埋める。
+    //   中心の1投だけはゆらぎを掛けない＝真横に並んだ自機には必ず届く（2026-10-03）。
     private void FireScatter()
     {
         var pool = Pool; if (pool == null) return;
-        int n = Mathf.Max(1, Dn(5));
+        int n = Mathf.Max(1, DnOdd(5));
+        int mid = (n - 1) / 2;
         var baseDir = new Vector2(-1, 0); // 左180°中心
         for (int i = 0; i < n; i++)
         {
-            float t = n == 1 ? 0.5f : i / (float)(n - 1);
-            float deg = Mathf.Lerp(-35f, 35f, t) + (float)GD.RandRange(-5.0, 5.0);
+            float deg = n == 1 ? 0f : Mathf.Lerp(-35f, 35f, i / (float)(n - 1));
+            if (i != mid) deg += (float)GD.RandRange(-5.0, 5.0);
             FireBullet(pool, GlobalPosition, Rotate(baseDir, deg) * 80f, 3.2f, 1);
         }
     }
 
-    // ── あかり drifter：落書きドロップ ── 真下(90°)±20°へ低速 Dn(3)way。うねり維持・予告なし。
+    // ── あかり drifter：落書きドロップ ── 真下(90°)±20°へ低速 DnOdd(3)way。うねり維持・予告なし。
+    //   「真下へ落とす」種なので自機は狙わない。偶数本だと真下の1本が無く、真下に立つことが安全に
+    //   なっていた（Easy は Dn(3)=2 本＝常にそう）＝DnOdd で中心を必ず埋める（2026-10-03）。
     private void FireDrop()
     {
         var pool = Pool; if (pool == null) return;
-        int n = Mathf.Max(1, Dn(3));
+        int n = Mathf.Max(1, DnOdd(3));
         var down = new Vector2(0, 1); // 真下90°
         for (int i = 0; i < n; i++)
         {
-            float t = n == 1 ? 0.5f : i / (float)(n - 1);
-            float deg = Mathf.Lerp(-20f, 20f, t);
+            float deg = n == 1 ? 0f : Mathf.Lerp(-20f, 20f, i / (float)(n - 1));
             FireBullet(pool, GlobalPosition, Rotate(down, deg) * 50f, 3.0f, 1);
         }
     }
@@ -1284,7 +1420,9 @@ public partial class MidEnemy : Enemy
         var dir = AimDir();
         for (int i = 0; i < n; i++)
         {
-            float jitter = n == 1 ? 0f : (float)GD.RandRange(-6.0, 6.0);
+            // 1発目は必ず素の自機狙い（2026-10-03）。難易度で2発になったとき両方を散らすと、
+            //   自機狙いを宣言している弾なのに棒立ちの自機の両脇を抜けうる。散らすのは2発目以降だけ。
+            float jitter = i == 0 ? 0f : (float)GD.RandRange(-6.0, 6.0);
             FireBullet(pool, GlobalPosition, Rotate(dir, jitter) * 45f, 3.4f, 1);
         }
     }
@@ -1372,17 +1510,25 @@ public partial class MidEnemy : Enemy
         if (_spec.Pattern == AttackPattern.KoharuPrayerCarry) ReleaseCarriedPrayers(award: false);
     }
 
-    // ── 回り込み「引用リプ」：着座後、右向き固定の低速単発 ──
-    // 左端に張り付く自機の背後（x≈40）から前方向へ流す。固定右向き＋低速＝見てから避けられる“読める圧”。
+    // ── 回り込み「引用リプ」：着座後、自機狙いの低速単発 ──
+    // 自機の背後（盤面のやや左 x≈193）に陣取ってから撃つ。低速＝見てから避けられる“読める圧”。
+    //
+    // ★2026-10-03（ユーザー指示「棒立ちで安全なのは逆」）：右向き固定 → 自機狙いへ。
+    //   固定右向きは「着座Xより右に居て、かつ着座レーン(Y=64/152)と同じ高さに立っている」ときだけ
+    //   当たる弾だった＝回り込まれた自機が左に留まるかぎり、この弾は永久に脅威にならない。
+    //   回り込みの意味（背後を取る）が弾の側に出ていなかったので、狙いを自機へ向けた。
+    //   速度は据え置き（70px/s＝自機の素の足 75px/s より遅い＝歩いて避けられる）・1発・間隔 2.4s なので、
+    //   「背後からの圧は緩く」という設計の意図は保たれる。散らすのは難易度で2発目以降になった時だけ。
     private const float FlankBulletSpeed = 70f; // 弾速(px/s)。調整しやすいよう定数化
     private void FireFlank()
     {
         var pool = Pool; if (pool == null) return;
         int n = Mathf.Max(1, Dn(1));
+        var dir = AimDir();
         for (int i = 0; i < n; i++)
         {
-            float jitter = n == 1 ? 0f : (float)GD.RandRange(-8.0, 8.0); // 難易度で2発以上になった時だけ散らす
-            FireBullet(pool, GlobalPosition, Rotate(new Vector2(1, 0), jitter) * FlankBulletSpeed, 3.0f, 1);
+            float jitter = i == 0 ? 0f : (float)GD.RandRange(-8.0, 8.0); // 1発目は必ず素の自機狙い
+            FireBullet(pool, GlobalPosition, Rotate(dir, jitter) * FlankBulletSpeed, 3.0f, 1);
         }
     }
 

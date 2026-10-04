@@ -41,6 +41,7 @@ public partial class CameoIntroScene : Node2D
     private static (int who, string text, string face)[] Dialogue(Job job, string id,
         (int who, string text, string face)[] opening)
     {
+        if (job == Job.Tank) return opening;
         string reply = (job, id) switch
         {
             (Job.Tank, "akari") => "はい。ただいま、お返事に参りました。",
@@ -85,6 +86,8 @@ public partial class CameoIntroScene : Node2D
     private static (int who, string text, string face)[] BossDialogue(Job job, string id,
         (int who, string text, string face)[] opening)
     {
+        if (job == Job.Tank && id != "mina") return opening;
+        opening = opening.Where(line => line.who != (int)Hud.LineKind.Mina).ToArray();
         var (reply, resolve) = (job, id) switch
         {
             (Job.Tank, "akari") => ("見ております。ですが、その方の返事は、わたくしには。", "……消した言葉のほうも、聞かせてください。"),
