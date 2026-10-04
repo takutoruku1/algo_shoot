@@ -31,8 +31,6 @@ using System.Collections.Generic;
 // 移動/Z(撃つ)/X(ボム)に加え、回避(Space)・集中モード(C)も周期的に送出する
 // （DriveFocusDodge）。StageZero（Stage0.tscn）のチュートリアル各フェーズを
 // SafetyTimeout頼みでなく実入力で通すのが主目的。
-// ※低速(Shift)の合成入力は、低速移動の廃止（2026-09-13）に伴い撤去した。
-//   チュートリアルの低速フェーズも素通りになったので、待たせる相手がもう居ない。
 public partial class QaPilot : Node
 {
     // ---- 設定 ----
@@ -54,9 +52,6 @@ public partial class QaPilot : Node
     private const double TapHoldDuration = 0.12;  // 叩く系キーの押下保持時間（DriveBomb の X と同じ値）
     // 集中モード（C）＝一本道14段の #11 は持っていなければ押しても無害に流れる（回避＝#2 n_dodge も同じ。
     //   2026-09-22 から 1面クリア報酬ではなくショップ品目＝買うまで Space は不発）。
-    // 溜め打ちの合成は 2026-09-27 に外した：キーが Z（撃つ／会話送りのパルスと同じキー）に移ったので長押しを
-    //   作れず、旧キー C は集中モードに割り当て直された（送り続けると集中モードを連打してしまう）。
-    //   溜め打ちの検証は PlayerShotQa が持つ。
     private const double SlowPeriod = 9.0;        // 集中モード(C)を叩く周期（CD20秒より短くてよい＝空振りは無害）
 
     // プレイ領域（Player.cs と一致）
@@ -85,6 +80,7 @@ public partial class QaPilot : Node
     private Vector2 _itPos;   // 速度計測の基準位置
     private int _itSub;       // 段内の小ステップ（0=まだ何もしていない。1フレーム1回だけ進める）
     private bool _itSetup;    // 事前準備（能力の直書き）を済ませたか
+    private bool _itDialogue;
     private GameManager.Diff? _diff;   // 難易度固定（--easy/--normal/--hard/--lunatic。null=セーブ値のまま）
     private double _seconds = DefaultSeconds;
 
@@ -95,8 +91,7 @@ public partial class QaPilot : Node
     private double _lowFpsT;
 
     // ---- 入力パルス状態（DemoPilot 流）----
-    private bool _zDown;
-    private double _zPhase;
+    private AutoplayInput _input = null!;
     private double _bombPhase;
     private bool _xDown;
 
@@ -170,6 +165,7 @@ public partial class QaPilot : Node
 
         _game = GetNodeOrNull<GameManager>("/root/Game");
         _pool = GetNodeOrNull<BulletPool>("/root/Pool");
+        _input = new AutoplayInput(GetTree(), _game);
         if (_diff.HasValue && _game != null) _game.Difficulty = _diff.Value;
 
         GodActive = _god;
@@ -199,12 +195,6 @@ public partial class QaPilot : Node
         // 通常の QA 走行（--inputtest 無し）には一切触らない＝他の Drive* を止めて専念する。
         if (_inputTest) { DriveInputTest(delta); return; }
 
-        DriveDeathRetry(delta);
-        DriveMovement();
-        DriveShootAndAdvance(delta);
-        DriveBomb(delta);
-        DriveFocusDodge(delta);
-
         Heartbeat(delta);
         DetectStuck();
         DetectBulletFlood();
@@ -227,6 +217,14 @@ public partial class QaPilot : Node
     // 当たり判定・進行は物理フレームで観測（衝突はここで起きる）。
     public override void _PhysicsProcess(double delta)
     {
+        if (!_inputTest)
+        {
+            bool tutorial = _scene == "Stage0.tscn";
+            _input.Update(delta, shoot: !_noShoot, bombs: !tutorial, dodge: !tutorial);
+            DriveDeathRetry(delta);
+            if (tutorial || _xDown) DriveBomb(delta);
+            DriveFocusDodge(delta);
+        }
         var player = GetTree().GetFirstNodeInGroup("player") as Player;
         if (player == null) return;
 
@@ -289,58 +287,6 @@ public partial class QaPilot : Node
 
     // =====================  自動操作  =====================
 
-    // 移動：サイン波で常時ふらつく。ただし会話中（Hud.BubblePaused）は軸を解放する。
-    //
-    // ★軸を解放する理由（ChoiceOverlay の選択が既定カーソルで決まらなかった不具合）:
-    //   ChoiceOverlay は ui_up/ui_down の押下エッジでカーソルを上下させる（ChoiceOverlay.cs:183-189）。
-    //   ここで会話中も送り続けると、サイン波が符号を跨ぐたびにエッジが立ち、提示中ずっとカーソルが
-    //   勝手に歩き回る＝どの選択肢が選ばれるかが走行ごとに変わる。StageRei.cs:628-629 が前提にしている
-    //   「既定カーソルのまま1パルスで即決される」が成り立たず、S3-7 の3択で毎回ちがう枝を通っていた
-    //   （P1 命名・S1-4・F4・E6 も同じ）。DemoPilot は会話中 ReleaseAxes() 済み（DemoPilot.cs:136-140）で、
-    //   QaPilot だけがこの解放を持っていなかった＝両者の差はここ1点。
-    //   会話中は弾も自機も止まる設計なので、軸を解放しても回避・進行には一切影響しない。
-    private void DriveMovement()
-    {
-        if (Hud.BubblePaused)
-        {
-            SetAxis("ui_left", "ui_right", 0f);
-            SetAxis("ui_up", "ui_down", 0f);
-            return;
-        }
-        float vx = Mathf.Sin((float)_t * 1.3f) * 0.9f + Mathf.Sin((float)_t * 0.37f) * 0.4f;
-        float vy = Mathf.Sin((float)_t * 0.8f + 1.1f) * 0.55f;
-        SetAxis("ui_left", "ui_right", vx);
-        SetAxis("ui_up", "ui_down", vy);
-    }
-
-    private static void SetAxis(string neg, string pos, float v)
-    {
-        v = Mathf.Clamp(v, -1f, 1f);
-        Send(new InputEventAction { Action = pos, Pressed = v > 0.05f, Strength = Mathf.Max(0f, v) });
-        Send(new InputEventAction { Action = neg, Pressed = v < -0.05f, Strength = Mathf.Max(0f, -v) });
-    }
-
-    // Z パルス：撃つ＋会話送り。会話中は読める速さに落とす。
-    private void DriveShootAndAdvance(double delta)
-    {
-        bool talking = Hud.BubblePaused;
-        // --noshoot：会話中以外は Z を離したままにする（撃たない）。会話送りだけは従来どおり。
-        if (_noShoot && !talking)
-        {
-            if (_zDown) { _zDown = false; Send(new InputEventKey { Keycode = Key.Z, Pressed = false }); }
-            return;
-        }
-        double period = talking ? 0.5 : 0.16;
-        _zPhase += delta;
-        if (_zPhase >= period) _zPhase -= period;
-        bool down = _zPhase < period * 0.45;
-        if (down != _zDown)
-        {
-            _zDown = down;
-            Send(new InputEventKey { Keycode = Key.Z, Pressed = down });
-        }
-    }
-
     private void DriveBomb(double delta)
     {
         _bombPhase += delta;
@@ -358,7 +304,7 @@ public partial class QaPilot : Node
         }
     }
 
-    // Dodge(回避)・集中モード(C) の合成入力。DriveMovement/Shoot/Bomb に加えて
+    // Dodge(回避)・集中モード(C) の合成入力。通常の移動・射撃に加えて
     // 周期的に叩くことで、StageZero チュートリアルの回避3回判定を SafetyTimeout(60s)の保険待ちでは
     // なく実入力で通す（他ステージでは無害に流す）。
     //   回避＝Space を周期的に短く叩く（DriveBomb と同じ「押す→少し後で離す」パターンで確実にエッジを拾わせる）。
@@ -380,7 +326,7 @@ public partial class QaPilot : Node
                 Send(new InputEventKey { Keycode = Key.Space, Pressed = false });
             }
         }
-        else if (!idle && _dodgePhase >= DodgePeriod)
+        else if (!idle && _scene == "Stage0.tscn" && _dodgePhase >= DodgePeriod)
         {
             _dodgeKeyDown = true;
             _dodgePhase = 0;
@@ -586,9 +532,12 @@ public partial class QaPilot : Node
 
     private void EndRun()
     {
+        _input.Release();
         PrintSummary();
         GetTree().Quit();
     }
+
+    public override void _ExitTree() => _input?.Release();
 
     private void PrintSummary()
     {
@@ -629,9 +578,11 @@ public partial class QaPilot : Node
         // 会話中は自機が動かないので、送りだけ叩いて待つ。
         if (Hud.BubblePaused)
         {
-            DriveShootAndAdvance(delta);
+            _input.Update(delta, shoot: false, bombs: false);
+            _itDialogue = true;
             return;
         }
+        if (_itDialogue) { _input.Release(); _itDialogue = false; }
 
         _itT += delta;
         var game = GetNodeOrNull<GameManager>("/root/Game");

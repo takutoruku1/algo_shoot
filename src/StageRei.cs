@@ -470,7 +470,7 @@ public partial class StageRei : Node
             _lineHold = 0;
         }
         else if (_lineHold >= 0.15 && Hud.DialogRevealed
-                 && (_zEdge || Hud.FastForwarding || (Hud.AutoAdvance && _lineHold >= 1.4)))  // FastForwarding=既読スキップ（Ctrl/RB長押し・既読行のみ・#22）
+                 && (_zEdge || Hud.FastForwarding || (Hud.AutoAdvanceReady && _lineHold >= 1.4)))  // FastForwarding=既読スキップ（Ctrl/RB長押し・既読行のみ・#22）
         {
             _lineHold = 0;
             _introLine++;
@@ -557,7 +557,7 @@ public partial class StageRei : Node
             return false;
         }
         if (_cHold >= 0.15 && Hud.DialogRevealed
-            && (_zEdge || Hud.FastForwarding || (Hud.AutoAdvance && _cHold >= 1.4)))
+            && (_zEdge || Hud.FastForwarding || (Hud.AutoAdvanceReady && _cHold >= 1.4)))
         {
             _cHold = 0;
             _cLine++;
@@ -921,7 +921,7 @@ public partial class StageRei : Node
             _lineHold = 0;
         }
         else if (_lineHold >= 0.15 && Hud.DialogRevealed
-                 && (_zEdge || Hud.FastForwarding || (Hud.AutoAdvance && _lineHold >= 1.4)))
+                 && (_zEdge || Hud.FastForwarding || (Hud.AutoAdvanceReady && _lineHold >= 1.4)))
         {
             _lineHold = 0;
             _introLine++;

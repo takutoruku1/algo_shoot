@@ -198,6 +198,7 @@ public partial class ScenarioRevisionQa : Node
         for (int i = 0; i < 150 && talk.Active; i++)
         {
             hud.RevealDialogNow();
+            hud._Process(2);
             talk.Update(2);
             await Frames(1);
         }
@@ -207,6 +208,7 @@ public partial class ScenarioRevisionQa : Node
         for (int i = 0; i < 180 && IsInstanceValid(film); i++)
         {
             hud.RevealDialogNow();
+            hud._Process(2);
             film._Process(2);
             await Frames(1);
         }

@@ -13,6 +13,8 @@ public partial class Player : Area2D
     //     基本移動そのものが既に遅く、低速は「遅いものをさらに遅くする」だけで手触りを損ねていた。
     //     空いた L1 は集中モードへ回した（下の集中モード入力を参照）。
     private const float NormalSpeed = 75f;
+    public float MoveSpeed => NormalSpeed * (_game?.MoveSpeedMul ?? 1f)
+        * (_game?.JobDef.MoveMul ?? 1f) * (LockedOn ? LockMoveMul : 1f) * PowerMoveMultiplier;
     public float SlowestMoveSpeed => NormalSpeed * (_game?.MoveSpeedMul ?? 1f)
         * (_game?.JobDef.MoveMul ?? 1f) * LockMoveMul * PowerMoveMultiplier;
 
@@ -692,6 +694,7 @@ public partial class Player : Area2D
     //   ＝回避モーション中(_dodgeTimer>0)はまだ再回避できないためHUDも点灯させない。
     //   ★未取得（1面クリア前）は常に false＝「使えるのに光っていない」も「使えないのに光る」も作らない。
     public bool DodgeReady => (_game?.HasDodge ?? true) && _dodgeCd <= 0f && _dodgeTimer <= 0f;
+    public bool Dodging => _dodgeTimer > 0f;
     public int  DodgeCount { get; private set; } // 回避を実行した累計回数（チュートリアルがベースライン比較で実行検出に使う）
     public int  BombCount { get; private set; }  // ボムを発動した累計回数（練習モードでは残数が減らないのでチュートリアルはこの増分で発動検出）
     private float _dodgeSpinSign = 1f;          // スピンの向き（+1=00→01→02… / -1=逆回り）。回避方向から決める。
@@ -855,13 +858,11 @@ public partial class Player : Area2D
         }
         // 速度は1本（低速移動は 2026-09-13 に廃止）。機動力強化(MoveSpeedMul)と
         // ジョブの移動補正（結び手のみ ×0.88＝「避けるのではなく耐える」）を素の速度に乗せる。
-        float jobMove = _game?.JobDef.MoveMul ?? 1f;
-        float speed = NormalSpeed * (_game?.MoveSpeedMul ?? 1f) * jobMove * PowerMoveMultiplier;
         // ロックオン中は足を重くする＝照準を任せるあいだの対価。
         // 左クリックの短押し／長押し判定は、それを読む TickLockOn・溜め打ちより必ず先に1回だけ回す。
         TickMouseHold(dt);
         TickLockOn();
-        if (LockedOn) speed *= LockMoveMul;
+        float speed = MoveSpeed;
 
         // 回避入力＝Space / パッド L3。空き弾の無い瞬間に「攻めで抜ける」短い無敵ダッシュ。
         // 方向は移動入力があればその方向へ変位ダッシュ、無ければその場回避（変位ゼロ＝スピン＆無敵だけ）。

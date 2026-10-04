@@ -623,7 +623,7 @@ public partial class BossAkari : Enemy
                 NotifyCryProgress();
             }
             else if (_lineT >= 0.25 && dialogHud.DialogRevealed
-                     && (zEdge || dialogHud.FastForwarding || (dialogHud.AutoAdvance && _lineT >= 1.4)))
+                     && (zEdge || dialogHud.FastForwarding || (dialogHud.AutoAdvanceReady && _lineT >= 1.4)))
             {
                 _lineT = 0; _line++;
                 NotifyCryProgress(); // 送れている間は保険タイムアウトを起こさない

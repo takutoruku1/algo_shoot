@@ -261,7 +261,7 @@ public partial class MinaPhaseScene : Node2D
             _readTime = 0;
         }
         else if (_lineTime >= 0.25 && _hud.DialogRevealed
-            && (edge || _hud.FastForwarding || (_hud.AutoAdvance && _readTime >= 1.4)))
+            && (edge || _hud.FastForwarding || (_hud.AutoAdvanceReady && _readTime >= 1.4)))
         {
             _line++;
             if (_line == _lines.Length) BeginLeave();

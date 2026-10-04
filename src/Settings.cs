@@ -372,7 +372,7 @@ public partial class Settings : Node2D
             case "msg":
             {
                 var gm = GetNodeOrNull<GameManager>("/root/Game");
-                if (gm != null) gm.MsgCharsPerSec = d.I == 0 ? 28f : d.I == 2 ? 80f : 48f;
+                if (gm != null) gm.MsgCharsPerSec = DialogueBox.Speed(d.I);
                 break;
             }
             case "auto":

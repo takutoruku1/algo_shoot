@@ -365,7 +365,7 @@ public partial class GameManager : Node
     public void SetContamination(float v) => Contamination = Mathf.Clamp(v, 0f, 1f);
 
     // 設定（Settings 画面から反映）：会話のタイプライター速度／オート送り。
-    public float MsgCharsPerSec { get; set; } = 48f;
+    public float MsgCharsPerSec { get; set; } = DialogueBox.DefaultCharsPerSec;
     public bool AutoAdvanceDialog { get; set; }
 
     // ───────────────────────────────────────────────────────────
@@ -1437,6 +1437,7 @@ public partial class GameManager : Node
         // 端末ローカル prefs（チュートリアル既読など）と会話の既読ログだけは起動時に読む。
         LoadPrefs();
         LoadReadLog();
+        MsgCharsPerSec = DialogueBox.Speed(AudioConfig.GetInt("msg", 1));
 
         // --job=melee|heal|tank|magic : このランのジョブを強制する（ハブの選択画面ができるまでの入口、
         //   かつ以後も残すデバッグ機能）。立てると JobForcedByCmdline が立ち、セーブのロードや

@@ -31,6 +31,9 @@ public partial class Prologue : Node2D
     // テキストボックスは2行固定。2行超の行はページに割り、送り（Z）で続きを読ませる（本文は削らない）。
     private readonly System.Collections.Generic.List<string> _pages = new();
     private int _page;
+    private DialoguePacing.Page[] _pagePacing = System.Array.Empty<DialoguePacing.Page>();
+    private DialoguePacing.Page? CurPacing => _page < _pagePacing.Length ? _pagePacing[_page] : null;
+    private bool PageReady => _reveal >= CurPage.Length && (_ffNow || _autoT >= (CurPacing?.Tail ?? 0));
     private int _pagedLine = -1;               // _pages を構築済みの行 index
     private string CurPage => _pages.Count > 0 ? _pages[Mathf.Min(_page, _pages.Count - 1)] : "";
     private bool LastPage => _pages.Count == 0 || _page >= _pages.Count - 1;
@@ -39,9 +42,11 @@ public partial class Prologue : Node2D
         if (_pagedLine == _line || _line >= _talk.Count) return;
         _pagedLine = _line; _page = 0;
         _pages.Clear();
-        _pages.AddRange(UiKit.Paginate(DialogueBox.Body, _talk[_line].Text, DialogueBox.WrapWidth(DialogueBox.FullScreen), Hud.DlgMaxLines));
+        _pages.AddRange(DialogueBox.Paginate(_talk[_line].Text, DialogueBox.WrapWidth(DialogueBox.FullScreen)));
+        _pagePacing = DialoguePacing.ForPages(_talk[_line].Text, _pages);
+        _autoT = 0;
     }
-    private void NextPage() { _page++; _reveal = 0; }
+    private void NextPage() { _page++; _reveal = 0; _autoT = 0; }
 
     // 既読スキップ（#22）：Ctrl/RB 長押しで「既読の行だけ」高速送り（本編HUDと同じ作法・独自レンダラ側の実装）。
     private int _readIdx = -1;     // 既読チェック済みの行 index（行が変わった瞬間に一度だけ判定）
@@ -427,10 +432,11 @@ public partial class Prologue : Node2D
 
         _lineT += delta;
         EnsurePages();
-        // タイプライター送り（本編HUDと同じ MsgCharsPerSec。未設定なら48）。現在ページ内を進める。
+        // 句読点の間は本編HUDと共有する。
         int len = _line < _talk.Count ? CurPage.Length : 0;
+        bool pageWasRevealed = _reveal >= len;
         if (_reveal < len)
-            _reveal = Mathf.Min(len, (float)(_reveal + delta * (_game?.MsgCharsPerSec ?? 48f)));
+            _reveal = DialogueBox.AdvanceReveal(CurPage, _reveal, delta, _game?.MsgCharsPerSec ?? DialogueBox.DefaultCharsPerSec, CurPacing);
         // 既読スキップ（#22）：行の表示開始時に一度だけ「既読か」を控え（＝高速送りの可否）、表示と同時に既読へ記録。
         if (_readIdx != _line && _line < _talk.Count)
         {
@@ -445,9 +451,9 @@ public partial class Prologue : Node2D
         }
         _ffNow = Hud.SkipHeld && _lineWasRead; // 未読行では効かない＝取りこぼさない
         // AUTO（会話ボックスの AUTO ボタン／設定の「オート会話送り」）：現在ページの全文表示後 AutoAfterReveal 秒で送る。
-        if (_reveal >= len && (_game?.AutoAdvanceDialog ?? false)) _autoT += delta; else _autoT = 0;
-        bool autoGo = _autoT >= AutoAfterReveal;
-        if ((zEdge || _ffNow || autoGo) && _lineT >= 0.25)
+        if (pageWasRevealed) _autoT += delta; else _autoT = 0;
+        bool autoGo = (_game?.AutoAdvanceDialog ?? false) && _autoT >= (CurPacing?.AutoWait ?? AutoAfterReveal);
+        if ((zEdge || _ffNow || autoGo) && _lineT >= 0.25 && (_reveal < len || PageReady))
         {
             _autoT = 0;
             if (_reveal < len)
@@ -911,7 +917,7 @@ public partial class Prologue : Node2D
         DialogueBox.DrawFrame(this, box, label, edge);
         DialogueBox.DrawBody(this, box, CurPage, Mathf.Clamp((int)_reveal, 0, CurPage.Length),
             ink: d.Who == WhoSys ? Code : DialogueBox.Ink);
-        if (_reveal >= CurPage.Length && !_ffNow)
+        if (PageReady && !_ffNow)
             DialogueBox.DrawContinue(this, box, !LastPage);
         UiKit.EndDesign(this);
     }

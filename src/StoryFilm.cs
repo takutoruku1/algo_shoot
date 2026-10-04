@@ -25,7 +25,7 @@ public partial class StoryFilm : Node2D
     //   ・TimeLead … 時制の見出しだけを見せる一拍。memory 0.6（旧 1.05）／aftermath 1.05
     //   ・AutoRead … 自動送り（Settings の AutoAdvanceDialog）で、全文が出てから次へ送るまでの秒。
     //                memory 1.0（旧 1.4）／aftermath 1.4
-    //   文字送りの速さ（1.5 倍）と、初見でも Ctrl／RB 押しっぱなしで早送りできる件は Hud.BattleMemoryTempo。
+    //   初見でも Ctrl／RB 押しっぱなしで早送りできる件は Hud.BattleMemoryTempo。
     protected double FadeTime => _aftermath ? 0.65 : 0.45;
     private double AutoRead => _aftermath ? 1.4 : 1.0;
     // 背後（StageBackground/BgLayers のボスイラスト）を塞ぐ不透明の黒板。
@@ -88,7 +88,7 @@ public partial class StoryFilm : Node2D
         _hud.SuppressCallouts = true;
         _hud.HideBubble();
         _hud.HoldBubble = true;
-        // 戦闘中の回想だけ、文字送りを速め・初見でも押しっぱなし早送りを許す（Hud.BattleMemoryTempo）。
+        // 戦闘中の回想だけ、初見でも押しっぱなし早送りを許す。
         _hud.BattleMemoryTempo = !_aftermath;
         _hud.SetCinematicMode(true, accent: StoryAccent());
         GetNode<BulletPool>("/root/Pool").DespawnAll();
@@ -179,7 +179,7 @@ public partial class StoryFilm : Node2D
             _readT = 0;
         }
         else if (_lineT >= _lines[_line].Hold && _hud.DialogRevealed
-                 && (edge || _hud.FastForwarding || (_hud.AutoAdvance && _readT >= AutoRead)))
+                 && (edge || _hud.FastForwarding || (_hud.AutoAdvanceReady && _readT >= AutoRead)))
         {
             _line++;
             if (_line == _lines.Length) BeginLeave();

@@ -171,6 +171,7 @@ public partial class Hud : CanvasLayer
     private bool _dlgDraftMark;         // true=立ち絵の代わりに下書きの吹き出し印を出す（LineKind.Boy＝あなた。顔が無い）
     private double _messageTimer;
     private float _dlgRevealed;         // タイプライター表示済み文字数（＝現在ページ内の文字数）
+    private double _pageReadT;
 
     // ページ送り（テキストボックスは全般2行固定。2行を超える行は2行ずつのページに割り、送りで続きを読ませる）。
     //   セリフ本文は削らず、WrapLines（禁則つき）で確定した行を DlgMaxLines 行ずつ束ねて1ページにする。
@@ -180,20 +181,21 @@ public partial class Hud : CanvasLayer
     public const int DlgMaxLines = 2;   // 1ページに収める最大行数（全ボックス共通）
     private readonly System.Collections.Generic.List<string> _dlgPages = new();
     private int _dlgPage;               // 現在表示中のページ index
+    private DialoguePacing.Page[] _pagePacing = System.Array.Empty<DialoguePacing.Page>();
+    private DialoguePacing.Page? CurPacing => _dlgPage < _pagePacing.Length ? _pagePacing[_dlgPage] : null;
+    private bool PageReady => _dlgRevealed >= CurPageText.Length && (FastForwarding || _pageReadT >= (CurPacing?.Tail ?? 0));
     private string CurPageText => (_dlgPages.Count > 0 && _dlgPage < _dlgPages.Count) ? _dlgPages[_dlgPage] : _dlgText;
     private bool OnLastPage => _dlgPages.Count == 0 || _dlgPage >= _dlgPages.Count - 1;
-    private const float CharsPerSec = 48f;
+    private const float CharsPerSec = DialogueBox.DefaultCharsPerSec;
     // ───────── 戦闘中の回想のテンポ（2026-09-26 作者指摘「まだ戦っている最中なのに長すぎる」）─────────
     //   ボス戦の途中（HP 閾値）に戦闘を止めて挟む回想＝StoryFilm の memory／CharacterStoryTalk の間だけ立てる。
     //   立っている間は
-    //   ・タイプライターの文字送りを MemoryRevealScale 倍にする（既定 48cps → 72cps）。
     //   ・FastForwarding が既読条件（_dlgReadBefore）を要らなくなる＝初見でも Ctrl／RB 押しっぱなしで早送り。
     //     本作の既読スキップは「未読行では効かない＝取りこぼさせない」が原則だが、戦闘の最中に挟む回想は
     //     プレイヤーが**戻りたい戦闘**を待たせている。押し続けている人にだけ道を開ける（行は全部バックログに
     //     残る）。撃破後のアフター（StoryFilm の aftermath）や道中の会話には及ばない。
     //   立てる／降ろすのは回想の駆動側（StoryFilm._Ready／Restore、CharacterStoryTalk.Start／Finish）。
     public bool BattleMemoryTempo;
-    private const float MemoryRevealScale = 1.5f;
     // 現在行の種類（タイプ送り音の音色＝話者を決める）。LineKind を取らない経路は既定＝Narration（無音）。
     private LineKind _dlgKind = LineKind.Narration;
     private int _typePrevRevealed;      // 直前フレームの revealed 整数部（新しく出た文字を差分検出）
@@ -332,11 +334,11 @@ public partial class Hud : CanvasLayer
             if (!OnLastPage) AdvanceDialogPage();   // 既読は全ページを一気に抜けて最終ページ完了状態へ
         }
 
+        bool pageWasRevealed = _dlgRevealed >= CurPageText.Length;
         // タイプライター送り（現在ページ内の文字数を進める）
         if (_messageTimer > 0 && _dlgText.Length > 0 && _dlgRevealed < CurPageText.Length)
         {
-            _dlgRevealed = Mathf.Min(CurPageText.Length, _dlgRevealed + (float)delta * (_game?.MsgCharsPerSec ?? CharsPerSec)
-                                                                       * (BattleMemoryTempo ? MemoryRevealScale : 1f));
+            _dlgRevealed = (float)DialogueBox.AdvanceReveal(CurPageText, _dlgRevealed, delta, _game?.MsgCharsPerSec ?? CharsPerSec, CurPacing);
             // 文字が新たに出た瞬間だけ、TypeStride 文字に1回、話者の音色で送り音（Voiceバス）。
             // ナレ（Narration）は PlayType 側で無音。即時全文表示（RevealDialogNow）は差分が一気に増えるが
             // 「1ストライド境界を跨いだか」だけで判定するので、増分の数だけ連打しない＝大量再生を防ぐ。
@@ -349,6 +351,10 @@ public partial class Hud : CanvasLayer
                 _typePrevRevealed = rev;
             }
         }
+
+        if (_messageTimer > 0 && _dlgText.Length > 0 && pageWasRevealed) _pageReadT += delta;
+        else _pageReadT = 0;
+        if (AutoAdvance && !OnLastPage && PageReady && _pageReadT >= (CurPacing?.AutoWait ?? DialogueBox.ReadPause)) AdvanceDialogPage();
 
         // 立ち絵の生命感タイマー（見た目のみ・進行に無影響）。
         if (_portraitFadeT > 0) _portraitFadeT -= delta;        // 表情クロスフェードの残り
@@ -427,6 +433,7 @@ public partial class Hud : CanvasLayer
     private void ClearDialog()
     {
         _dlgText = ""; _dlgSpeaker = ""; _dlgPortrait = null; _dlgDraftMark = false; _dlgRevealed = 0;
+        _pageReadT = 0;
         _dlgPortraitPrev = null; _portraitFadeT = 0; _nodT = 0; _revealWasDone = false;
         _dlgPages.Clear(); _dlgPage = 0;
         UpdateDialoguePause();
@@ -558,6 +565,7 @@ public partial class Hud : CanvasLayer
         bool sameSpeaker = _dlgSpeaker == speaker && _dlgKind == kind;
         _dlgText = text; _dlgSpeaker = speaker; _dlgSpeakerCol = speakerCol;
         _dlgIsDialog = dialog; _dlgRevealed = 0;
+        _pageReadT = 0;
         // 新しい行＝送り音の差分検出をリセット。送り音の音色は kind（Narration＝無音）。
         _typePrevRevealed = 0; _dlgKind = kind;
         Texture2D? next = string.IsNullOrEmpty(portrait) ? null : ResourceLoader.Load<Texture2D>(portrait);
@@ -588,20 +596,21 @@ public partial class Hud : CanvasLayer
     {
         _dlgPages.Clear();
         _dlgPage = 0;
-        _dlgPages.AddRange(UiKit.Paginate(DialogueBox.Body, _dlgText, DialogueBox.WrapWidth(DialogRect), DlgMaxLines));
+        _dlgPages.AddRange(DialogueBox.Paginate(_dlgText, DialogueBox.WrapWidth(DialogRect)));
+        _pagePacing = DialoguePacing.ForPages(_dlgText, _dlgPages);
     }
 
     // 会話送り（ステージの Step_Lines から使う）：現在ページを出し切った かつ 最終ページなら「この行は読了＝次の行へ」。
     //   後続ページが残る間は false を返す＝Step_Lines の2段目送りが RevealDialogNow に回り、次ページへ進む。
     public bool DialogRevealed =>
-        _dlgText.Length == 0 || (OnLastPage && _dlgRevealed >= CurPageText.Length);
+        _dlgText.Length == 0 || (OnLastPage && PageReady);
 
     // Zの1段目：現在ページが未完なら全文表示。完了していて後続ページがあるなら次ページへ送る。
     public void RevealDialogNow()
     {
         if (_dlgText.Length == 0) return;
         if (_dlgRevealed < CurPageText.Length) { _dlgRevealed = CurPageText.Length; return; }
-        if (!OnLastPage) AdvanceDialogPage();
+        if (!OnLastPage && PageReady) AdvanceDialogPage();
     }
 
     // 次ページへ（タイプライターを頭から。送り音の差分検出もリセット）。
@@ -609,11 +618,13 @@ public partial class Hud : CanvasLayer
     {
         _dlgPage++;
         _dlgRevealed = 0;
+        _pageReadT = 0;
         _typePrevRevealed = 0;
         _revealWasDone = false;
     }
 
     public bool AutoAdvance => _game?.AutoAdvanceDialog ?? false;
+    public bool AutoAdvanceReady => AutoAdvance && DialogRevealed && _pageReadT >= (CurPacing?.AutoWait ?? DialogueBox.ReadPause);
 
     // ───────── 既読スキップ（2周目の高速送り・Epic G #22）─────────
     //   Ctrl（左右どちらも）/ パッド RB を「押しっぱなし」の間、既読の行だけ高速送りする。
@@ -1676,7 +1687,7 @@ public partial class Hud : CanvasLayer
                 UiKit.FaceAvatar(ci, center, 17, _dlgPortraitPrev, accent, false, alpha: fade);
         }
         DialogueBox.DrawBody(ci, box, page, Mathf.Clamp((int)_dlgRevealed, 0, page.Length));
-        if (_dlgRevealed >= page.Length && !FastForwarding)
+        if (PageReady && !FastForwarding)
             DialogueBox.DrawContinue(ci, box, !OnLastPage);
     }
 

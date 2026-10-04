@@ -70,7 +70,7 @@ public class CharacterStoryTalk
             return;
         }
         if (_lineT < 0.25 || !hud.DialogRevealed) return;
-        if (!(zEdge || hud.FastForwarding || (hud.AutoAdvance && _lineT >= 1.4))) return;
+        if (!(zEdge || hud.FastForwarding || (hud.AutoAdvanceReady && _lineT >= 1.4))) return;
         _lineT = 0;
         _line++;
         if (_line >= _lines.Length) { Finish(hud); return; }

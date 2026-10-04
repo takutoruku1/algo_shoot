@@ -36,6 +36,9 @@ public partial class Epilogue : Node2D
     //   会話フェーズ（PhGaze/PhEnd）が対象。折り返しは DrawLineBox と一致させる。
     private readonly List<string> _pages = new();
     private int _page;
+    private DialoguePacing.Page[] _pagePacing = System.Array.Empty<DialoguePacing.Page>();
+    private DialoguePacing.Page? CurPacing => _page < _pagePacing.Length ? _pagePacing[_page] : null;
+    private bool PageReady => _reveal >= CurPage.Length && (_ffNow || _autoT >= (CurPacing?.Tail ?? 0));
     private int _pagedKey = -1;                // _pages を構築済みの行キー（phase×1000+line）
     private string CurPage => _pages.Count > 0 ? _pages[Mathf.Min(_page, _pages.Count - 1)] : "";
     private bool LastPage => _pages.Count == 0 || _page >= _pages.Count - 1;
@@ -48,9 +51,11 @@ public partial class Epilogue : Node2D
         if (_pagedKey == key) return;
         _pagedKey = key; _page = 0;
         _pages.Clear();
-        _pages.AddRange(UiKit.Paginate(DialogueBox.Body, t, DialogueBox.WrapWidth(DialogueBox.FullScreen), Hud.DlgMaxLines));
+        _pages.AddRange(DialogueBox.Paginate(t, DialogueBox.WrapWidth(DialogueBox.FullScreen)));
+        _pagePacing = DialoguePacing.ForPages(t, _pages);
+        _autoT = 0;
     }
-    private void NextPage() { _page++; _reveal = 0; _lineT = 0; }
+    private void NextPage() { _page++; _reveal = 0; _lineT = 0; _autoT = 0; }
 
     // 既読スキップ（#22）：Ctrl/RB 長押しで「既読の行だけ」高速送り（本編HUDと同じ作法・独自レンダラ側の実装）。
     // スタッフロール(PhRoll)は対象外（CurLineText が null＝会話行フェーズのみ効く）。
@@ -295,8 +300,9 @@ public partial class Epilogue : Node2D
         string? curT = CurLineText();
         EnsurePages();
         int pageLen = curT != null ? CurPage.Length : 0;
+        bool pageWasRevealed = _reveal >= pageLen;
         if (curT != null && _reveal < pageLen)
-            _reveal = Mathf.Min(pageLen, (float)(_reveal + delta * (_game?.MsgCharsPerSec ?? 48f)));
+            _reveal = DialogueBox.AdvanceReveal(CurPage, _reveal, delta, _game?.MsgCharsPerSec ?? DialogueBox.DefaultCharsPerSec, CurPacing);
 
         // 既読スキップ（#22）：行の表示開始時に一度だけ「既読か」を控え（＝高速送りの可否）、表示と同時に既読へ記録。
         int readKey = _phase * 1000 + _line;
@@ -311,14 +317,14 @@ public partial class Epilogue : Node2D
         _ffNow = curT != null && Hud.SkipHeld && _lineWasRead; // 未読行では効かない
         // AUTO（会話ボックスの AUTO ボタン／設定の「オート会話送り」）：現在ページの全文表示後 AutoAfterReveal 秒で送る。
         bool lastEndLine = _phase == PhEnd && _e6ChoiceLine < 0 && _line >= _end.Count - 1;
-        if (curT != null && !lastEndLine && _reveal >= pageLen && (_game?.AutoAdvanceDialog ?? false)) _autoT += delta;
+        if (curT != null && pageWasRevealed) _autoT += delta;
         else _autoT = 0;
-        bool autoGo = _autoT >= AutoAfterReveal;
+        bool autoGo = !lastEndLine && (_game?.AutoAdvanceDialog ?? false) && _autoT >= (CurPacing?.AutoWait ?? AutoAfterReveal);
 
         switch (_phase)
         {
             case PhGaze:   // E5b 見上げる（夜）
-                if ((zEdge || _ffNow || autoGo) && _lineT >= 0.25)  // _ffNow=既読スキップ（Ctrl/RB長押し・既読行のみ・#22）
+                if ((zEdge || _ffNow || autoGo) && _lineT >= 0.25 && (_reveal < pageLen || PageReady))
                 {
                     _autoT = 0;
                     if (curT != null && _reveal < pageLen) { _reveal = pageLen; } // 1回目で現在ページ全文（早送り）
@@ -366,7 +372,7 @@ public partial class Epilogue : Node2D
                 }
                 // 「本日の業務は、以上です。」を送り切って選択点に着いたら提示する。
                 if (_e6ChoiceLine >= 0 && _line >= _e6ChoiceLine) { ShowE6Choice(); break; }
-                if ((zEdge || _ffNow || autoGo) && _lineT >= 0.25)
+                if ((zEdge || _ffNow || autoGo) && _lineT >= 0.25 && (_reveal < pageLen || PageReady))
                 {
                     _autoT = 0;
                     if (curT != null && _reveal < pageLen) { _reveal = pageLen; }
@@ -631,7 +637,7 @@ public partial class Epilogue : Node2D
         int shown = narr ? CurPage.Length : Mathf.Clamp((int)_reveal, 0, CurPage.Length);
         float alpha = narr ? Mathf.Clamp((float)_lineT / 0.35f, 0, 1) : 1;
         DialogueBox.DrawBody(this, box, CurPage, shown, alpha);
-        if ((narr ? _lineT >= 0.35 : _reveal >= CurPage.Length) && !_ffNow)
+        if ((narr ? _lineT >= 0.35 : PageReady) && !_ffNow)
             DialogueBox.DrawContinue(this, box, !LastPage);
         UiKit.EndDesign(this);
     }

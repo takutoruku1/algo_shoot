@@ -10,6 +10,80 @@ public static class DialogueBox
     public const float Padding = 24, HeaderHeight = 54;
     private static Texture2D? _draft;
 
+    public const float DefaultCharsPerSec = 28f;
+    public const double ReadPause = 1.0;
+    public static float Speed(int setting) => setting switch { 0 => 18f, 2 => 48f, _ => DefaultCharsPerSec };
+
+    public static List<string> Paginate(string text, float width)
+    {
+        var spaced = new System.Text.StringBuilder();
+        for (int i = 0; i < text.Length; i++)
+        {
+            char c = text[i];
+            spaced.Append(c);
+            if (c is not ('。' or '、')) continue;
+            while (i + 1 < text.Length && "。、」』）】！？!?".Contains(text[i + 1]))
+                spaced.Append(text[++i]);
+            if (i + 1 < text.Length && text[i + 1] is not ('\r' or '\n')) spaced.Append('\n');
+        }
+        return UiKit.Paginate(Body, spaced.ToString(), width, Hud.DlgMaxLines);
+    }
+
+    // The fractional part stores time toward the next character, including punctuation pauses.
+    public static double AdvanceReveal(string text, double shown, double delta, float speed = DefaultCharsPerSec,
+        DialoguePacing.Page? pacing = null)
+    {
+        while (shown < text.Length && delta > 0)
+        {
+            int index = (int)shown;
+            double step = CharacterTime(text, index, speed) + (pacing?.Before(index) ?? 0);
+            double remaining = (1 - (shown - index)) * step;
+            if (delta < remaining) return shown + delta / step;
+            delta -= remaining;
+            shown = index + 1;
+        }
+        return shown;
+    }
+
+    private static double CharacterTime(string text, int index, float speed)
+    {
+        double pause = index == 0 ? 0.12 : text[index - 1] switch
+        {
+            '、' or ',' => 0.12,
+            '。' or '！' or '？' or '!' or '?' => 0.24,
+            '…' or '‥' when text[index] != text[index - 1] => 0.36,
+            _ => 0,
+        };
+        return (1 + pause * DefaultCharsPerSec) / speed;
+    }
+
+    public static double RevealDuration(string text, float speed = DefaultCharsPerSec, DialoguePacing.Page? pacing = null)
+    {
+        double duration = 0;
+        for (int i = 0; i < text.Length; i++) duration += CharacterTime(text, i, speed) + (pacing?.Before(i) ?? 0);
+        return duration;
+    }
+
+    public static double CaptionDuration(List<string> pages, DialoguePacing.Page[]? pacing = null)
+    {
+        double duration = 0;
+        for (int i = 0; i < pages.Count; i++)
+            duration += RevealDuration(pages[i], pacing: pacing?[i]) + (pacing?[i].AutoWait ?? ReadPause);
+        return duration;
+    }
+
+    public static (string Page, int Shown) CaptionAt(List<string> pages, double elapsed, DialoguePacing.Page[]? pacing = null)
+    {
+        for (int i = 0; i < pages.Count; i++)
+        {
+            double duration = RevealDuration(pages[i], pacing: pacing?[i]) + (pacing?[i].AutoWait ?? ReadPause);
+            if (elapsed < duration || i == pages.Count - 1)
+                return (pages[i], (int)AdvanceReveal(pages[i], 0, System.Math.Max(0, elapsed), pacing: pacing?[i]));
+            elapsed -= duration;
+        }
+        return ("", 0);
+    }
+
     public static Vector2 Anchor(Rect2 box) => new(box.End.X, box.Position.Y);
     public static float WrapWidth(Rect2 box) => box.Size.X - Padding * 2;
     public static Vector2 TextPosition(Rect2 box) => box.Position + new Vector2(Padding, 66);

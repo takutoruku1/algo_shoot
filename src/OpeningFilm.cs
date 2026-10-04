@@ -1,10 +1,11 @@
 using Godot;
 using System;
+using System.Collections.Generic;
 
 public partial class OpeningFilm : Node2D
 {
     private const double PhoneDuration = 10.5;
-    public const double Duration = PhoneDuration + 37.5;
+    public static double Duration => Cuts[^1];
     private static readonly float[] ReleaseTimes = { 1.5f, 1.55f, 1.45f, 0.95f };
     private static readonly float[] ImpactTimes = { 1.91f, 2.45f, 2.18f, 2.46f };
     public Action? Completed;
@@ -15,7 +16,7 @@ public partial class OpeningFilm : Node2D
     {
         0, PhoneDuration, PhoneDuration + 3.5, PhoneDuration + 7, PhoneDuration + 10.5,
         PhoneDuration + 15.5, PhoneDuration + 18.6, PhoneDuration + 22.6,
-        PhoneDuration + 25.9, PhoneDuration + 29.5, PhoneDuration + 33.5, Duration,
+        PhoneDuration + 25.9, PhoneDuration + 29.5, PhoneDuration + 33.5, PhoneDuration + 37.5,
     };
     private static readonly (double Time, string Text)[] DraftBeats =
     {
@@ -50,11 +51,17 @@ public partial class OpeningFilm : Node2D
     private static readonly Vector2[] PortraitFocus = { new(0.52f, 0.24f), new(0.64f, 0.25f), new(0.51f, 0.24f), new(0.45f, 0.2f) };
     private static readonly Vector2[] DailyFocus = { new(0.73f, 0.32f), new(0.35f, 0.32f), new(0.73f, 0.32f) };
     private const float RecallBeat = 0.42f;
-    // 字幕の文字送り音の刻み。本編（Hud の MsgCharsPerSec 既定 48字/秒・TypeStride 2）と同じ手触りに揃える
-    //   ＝1/24 秒ごとに1音。この映像は時間駆動（Crossed）で1文字ずつのループが無いので、
-    //   字幕が出始める時刻から「何文字目が出ているはず」を時刻に換算して鳴らす（2026-10-03）。
-    private const float TypeCps = 48f;
     private const int TypeStride = 2;
+    private readonly List<List<string>> _captionPages = new();
+    private readonly List<DialoguePacing.Page[]> _captionPacing = new();
+    private static double CaptionStart(int shot) => shot switch
+    {
+        >= 1 and <= 3 => 0.2,
+        4 => 1,
+        >= 5 and <= 8 => 0.48,
+        9 => 1.35,
+        _ => 0,
+    };
     private static readonly Rect2 Screen = new(0, 0, 1280, 720);
     private static readonly Rect2 SkipRect = DialogToolbar.FilmSkipRect;
     private static readonly Vector2 PhoneTextPosition = new(-108, -108);
@@ -90,6 +97,24 @@ public partial class OpeningFilm : Node2D
         Name = "OpeningFilm";
         Scale = Vector2.One * UiKit.Scale;
         TextureFilter = TextureFilterEnum.Linear;
+        for (int i = 0; i < Cuts.Length - 1; i++)
+        {
+            string text = i switch
+            {
+                >= 1 and <= 3 => DailyLines[i - 1],
+                4 => HeardLine + "\n" + GoLine,
+                >= 5 and <= 8 => CutinLines[i - 5],
+                9 => WaitingLine,
+                _ => "",
+            };
+            var pages = DialogueBox.Paginate(text, DialogueBox.WrapWidth(DialogueBox.FullScreen));
+            _captionPages.Add(pages);
+            var pacing = DialoguePacing.ForPages(text, pages);
+            _captionPacing.Add(pacing);
+            double extra = CaptionStart(i) + DialogueBox.CaptionDuration(pages, pacing) + 0.5 - (Cuts[i + 1] - Cuts[i]);
+            if (text.Length > 0 && extra > 0)
+                for (int j = i + 1; j < Cuts.Length; j++) Cuts[j] += extra;
+        }
         _daily = new Texture2D[3];
         _fighters = new Texture2D[4];
         _cores = new Texture2D[4];
@@ -214,33 +239,17 @@ public partial class OpeningFilm : Node2D
     //   チャージ/ショットの合図（PlayChargeReady 等）を潰す（mitsuda pitfalls P1/P2）。
     private void TypeCaptions(double previousTime)
     {
-        // カット1〜3：三人の日常の一言。DrawOverlay が t=0.2 から DrawQuote で出す。
-        for (int i = 0; i < 3; i++)
-            TypeCaption(previousTime, Cuts[1 + i] + 0.2, DailyLines[i], Hud.LineKind.Other);
-        // カット4：ミナの二行。絵はどちらも t=1.0 から出るので、音は一行目を打ち切ってから二行目へ
-        //   （同時に重ねると二人がしゃべっているように聞こえる）。
-        TypeCaption(previousTime, Cuts[4] + 1, HeardLine, Hud.LineKind.Mina);
-        TypeCaption(previousTime, Cuts[4] + 1 + HeardLine.Length / TypeCps + 0.1, GoLine, Hud.LineKind.Mina);
-        // カット5〜8：名前（DrawName の 0.09 秒刻み）→ セリフ（DrawQuote の出だし t=0.48）。
-        for (int i = 0; i < 4; i++)
-        {
-            double start = Cuts[5 + i];
-            var kind = i == 3 ? Hud.LineKind.Mina : Hud.LineKind.Other;
-            TypeName(previousTime, start + 0.18, _cast[i].CharacterName, kind);
-            TypeCaption(previousTime, start + 0.48, CutinLines[i], kind);
-        }
-    }
-
-    // 字幕1本ぶん。start 秒を0文字目として、本編と同じ TypeStride 文字に1回だけ鳴らす。
-    //   ナレは PlayType 側で無音なので、ここで早めに抜けて空回りを避ける。
-    private void TypeCaption(double previousTime, double start, string text, Hud.LineKind kind)
-    {
-        if (kind == Hud.LineKind.Narration) return;
-        for (int i = TypeStride; i < text.Length; i += TypeStride)
-        {
-            double at = start + i / TypeCps;
-            if (previousTime < at && Elapsed >= at) Audio.Instance?.PlayType(kind, text, i);
-        }
+        int shot = Shot;
+        if (shot is >= 5 and <= 8)
+            TypeName(previousTime, Cuts[shot] + 0.18, _cast[shot - 5].CharacterName,
+                shot == 8 ? Hud.LineKind.Mina : Hud.LineKind.Other);
+        if (shot is < 1 or > 8) return;
+        double start = Cuts[shot] + CaptionStart(shot);
+        var before = DialogueBox.CaptionAt(_captionPages[shot], previousTime - start, _captionPacing[shot]);
+        var now = DialogueBox.CaptionAt(_captionPages[shot], Elapsed - start, _captionPacing[shot]);
+        int previous = before.Page == now.Page ? before.Shown : 0;
+        if (now.Shown < now.Page.Length && now.Shown / TypeStride > previous / TypeStride)
+            Audio.Instance?.PlayType(shot is 4 or 8 ? Hud.LineKind.Mina : Hud.LineKind.Other, now.Page, now.Shown);
     }
 
     // 名前の1文字ずつの出（DrawName と同じ 0.09 秒刻み）に合わせた一打。名前は1〜2文字なので間引かない。
@@ -839,7 +848,8 @@ public partial class OpeningFilm : Node2D
     {
         int shot = Shot;
         float t = (float)(Elapsed - Cuts[shot]);
-        (string Speaker, string Text, Color Accent, float Alpha)? caption = null;
+        float captionEnd = (float)(Cuts[shot + 1] - Cuts[shot] - 0.5);
+        (string Speaker, Color Accent, float Alpha)? caption = null;
         if (shot is 4 or 9)
         {
             float shade = shot == 9 ? Ease((t - 1.2f) / 0.4f) : 1;
@@ -849,13 +859,13 @@ public partial class OpeningFilm : Node2D
         if (shot is >= 1 and <= 3)
         {
             int i = shot - 1;
-            float a = Ease((t - 0.2f) / 0.35f) * (1 - Ease((t - 3.25f) / 0.25f));
-            caption = (_cast[i].CharacterName, DailyLines[i], Accents[i], a);
+            float a = Ease((t - 0.2f) / 0.35f) * (1 - Ease((t - captionEnd) / 0.25f));
+            caption = (_cast[i].CharacterName, Accents[i], a);
         }
         if (shot == 4)
         {
-            float a = Ease((t - 1) / 0.7f) * (1 - Ease((t - 4.2f) / 0.5f));
-            caption = ("ミナ", HeardLine + "\n" + GoLine.Replace("\n", ""), Accents[3], a);
+            float a = Ease((t - 1) / 0.7f) * (1 - Ease((t - captionEnd) / 0.5f));
+            caption = ("ミナ", Accents[3], a);
         }
         if (shot == 10)
         {
@@ -880,17 +890,17 @@ public partial class OpeningFilm : Node2D
             DrawName(canvas, _cast[i].CharacterName, namePosition, i == 3 ? 72 : 80, t - 0.18f, a, i == 3);
             Vector2 handlePosition = i == 3 ? new(72, 472) : namePosition + new Vector2(4, 106);
             UiKit.Text(canvas, _titleFont, handlePosition, Handle(_cast[i]), 26, Fade(Accents[i], a));
-            caption = (_cast[i].CharacterName, CutinLines[i], Accents[i], a);
+            caption = (_cast[i].CharacterName, Accents[i], a);
         }
         if (shot == 9)
         {
-            float a = Ease((t - 1.35f) / 0.4f) * (1 - Ease((t - 3.6f) / 0.4f));
-            caption = ("ミナ", WaitingLine, Accents[3], a);
+            float a = Ease((t - 1.35f) / 0.4f) * (1 - Ease((t - captionEnd) / 0.4f));
+            caption = ("ミナ", Accents[3], a);
         }
         float bars = shot <= 3 ? 38 : shot == 4 ? Mathf.Lerp(38, 22, Ease(t / 1.2f)) : 22;
         canvas.DrawRect(new Rect2(0, 0, 1280, bars), Colors.Black);
         canvas.DrawRect(new Rect2(0, 720 - bars, 1280, bars), Colors.Black);
-        if (caption is { } captionLine) DrawDialogueCaption(canvas, captionLine.Speaker, captionLine.Text, captionLine.Accent, captionLine.Alpha);
+        if (caption is { } captionLine) DrawDialogueCaption(canvas, captionLine.Speaker, captionLine.Accent, captionLine.Alpha);
         float fade = Mathf.Max(1 - Ease((float)Elapsed / 0.6f), Ease((float)(Elapsed - Duration + 1)));
         if (_leaving) fade = Mathf.Max(fade, Ease((float)_leaveTime / 0.45f));
         canvas.DrawRect(Screen, new Color(0, 0, 0, fade));
@@ -904,12 +914,12 @@ public partial class OpeningFilm : Node2D
         DialogToolbar.DrawFilmSkip(canvas, progress, _skipHover > 0, alpha);
     }
 
-    private static void DrawDialogueCaption(Node2D canvas, string speaker, string text, Color accent, float alpha)
+    private void DrawDialogueCaption(Node2D canvas, string speaker, Color accent, float alpha)
     {
         var box = DialogueBox.FullScreen;
         DialogueBox.DrawFrame(canvas, box, speaker, accent);
-        var lines = UiKit.WrapLines(DialogueBox.Body.Font, text, DialogueBox.Body.Size, DialogueBox.WrapWidth(box));
-        DialogueBox.DrawBody(canvas, box, string.Join("\n", lines), int.MaxValue, alpha);
+        var caption = DialogueBox.CaptionAt(_captionPages[Shot], Elapsed - Cuts[Shot] - CaptionStart(Shot), _captionPacing[Shot]);
+        DialogueBox.DrawBody(canvas, box, caption.Page, caption.Shown, alpha);
     }
 
     private void DrawName(Node2D canvas, string name, Vector2 position, int size, float time, float alpha, bool vertical)

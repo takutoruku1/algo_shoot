@@ -42,6 +42,7 @@ public partial class ShieldBreakCallout : Node2D
 
     private void UpdateLine()
     {
+        string previous = _line;
         _showingPost = GetTree().GetFirstNodeInGroup("boss_post") is BossPost post && post.Boss == _owner;
         _line = _showingPost ? _job switch
         {
@@ -56,6 +57,7 @@ public partial class ShieldBreakCallout : Node2D
             Job.Magic => "シールドは壊れたわ。\n今がチャンスよ。本体を狙って！",
             _ => "シールドを破壊しました。\nご主人様、今こそ本体を狙いましょう！",
         };
+        if (_line != previous) _age = 0;
     }
 
     public override void _Process(double delta)
@@ -81,8 +83,9 @@ public partial class ShieldBreakCallout : Node2D
         UiKit.Text(this, UiKit.Zen, new Vector2(box.End.X - 244, box.Position.Y + 17),
             _showingPost ? "下書きの奥へ" : "本体にダメージが通る", 15,
             new Color(DialogueBox.Ink, alpha), HorizontalAlignment.Right, 220);
-        var lines = UiKit.WrapLines(DialogueBox.Body.Font, _line, DialogueBox.Body.Size, DialogueBox.WrapWidth(box));
-        DialogueBox.DrawBody(this, box, string.Join("\n", lines), int.MaxValue, alpha);
+        var pages = DialogueBox.Paginate(_line, DialogueBox.WrapWidth(box));
+        var caption = DialogueBox.CaptionAt(pages, _age);
+        DialogueBox.DrawBody(this, box, caption.Page, caption.Shown, alpha);
         var start = new Vector2(box.Position.X + DialogueBox.Padding, box.End.Y - 15);
         float width = DialogueBox.WrapWidth(box);
         DrawLine(start, start + new Vector2(width, 0), new Color(_accent, 0.18f * alpha), 2, true);

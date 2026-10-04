@@ -121,23 +121,18 @@ public partial class OpeningFilmQa : Node
             //   「記号ごとに語尾のピッチが動く」「話者ごとに抑揚の幅が違う」「ナレは無音」。
             const BindingFlags Stat = BindingFlags.Static | BindingFlags.NonPublic;
             var audio = GetNode<Audio>("/root/Audio");
-            float cps = (float)typeof(OpeningFilm).GetField("TypeCps", Stat)!.GetRawConstantValue()!;
             int stride = (int)typeof(OpeningFilm).GetField("TypeStride", Stat)!.GetRawConstantValue()!;
-            Check(cps == (float)typeof(Hud).GetField("CharsPerSec", Stat)!.GetRawConstantValue()!
+            Check(DialogueBox.DefaultCharsPerSec == (float)typeof(Hud).GetField("CharsPerSec", Stat)!.GetRawConstantValue()!
                 && stride == (int)typeof(Hud).GetField("TypeStride", Stat)!.GetRawConstantValue()!,
                 "captions tick at the in-game typewriter's rate and stride");
-            var dailyQuotes = (string[])typeof(OpeningFilm).GetField("DailyLines", Stat)!.GetValue(null)!;
-            var cutinQuotes = (string[])typeof(OpeningFilm).GetField("CutinLines", Stat)!.GetValue(null)!;
-            string heard = (string)typeof(OpeningFilm).GetField("HeardLine", Stat)!.GetRawConstantValue()!;
-            string go = (string)typeof(OpeningFilm).GetField("GoLine", Stat)!.GetRawConstantValue()!;
-            double Ticks(string text) => text.Length / cps;   // 1本を打ち切るのに要る秒数
-            for (int i = 0; i < 3; i++)
-                Check(0.2 + Ticks(dailyQuotes[i]) < 3.25, $"daily caption {i} finishes typing before it fades");
-            Check(1 + Ticks(heard) + 0.1 + Ticks(go) < 4.2,
-                "Mina's two lines type one after the other, not on top of each other");
-            for (int i = 0; i < 4; i++)
-                Check(0.48 + Ticks(cutinQuotes[i]) < cuts[6 + i] - cuts[5 + i] - 0.3,
-                    $"cutin caption {i} finishes typing before the shot cuts");
+            var captions = (System.Collections.Generic.List<System.Collections.Generic.List<string>>)typeof(OpeningFilm)
+                .GetField("_captionPages", Private)!.GetValue(film)!;
+            for (int i = 1; i <= 9; i++)
+            {
+                double start = (double)typeof(OpeningFilm).GetMethod("CaptionStart", Stat)!.Invoke(null, new object[] { i })!;
+                Check(start + DialogueBox.CaptionDuration(captions[i]) + 0.49 <= cuts[i + 1] - cuts[i],
+                    $"caption {i} finishes typing and reading before it fades");
+            }
 
             var prosody = typeof(Audio).GetMethod("Prosody", Private)!;
             var voiceOf = typeof(Audio).GetMethod("VoiceOf", Private)!;

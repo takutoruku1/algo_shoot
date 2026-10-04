@@ -1,19 +1,22 @@
 using Godot;
 using System;
+using System.Collections.Generic;
 
 public partial class EndingFilm : Node2D
 {
-    public const double Duration = 53;
+    public static double Duration => Cuts[^1];
     public Action? Completed;
     public double Elapsed { get; private set; }
     public bool Finished { get; private set; }
 
-    private static readonly double[] Cuts = { 0, 4, 10, 15, 20, 26, 31, 37, 42, 49, Duration };
+    private static readonly double[] Cuts = { 0, 4, 10, 15, 20, 26, 31, 37, 42, 49, 53 };
     private static readonly string[] Speakers = { "ミナ", "あかり", "こはる", "こはる", "レイ", "レイ", "あかり", "レイ", "ミナ", "" };
     private static readonly string[] Lines =
     { "……覚えている声が、あります。", "返事を待つだけじゃなくて。\nあたしの明日も、決めていいんだ。", "……ひとりで、なんとかしなくても。\n少しだけ、頼ってみよう。", "ねえ。ここ、分かんないんだけど……\n聞いてもいい？", "好きなところ、まだあるの。\n……今日は、最後まで話すね。", "……ちゃんと、話せた。", "ミナ。待っててくれて、ありがと。", "次は、ミナの話も聞かせて。\n……急がなくて、いいから。", "……ええ。\nわたくしも、ここにいて、よいのですね。", "" };
     private static readonly Rect2 SkipRect = DialogToolbar.FilmSkipRect;
     private Texture2D[] _art = null!;
+    private readonly List<List<string>> _captionPages = new();
+    private readonly List<DialoguePacing.Page[]> _captionPacing = new();
     private bool _inputArmed, _leaving;
     private double _skipHold, _leaveTime;
     private int _loggedShot = -1;   // 会話ログへ字幕を積んだカット（カット切替ごとに1回）
@@ -32,6 +35,16 @@ public partial class EndingFilm : Node2D
         Name = "EndingFilm";
         Scale = Vector2.One * UiKit.Scale;
         TextureFilter = TextureFilterEnum.Linear;
+        for (int i = 0; i < Lines.Length; i++)
+        {
+            var pages = DialogueBox.Paginate(Lines[i], DialogueBox.WrapWidth(DialogueBox.FullScreen));
+            _captionPages.Add(pages);
+            var pacing = DialoguePacing.ForPages(Lines[i], pages);
+            _captionPacing.Add(pacing);
+            double extra = 0.25 + DialogueBox.CaptionDuration(pages, pacing) + 0.7 - (Cuts[i + 1] - Cuts[i]);
+            if (Lines[i].Length > 0 && extra > 0)
+                for (int j = i + 1; j < Cuts.Length; j++) Cuts[j] += extra;
+        }
         const string dir = "res://char/bg2/ending/";
         var akari = GD.Load<Texture2D>(dir + "cg_ep_akari_v1.png");
         var koharu = GD.Load<Texture2D>(dir + "cg_ep_koharu_v1.png");
@@ -149,8 +162,8 @@ public partial class EndingFilm : Node2D
         {
             var box = DialogueBox.FullScreen;
             DialogueBox.DrawFrame(this, box, Speakers[shot], AccentFor(Speakers[shot]));
-            var lines = UiKit.WrapLines(DialogueBox.Body.Font, Lines[shot], DialogueBox.Body.Size, DialogueBox.WrapWidth(box));
-            DialogueBox.DrawBody(this, box, string.Join("\n", lines), int.MaxValue, captionAlpha);
+            var caption = DialogueBox.CaptionAt(_captionPages[shot], local - 0.25, _captionPacing[shot]);
+            DialogueBox.DrawBody(this, box, caption.Page, caption.Shown, captionAlpha);
         }
         if (Elapsed > 1 && shot < 9)
             DialogToolbar.DrawFilmSkip(this, Mathf.Clamp((float)(_skipHold / 0.65), 0, 1), SkipRect.HasPoint(Pad.MousePos()));

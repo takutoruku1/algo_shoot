@@ -23,6 +23,9 @@ public partial class Final : Node2D
     // テキストボックスは2行固定。2行超の行はページに割り、送り（Z）で続きを読ませる（本文は削らない）。
     private readonly System.Collections.Generic.List<string> _pages = new();
     private int _page;
+    private DialoguePacing.Page[] _pagePacing = System.Array.Empty<DialoguePacing.Page>();
+    private DialoguePacing.Page? CurPacing => _page < _pagePacing.Length ? _pagePacing[_page] : null;
+    private bool PageReady => _reveal >= CurPage.Length && (_ffNow || _autoT >= (CurPacing?.Tail ?? 0));
     private int _pagedLine = -1;               // _pages を構築済みの行 index
     private string CurPage => _pages.Count > 0 ? _pages[Mathf.Min(_page, _pages.Count - 1)] : "";
     private bool LastPage => _pages.Count == 0 || _page >= _pages.Count - 1;
@@ -31,9 +34,11 @@ public partial class Final : Node2D
         if (_pagedLine == _line || _line >= _talk.Count) return;
         _pagedLine = _line; _page = 0;
         _pages.Clear();
-        _pages.AddRange(UiKit.Paginate(DialogueBox.Body, _talk[_line].Text, DialogueBox.WrapWidth(DialogueBox.FullScreen), Hud.DlgMaxLines));
+        _pages.AddRange(DialogueBox.Paginate(_talk[_line].Text, DialogueBox.WrapWidth(DialogueBox.FullScreen)));
+        _pagePacing = DialoguePacing.ForPages(_talk[_line].Text, _pages);
+        _autoT = 0;
     }
-    private void NextPage() { _page++; _reveal = 0; _holdT = 0; _holdAt = -1; }
+    private void NextPage() { _page++; _reveal = 0; _autoT = 0; }
 
     // 既読スキップ（#22）：Ctrl/RB 長押しで「既読の行だけ」高速送り（本編HUDと同じ作法・独自レンダラ側の実装）。
     private int _readIdx = -1;     // 既読チェック済みの行 index
@@ -62,15 +67,6 @@ public partial class Final : Node2D
     private bool _cueSilenceDone;              // 二重発火を防ぐワンショット
     private bool _cueResolveDone;
 
-    // ───────── 三人の名を「一人ずつ沈ませる」溜め（演出のみ・本文は据え置き）─────────
-    //   「あかりの。こはるの。レイの。……」の行だけ、各句点「。」の直後でタイプライターを一拍止める。
-    //   reveal が句点直後インデックスに達したら _holdT 秒だけ次の文字へ進めない＝あかり／こはる／レイが
-    //   一人ずつ間を置いて落ちて見える。Z早送り（_reveal=len）が来ればホールドも飛ぶので待たせ過ぎない。
-    private const string DropLine  = "僕が観測して、届けられないまま残していた声だ。君がその声に触れられるよう、起動のときに渡した。"; // 本文一致で検出（配列順に依存しない）
-    private const float  DropHold  = 0.35f;  // 各「。」直後で溜める尺（一人ずつ沈む“間”）
-    private double _holdT;                     // 句点ホールドの残り時間
-    private int    _holdAt = -1;               // 既にホールド済みの reveal 位置（同じ句点で二重に止めない）
-
     // 配色は UiKit のカットシーントークンへ集約（3画面で同値のコピーだったものを参照に置換）。
     private static readonly Color Cool = UiKit.CutMina;   // ミナ
     private static readonly Color Warm = UiKit.CutWarm;   // 「あなた」（送られた下書き）
@@ -97,15 +93,7 @@ public partial class Final : Node2D
         _game?.SetContamination(1f);
 
         // Who: "地"=ミナの語り（ナレ・回想／話者名なし・中央寄せ） / "ミナ"=ミナのセリフ / "あなた"=送られた下書き
-        // F4 頂点（仮台本 08）。少年・Stay・録音の要素は案C ですべて落とした。
-        //   ※ CueSilenceLine/CueResolveLine/DropLine と本文一致で音楽・演出が同期しているため、該当行の変更禁止。
-        // 語り（7行）→ ここで下書き選択（_choiceLine）→ 送られた【初】→ 絶句 → 受け → 軽口 → 語り、の順。
-        // ユーザー承認済み: docs/20260914/ストーリー添削_2026-09-14.md 【1】＋ 5-(A)
-        //   旧稿は語り3行で即・選択肢＝全編のピークであるべき F4 に「転→反転」の尺が無く、
-        //   三面ぶん積んだ重さが DropLine 1行で処理されていた。
-        //   ①「軽くなると思っていた」→「重い」の因果を2行で通し、DropLine を“重さの正体”の反転にする。
-        //   ②起動ログの 414（Prologue の unsent_drafts）をここで数字だけ回収する
-        //     ＝全文開示はしない（気づいた人だけが繋がる／気づかない人には「元々あった重さ」として読める）。
+        // 音楽のキューと DialoguePacing は本文一致で同期する。
         void T(string who, string text) => _talk.Add(new DLine { Who = who, Text = text });
         T("ミナ", "ご主人様。起動時に読み込んだ、四百十四件の下書き。あれは？");
         T("あなた", "僕が観測して、届けられないまま残していた声だ。君がその声に触れられるよう、起動のときに渡した。");
@@ -202,23 +190,9 @@ public partial class Final : Node2D
                 // タイプライター送り（本編HUDと同じ MsgCharsPerSec）。現在ページ内を進める。
                 string page = CurPage;
                 int len = _line < _talk.Count ? page.Length : 0;
-                // 三人の名を一人ずつ沈ませる行（句点ホールドは本文一致で判定。DropLine は1ページに収まる想定＝現在ページで動く）。
-                bool dropLine = _line < _talk.Count && _talk[_line].Text == DropLine;
-                if (_holdT > 0) _holdT -= delta; // 句点ホールド消化中は reveal を進めない
-                if (_reveal < len && _holdT <= 0)
-                {
-                    _reveal = Mathf.Min(len, (float)(_reveal + delta * (_game?.MsgCharsPerSec ?? 48f)));
-                    // 対象行のみ：句点「。」を出し切った直後で一拍溜める（同じ句点で一度だけ）。
-                    if (dropLine)
-                    {
-                        int shown = Mathf.Min(len, (int)_reveal);
-                        if (shown > _holdAt && shown > 0 && page[shown - 1] == '。')
-                        {
-                            _holdAt = shown;
-                            _holdT = DropHold;
-                        }
-                    }
-                }
+                bool pageWasRevealed = _reveal >= len;
+                if (_reveal < len)
+                    _reveal = DialogueBox.AdvanceReveal(CurPage, _reveal, delta, _game?.MsgCharsPerSec ?? DialogueBox.DefaultCharsPerSec, CurPacing);
                 // 既読スキップ（#22）：行の表示開始時に一度だけ既読かを控え、表示と同時に既読へ記録。
                 if (_readIdx != _line && _line < _talk.Count)
                 {
@@ -229,16 +203,16 @@ public partial class Final : Node2D
                 }
                 _ffNow = Hud.SkipHeld && _lineWasRead; // 未読行では効かない
                 // AUTO（会話ボックスの AUTO ボタン／設定の「オート会話送り」）：現在ページの全文表示後 AutoAfterReveal 秒で送る。
-                if (_reveal >= len && (_game?.AutoAdvanceDialog ?? false)) _autoT += delta; else _autoT = 0;
-                bool autoGo = _autoT >= AutoAfterReveal;
-                if ((zEdge || _ffNow || autoGo) && _lineT >= 0.25)
+                if (pageWasRevealed) _autoT += delta; else _autoT = 0;
+                bool autoGo = (_game?.AutoAdvanceDialog ?? false) && _autoT >= (CurPacing?.AutoWait ?? AutoAfterReveal);
+                if ((zEdge || _ffNow || autoGo) && _lineT >= 0.25 && (_reveal < len || PageReady))
                 {
                     _autoT = 0;
-                    if (_reveal < len) { _reveal = len; _holdT = 0; } // 1回目で現在ページ全文（早送り）＝句点ホールドも飛ばす
+                    if (_reveal < len) { _reveal = len; } // 1回目で現在ページ全文（早送り）＝句点ホールドも飛ばす
                     else if (!LastPage) { NextPage(); _lineT = 0; }   // 後続ページがあれば続きへ（既読FFも同経路で全ページ抜ける）
                     else
                     {
-                        _lineT = 0; _reveal = 0; _line++; _holdT = 0; _holdAt = -1; _page = 0; _pagedLine = -1;
+                        _lineT = 0; _reveal = 0; _line++; _page = 0; _pagedLine = -1;
                         // 未提示の選択点に着いたら会話の途中＝次フレームの提示に譲る（Prologue と同じ作法）。
                         if (_line >= _talk.Count && _line != _choiceLine) NextPhase();
                     }
@@ -251,7 +225,7 @@ public partial class Final : Node2D
         QueueRedraw();
     }
 
-    private void NextPhase() { _phase++; _t = 0; _lineT = 0; _reveal = 0; _holdT = 0; _holdAt = -1; }
+    private void NextPhase() { _phase++; _t = 0; _lineT = 0; _reveal = 0; }
 
     // 表示中の行（_line）に応じて、音楽の沈黙と解決を一度ずつ発火する。
     //   細らせ → 無音 → （沈黙の1拍）→ 解決音 ppp。Epilogue の BgmMenu へはそのまま溶ける。
@@ -331,7 +305,7 @@ public partial class Final : Node2D
         var box = DialogueBox.FullScreen;
         DialogueBox.DrawFrame(this, box, narr ? "" : d.Who, edge);
         DialogueBox.DrawBody(this, box, CurPage, Mathf.Clamp((int)_reveal, 0, CurPage.Length));
-        if (_reveal >= CurPage.Length && !_ffNow)
+        if (PageReady && !_ffNow)
             DialogueBox.DrawContinue(this, box, !LastPage);
         UiKit.EndDesign(this);
     }
