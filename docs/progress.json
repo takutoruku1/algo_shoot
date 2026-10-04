@@ -1,20 +1,13 @@
 {
-  "generated": "2026-10-04 19:21 UTC",
+  "generated": "2026-10-04 19:24 UTC",
   "counts": {
-    "todo": 1,
+    "todo": 0,
     "wip": 0,
     "blocked": 46,
-    "done": 287
+    "done": 288
   },
   "percent": 100,
-  "todo": [
-    {
-      "priority": "P3",
-      "title": "config/boss_stats.ini に旧称「お残し」が2箇所残存（同ファイルの他箇所は本日是正済み）",
-      "worker": "engineer",
-      "accept": "`config/boss_stats.ini:118`の`meal_needle_speed = 130.0 ; お残し→自機狙いニードルの速度(px/s)`と`:119`の`meal_convert_step = 0.06  ; お残しがニードルに変わる間隔(s)＝順に飛んでくる連鎖感`のコメント内「お残し」を、`src/BossKoharu.cs`で統一されている現行呼称「見残し」に置換する（例: `:56`「時間切れ時の見残し」、`:309`「見残し→撃ち返しニードル」）。値・キー・ロジックは無変更でコメント文言のみ修正すること。"
-    }
-  ],
+  "todo": [],
   "wip": [],
   "blocked": [
     {
@@ -295,6 +288,12 @@
     }
   ],
   "done": [
+    {
+      "priority": "P3",
+      "title": "config/boss_stats.ini に旧称「お残し」が2箇所残存（同ファイルの他箇所は本日是正済み）",
+      "worker": "engineer",
+      "accept": "(完了 2026-10-04) タスク「boss_stats.ini旧称コメント是正」実装中にengineerが副次的に発見。`config/boss_stats.ini:118-119`の`meal_needle_speed`/`meal_convert_step`のコメント内「お残し」を、`src/BossKoharu.cs`で統一されている現行呼称「見残し」に置換。値(130.0, 0.06)・キー名・ロジックは無変更。**検証**: `git diff`で変更がコメント2行のみであることを確認、`dotnet build algo_shoot.sln` 0 Warning/0 Error。"
+    },
     {
       "priority": "P3",
       "title": "コメント内file:line参照が実装からズレている箇所が2件残存",
@@ -2020,6 +2019,16 @@
   ],
   "commits": [
     {
+      "hash": "7237c97",
+      "date": "2026-10-04",
+      "subject": "auto: WIP着手 - boss_stats.ini残存旧称「お残し」の置換"
+    },
+    {
+      "hash": "68fff6a",
+      "date": "2026-10-04",
+      "subject": "auto: コメント内file:line参照ズレを2件修正"
+    },
+    {
       "hash": "19c9403",
       "date": "2026-10-04",
       "subject": "auto: WIP着手 - コメント内file:line参照ズレの修正"
@@ -2048,16 +2057,6 @@
       "hash": "a0d2468",
       "date": "2026-10-04",
       "subject": "auto: WIP着手 - 初回ボス(ヒカゲ)の徘徊速度調整"
-    },
-    {
-      "hash": "a6318b2",
-      "date": "2026-10-04",
-      "subject": "auto: 後方弾(バックファイア)のHUDフィードバックを追加"
-    },
-    {
-      "hash": "d1d8ff1",
-      "date": "2026-10-04",
-      "subject": "auto: WIP着手 - 後方弾(バックファイア)のHUDフィードバック追加"
     }
   ]
 }

@@ -126,15 +126,15 @@
 
     <div class="figure">
       <span class="pct">100<span class="pct-unit">%</span></span>
-      <span class="figure-note">完了 287 / 対象 288 タスク<br>保留 46 件は人間の判断待ちのため対象外</span>
+      <span class="figure-note">完了 288 / 対象 288 タスク<br>保留 46 件は人間の判断待ちのため対象外</span>
     </div>
     <div class="rail" role="img" aria-label="進捗 100パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span></div>
   </header>
 
   <div class="states">
-    <div class="state done"><div class="state-n">287</div><div class="state-l">完了</div></div>
+    <div class="state done"><div class="state-n">288</div><div class="state-l">完了</div></div>
     <div class="state wip"><div class="state-n">0</div><div class="state-l">作業中</div></div>
-    <div class="state todo"><div class="state-n">1</div><div class="state-l">残り</div></div>
+    <div class="state todo"><div class="state-n">0</div><div class="state-l">残り</div></div>
     <div class="state blocked"><div class="state-n">46</div><div class="state-l">保留</div></div>
   </div>
 
@@ -145,20 +145,20 @@
 
   <section>
     <h2>キュー（上から消化）</h2>
-    <ol class="tasks">
-      <li class="task ">
-        <div class="task-head">
-          <span class="chip chip-p3">P3</span>
-          <span class="task-title">config/boss_stats.ini に旧称「お残し」が2箇所残存（同ファイルの他箇所は本日是正済み）</span>
-          <span class="worker">engineer</span>
-        </div>
-        <p class="accept"><code>config/boss_stats.ini:118</code>の<code>meal_needle_speed = 130.0 ; お残し→自機狙いニードルの速度(px/s)</code>と<code>:119</code>の<code>meal_convert_step = 0.06  ; お残しがニードルに変わる間隔(s)＝順に飛んでくる連鎖感</code>のコメント内「お残し」を、<code>src/BossKoharu.cs</code>で統一されている現行呼称「見残し」に置換する（例: <code>:56</code>「時間切れ時の見残し」、<code>:309</code>「見残し→撃ち返しニードル」）。値・キー・ロジックは無変更でコメント文言のみ修正すること。</p>
-      </li></ol>
+    <p class="empty">キューが空です。タスクを積んでください</p>
   </section>
 
   <section>
     <h2>完了</h2>
     <ol class="tasks">
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p3">P3</span>
+          <span class="task-title">config/boss_stats.ini に旧称「お残し」が2箇所残存（同ファイルの他箇所は本日是正済み）</span>
+          <span class="worker">engineer</span>
+        </div>
+        <p class="accept">(完了 2026-10-04) タスク「boss_stats.ini旧称コメント是正」実装中にengineerが副次的に発見。<code>config/boss_stats.ini:118-119</code>の<code>meal_needle_speed</code>/<code>meal_convert_step</code>のコメント内「お残し」を、<code>src/BossKoharu.cs</code>で統一されている現行呼称「見残し」に置換。値(130.0, 0.06)・キー名・ロジックは無変更。<strong>検証</strong>: <code>git diff</code>で変更がコメント2行のみであることを確認、<code>dotnet build algo_shoot.sln</code> 0 Warning/0 Error。</p>
+      </li>
       <li class="task is-done">
         <div class="task-head">
           <span class="chip chip-p3">P3</span>
@@ -2833,18 +2833,18 @@
   <section>
     <h2>直近のコミット</h2>
     <ul class="log">
+      <li><span class="h">7237c97</span><span>2026-10-04</span><span class="s">auto: WIP着手 - boss_stats.ini残存旧称「お残し」の置換</span></li>
+      <li><span class="h">68fff6a</span><span>2026-10-04</span><span class="s">auto: コメント内file:line参照ズレを2件修正</span></li>
       <li><span class="h">19c9403</span><span>2026-10-04</span><span class="s">auto: WIP着手 - コメント内file:line参照ズレの修正</span></li>
       <li><span class="h">17eaf92</span><span>2026-10-04</span><span class="s">auto: 実装中の副次的発見を1件キューに追加（boss_stats.ini旧称残存）</span></li>
       <li><span class="h">1f8f35a</span><span>2026-10-04</span><span class="s">auto: boss_stats.iniの旧世界観名称・旧称コメントを是正</span></li>
       <li><span class="h">3fd6b15</span><span>2026-10-04</span><span class="s">auto: WIP着手 - boss_stats.ini旧称コメントの是正</span></li>
       <li><span class="h">41708f4</span><span>2026-10-04</span><span class="s">auto: 初回ボス(ヒカゲ)の徘徊速度を本編ボス水準に調整</span></li>
       <li><span class="h">a0d2468</span><span>2026-10-04</span><span class="s">auto: WIP着手 - 初回ボス(ヒカゲ)の徘徊速度調整</span></li>
-      <li><span class="h">a6318b2</span><span>2026-10-04</span><span class="s">auto: 後方弾(バックファイア)のHUDフィードバックを追加</span></li>
-      <li><span class="h">d1d8ff1</span><span>2026-10-04</span><span class="s">auto: WIP着手 - 後方弾(バックファイア)のHUDフィードバック追加</span></li>
     </ul>
   </section>
 
-  <footer>生成 2026-10-04 19:21 UTC — DEV_QUEUE.md より自動生成</footer>
+  <footer>生成 2026-10-04 19:24 UTC — DEV_QUEUE.md より自動生成</footer>
 </div>
 
 <script>
