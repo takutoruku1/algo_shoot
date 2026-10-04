@@ -242,9 +242,9 @@ public static class UiKit
     private const string KinsokuNoHead =
         "、。，．・：；！？…‥ーっゃゅょぁぃぅぇぉゎッャュョァィゥェォヮ々ゝゞヽヾ）」』】〕｝〉》’”!?.,:;)]}";
     private const string KinsokuNoTail = "（「『【〔｛〈《‘“([{";
-    private static bool IsWordChar(char c) => c < 128 && (char.IsLetterOrDigit(c) || "'_@:/.,-".IndexOf(c) >= 0);
+    internal static bool IsWordChar(char c) => c < 128 && (char.IsLetterOrDigit(c) || "'_@:/.,-".IndexOf(c) >= 0);
 
-    private static bool CanBreakLine(string text, int at)
+    internal static bool CanBreakLine(string text, int at)
     {
         char before = text[at - 1], after = text[at];
         bool pause = after is '…' or '‥' or '—';
@@ -260,7 +260,7 @@ public static class UiKit
             && KinsokuNoTail.IndexOf(before) < 0;
     }
 
-    private static bool IsSentenceEnd(string text, int at)
+    internal static bool IsSentenceEnd(string text, int at)
     {
         while (at > 0 && (char.IsWhiteSpace(text[at - 1]) || "）」』】〕｝〉》’”)]}".IndexOf(text[at - 1]) >= 0)) at--;
         return at > 0 && "。！？!?".IndexOf(text[at - 1]) >= 0
@@ -275,7 +275,7 @@ public static class UiKit
         return char.IsWhiteSpace(text[at - 1]) ? 3 : 4;
     }
 
-    private static bool[] WordBoundaries(string text)
+    internal static bool[] WordBoundaries(string text)
     {
         // TextServer uses Unicode code-point offsets; C# slices use UTF-16 offsets.
         var offsets = new System.Collections.Generic.List<int> { 0 };

@@ -33,7 +33,7 @@ public partial class Prologue : Node2D
     private int _page;
     private DialoguePacing.Page[] _pagePacing = System.Array.Empty<DialoguePacing.Page>();
     private DialoguePacing.Page? CurPacing => _page < _pagePacing.Length ? _pagePacing[_page] : null;
-    private bool PageReady => _reveal >= CurPage.Length && (_ffNow || _autoT >= (CurPacing?.Tail ?? 0));
+    private bool PageReady => _reveal >= CurPage.Length && (_ffNow || _autoT >= DialogueBox.PageWait(CurPacing));
     private int _pagedLine = -1;               // _pages を構築済みの行 index
     private string CurPage => _pages.Count > 0 ? _pages[Mathf.Min(_page, _pages.Count - 1)] : "";
     private bool LastPage => _pages.Count == 0 || _page >= _pages.Count - 1;

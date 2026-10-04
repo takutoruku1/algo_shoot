@@ -10,23 +10,70 @@ public static class DialogueBox
     public const float Padding = 24, HeaderHeight = 54;
     private static Texture2D? _draft;
 
-    public const float DefaultCharsPerSec = 28f;
+    public const float DefaultCharsPerSec = 20f;
     public const double ReadPause = 1.0;
-    public static float Speed(int setting) => setting switch { 0 => 18f, 2 => 48f, _ => DefaultCharsPerSec };
+    public const double AdvancePause = 0.5;
+    public static float Speed(int setting) => setting switch { 0 => 14f, 2 => 32f, _ => DefaultCharsPerSec };
+    public static double PageWait(DialoguePacing.Page? pacing) => System.Math.Max(AdvancePause, pacing?.Tail ?? 0);
 
     public static List<string> Paginate(string text, float width)
     {
-        var spaced = new System.Text.StringBuilder();
-        for (int i = 0; i < text.Length; i++)
+        var lines = new List<string>();
+        foreach (string paragraph in text.Replace("\r", "").Split("\n\n"))
         {
-            char c = text[i];
-            spaced.Append(c);
-            if (c is not ('。' or '、')) continue;
-            while (i + 1 < text.Length && "。、」』）】！？!?".Contains(text[i + 1]))
-                spaced.Append(text[++i]);
-            if (i + 1 < text.Length && text[i + 1] is not ('\r' or '\n')) spaced.Append('\n');
+            if (lines.Count > 0) lines.Add("");
+            lines.AddRange(WrapDialogue(paragraph, width));
         }
-        return UiKit.Paginate(Body, spaced.ToString(), width, Hud.DlgMaxLines);
+        return UiKit.Paginate(Body, string.Join("\n", lines), width, Hud.DlgMaxLines);
+    }
+
+    private static List<string> WrapDialogue(string text, float width)
+    {
+        var explicitBreaks = new HashSet<int>();
+        int length = 0;
+        foreach (char c in text)
+            if (c == '\n') explicitBreaks.Add(length); else length++;
+        text = text.Replace("\n", "");
+        var lines = new List<string>();
+        if (text.Length == 0) return new() { "" };
+        float maxWidth = Mathf.Min(width, Body.Size * 28);
+        float minWidth = Mathf.Min(Body.Size * 8, maxWidth * 0.4f);
+        var words = UiKit.WordBoundaries(text);
+        var stops = System.Globalization.StringInfo.ParseCombiningCharacters(text);
+        float Measure(string s) => UiKit.TextW(Body.Font, s, Body.Size);
+        int start = 0;
+        while (start < text.Length)
+        {
+            string rest = text[start..];
+            float remainingWidth = Measure(rest);
+            float target = Mathf.Min(Body.Size * 22, remainingWidth / 2);
+            int best = -1;
+            float bestScore = float.MaxValue;
+            foreach (int at in stops)
+            {
+                if (at <= start) continue;
+                float headWidth = Measure(text[start..at]);
+                if (headWidth > maxWidth) break;
+                bool authored = explicitBreaks.Contains(at) && at - start >= 6;
+                if ((!authored && headWidth < minWidth) || Measure(text[at..]) < minWidth || !UiKit.CanBreakLine(text, at)) continue;
+                if (UiKit.IsWordChar(text[at - 1]) && UiKit.IsWordChar(text[at])) continue;
+                int rank = UiKit.IsSentenceEnd(text, at) || authored ? 0
+                    : text[at - 1] is '、' or '，' or ',' or '；' or ';' ? 1
+                    : words[at] ? 2 : 3;
+                if (rank == 3 || (rank > 0 && remainingWidth <= Mathf.Min(maxWidth, Body.Size * 22))) continue;
+                float score = Mathf.Abs(headWidth - target) / Body.Size + rank * 6;
+                if (score >= bestScore) continue;
+                best = at; bestScore = score;
+            }
+            if (best < 0)
+            {
+                var wrapped = UiKit.WrapLines(Body.Font, rest, Body.Size, maxWidth);
+                best = start + wrapped[0].Length;
+            }
+            lines.Add(text[start..best]);
+            start = best;
+        }
+        return lines;
     }
 
     // The fractional part stores time toward the next character, including punctuation pauses.

@@ -183,7 +183,7 @@ public partial class Hud : CanvasLayer
     private int _dlgPage;               // 現在表示中のページ index
     private DialoguePacing.Page[] _pagePacing = System.Array.Empty<DialoguePacing.Page>();
     private DialoguePacing.Page? CurPacing => _dlgPage < _pagePacing.Length ? _pagePacing[_dlgPage] : null;
-    private bool PageReady => _dlgRevealed >= CurPageText.Length && (FastForwarding || _pageReadT >= (CurPacing?.Tail ?? 0));
+    private bool PageReady => _dlgRevealed >= CurPageText.Length && (FastForwarding || _pageReadT >= DialogueBox.PageWait(CurPacing));
     private string CurPageText => (_dlgPages.Count > 0 && _dlgPage < _dlgPages.Count) ? _dlgPages[_dlgPage] : _dlgText;
     private bool OnLastPage => _dlgPages.Count == 0 || _dlgPage >= _dlgPages.Count - 1;
     private const float CharsPerSec = DialogueBox.DefaultCharsPerSec;

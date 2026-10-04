@@ -29,9 +29,22 @@ public partial class DialogueTempoQa : Node
             float width = DialogueBox.WrapWidth(DialogueBox.FullScreen);
             const string text = "今夜は、こちらを。わたくしの目で見た空です。";
             var pages = DialogueBox.Paginate(text, width);
-            Check(pages.SequenceEqual(new[] { "今夜は、\nこちらを。", "わたくしの目で見た空です。" }), "commas and periods split even short phrases");
+            Check(pages.SequenceEqual(new[] { "今夜は、こちらを。\nわたくしの目で見た空です。" }), "short clauses stay together and the sentence boundary makes a readable two-line page");
             Check(DialogueBox.Paginate("「聞こえる。」うん、\n届いてる。", width)
-                .SequenceEqual(new[] { "「聞こえる。」", "うん、\n届いてる。" }), "closing quotes stay attached and existing breaks do not double");
+                .SequenceEqual(new[] { "「聞こえる。」うん、届いてる。" }), "closing quotes stay attached and short manual fragments join their phrase");
+            Check(DialogueBox.Paginate("今、どうぞ。聞いています。", width)
+                .SequenceEqual(new[] { "今、どうぞ。聞いています。" }), "a brief invitation is not chopped into two-character lines");
+            Check(DialogueBox.Paginate("うん、\nそうだね。", width).SequenceEqual(new[] { "うん、そうだね。" }),
+                "short source line breaks do not fragment a reply");
+            foreach (string sample in new[] { "三秒。……今度は、取り消されませんでした。", "画面越しじゃ、ごはんは分けられないけど。おいしかった話なら、また持ってくる。" })
+                Check(DialogueBox.Paginate(sample, 432f).SelectMany(p => p.Split('\n')).All(l => l.Length > 3),
+                    "narrow hub dialogue also avoids tiny isolated lines");
+            foreach (string token in new[] { "@hoshiai_rei", "10:08", "2,000", "Godot" })
+                Check(DialogueBox.Paginate("記録を確認しました。こちらの" + token + "という表記を、そのまま残しておきます。", 432f)
+                    .SelectMany(p => p.Split('\n')).Any(l => l.Contains(token)), "display tokens stay together: " + token);
+            Check(DialogueBox.Speed(0) == 14f && DialogueBox.Speed(1) == 20f && DialogueBox.Speed(2) == 32f,
+                "all three text-speed settings are slower");
+            Check(DialogueBox.RevealDuration(text) > DialogueBox.RevealDuration(text, 28f), "default character reveal is slower than the previous standard");
             foreach (float wrap in new[] { width, DialogueBox.WrapWidth(DialogueBox.Board), 220f })
             {
                 var result = DialogueBox.Paginate(text + text, wrap);
@@ -51,18 +64,28 @@ public partial class DialogueTempoQa : Node
             var hud = new Hud { HoldBubble = true };
             AddChild(hud);
             hud.SetProcess(false);
-            hud.ShowDialog(Hud.LineKind.Mina, text);
+            string pagingText = text + text;
+            var pagingPages = DialogueBox.Paginate(pagingText, width);
+            Check(pagingPages.Count == 2, "long dialogue still has page breaks");
+            hud.ShowDialog(Hud.LineKind.Mina, pagingText);
             for (int i = 0; i < 24; i++) hud._Process(1.0 / 60);
-            Check(Read<float>(hud, "_dlgRevealed") < pages[0].Length && !hud.DialogRevealed, "HUD uses gradual reveal");
+            Check(Read<float>(hud, "_dlgRevealed") < pagingPages[0].Length && !hud.DialogRevealed, "HUD uses gradual reveal");
             hud.RevealDialogNow();
-            Check(Read<int>(hud, "_dlgPage") == 0 && Read<float>(hud, "_dlgRevealed") == pages[0].Length, "first press reveals only the current page");
+            Check(Read<int>(hud, "_dlgPage") == 0 && Read<float>(hud, "_dlgRevealed") == pagingPages[0].Length, "first press reveals only the current page");
+            for (int i = 0; i < 4; i++) { hud._Process(0.1); hud.RevealDialogNow(); }
+            Check(Read<int>(hud, "_dlgPage") == 0, "rapid clicks keep the revealed page visible for at least half a second");
+            hud._Process(0.11);
             hud.RevealDialogNow();
-            Check(Read<int>(hud, "_dlgPage") == 1 && Read<float>(hud, "_dlgRevealed") == 0, "second press starts the next page from zero");
-            hud.ShowDialog(Hud.LineKind.Mina, text);
+            Check(Read<int>(hud, "_dlgPage") == 1 && Read<float>(hud, "_dlgRevealed") == 0, "a fresh click after the pause starts the next page from zero");
+            hud.RevealDialogNow();
+            Check(!hud.DialogRevealed, "the final page also waits before allowing the next speaker");
+            hud._Process(0.51);
+            Check(hud.DialogRevealed, "manual dialogue can advance after the reading pause");
+            hud.ShowDialog(Hud.LineKind.Mina, pagingText);
             game.AutoAdvanceDialog = true;
             for (int i = 0; i < 600 && !hud.AutoAdvanceReady; i++) hud._Process(1.0 / 60);
-            Check(hud.AutoAdvanceReady && Read<int>(hud, "_dlgPage") == pages.Count - 1, "AUTO reaches the final page and leaves reading time");
-            hud.ShowDialog(Hud.LineKind.Mina, text);
+            Check(hud.AutoAdvanceReady && Read<int>(hud, "_dlgPage") == pagingPages.Count - 1, "AUTO reaches the final page and leaves reading time");
+            hud.ShowDialog(Hud.LineKind.Mina, pagingText);
             hud.RevealDialogNow();
             hud._Process(0.5);
             Check(Read<int>(hud, "_dlgPage") == 0, "AUTO keeps a completed page visible before advancing");
@@ -178,7 +201,7 @@ public partial class DialogueTempoQa : Node
             "hesitation holds the last words on screen before continuing");
         Check((int)DialogueBox.AdvanceReveal(hesitation, 0, before + 0.95, pacing: inline) > boundary,
             "hesitation resumes without dropping characters");
-        foreach (float speed in new[] { 18f, 28f, 48f })
+        foreach (float speed in new[] { DialogueBox.Speed(0), DialogueBox.Speed(1), DialogueBox.Speed(2) })
             Check(Math.Abs(DialogueBox.RevealDuration(hesitation, speed, inline)
                 - DialogueBox.RevealDuration(hesitation, speed) - 0.55) < 0.0001,
                 "authored hesitation keeps its duration at each text speed");
@@ -212,6 +235,7 @@ public partial class DialogueTempoQa : Node
         Set(final, "_line", index);
         final._Process(0.01);
         var pages = Read<List<string>>(final, "_pages");
+        Check(pages.Count == 1, "Final's short invitation stays on a single page");
         Set(final, "_reveal", (double)pages[0].Length);
         Set(final, "_lineT", 1.0);
         void Press()
@@ -222,12 +246,11 @@ public partial class DialogueTempoQa : Node
             Input.ActionRelease("ui_accept");
         }
         Press();
-        Check(Read<int>(final, "_page") == 0, "manual Final page advance respects the invitation beat");
+        Check(Read<int>(final, "_line") == index, "manual Final advance respects the invitation beat");
         final._Process(0.45);
         Press();
-        Check(Read<int>(final, "_page") == 1, "manual Final page advance resumes after its beat");
-        Set(final, "_reveal", (double)pages[1].Length);
-        final._Process(1.0);
+        Check(Read<int>(final, "_line") == index, "rapid clicks do not bypass the longer authored silence");
+        final._Process(0.55);
         Press();
         Check(Read<int>(final, "_line") == index, "Final waits before presenting the player's answer");
         await Shot(final, "final_invitation_pause");

@@ -232,7 +232,7 @@ public partial class Hub : Node2D
     private int _dlgPage;
     private DialoguePacing.Page[] _dlgPacing = System.Array.Empty<DialoguePacing.Page>();
     private DialoguePacing.Page? DlgPacing => _dlgPage < _dlgPacing.Length ? _dlgPacing[_dlgPage] : null;
-    private bool DlgPageReady => _dlgReveal >= DlgCurPage.Length && (_ffNow || _dlgAutoT >= (DlgPacing?.Tail ?? 0));
+    private bool DlgPageReady => _dlgReveal >= DlgCurPage.Length && (_ffNow || _dlgAutoT >= DialogueBox.PageWait(DlgPacing));
     private int _dlgPagedIdx = -1;                 // _dlgPages を構築済みの行 index
     private static float DlgBodyWrapW => DialogueBox.WrapWidth(DialogBox);
     private string DlgCurPage => _dlgPages.Count > 0 ? _dlgPages[Mathf.Min(_dlgPage, _dlgPages.Count - 1)] : "";

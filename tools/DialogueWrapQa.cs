@@ -117,7 +117,15 @@ public partial class DialogueWrapQa : Node2D
                     Require(page.Split('\n').Length <= 2, "Corpus page fits two lines");
                     Require(UiKit.WrapLines(font, page, size, width).SequenceEqual(page.Split('\n')), "Corpus page reflows consistently");
                 }
-                report.Add(new { file = item.GetProperty("file").GetString(), line = item.GetProperty("line").GetInt32(), profile, text, lines, pages });
+                var dialoguePages = DialogueBox.Paginate(text, width);
+                Require(string.Concat(dialoguePages).Replace("\n", "") == text.Replace("\r", "").Replace("\n", ""), "Dialogue formatting preserves the source");
+                foreach (string page in dialoguePages)
+                {
+                    Require(page.Split('\n').Length <= 2, "Dialogue remains within two lines");
+                    foreach (string line in page.Split('\n'))
+                        Require(UiKit.TextW(DialogueBox.Body.Font, line, DialogueBox.Body.Size) <= width + .01f, "Dialogue fits the current box");
+                }
+                report.Add(new { file = item.GetProperty("file").GetString(), line = item.GetProperty("line").GetInt32(), profile, text, lines, pages, dialoguePages });
             }
         }
         System.IO.File.WriteAllText(folder + "/" + name + ".json", System.Text.Json.JsonSerializer.Serialize(report, new System.Text.Json.JsonSerializerOptions { WriteIndented = true, Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping }));
