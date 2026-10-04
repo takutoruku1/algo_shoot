@@ -125,16 +125,16 @@
     </div>
 
     <div class="figure">
-      <span class="pct">99<span class="pct-unit">%</span></span>
-      <span class="figure-note">完了 285 / 対象 287 タスク<br>保留 46 件は人間の判断待ちのため対象外</span>
+      <span class="pct">100<span class="pct-unit">%</span></span>
+      <span class="figure-note">完了 286 / 対象 287 タスク<br>保留 46 件は人間の判断待ちのため対象外</span>
     </div>
-    <div class="rail" role="img" aria-label="進捗 99パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span></div>
+    <div class="rail" role="img" aria-label="進捗 100パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span></div>
   </header>
 
   <div class="states">
-    <div class="state done"><div class="state-n">285</div><div class="state-l">完了</div></div>
+    <div class="state done"><div class="state-n">286</div><div class="state-l">完了</div></div>
     <div class="state wip"><div class="state-n">0</div><div class="state-l">作業中</div></div>
-    <div class="state todo"><div class="state-n">2</div><div class="state-l">残り</div></div>
+    <div class="state todo"><div class="state-n">1</div><div class="state-l">残り</div></div>
     <div class="state blocked"><div class="state-n">46</div><div class="state-l">保留</div></div>
   </div>
 
@@ -149,14 +149,6 @@
       <li class="task ">
         <div class="task-head">
           <span class="chip chip-p3">P3</span>
-          <span class="task-title">config/boss_stats.ini のコメントが複数箇所で旧世界観名称・旧称のまま案C反映漏れ</span>
-          <span class="worker">engineer</span>
-        </div>
-        <p class="accept"><code>config/boss_stats.ini:54</code>の<code>; STAGE1 あかり（雨の教室）</code>を<code>src/BossAkari.cs:3</code>で確定済みの場所名「雨の降りやまない退勤後のフロア」に合わせて修正する。<code>config/boss_stats.ini:87</code>の<code>; STAGE2 こはる（台所）</code>を台所モチーフ撤去済みの現行コンセプトに合わせて修正する。<code>config/boss_stats.ini:112</code>の<code>meal_hp = 0.52 ; 「お残し禁止」の発動HP割合</code>のコメントを「見残し禁止」に統一する(src/*.csは既に統一済みだがこのiniのみ旧称が残存)。値・キー・ロジックは無変更でコメント文言のみ修正すること。</p>
-      </li>
-      <li class="task ">
-        <div class="task-head">
-          <span class="chip chip-p3">P3</span>
           <span class="task-title">コメント内file:line参照が実装からズレている箇所が2件残存</span>
           <span class="worker">engineer</span>
         </div>
@@ -167,6 +159,14 @@
   <section>
     <h2>完了</h2>
     <ol class="tasks">
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p3">P3</span>
+          <span class="task-title">config/boss_stats.ini のコメントが複数箇所で旧世界観名称・旧称のまま案C反映漏れ</span>
+          <span class="worker">engineer</span>
+        </div>
+        <p class="accept">(完了 2026-10-04) 2026-10-04監査(engineer)発見。<code>config/boss_stats.ini:54</code>の<code>; STAGE1 あかり（雨の教室）</code>を<code>src/BossAkari.cs:3</code>の現行名称「雨の降りやまない退勤後のフロア」に修正。<code>:87</code>の<code>; STAGE2 こはる（台所）</code>を<code>src/BossKoharu.cs:4</code>の現行コンセプト「消えた配信画面の前の部屋」に修正。<code>:112</code>の<code>meal_hp</code>コメント内の旧称「お残し禁止」を「見残し禁止」に統一（src/*.csは既に統一済み）。値・キー・セクション見出しは無変更、コメント文言のみ修正。<strong>検証</strong>: <code>git diff</code>で変更がコメント3箇所のみであることを確認、<code>dotnet build algo_shoot.sln</code> 0 Warning/0 Error。（副次的に発見: <code>config/boss_stats.ini:118-119</code>にも旧称「お残し」が2箇所残存するが本タスクの受入条件外のため未修正。別途TODO化を検討）</p>
+      </li>
       <li class="task is-done">
         <div class="task-head">
           <span class="chip chip-p3">P3</span>
@@ -2825,18 +2825,18 @@
   <section>
     <h2>直近のコミット</h2>
     <ul class="log">
+      <li><span class="h">3fd6b15</span><span>2026-10-04</span><span class="s">auto: WIP着手 - boss_stats.ini旧称コメントの是正</span></li>
+      <li><span class="h">41708f4</span><span>2026-10-04</span><span class="s">auto: 初回ボス(ヒカゲ)の徘徊速度を本編ボス水準に調整</span></li>
       <li><span class="h">a0d2468</span><span>2026-10-04</span><span class="s">auto: WIP着手 - 初回ボス(ヒカゲ)の徘徊速度調整</span></li>
       <li><span class="h">a6318b2</span><span>2026-10-04</span><span class="s">auto: 後方弾(バックファイア)のHUDフィードバックを追加</span></li>
       <li><span class="h">d1d8ff1</span><span>2026-10-04</span><span class="s">auto: WIP着手 - 後方弾(バックファイア)のHUDフィードバック追加</span></li>
       <li><span class="h">98f92b5</span><span>2026-10-04</span><span class="s">auto: FINALボステレグラフ予兆時間の視認性是正</span></li>
       <li><span class="h">a6f6a74</span><span>2026-10-04</span><span class="s">auto: WIP着手 - FINALボステレグラフ予兆時間の視認性是正</span></li>
       <li><span class="h">51ad7fd</span><span>2026-10-04</span><span class="s">auto: 監査で5件をキューに追加（game-designer3件・engineer2件）</span></li>
-      <li><span class="h">4e1fbf2</span><span>2026-10-02</span><span class="s">auto: docs 4ファイルに案C非正典バナーを追記</span></li>
-      <li><span class="h">c5fc0e0</span><span>2026-10-02</span><span class="s">auto: WIP着手 - docs 4ファイルへの案C非正典バナー追記</span></li>
     </ul>
   </section>
 
-  <footer>生成 2026-10-04 19:07 UTC — DEV_QUEUE.md より自動生成</footer>
+  <footer>生成 2026-10-04 19:15 UTC — DEV_QUEUE.md より自動生成</footer>
 </div>
 
 <script>

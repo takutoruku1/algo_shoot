@@ -1,19 +1,13 @@
 {
-  "generated": "2026-10-04 19:07 UTC",
+  "generated": "2026-10-04 19:15 UTC",
   "counts": {
-    "todo": 2,
+    "todo": 1,
     "wip": 0,
     "blocked": 46,
-    "done": 285
+    "done": 286
   },
-  "percent": 99,
+  "percent": 100,
   "todo": [
-    {
-      "priority": "P3",
-      "title": "config/boss_stats.ini のコメントが複数箇所で旧世界観名称・旧称のまま案C反映漏れ",
-      "worker": "engineer",
-      "accept": "`config/boss_stats.ini:54`の`; STAGE1 あかり（雨の教室）`を`src/BossAkari.cs:3`で確定済みの場所名「雨の降りやまない退勤後のフロア」に合わせて修正する。`config/boss_stats.ini:87`の`; STAGE2 こはる（台所）`を台所モチーフ撤去済みの現行コンセプトに合わせて修正する。`config/boss_stats.ini:112`の`meal_hp = 0.52 ; 「お残し禁止」の発動HP割合`のコメントを「見残し禁止」に統一する(src/*.csは既に統一済みだがこのiniのみ旧称が残存)。値・キー・ロジックは無変更でコメント文言のみ修正すること。"
-    },
     {
       "priority": "P3",
       "title": "コメント内file:line参照が実装からズレている箇所が2件残存",
@@ -301,6 +295,12 @@
     }
   ],
   "done": [
+    {
+      "priority": "P3",
+      "title": "config/boss_stats.ini のコメントが複数箇所で旧世界観名称・旧称のまま案C反映漏れ",
+      "worker": "engineer",
+      "accept": "(完了 2026-10-04) 2026-10-04監査(engineer)発見。`config/boss_stats.ini:54`の`; STAGE1 あかり（雨の教室）`を`src/BossAkari.cs:3`の現行名称「雨の降りやまない退勤後のフロア」に修正。`:87`の`; STAGE2 こはる（台所）`を`src/BossKoharu.cs:4`の現行コンセプト「消えた配信画面の前の部屋」に修正。`:112`の`meal_hp`コメント内の旧称「お残し禁止」を「見残し禁止」に統一（src/*.csは既に統一済み）。値・キー・セクション見出しは無変更、コメント文言のみ修正。**検証**: `git diff`で変更がコメント3箇所のみであることを確認、`dotnet build algo_shoot.sln` 0 Warning/0 Error。（副次的に発見: `config/boss_stats.ini:118-119`にも旧称「お残し」が2箇所残存するが本タスクの受入条件外のため未修正。別途TODO化を検討）"
+    },
     {
       "priority": "P3",
       "title": "初回ボス(チュートリアル最終戦ヒカゲ)の徘徊速度が後続の本編ボス全員より明確に速い",
@@ -2014,6 +2014,16 @@
   ],
   "commits": [
     {
+      "hash": "3fd6b15",
+      "date": "2026-10-04",
+      "subject": "auto: WIP着手 - boss_stats.ini旧称コメントの是正"
+    },
+    {
+      "hash": "41708f4",
+      "date": "2026-10-04",
+      "subject": "auto: 初回ボス(ヒカゲ)の徘徊速度を本編ボス水準に調整"
+    },
+    {
       "hash": "a0d2468",
       "date": "2026-10-04",
       "subject": "auto: WIP着手 - 初回ボス(ヒカゲ)の徘徊速度調整"
@@ -2042,16 +2052,6 @@
       "hash": "51ad7fd",
       "date": "2026-10-04",
       "subject": "auto: 監査で5件をキューに追加（game-designer3件・engineer2件）"
-    },
-    {
-      "hash": "4e1fbf2",
-      "date": "2026-10-02",
-      "subject": "auto: docs 4ファイルに案C非正典バナーを追記"
-    },
-    {
-      "hash": "c5fc0e0",
-      "date": "2026-10-02",
-      "subject": "auto: WIP着手 - docs 4ファイルへの案C非正典バナー追記"
     }
   ]
 }
