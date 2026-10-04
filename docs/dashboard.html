@@ -125,16 +125,16 @@
     </div>
 
     <div class="figure">
-      <span class="pct">100<span class="pct-unit">%</span></span>
-      <span class="figure-note">完了 282 / 対象 282 タスク<br>保留 46 件は人間の判断待ちのため対象外</span>
+      <span class="pct">99<span class="pct-unit">%</span></span>
+      <span class="figure-note">完了 283 / 対象 287 タスク<br>保留 46 件は人間の判断待ちのため対象外</span>
     </div>
-    <div class="rail" role="img" aria-label="進捗 100パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span></div>
+    <div class="rail" role="img" aria-label="進捗 99パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span></div>
   </header>
 
   <div class="states">
-    <div class="state done"><div class="state-n">282</div><div class="state-l">完了</div></div>
+    <div class="state done"><div class="state-n">283</div><div class="state-l">完了</div></div>
     <div class="state wip"><div class="state-n">0</div><div class="state-l">作業中</div></div>
-    <div class="state todo"><div class="state-n">0</div><div class="state-l">残り</div></div>
+    <div class="state todo"><div class="state-n">4</div><div class="state-l">残り</div></div>
     <div class="state blocked"><div class="state-n">46</div><div class="state-l">保留</div></div>
   </div>
 
@@ -145,12 +145,52 @@
 
   <section>
     <h2>キュー（上から消化）</h2>
-    <p class="empty">キューが空です。タスクを積んでください</p>
+    <ol class="tasks">
+      <li class="task ">
+        <div class="task-head">
+          <span class="chip chip-p2">P2</span>
+          <span class="task-title">後方弾(バックファイア)強化ツリー(bf_*、計1992G)にHUDフィードバックが一切無い</span>
+          <span class="worker">engineer</span>
+        </div>
+        <p class="accept"><code>Player.cs:647,651-657</code>付近の毎フレームHUD通知群に倣い、後方弾のクールダウン/準備状態をHudへ通知する処理を追加し、Hud側に他ゲージ(SetHikageSkill等)と同様の小アイコン/CDバーを1個増設する。根拠: <code>Hud.cs</code>を&quot;後方&quot;/&quot;Rear&quot;/&quot;bf_&quot;/&quot;Backfire&quot;で全文検索して該当0件。ヒカゲスキル・加速球タメ・回避・集中の光は<code>SetHikageSkill</code>/<code>SetAccelCharge</code>/<code>SetDodgeReady</code>/<code>SetFocusFireStack</code>(Player.cs:647,651-657)で既に通知されているのに、同種の自動/CD制ギミックである後方弾だけ通知が無く、1992G分の強化が効いているか分からない。</p>
+      </li>
+      <li class="task ">
+        <div class="task-head">
+          <span class="chip chip-p3">P3</span>
+          <span class="task-title">初回ボス(チュートリアル最終戦ヒカゲ)の徘徊速度が後続の本編ボス全員より明確に速い</span>
+          <span class="worker">game-designer</span>
+        </div>
+        <p class="accept"><code>BossHikage.cs:12</code>の<code>RoamSpeed = 72f</code>を<code>44f</code>程度まで落とし、「慌てた炎上ボス」の性格は<code>BossHikage.cs:21</code>の<code>phase1_interval</code>短縮(1.1→0.95程度)側に振り替える。根拠: 本編ボス全員(akari40/koharu38/rei42/mina38, <code>config/boss_stats.ini:66,99,29,143</code>)より1.7〜1.9倍速く、初見・無強化の状態で最初に戦う難所がこの速度だけ際立って厳しい。</p>
+      </li>
+      <li class="task ">
+        <div class="task-head">
+          <span class="chip chip-p3">P3</span>
+          <span class="task-title">config/boss_stats.ini のコメントが複数箇所で旧世界観名称・旧称のまま案C反映漏れ</span>
+          <span class="worker">engineer</span>
+        </div>
+        <p class="accept"><code>config/boss_stats.ini:54</code>の<code>; STAGE1 あかり（雨の教室）</code>を<code>src/BossAkari.cs:3</code>で確定済みの場所名「雨の降りやまない退勤後のフロア」に合わせて修正する。<code>config/boss_stats.ini:87</code>の<code>; STAGE2 こはる（台所）</code>を台所モチーフ撤去済みの現行コンセプトに合わせて修正する。<code>config/boss_stats.ini:112</code>の<code>meal_hp = 0.52 ; 「お残し禁止」の発動HP割合</code>のコメントを「見残し禁止」に統一する(src/*.csは既に統一済みだがこのiniのみ旧称が残存)。値・キー・ロジックは無変更でコメント文言のみ修正すること。</p>
+      </li>
+      <li class="task ">
+        <div class="task-head">
+          <span class="chip chip-p3">P3</span>
+          <span class="task-title">コメント内file:line参照が実装からズレている箇所が2件残存</span>
+          <span class="worker">engineer</span>
+        </div>
+        <p class="accept"><code>src/EnemySpec.cs:129</code>のコメントが指す参照先を実際の<code>src/MidEnemy.cs:88-89</code>に修正する(現在コメントが指す:84-85は無関係行)。<code>src/Bullet.cs:375</code>のコメントが指す参照先を実際の<code>src/Enemy.cs:941</code>に修正する(現在コメントが指す:937は無関係行)。ロジック・数値は無変更、参照行番号のみ修正すること。</p>
+      </li></ol>
   </section>
 
   <section>
     <h2>完了</h2>
     <ol class="tasks">
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p1">P1</span>
+          <span class="task-title">FINALボスのテレグラフ予兆時間が進行後段ほど短くなり視認性が逆転している</span>
+          <span class="worker">game-designer</span>
+        </div>
+        <p class="accept">(完了 2026-10-04) 2026-10-04監査(game-designer)発見。<code>config/boss_stats.ini:161-162</code>のmina(FINAL)の<code>aoe_warn_min</code>/<code>aoe_warn_max</code>を<code>0.8/1.2</code>→<code>1.0/1.4</code>に変更（akari相当まで戻す）。akari(1面)1.0–1.4s/koharu(2面)1.0–1.3s/rei(3面)1.1–1.6sに対しFINALだけ全ボス中最短かつ弾速も最速で視認性が二重に厳しかった問題を是正。難易度差は既存のWarnMul(<code>AreaSpellCaster.cs:364-369</code>)と弾速/way数増に委ねる方針は変更なし。他の値・ロジックは無変更。<strong>検証</strong>: <code>git diff</code>で変更が指定2行のみであることを確認、<code>dotnet build algo_shoot.sln</code> 0 Warning/0 Error。</p>
+      </li>
       <li class="task is-done">
         <div class="task-head">
           <span class="chip chip-p3">P3</span>
@@ -2785,18 +2825,18 @@
   <section>
     <h2>直近のコミット</h2>
     <ul class="log">
+      <li><span class="h">a6f6a74</span><span>2026-10-04</span><span class="s">auto: WIP着手 - FINALボステレグラフ予兆時間の視認性是正</span></li>
+      <li><span class="h">51ad7fd</span><span>2026-10-04</span><span class="s">auto: 監査で5件をキューに追加（game-designer3件・engineer2件）</span></li>
+      <li><span class="h">4e1fbf2</span><span>2026-10-02</span><span class="s">auto: docs 4ファイルに案C非正典バナーを追記</span></li>
       <li><span class="h">c5fc0e0</span><span>2026-10-02</span><span class="s">auto: WIP着手 - docs 4ファイルへの案C非正典バナー追記</span></li>
       <li><span class="h">61551cf</span><span>2026-10-02</span><span class="s">auto: こはるボス「見残し禁止」スペルの呼称統一（旧称「お残し禁止」の残存7箇所を是正）</span></li>
       <li><span class="h">5679bdf</span><span>2026-10-02</span><span class="s">auto: WIP着手 - こはるボス「見残し禁止」スペルの呼称統一</span></li>
       <li><span class="h">efb9bc0</span><span>2026-10-02</span><span class="s">auto: 回り込み「引用リプ」(FlankAim)の着座点に乱数オフセットと同時出現数制限を追加</span></li>
       <li><span class="h">65cc7c2</span><span>2026-10-02</span><span class="s">auto: WIP着手 - 回り込み「引用リプ」(FlankAim)の着座点乱数化・同時出現制限</span></li>
-      <li><span class="h">a4eead4</span><span>2026-10-02</span><span class="s">auto: 監査で3件をキューに追加（game-designer/engineer/scenario/qa並列監査）</span></li>
-      <li><span class="h">c7b341d</span><span>2026-10-01</span><span class="s">auto: BossKoharu.cs内コメントの旧台所モチーフを現行コンセプトへ一括是正</span></li>
-      <li><span class="h">05bb8de</span><span>2026-10-01</span><span class="s">auto: WIP着手 - BossKoharu.cs内コメントの旧台所モチーフ是正</span></li>
     </ul>
   </section>
 
-  <footer>生成 2026-10-02 18:36 UTC — DEV_QUEUE.md より自動生成</footer>
+  <footer>生成 2026-10-04 18:50 UTC — DEV_QUEUE.md より自動生成</footer>
 </div>
 
 <script>

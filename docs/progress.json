@@ -1,13 +1,38 @@
 {
-  "generated": "2026-10-02 18:36 UTC",
+  "generated": "2026-10-04 18:50 UTC",
   "counts": {
-    "todo": 0,
+    "todo": 4,
     "wip": 0,
     "blocked": 46,
-    "done": 282
+    "done": 283
   },
-  "percent": 100,
-  "todo": [],
+  "percent": 99,
+  "todo": [
+    {
+      "priority": "P2",
+      "title": "後方弾(バックファイア)強化ツリー(bf_*、計1992G)にHUDフィードバックが一切無い",
+      "worker": "engineer",
+      "accept": "`Player.cs:647,651-657`付近の毎フレームHUD通知群に倣い、後方弾のクールダウン/準備状態をHudへ通知する処理を追加し、Hud側に他ゲージ(SetHikageSkill等)と同様の小アイコン/CDバーを1個増設する。根拠: `Hud.cs`を\"後方\"/\"Rear\"/\"bf_\"/\"Backfire\"で全文検索して該当0件。ヒカゲスキル・加速球タメ・回避・集中の光は`SetHikageSkill`/`SetAccelCharge`/`SetDodgeReady`/`SetFocusFireStack`(Player.cs:647,651-657)で既に通知されているのに、同種の自動/CD制ギミックである後方弾だけ通知が無く、1992G分の強化が効いているか分からない。"
+    },
+    {
+      "priority": "P3",
+      "title": "初回ボス(チュートリアル最終戦ヒカゲ)の徘徊速度が後続の本編ボス全員より明確に速い",
+      "worker": "game-designer",
+      "accept": "`BossHikage.cs:12`の`RoamSpeed = 72f`を`44f`程度まで落とし、「慌てた炎上ボス」の性格は`BossHikage.cs:21`の`phase1_interval`短縮(1.1→0.95程度)側に振り替える。根拠: 本編ボス全員(akari40/koharu38/rei42/mina38, `config/boss_stats.ini:66,99,29,143`)より1.7〜1.9倍速く、初見・無強化の状態で最初に戦う難所がこの速度だけ際立って厳しい。"
+    },
+    {
+      "priority": "P3",
+      "title": "config/boss_stats.ini のコメントが複数箇所で旧世界観名称・旧称のまま案C反映漏れ",
+      "worker": "engineer",
+      "accept": "`config/boss_stats.ini:54`の`; STAGE1 あかり（雨の教室）`を`src/BossAkari.cs:3`で確定済みの場所名「雨の降りやまない退勤後のフロア」に合わせて修正する。`config/boss_stats.ini:87`の`; STAGE2 こはる（台所）`を台所モチーフ撤去済みの現行コンセプトに合わせて修正する。`config/boss_stats.ini:112`の`meal_hp = 0.52 ; 「お残し禁止」の発動HP割合`のコメントを「見残し禁止」に統一する(src/*.csは既に統一済みだがこのiniのみ旧称が残存)。値・キー・ロジックは無変更でコメント文言のみ修正すること。"
+    },
+    {
+      "priority": "P3",
+      "title": "コメント内file:line参照が実装からズレている箇所が2件残存",
+      "worker": "engineer",
+      "accept": "`src/EnemySpec.cs:129`のコメントが指す参照先を実際の`src/MidEnemy.cs:88-89`に修正する(現在コメントが指す:84-85は無関係行)。`src/Bullet.cs:375`のコメントが指す参照先を実際の`src/Enemy.cs:941`に修正する(現在コメントが指す:937は無関係行)。ロジック・数値は無変更、参照行番号のみ修正すること。"
+    }
+  ],
   "wip": [],
   "blocked": [
     {
@@ -288,6 +313,12 @@
     }
   ],
   "done": [
+    {
+      "priority": "P1",
+      "title": "FINALボスのテレグラフ予兆時間が進行後段ほど短くなり視認性が逆転している",
+      "worker": "game-designer",
+      "accept": "(完了 2026-10-04) 2026-10-04監査(game-designer)発見。`config/boss_stats.ini:161-162`のmina(FINAL)の`aoe_warn_min`/`aoe_warn_max`を`0.8/1.2`→`1.0/1.4`に変更（akari相当まで戻す）。akari(1面)1.0–1.4s/koharu(2面)1.0–1.3s/rei(3面)1.1–1.6sに対しFINALだけ全ボス中最短かつ弾速も最速で視認性が二重に厳しかった問題を是正。難易度差は既存のWarnMul(`AreaSpellCaster.cs:364-369`)と弾速/way数増に委ねる方針は変更なし。他の値・ロジックは無変更。**検証**: `git diff`で変更が指定2行のみであることを確認、`dotnet build algo_shoot.sln` 0 Warning/0 Error。"
+    },
     {
       "priority": "P3",
       "title": "docs/キャラ設定_02_ミナ_改訂版.md・docs/キャラ設定_03_あかり.md・docs/シナリオ_プロローグ_起動.md・docs/20260613/MINA_システム拡張設計書_v1.mdに案C非正典バナーを追記",
@@ -1983,6 +2014,21 @@
   ],
   "commits": [
     {
+      "hash": "a6f6a74",
+      "date": "2026-10-04",
+      "subject": "auto: WIP着手 - FINALボステレグラフ予兆時間の視認性是正"
+    },
+    {
+      "hash": "51ad7fd",
+      "date": "2026-10-04",
+      "subject": "auto: 監査で5件をキューに追加（game-designer3件・engineer2件）"
+    },
+    {
+      "hash": "4e1fbf2",
+      "date": "2026-10-02",
+      "subject": "auto: docs 4ファイルに案C非正典バナーを追記"
+    },
+    {
       "hash": "c5fc0e0",
       "date": "2026-10-02",
       "subject": "auto: WIP着手 - docs 4ファイルへの案C非正典バナー追記"
@@ -2006,21 +2052,6 @@
       "hash": "65cc7c2",
       "date": "2026-10-02",
       "subject": "auto: WIP着手 - 回り込み「引用リプ」(FlankAim)の着座点乱数化・同時出現制限"
-    },
-    {
-      "hash": "a4eead4",
-      "date": "2026-10-02",
-      "subject": "auto: 監査で3件をキューに追加（game-designer/engineer/scenario/qa並列監査）"
-    },
-    {
-      "hash": "c7b341d",
-      "date": "2026-10-01",
-      "subject": "auto: BossKoharu.cs内コメントの旧台所モチーフを現行コンセプトへ一括是正"
-    },
-    {
-      "hash": "05bb8de",
-      "date": "2026-10-01",
-      "subject": "auto: WIP着手 - BossKoharu.cs内コメントの旧台所モチーフ是正"
     }
   ]
 }
