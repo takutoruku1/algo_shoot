@@ -372,7 +372,7 @@ public partial class Bullet : Area2D
         // タメ中は自機に追従させる（発射地点に置き去りにしない）：
         // 今この瞬間の「弾位置－自機位置」を固定オフセットとして保持し、_PhysicsProcess 側で
         // 毎フレーム「自機の現在位置＋オフセット」へ位置を上書きする（他ノードの自機参照と同じ流儀：
-        // GetTree().GetNodesInGroup("player")、例 Enemy.cs:937）。
+        // GetTree().GetNodesInGroup("player")、例 Enemy.cs:941）。
         _accelPlayer = null;
         var players = GetTree().GetNodesInGroup("player");
         if (players.Count > 0 && players[0] is Player pl)
