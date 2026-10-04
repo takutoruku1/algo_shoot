@@ -79,10 +79,11 @@
 
 <!-- 2026-10-04 監査モード(game-designer/engineer/scenario/qa並列)で追加。game-designerは3件TODOへ、engineerは2件TODOへ、scenario/qaは新規指摘0件(qaは全パスclean run) -->
 
-- [ ] (P3) config/boss_stats.ini のコメントが複数箇所で旧世界観名称・旧称のまま案C反映漏れ | engineer | `config/boss_stats.ini:54`の`; STAGE1 あかり（雨の教室）`を`src/BossAkari.cs:3`で確定済みの場所名「雨の降りやまない退勤後のフロア」に合わせて修正する。`config/boss_stats.ini:87`の`; STAGE2 こはる（台所）`を台所モチーフ撤去済みの現行コンセプトに合わせて修正する。`config/boss_stats.ini:112`の`meal_hp = 0.52 ; 「お残し禁止」の発動HP割合`のコメントを「見残し禁止」に統一する(src/*.csは既に統一済みだがこのiniのみ旧称が残存)。値・キー・ロジックは無変更でコメント文言のみ修正すること。
 - [ ] (P3) コメント内file:line参照が実装からズレている箇所が2件残存 | engineer | `src/EnemySpec.cs:129`のコメントが指す参照先を実際の`src/MidEnemy.cs:88-89`に修正する(現在コメントが指す:84-85は無関係行)。`src/Bullet.cs:375`のコメントが指す参照先を実際の`src/Enemy.cs:941`に修正する(現在コメントが指す:937は無関係行)。ロジック・数値は無変更、参照行番号のみ修正すること。
 
 ## WIP
+
+- [ ] (P3) config/boss_stats.ini のコメントが複数箇所で旧世界観名称・旧称のまま案C反映漏れ | engineer | `config/boss_stats.ini:54`の`; STAGE1 あかり（雨の教室）`を`src/BossAkari.cs:3`で確定済みの場所名「雨の降りやまない退勤後のフロア」に合わせて修正する。`config/boss_stats.ini:87`の`; STAGE2 こはる（台所）`を台所モチーフ撤去済みの現行コンセプトに合わせて修正する。`config/boss_stats.ini:112`の`meal_hp = 0.52 ; 「お残し禁止」の発動HP割合`のコメントを「見残し禁止」に統一する(src/*.csは既に統一済みだがこのiniのみ旧称が残存)。値・キー・ロジックは無変更でコメント文言のみ修正すること。
 
 ## BLOCKED
 
