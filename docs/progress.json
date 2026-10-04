@@ -1,19 +1,13 @@
 {
-  "generated": "2026-10-04 19:00 UTC",
+  "generated": "2026-10-04 19:07 UTC",
   "counts": {
-    "todo": 3,
+    "todo": 2,
     "wip": 0,
     "blocked": 46,
-    "done": 284
+    "done": 285
   },
   "percent": 99,
   "todo": [
-    {
-      "priority": "P3",
-      "title": "初回ボス(チュートリアル最終戦ヒカゲ)の徘徊速度が後続の本編ボス全員より明確に速い",
-      "worker": "game-designer",
-      "accept": "`BossHikage.cs:12`の`RoamSpeed = 72f`を`44f`程度まで落とし、「慌てた炎上ボス」の性格は`BossHikage.cs:21`の`phase1_interval`短縮(1.1→0.95程度)側に振り替える。根拠: 本編ボス全員(akari40/koharu38/rei42/mina38, `config/boss_stats.ini:66,99,29,143`)より1.7〜1.9倍速く、初見・無強化の状態で最初に戦う難所がこの速度だけ際立って厳しい。"
-    },
     {
       "priority": "P3",
       "title": "config/boss_stats.ini のコメントが複数箇所で旧世界観名称・旧称のまま案C反映漏れ",
@@ -307,6 +301,12 @@
     }
   ],
   "done": [
+    {
+      "priority": "P3",
+      "title": "初回ボス(チュートリアル最終戦ヒカゲ)の徘徊速度が後続の本編ボス全員より明確に速い",
+      "worker": "game-designer",
+      "accept": "(完了 2026-10-04) 2026-10-04監査(game-designer)発見。実効値は`BossHikage.cs:12`のconstではなく`config/boss_stats.ini:177`の`roam_speed`（ini読み込み成功時はこちらが優先、constはフォールバックのみ）と判明したため、`config/boss_stats.ini:177`の`roam_speed`を`72.0`→`44.0`に変更（他本編ボス38〜42に揃え、フォールバック用`BossHikage.cs:12`の`RoamSpeed`も同値`44f`に整合）。「慌てた炎上ボス」の性格は`config/boss_stats.ini:179`の`phase1_interval`を`1.1`→`0.95`に短縮し弾間隔側で表現。他の値(panel_count/hp_bars/phase2・3関連/他ボスの値)は無変更。**検証**: `git diff`で変更が指定3値のみであることを確認、`dotnet build algo_shoot.sln` 0 Warning/0 Error。（副次的に発見: `BossHikage.cs:21,53`のphase1_intervalフォールバック値(1.1)もini実効値(0.95)とズレたままだが、受入条件外のため未修正。ini常時同梱で実運用では到達しないフォールバックのため実害は低い）"
+    },
     {
       "priority": "P2",
       "title": "後方弾(バックファイア)強化ツリー(bf_*、計1992G)にHUDフィードバックが一切無い",
@@ -2014,6 +2014,16 @@
   ],
   "commits": [
     {
+      "hash": "a0d2468",
+      "date": "2026-10-04",
+      "subject": "auto: WIP着手 - 初回ボス(ヒカゲ)の徘徊速度調整"
+    },
+    {
+      "hash": "a6318b2",
+      "date": "2026-10-04",
+      "subject": "auto: 後方弾(バックファイア)のHUDフィードバックを追加"
+    },
+    {
       "hash": "d1d8ff1",
       "date": "2026-10-04",
       "subject": "auto: WIP着手 - 後方弾(バックファイア)のHUDフィードバック追加"
@@ -2042,16 +2052,6 @@
       "hash": "c5fc0e0",
       "date": "2026-10-02",
       "subject": "auto: WIP着手 - docs 4ファイルへの案C非正典バナー追記"
-    },
-    {
-      "hash": "61551cf",
-      "date": "2026-10-02",
-      "subject": "auto: こはるボス「見残し禁止」スペルの呼称統一（旧称「お残し禁止」の残存7箇所を是正）"
-    },
-    {
-      "hash": "5679bdf",
-      "date": "2026-10-02",
-      "subject": "auto: WIP着手 - こはるボス「見残し禁止」スペルの呼称統一"
     }
   ]
 }
