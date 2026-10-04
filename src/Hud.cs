@@ -118,6 +118,11 @@ public partial class Hud : CanvasLayer
     private float _skillCdRatio; // 0=フル充填済み(OK) / 1=たった今使った直後。DrawSkillの充填バーに使う。
     private bool _dodgeReady = true; // 回避がCD明けで使えるか（操作ガイドの点灯/淡色に使う。既定は使える）
 
+    // 後方弾（バックファイア）。bf_power/bf_rate/bf_track（計1992G）に投資しても効果を確認する手段が
+    // マズルフラッシュと弾色しか無かったため新設。初期装備から常時発射される（HasHikageのような所持判定は無い）
+    // ので、常設表示でCD明け/中を示す（DrawSkillと同じ「OK!/充填中…」の文言様式）。
+    private bool _backfireReady = true; // 既定は使える（CD明け）
+
     // ショットモード（現在モード表示＋切替トースト・設計書 §3-5）
     private GameManager.ShotMode _shotMode = GameManager.ShotMode.Rapid;
     private double _shotModeToast;
@@ -744,6 +749,8 @@ public partial class Hud : CanvasLayer
     // Player.cs から毎フレーム通知：加速球モード選択中(visible)かどうかと、タメ枠の使用率(0..1)。
     public void SetAccelCharge(bool visible, float chargeRatio) { _accelGaugeVisible = visible; _accelChargeRatio = Mathf.Clamp(chargeRatio, 0f, 1f); }
     public void SetDodgeReady(bool ready) => _dodgeReady = ready;
+    // Player.cs から毎フレーム通知：後方弾（バックファイア）がCD明けで撃てるか。DrawBackfireの表示切替に使う。
+    public void SetBackfireReady(bool ready) => _backfireReady = ready;
     // Player.cs から毎フレーム通知：集中の光（focus_fire）の現在ボーナス段/上限段。cur・maxとも0なら未購入扱いでDrawFocusFireが隠す。
     // maxはこのプレイヤーが所持するfocus_fireのレベル（Lv1=1/Lv2=2）に一致。被弾でcurが0に落ちる＝Player.cs TakeHit側のリセットがそのまま反映される。
     public void SetFocusFireStack(int cur, int max) { _focusMax = Mathf.Max(0, max); _focusStack = Mathf.Clamp(cur, 0, _focusMax); }
@@ -829,6 +836,7 @@ public partial class Hud : CanvasLayer
         DrawBurning(ci);
         if (_skillHas) DrawSkill(ci);
         if (_focusMax > 0) DrawFocusFire(ci);
+        DrawBackfire(ci); // 後方弾は初期から常時発射される＝所持判定なしで常設表示
         DrawTicker(ci);
         if (_quotePost.Length > 0) DrawQuoteCard(ci);
         if (_tutorialHint.Length > 0) DrawTutorialHint(ci);
@@ -1414,6 +1422,22 @@ public partial class Hud : CanvasLayer
             bool lit = i < _focusStack;
             ci.DrawCircle(new Vector2(dotX + 8 + i * dotGap, dotY), dotR, Fa(lit ? UiKit.Gold : new Color(UiKit.Gold, 0.22f)));
         }
+    }
+
+    // 後方弾（バックファイア）のCD状態（左列・DrawFocusFireの直下／focus_fire未購入時はDrawBurningの直下）。
+    // bf_power/bf_rate/bf_track（計1992G）に投資しても効果を確認する手段がマズルフラッシュと弾色しか無かった
+    // ため新設。初期装備から常時発射される機構なので、ヒカゲ技（_skillHas）のような所持ゲートは掛けず常設表示する。
+    private void DrawBackfire(HudCanvas ci)
+    {
+        Color accent = _backfireReady ? UiKit.Light : UiKit.Text3; // 淡い金＝後方弾の弾色（Bullet.cs BackMid）に寄せる
+        string label = "後方弾  " + (_backfireReady ? "OK!" : "CD中…");
+        const float padL = 16f, h = 24f;
+        float w = padL + 10 + UiKit.TextW(UiKit.ZenBold, label, 13) + 14;
+        // DrawFocusFire（y=277, h=24）の直下、4px空けて配置。固定位置＝上の各枠の表示/非表示に関わらずズレない。
+        float x = 22, y = 305;
+        UiKit.Box(ci, new Rect2(x, y, w, h), Fa(new Color(16 / 255f, 14 / 255f, 26 / 255f, 0.6f)), 11f, Fa(new Color(accent, 0.4f)), 1f);
+        ci.DrawCircle(new Vector2(x + padL, y + h / 2f), 4.5f, Fa(accent));
+        UiKit.Text(ci, UiKit.ZenBold, new Vector2(x + padL + 10, y + 5), label, 13, Fa(accent));
     }
 
     // やさしさ全開の瞬間トースト（DrawShotModeToast と同系。中央上に短時間）。

@@ -1,19 +1,13 @@
 {
-  "generated": "2026-10-04 18:50 UTC",
+  "generated": "2026-10-04 19:00 UTC",
   "counts": {
-    "todo": 4,
+    "todo": 3,
     "wip": 0,
     "blocked": 46,
-    "done": 283
+    "done": 284
   },
   "percent": 99,
   "todo": [
-    {
-      "priority": "P2",
-      "title": "後方弾(バックファイア)強化ツリー(bf_*、計1992G)にHUDフィードバックが一切無い",
-      "worker": "engineer",
-      "accept": "`Player.cs:647,651-657`付近の毎フレームHUD通知群に倣い、後方弾のクールダウン/準備状態をHudへ通知する処理を追加し、Hud側に他ゲージ(SetHikageSkill等)と同様の小アイコン/CDバーを1個増設する。根拠: `Hud.cs`を\"後方\"/\"Rear\"/\"bf_\"/\"Backfire\"で全文検索して該当0件。ヒカゲスキル・加速球タメ・回避・集中の光は`SetHikageSkill`/`SetAccelCharge`/`SetDodgeReady`/`SetFocusFireStack`(Player.cs:647,651-657)で既に通知されているのに、同種の自動/CD制ギミックである後方弾だけ通知が無く、1992G分の強化が効いているか分からない。"
-    },
     {
       "priority": "P3",
       "title": "初回ボス(チュートリアル最終戦ヒカゲ)の徘徊速度が後続の本編ボス全員より明確に速い",
@@ -313,6 +307,12 @@
     }
   ],
   "done": [
+    {
+      "priority": "P2",
+      "title": "後方弾(バックファイア)強化ツリー(bf_*、計1992G)にHUDフィードバックが一切無い",
+      "worker": "engineer",
+      "accept": "(完了 2026-10-04) 2026-10-04監査(game-designer)発見。`src/Player.cs:658-660`の毎フレームHUD通知ブロックに`(GetTree().GetFirstNodeInGroup(\"hud\") as Hud)?.SetBackfireReady(_backfireCd <= 0f);`を追加。`src/Hud.cs`に`_backfireReady`フィールド(:122)・`SetBackfireReady`セッター(:748-749)・`DrawBackfire`メソッド(:1427-1442、DrawFocusFireの直下に既存同系ゲージと同じ角丸パネル様式で追加)・`DrawAll`内の呼び出し(:833)を追加。後方弾は初期装備から常時発射されるため所持ゲート無しで常設表示。既存のロジック・発射条件・ダメージ・レイアウト座標は無変更（純粋追加のみ）。**検証**: `git diff`で変更が追加行のみであることを確認、`dotnet build algo_shoot.sln` 0 Warning/0 Error。実機での見た目確認は未実施。"
+    },
     {
       "priority": "P1",
       "title": "FINALボスのテレグラフ予兆時間が進行後段ほど短くなり視認性が逆転している",
@@ -2014,6 +2014,16 @@
   ],
   "commits": [
     {
+      "hash": "d1d8ff1",
+      "date": "2026-10-04",
+      "subject": "auto: WIP着手 - 後方弾(バックファイア)のHUDフィードバック追加"
+    },
+    {
+      "hash": "98f92b5",
+      "date": "2026-10-04",
+      "subject": "auto: FINALボステレグラフ予兆時間の視認性是正"
+    },
+    {
       "hash": "a6f6a74",
       "date": "2026-10-04",
       "subject": "auto: WIP着手 - FINALボステレグラフ予兆時間の視認性是正"
@@ -2042,16 +2052,6 @@
       "hash": "5679bdf",
       "date": "2026-10-02",
       "subject": "auto: WIP着手 - こはるボス「見残し禁止」スペルの呼称統一"
-    },
-    {
-      "hash": "efb9bc0",
-      "date": "2026-10-02",
-      "subject": "auto: 回り込み「引用リプ」(FlankAim)の着座点に乱数オフセットと同時出現数制限を追加"
-    },
-    {
-      "hash": "65cc7c2",
-      "date": "2026-10-02",
-      "subject": "auto: WIP着手 - 回り込み「引用リプ」(FlankAim)の着座点乱数化・同時出現制限"
     }
   ]
 }

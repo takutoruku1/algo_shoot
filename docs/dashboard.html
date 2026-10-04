@@ -126,15 +126,15 @@
 
     <div class="figure">
       <span class="pct">99<span class="pct-unit">%</span></span>
-      <span class="figure-note">完了 283 / 対象 287 タスク<br>保留 46 件は人間の判断待ちのため対象外</span>
+      <span class="figure-note">完了 284 / 対象 287 タスク<br>保留 46 件は人間の判断待ちのため対象外</span>
     </div>
     <div class="rail" role="img" aria-label="進捗 99パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span></div>
   </header>
 
   <div class="states">
-    <div class="state done"><div class="state-n">283</div><div class="state-l">完了</div></div>
+    <div class="state done"><div class="state-n">284</div><div class="state-l">完了</div></div>
     <div class="state wip"><div class="state-n">0</div><div class="state-l">作業中</div></div>
-    <div class="state todo"><div class="state-n">4</div><div class="state-l">残り</div></div>
+    <div class="state todo"><div class="state-n">3</div><div class="state-l">残り</div></div>
     <div class="state blocked"><div class="state-n">46</div><div class="state-l">保留</div></div>
   </div>
 
@@ -146,14 +146,6 @@
   <section>
     <h2>キュー（上から消化）</h2>
     <ol class="tasks">
-      <li class="task ">
-        <div class="task-head">
-          <span class="chip chip-p2">P2</span>
-          <span class="task-title">後方弾(バックファイア)強化ツリー(bf_*、計1992G)にHUDフィードバックが一切無い</span>
-          <span class="worker">engineer</span>
-        </div>
-        <p class="accept"><code>Player.cs:647,651-657</code>付近の毎フレームHUD通知群に倣い、後方弾のクールダウン/準備状態をHudへ通知する処理を追加し、Hud側に他ゲージ(SetHikageSkill等)と同様の小アイコン/CDバーを1個増設する。根拠: <code>Hud.cs</code>を&quot;後方&quot;/&quot;Rear&quot;/&quot;bf_&quot;/&quot;Backfire&quot;で全文検索して該当0件。ヒカゲスキル・加速球タメ・回避・集中の光は<code>SetHikageSkill</code>/<code>SetAccelCharge</code>/<code>SetDodgeReady</code>/<code>SetFocusFireStack</code>(Player.cs:647,651-657)で既に通知されているのに、同種の自動/CD制ギミックである後方弾だけ通知が無く、1992G分の強化が効いているか分からない。</p>
-      </li>
       <li class="task ">
         <div class="task-head">
           <span class="chip chip-p3">P3</span>
@@ -183,6 +175,14 @@
   <section>
     <h2>完了</h2>
     <ol class="tasks">
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p2">P2</span>
+          <span class="task-title">後方弾(バックファイア)強化ツリー(bf_*、計1992G)にHUDフィードバックが一切無い</span>
+          <span class="worker">engineer</span>
+        </div>
+        <p class="accept">(完了 2026-10-04) 2026-10-04監査(game-designer)発見。<code>src/Player.cs:658-660</code>の毎フレームHUD通知ブロックに<code>(GetTree().GetFirstNodeInGroup(&quot;hud&quot;) as Hud)?.SetBackfireReady(_backfireCd &lt;= 0f);</code>を追加。<code>src/Hud.cs</code>に<code>_backfireReady</code>フィールド(:122)・<code>SetBackfireReady</code>セッター(:748-749)・<code>DrawBackfire</code>メソッド(:1427-1442、DrawFocusFireの直下に既存同系ゲージと同じ角丸パネル様式で追加)・<code>DrawAll</code>内の呼び出し(:833)を追加。後方弾は初期装備から常時発射されるため所持ゲート無しで常設表示。既存のロジック・発射条件・ダメージ・レイアウト座標は無変更（純粋追加のみ）。<strong>検証</strong>: <code>git diff</code>で変更が追加行のみであることを確認、<code>dotnet build algo_shoot.sln</code> 0 Warning/0 Error。実機での見た目確認は未実施。</p>
+      </li>
       <li class="task is-done">
         <div class="task-head">
           <span class="chip chip-p1">P1</span>
@@ -2825,18 +2825,18 @@
   <section>
     <h2>直近のコミット</h2>
     <ul class="log">
+      <li><span class="h">d1d8ff1</span><span>2026-10-04</span><span class="s">auto: WIP着手 - 後方弾(バックファイア)のHUDフィードバック追加</span></li>
+      <li><span class="h">98f92b5</span><span>2026-10-04</span><span class="s">auto: FINALボステレグラフ予兆時間の視認性是正</span></li>
       <li><span class="h">a6f6a74</span><span>2026-10-04</span><span class="s">auto: WIP着手 - FINALボステレグラフ予兆時間の視認性是正</span></li>
       <li><span class="h">51ad7fd</span><span>2026-10-04</span><span class="s">auto: 監査で5件をキューに追加（game-designer3件・engineer2件）</span></li>
       <li><span class="h">4e1fbf2</span><span>2026-10-02</span><span class="s">auto: docs 4ファイルに案C非正典バナーを追記</span></li>
       <li><span class="h">c5fc0e0</span><span>2026-10-02</span><span class="s">auto: WIP着手 - docs 4ファイルへの案C非正典バナー追記</span></li>
       <li><span class="h">61551cf</span><span>2026-10-02</span><span class="s">auto: こはるボス「見残し禁止」スペルの呼称統一（旧称「お残し禁止」の残存7箇所を是正）</span></li>
       <li><span class="h">5679bdf</span><span>2026-10-02</span><span class="s">auto: WIP着手 - こはるボス「見残し禁止」スペルの呼称統一</span></li>
-      <li><span class="h">efb9bc0</span><span>2026-10-02</span><span class="s">auto: 回り込み「引用リプ」(FlankAim)の着座点に乱数オフセットと同時出現数制限を追加</span></li>
-      <li><span class="h">65cc7c2</span><span>2026-10-02</span><span class="s">auto: WIP着手 - 回り込み「引用リプ」(FlankAim)の着座点乱数化・同時出現制限</span></li>
     </ul>
   </section>
 
-  <footer>生成 2026-10-04 18:50 UTC — DEV_QUEUE.md より自動生成</footer>
+  <footer>生成 2026-10-04 19:00 UTC — DEV_QUEUE.md より自動生成</footer>
 </div>
 
 <script>

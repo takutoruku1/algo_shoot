@@ -655,6 +655,9 @@ public partial class Player : Area2D
         (GetTree().GetFirstNodeInGroup("hud") as Hud)?.SetDodgeReady(DodgeReady);
         // HUDに集中の光（focus_fire）の現在スタック/上限を反映。未購入(max<=0)ならHud側が枠自体を隠す。
         (GetTree().GetFirstNodeInGroup("hud") as Hud)?.SetFocusFireStack(FocusFireBonus, _game?.FocusFireMaxStack ?? 0);
+        // HUDに後方弾（バックファイア）のCD状態を反映。bf_power/bf_rate/bf_track（計1992G）に投資しても
+        // 効果を確認する手段がマズルフラッシュと弾色しか無かったため新設。他の自動/CD制ギミックと同じ毎フレーム通知。
+        (GetTree().GetFirstNodeInGroup("hud") as Hud)?.SetBackfireReady(_backfireCd <= 0f);
 
         // やさしさ全開＝手動発動（満タン時に Ctrl / R3）。自動発動をやめ“使う”判断を委ねる。
         // Space は ui_accept（＝ショット）と重複し誤発動するため Ctrl（左右どちらも）に変更。
