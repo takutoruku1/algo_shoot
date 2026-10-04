@@ -79,12 +79,13 @@
 
 <!-- 2026-10-04 監査モード(game-designer/engineer/scenario/qa並列)で追加。game-designerは3件TODOへ、engineerは2件TODOへ、scenario/qaは新規指摘0件(qaは全パスclean run) -->
 
-- [ ] (P2) 後方弾(バックファイア)強化ツリー(bf_*、計1992G)にHUDフィードバックが一切無い | engineer | `Player.cs:647,651-657`付近の毎フレームHUD通知群に倣い、後方弾のクールダウン/準備状態をHudへ通知する処理を追加し、Hud側に他ゲージ(SetHikageSkill等)と同様の小アイコン/CDバーを1個増設する。根拠: `Hud.cs`を"後方"/"Rear"/"bf_"/"Backfire"で全文検索して該当0件。ヒカゲスキル・加速球タメ・回避・集中の光は`SetHikageSkill`/`SetAccelCharge`/`SetDodgeReady`/`SetFocusFireStack`(Player.cs:647,651-657)で既に通知されているのに、同種の自動/CD制ギミックである後方弾だけ通知が無く、1992G分の強化が効いているか分からない。
 - [ ] (P3) 初回ボス(チュートリアル最終戦ヒカゲ)の徘徊速度が後続の本編ボス全員より明確に速い | game-designer | `BossHikage.cs:12`の`RoamSpeed = 72f`を`44f`程度まで落とし、「慌てた炎上ボス」の性格は`BossHikage.cs:21`の`phase1_interval`短縮(1.1→0.95程度)側に振り替える。根拠: 本編ボス全員(akari40/koharu38/rei42/mina38, `config/boss_stats.ini:66,99,29,143`)より1.7〜1.9倍速く、初見・無強化の状態で最初に戦う難所がこの速度だけ際立って厳しい。
 - [ ] (P3) config/boss_stats.ini のコメントが複数箇所で旧世界観名称・旧称のまま案C反映漏れ | engineer | `config/boss_stats.ini:54`の`; STAGE1 あかり（雨の教室）`を`src/BossAkari.cs:3`で確定済みの場所名「雨の降りやまない退勤後のフロア」に合わせて修正する。`config/boss_stats.ini:87`の`; STAGE2 こはる（台所）`を台所モチーフ撤去済みの現行コンセプトに合わせて修正する。`config/boss_stats.ini:112`の`meal_hp = 0.52 ; 「お残し禁止」の発動HP割合`のコメントを「見残し禁止」に統一する(src/*.csは既に統一済みだがこのiniのみ旧称が残存)。値・キー・ロジックは無変更でコメント文言のみ修正すること。
 - [ ] (P3) コメント内file:line参照が実装からズレている箇所が2件残存 | engineer | `src/EnemySpec.cs:129`のコメントが指す参照先を実際の`src/MidEnemy.cs:88-89`に修正する(現在コメントが指す:84-85は無関係行)。`src/Bullet.cs:375`のコメントが指す参照先を実際の`src/Enemy.cs:941`に修正する(現在コメントが指す:937は無関係行)。ロジック・数値は無変更、参照行番号のみ修正すること。
 
 ## WIP
+
+- [ ] (P2) 後方弾(バックファイア)強化ツリー(bf_*、計1992G)にHUDフィードバックが一切無い | engineer | `Player.cs:647,651-657`付近の毎フレームHUD通知群に倣い、後方弾のクールダウン/準備状態をHudへ通知する処理を追加し、Hud側に他ゲージ(SetHikageSkill等)と同様の小アイコン/CDバーを1個増設する。根拠: `Hud.cs`を"後方"/"Rear"/"bf_"/"Backfire"で全文検索して該当0件。ヒカゲスキル・加速球タメ・回避・集中の光は`SetHikageSkill`/`SetAccelCharge`/`SetDodgeReady`/`SetFocusFireStack`(Player.cs:647,651-657)で既に通知されているのに、同種の自動/CD制ギミックである後方弾だけ通知が無く、1992G分の強化が効いているか分からない。
 
 ## BLOCKED
 
