@@ -126,16 +126,16 @@
 
     <div class="figure">
       <span class="pct">100<span class="pct-unit">%</span></span>
-      <span class="figure-note">完了 288 / 対象 288 タスク<br>保留 46 件は人間の判断待ちのため対象外</span>
+      <span class="figure-note">完了 289 / 対象 289 タスク<br>保留 47 件は人間の判断待ちのため対象外</span>
     </div>
     <div class="rail" role="img" aria-label="進捗 100パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span></div>
   </header>
 
   <div class="states">
-    <div class="state done"><div class="state-n">288</div><div class="state-l">完了</div></div>
+    <div class="state done"><div class="state-n">289</div><div class="state-l">完了</div></div>
     <div class="state wip"><div class="state-n">0</div><div class="state-l">作業中</div></div>
     <div class="state todo"><div class="state-n">0</div><div class="state-l">残り</div></div>
-    <div class="state blocked"><div class="state-n">46</div><div class="state-l">保留</div></div>
+    <div class="state blocked"><div class="state-n">47</div><div class="state-l">保留</div></div>
   </div>
 
   <section>
@@ -151,6 +151,14 @@
   <section>
     <h2>完了</h2>
     <ol class="tasks">
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p3">P3</span>
+          <span class="task-title">後方弾HUDバッジの&quot;OK!&quot;表記がボタン操作可能に見える誤読を招く</span>
+          <span class="worker">engineer</span>
+        </div>
+        <p class="accept">(完了 2026-10-05) 2026-10-05監査(game-designer)発見。<code>src/Hud.cs:1433</code>の<code>DrawBackfire()</code>ラベル文言を<code>&quot;OK!&quot;/&quot;CD中…&quot;</code>から<code>&quot;警戒中&quot;/&quot;再装填…&quot;</code>に変更し、<code>DrawSkill()</code>(操作可能ボタン表記あり)との同語彙混同を解消。<code>_backfireReady</code>判定ロジック・座標・色・他バッジは無変更。<strong>検証</strong>: <code>git diff</code>で変更がラベル文言1行のみであることを確認、<code>dotnet build algo_shoot.sln</code> 0 Warning/0 Error。</p>
+      </li>
       <li class="task is-done">
         <div class="task-head">
           <span class="chip chip-p3">P3</span>
@@ -2463,6 +2471,14 @@
       <li class="task is-blocked">
         <div class="task-head">
           <span class="chip chip-none">—</span>
+          <span class="task-title">StageMina.cs/BossMina.csが承認済み仮台本08(2026-09-05)のF1〜F3少年台詞置換指示に反し、案C未反映の少年中心セリフをそのまま稼働させ続けている</span>
+          
+        </div>
+        <p class="accept">要ユーザー判断（MinaBattle構造の存続/統合判断に依存）。2026-10-05監査(scenario)発見。仮台本<code>wiki/08_仮台本/08_粗い台本_案C_3_FINALと結末.md:24,34</code>「少年の宣言4行は削除」「少年の行は無し」(F1)に対し、実装<code>src/StageMina.cs:47-50</code>は少年(who=0)の宣言4行(「……ミナ。」等)をそのまま保持（<code>:36</code>の内部コメント自身が「正典v3(S2)」=案C未反映と自認）。仮台本<code>:42,44-50</code>「BREAK合図の少年行を三人(あかり/こはる/レイ)の援護3行に置換」に対し<code>src/BossMina.cs:254 OnBreakCue()</code>は<code>ShowBossLine(&quot;少年&quot;,&quot;ミナ! いまだ、撃ち抜け!&quot;,...)</code>のまま未置換(話者名リテラル<code>&quot;少年&quot;</code>表示も<code>Hud.cs:449,492-494</code>の表示規約と不整合)。仮台本<code>:57</code>「核が開く。少年行は削除」(F3邂逅)に対し<code>src/BossMina.cs:60-66</code>の<code>Lines</code>配列は少年の3行をそのまま保持し、レイの反転回収行(仮台本<code>:61</code>「ねえ、知ってた?…この人に、そっくりよ。」)は<code>grep -rn &quot;そっくりよ&quot; src/</code>0件で未実装。既存BLOCKED(2026-09-07発見、本ファイル内「案C正典にはミナ本人とのラスボス戦(StageMina/MinaBattle)が存在しない」)は「回収先が実装に存在しない」という前提だったが実際には<code>BossMina.cs</code>が同シーンを既に実装済みで中身が未置換のまま、という点が新規発見。置換後テキスト自体は仮台本08:29-31(F1投稿残響)・44-50(BREAK3行)・61(F3反転行)に一字一句確定済みで新規創作ではないが、配置先(StageMina/BossMina独立構成を維持するかFinal.csのF1〜F4統合に合わせるか)が既存BLOCKEDの要ユーザー判断に依存するため先行着手不能。要ユーザー判断: (a)既存BLOCKED(MinaBattle構造)の判断を先に下す、(b)その上で確定済みテキストをStageMina.cs/BossMina.csへ転記してよいか指示する。</p>
+      </li>
+      <li class="task is-blocked">
+        <div class="task-head">
+          <span class="chip chip-none">—</span>
           <span class="task-title">FINAL「暴走したミナ」内での歴代ボス背景“追体験”演出(MinaRoot.Journey)が案C以前の旧面順のまま実装され、演出コメント自身の論理(道を遡る)とも矛盾している</span>
           
         </div>
@@ -2833,18 +2849,18 @@
   <section>
     <h2>直近のコミット</h2>
     <ul class="log">
+      <li><span class="h">f1f47f9</span><span>2026-10-05</span><span class="s">auto: WIP着手 - 後方弾HUDバッジ&quot;OK!&quot;表記の誤読修正</span></li>
+      <li><span class="h">8961d81</span><span>2026-10-05</span><span class="s">auto: 監査で2件をキューに追加（TODO1件・BLOCKED1件）</span></li>
+      <li><span class="h">f809cf7</span><span>2026-10-04</span><span class="s">auto: boss_stats.ini残存旧称「お残し」を「見残し」に置換</span></li>
       <li><span class="h">7237c97</span><span>2026-10-04</span><span class="s">auto: WIP着手 - boss_stats.ini残存旧称「お残し」の置換</span></li>
       <li><span class="h">68fff6a</span><span>2026-10-04</span><span class="s">auto: コメント内file:line参照ズレを2件修正</span></li>
       <li><span class="h">19c9403</span><span>2026-10-04</span><span class="s">auto: WIP着手 - コメント内file:line参照ズレの修正</span></li>
       <li><span class="h">17eaf92</span><span>2026-10-04</span><span class="s">auto: 実装中の副次的発見を1件キューに追加（boss_stats.ini旧称残存）</span></li>
       <li><span class="h">1f8f35a</span><span>2026-10-04</span><span class="s">auto: boss_stats.iniの旧世界観名称・旧称コメントを是正</span></li>
-      <li><span class="h">3fd6b15</span><span>2026-10-04</span><span class="s">auto: WIP着手 - boss_stats.ini旧称コメントの是正</span></li>
-      <li><span class="h">41708f4</span><span>2026-10-04</span><span class="s">auto: 初回ボス(ヒカゲ)の徘徊速度を本編ボス水準に調整</span></li>
-      <li><span class="h">a0d2468</span><span>2026-10-04</span><span class="s">auto: WIP着手 - 初回ボス(ヒカゲ)の徘徊速度調整</span></li>
     </ul>
   </section>
 
-  <footer>生成 2026-10-04 19:24 UTC — DEV_QUEUE.md より自動生成</footer>
+  <footer>生成 2026-10-05 19:04 UTC — DEV_QUEUE.md より自動生成</footer>
 </div>
 
 <script>

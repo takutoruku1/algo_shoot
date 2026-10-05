@@ -1430,7 +1430,7 @@ public partial class Hud : CanvasLayer
     private void DrawBackfire(HudCanvas ci)
     {
         Color accent = _backfireReady ? UiKit.Light : UiKit.Text3; // 淡い金＝後方弾の弾色（Bullet.cs BackMid）に寄せる
-        string label = "後方弾  " + (_backfireReady ? "OK!" : "CD中…");
+        string label = "後方弾  " + (_backfireReady ? "警戒中" : "再装填…");
         const float padL = 16f, h = 24f;
         float w = padL + 10 + UiKit.TextW(UiKit.ZenBold, label, 13) + 14;
         // DrawFocusFire（y=277, h=24）の直下、4px空けて配置。固定位置＝上の各枠の表示/非表示に関わらずズレない。

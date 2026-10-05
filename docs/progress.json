@@ -1,15 +1,21 @@
 {
-  "generated": "2026-10-04 19:24 UTC",
+  "generated": "2026-10-05 19:04 UTC",
   "counts": {
     "todo": 0,
     "wip": 0,
-    "blocked": 46,
-    "done": 288
+    "blocked": 47,
+    "done": 289
   },
   "percent": 100,
   "todo": [],
   "wip": [],
   "blocked": [
+    {
+      "priority": null,
+      "title": "StageMina.cs/BossMina.csが承認済み仮台本08(2026-09-05)のF1〜F3少年台詞置換指示に反し、案C未反映の少年中心セリフをそのまま稼働させ続けている",
+      "worker": null,
+      "accept": "要ユーザー判断（MinaBattle構造の存続/統合判断に依存）。2026-10-05監査(scenario)発見。仮台本`wiki/08_仮台本/08_粗い台本_案C_3_FINALと結末.md:24,34`「少年の宣言4行は削除」「少年の行は無し」(F1)に対し、実装`src/StageMina.cs:47-50`は少年(who=0)の宣言4行(「……ミナ。」等)をそのまま保持（`:36`の内部コメント自身が「正典v3(S2)」=案C未反映と自認）。仮台本`:42,44-50`「BREAK合図の少年行を三人(あかり/こはる/レイ)の援護3行に置換」に対し`src/BossMina.cs:254 OnBreakCue()`は`ShowBossLine(\"少年\",\"ミナ! いまだ、撃ち抜け!\",...)`のまま未置換(話者名リテラル`\"少年\"`表示も`Hud.cs:449,492-494`の表示規約と不整合)。仮台本`:57`「核が開く。少年行は削除」(F3邂逅)に対し`src/BossMina.cs:60-66`の`Lines`配列は少年の3行をそのまま保持し、レイの反転回収行(仮台本`:61`「ねえ、知ってた?…この人に、そっくりよ。」)は`grep -rn \"そっくりよ\" src/`0件で未実装。既存BLOCKED(2026-09-07発見、本ファイル内「案C正典にはミナ本人とのラスボス戦(StageMina/MinaBattle)が存在しない」)は「回収先が実装に存在しない」という前提だったが実際には`BossMina.cs`が同シーンを既に実装済みで中身が未置換のまま、という点が新規発見。置換後テキスト自体は仮台本08:29-31(F1投稿残響)・44-50(BREAK3行)・61(F3反転行)に一字一句確定済みで新規創作ではないが、配置先(StageMina/BossMina独立構成を維持するかFinal.csのF1〜F4統合に合わせるか)が既存BLOCKEDの要ユーザー判断に依存するため先行着手不能。要ユーザー判断: (a)既存BLOCKED(MinaBattle構造)の判断を先に下す、(b)その上で確定済みテキストをStageMina.cs/BossMina.csへ転記してよいか指示する。"
+    },
     {
       "priority": null,
       "title": "FINAL「暴走したミナ」内での歴代ボス背景“追体験”演出(MinaRoot.Journey)が案C以前の旧面順のまま実装され、演出コメント自身の論理(道を遡る)とも矛盾している",
@@ -288,6 +294,12 @@
     }
   ],
   "done": [
+    {
+      "priority": "P3",
+      "title": "後方弾HUDバッジの\"OK!\"表記がボタン操作可能に見える誤読を招く",
+      "worker": "engineer",
+      "accept": "(完了 2026-10-05) 2026-10-05監査(game-designer)発見。`src/Hud.cs:1433`の`DrawBackfire()`ラベル文言を`\"OK!\"/\"CD中…\"`から`\"警戒中\"/\"再装填…\"`に変更し、`DrawSkill()`(操作可能ボタン表記あり)との同語彙混同を解消。`_backfireReady`判定ロジック・座標・色・他バッジは無変更。**検証**: `git diff`で変更がラベル文言1行のみであることを確認、`dotnet build algo_shoot.sln` 0 Warning/0 Error。"
+    },
     {
       "priority": "P3",
       "title": "config/boss_stats.ini に旧称「お残し」が2箇所残存（同ファイルの他箇所は本日是正済み）",
@@ -2019,6 +2031,21 @@
   ],
   "commits": [
     {
+      "hash": "f1f47f9",
+      "date": "2026-10-05",
+      "subject": "auto: WIP着手 - 後方弾HUDバッジ\"OK!\"表記の誤読修正"
+    },
+    {
+      "hash": "8961d81",
+      "date": "2026-10-05",
+      "subject": "auto: 監査で2件をキューに追加（TODO1件・BLOCKED1件）"
+    },
+    {
+      "hash": "f809cf7",
+      "date": "2026-10-04",
+      "subject": "auto: boss_stats.ini残存旧称「お残し」を「見残し」に置換"
+    },
+    {
       "hash": "7237c97",
       "date": "2026-10-04",
       "subject": "auto: WIP着手 - boss_stats.ini残存旧称「お残し」の置換"
@@ -2042,21 +2069,6 @@
       "hash": "1f8f35a",
       "date": "2026-10-04",
       "subject": "auto: boss_stats.iniの旧世界観名称・旧称コメントを是正"
-    },
-    {
-      "hash": "3fd6b15",
-      "date": "2026-10-04",
-      "subject": "auto: WIP着手 - boss_stats.ini旧称コメントの是正"
-    },
-    {
-      "hash": "41708f4",
-      "date": "2026-10-04",
-      "subject": "auto: 初回ボス(ヒカゲ)の徘徊速度を本編ボス水準に調整"
-    },
-    {
-      "hash": "a0d2468",
-      "date": "2026-10-04",
-      "subject": "auto: WIP着手 - 初回ボス(ヒカゲ)の徘徊速度調整"
     }
   ]
 }
