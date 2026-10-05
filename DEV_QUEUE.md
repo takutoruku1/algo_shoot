@@ -83,9 +83,9 @@
 
 <!-- 2026-10-05 監査モード(game-designer/engineer/scenario/qa並列)で追加。game-designerは1件TODOへ、engineer/qaは新規指摘0件(qaは全パスclean run)、scenarioは1件BLOCKEDへ(既存BLOCKEDのMinaBattle構造判断に依存のため) -->
 
-- [ ] (P3) 後方弾HUDバッジの"OK!"表記がボタン操作可能に見える誤読を招く | engineer | 2026-10-05監査(game-designer)発見。`src/Hud.cs:1430-1441`の`DrawBackfire()`が`_backfireReady`時に`"後方弾  OK!"`と表示するが、これは直上`DrawSkill()`(`Hud.cs:1270-1285`、ヒカゲ専用スキル)の`"OK!"`と同語彙・同構文。`DrawSkill`には操作ボタン表記(`KeyBadge(ci, ..., TokSkill, ...)`)が併記されるが、`DrawBackfire`には一切無い(後方弾は`Player.cs:622-629`の通り操作と無関係に自動発射される仕様)。初見プレイヤーが「押すべきボタンがある」と誤読しうる。`Hud.cs:1433`のラベル文言のみを自動待機が伝わる表現(例:「後方弾 警戒中」/「後方弾 再装填…」)に差し替える。ロジック・座標・他バッジ・`_backfireReady`判定は無変更。
-
 ## WIP
+
+- [ ] (P3) 後方弾HUDバッジの"OK!"表記がボタン操作可能に見える誤読を招く | engineer | 2026-10-05監査(game-designer)発見。`src/Hud.cs:1430-1441`の`DrawBackfire()`が`_backfireReady`時に`"後方弾  OK!"`と表示するが、これは直上`DrawSkill()`(`Hud.cs:1270-1285`、ヒカゲ専用スキル)の`"OK!"`と同語彙・同構文。`DrawSkill`には操作ボタン表記(`KeyBadge(ci, ..., TokSkill, ...)`)が併記されるが、`DrawBackfire`には一切無い(後方弾は`Player.cs:622-629`の通り操作と無関係に自動発射される仕様)。初見プレイヤーが「押すべきボタンがある」と誤読しうる。`Hud.cs:1433`のラベル文言のみを自動待機が伝わる表現(例:「後方弾 警戒中」/「後方弾 再装填…」)に差し替える。ロジック・座標・他バッジ・`_backfireReady`判定は無変更。
 
 ## BLOCKED
 
