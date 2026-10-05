@@ -160,6 +160,8 @@ public partial class Panel : Area2D
         // Keep charge tiers stronger without letting a high-power projectile erase a boss panel.
         int normalCap = BossStyle && !bullet.Accel ? 1 : 2;
         int cap = !bullet.Charged ? normalCap : bullet.ChargeStage >= ChargeTier.Second ? 5 : 3;
+        if (GameManager.Instance!.ShotPowerMul > 1)
+            cap += bullet.Charged ? bullet.ChargeStage >= ChargeTier.Second ? 3 : 2 : 1;
         return Mathf.Min(cost, cap);
     }
 

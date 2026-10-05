@@ -28,13 +28,14 @@ public sealed class BossDanmaku
         _timer -= delta;
         if (_timer > 0) return;
         var game = GameManager.Instance!;
+        bool charged = _boss.HasEvolved;
         bool reduced = _boss.GaugeVulnerable || _boss.GaugeReforming
             || _boss.GetTree().GetNodesInGroup("aoe").Count > 0;
-        _timer = 0.42 * game.DanmakuIntervalMul * (reduced ? 1.7 : 1) * (_boss is CameoBoss ? 1.3 : 1);
+        _timer = (charged ? 0.65 : 0.42) * game.DanmakuIntervalMul * (reduced ? 1.7 : 1) * (_boss is CameoBoss ? 1.3 : 1);
         var pool = _boss.GetNode<BulletPool>("/root/Pool");
         int arms = _pattern switch { "akari" => 3, "koharu" => 4, "rei" => 5, "hikage" => 6, _ => 8 };
         float rotation = _wave * (_pattern == "koharu" ? 0.17f : _pattern == "rei" ? -0.23f : 0.26f);
-        int layers = reduced || _boss is CameoBoss || game.Difficulty == GameManager.Diff.Easy ? 1 : 2;
+        int layers = reduced || _boss is CameoBoss || game.Difficulty == GameManager.Diff.Easy ? 1 : charged ? 3 : 2;
         for (int i = 0; i < arms; i++)
             for (int layer = 0; layer < layers; layer++)
             {
@@ -58,6 +59,12 @@ public sealed class BossDanmaku
                 };
                 var bullet = pool.Spawn(_boss.ShotCenter, direction * speed, true, 2.6f, 1, BulletShape.Dart, tint);
                 bullet.UseBossProjectile();
+                if (charged)
+                {
+                    Vector2 position = _boss.ShotCenter + direction.Normalized() * (18 + layer * 10);
+                    bullet.MakeLeadIn(position);
+                    bullet.MakeAccel(6f, speed * 1.3f * game.BulletSpeedMul, 0.85f + layer * 0.12f);
+                }
             }
         _wave++;
     }

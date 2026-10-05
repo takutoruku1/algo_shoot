@@ -162,8 +162,8 @@ public partial class StoryFilmQa : Node
                 Check(!hud.CinematicMode && !Hud.BubblePaused && !hud.HoldBubble && !hud.BattleMemoryTempo
                       && world.ProcessMode == ProcessModeEnum.Inherit && game.ProcessMode == gameMode,
                     $"lead-in and flashback release every dialogue pause (cinematic={hud.CinematicMode}, bubble={Hud.BubblePaused}, hold={hud.HoldBubble}, tempo={hud.BattleMemoryTempo}, world={world.ProcessMode}, game={game.ProcessMode}/{gameMode})");
-                Check(Read<bool>(boss, "_form2", typeof(Enemy)) && Read<bool>(boss, "_corridorFired"),
-                    "second form and corridor start after the flashback");
+                Check(Read<bool>(boss, "_form2", typeof(Enemy)) && GetTree().GetFirstNodeInGroup("corridor") == null,
+                    "second form starts after the flashback without a corridor");
                 Call(boss, "OnHpChanged");
                 await Frames(15);
                 Check(Read<CharacterStoryTalk>(boss, "_memoryTalk").Active == false
@@ -245,7 +245,7 @@ public partial class StoryFilmQa : Node
                     await WaitUntil(() => !((BossRei)boss).AoeGateActive, 1600);
                 }
             }
-            else Check(Read<bool>(boss, "_form2", typeof(Enemy)) && Read<bool>(boss, "_corridorFired"), "second form and corridor begin after the memory");
+            else Check(Read<bool>(boss, "_form2", typeof(Enemy)) && GetTree().GetFirstNodeInGroup("corridor") == null, "second form starts after the memory without a corridor");
             Call(boss, "OnHpChanged");
             await Frames(15);
             Check(GetTree().GetNodesInGroup("storyfilm").Count == 0, "memory is one-shot");

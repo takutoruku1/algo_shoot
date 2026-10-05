@@ -557,7 +557,11 @@ public partial class BossRei : Enemy
                 }));
             return;
         }
-        if (!_seq && !_memoryPending && !_relayWatching && _posts.TryStart()) return;
+        if (!_seq && !_memoryPending && _posts.TryStart())
+        {
+            _relayWatching = false;
+            return;
+        }
         // 改心の会話送り：Z/Enter/ui_accept/Pad A に加えマウス左クリックでも送れる共通ヘルパ（マウス対応 P2）。
         bool z = Pad.AdvanceHeld();
         bool zEdge = z && !_zHeld;

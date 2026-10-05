@@ -385,6 +385,7 @@ public partial class PlayerShotQa : Node
             if (tier > 0) shot.MakeCharged(_game.SelectedJob, tier);
             panelHit.Invoke(shield, new object[] { shot });
             int cost = owner == ordinary ? 10 : tier == 0 ? 2 : tier == ChargeTier.First ? 3 : 5;
+            if (owner != ordinary && _game.ShotPowerMul > 1) cost += tier == 0 ? 1 : tier == ChargeTier.First ? 2 : 3;
             Check(shield.Ink == 20 - cost, $"shield damage: boss={owner == enemy} tier={tier} cost={cost}");
             shield.QueueFree();
             _pool.DespawnAll();

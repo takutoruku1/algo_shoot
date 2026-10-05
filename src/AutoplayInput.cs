@@ -117,13 +117,6 @@ internal sealed class AutoplayInput
             Move(Vector2.Zero);
             return float.MaxValue;
         }
-        if (_tree.GetFirstNodeInGroup("corridor") is CorridorRun corridor && corridor.Steering)
-        {
-            var target = new Vector2(Field.Left + 18f, corridor.GuideYAt(position.X + corridor.ScrollSpeed * 0.3f));
-            Move(((target - position) / (speed * delta)).LimitLength());
-            return float.MaxValue;
-        }
-
         _threats.Clear();
         foreach (Node node in _tree.GetNodesInGroup("enemy_bullets"))
             if (node is Bullet bullet && bullet.Active && position.DistanceSquaredTo(bullet.GlobalPosition) < 150f * 150f)

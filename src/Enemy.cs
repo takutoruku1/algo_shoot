@@ -123,6 +123,7 @@ public partial class Enemy : Area2D
     protected bool BodyAttacking => _attackPoseT > 0;
     private BossTransformation? _transformation;
     public bool Transforming => IsInstanceValid(_transformation) && !_transformation!.IsQueuedForDeletion();
+    internal bool HasEvolved => _form2 || this is BossMina { IsDragonForm: true };
     private double _attackPoseT;
     private const double AttackPoseDur = 0.55;
     private double _animalMotionT, _animalTechniqueCooldown = 3.0;

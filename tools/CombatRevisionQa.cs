@@ -162,6 +162,57 @@ public partial class CombatRevisionQa : Node
                     hud.HoldBubble = false;
                     hud.HideBubble();
                 }
+                Pool.DespawnAll();
+                if (boss is BossMina) Write(boss, "_pattern", BossMina.DragonPhase);
+                else Write(boss, "_form2", true);
+                Call(boss, "EnterShielded");
+                hud.HideBubble();
+                var evolved = new BossDanmaku(boss);
+                evolved.Tick(1);
+                var charged = Hostile();
+                Check(charged.Length > 0 && charged.All(b => b.AccelCharging), scene + " evolved pattern charges every projectile");
+                foreach (var bullet in charged)
+                {
+                    bullet.SetPhysicsProcess(false);
+                    for (int i = 0; i < 36; i++) bullet._PhysicsProcess(1d / 60);
+                }
+                Check(charged.All(b => b.Active && b.AccelCharging && b.Velocity.Length() < 10), "charge remains visible before launch");
+                if (OS.GetCmdlineUserArgs().Contains("--charge-shots"))
+                {
+                    hud.HideBubble();
+                    hud.HideSpellCard();
+                    await Frames(4);
+                    await ToSignal(RenderingServer.Singleton, RenderingServer.SignalName.FramePostDraw);
+                    string folder = ProjectSettings.GlobalizePath("res://build/qa_story/combat_revision");
+                    DirAccess.MakeDirRecursiveAbsolute(folder);
+                    using var screenshot = GetViewport().GetTexture().GetImage();
+                    screenshot.SavePng(folder + "/" + scene + "_charged.png");
+                }
+                Call(boss, "EnterBreak");
+                foreach (var bullet in charged)
+                    for (int i = 0; i < 60; i++) bullet._PhysicsProcess(1d / 60);
+                Check(charged.Any(b => b.Active && !b.AccelCharging && b.Velocity.Length() > 40), "charged volleys launch and survive shield break");
+                Check(GetTree().GetNodesInGroup("corridor").Count == 0, "no removed corridor attack is spawned");
+                if (boss is BossRei or BossMina)
+                {
+                    Call(boss, "EnterReclose");
+                    var posts = Read<BossPostSequence>(boss, "_posts");
+                    typeof(BossPostSequence).GetProperty("Count")!.SetValue(posts, 4);
+                    Write(boss, "_hp", boss.TotalBars * Enemy.BarHp / 100);
+                    Write(boss, "_memoryPlayed", true);
+                    if (boss is BossRei) Write(boss, "_relayWatching", true);
+                    else
+                    {
+                        if (Read<CharacterStoryTalk?>(boss, "_recloseTalk") is { Active: true } talk)
+                            typeof(CharacterStoryTalk).GetMethod("Finish", Private)!.Invoke(talk, new object[] { hud });
+                        Write(boss, "_pattern", 4);
+                        var caster = Read<MinaPhaseAttacks>(boss, "_caster");
+                        typeof(MinaPhaseAttacks).GetProperty("Active")!.SetValue(caster, true);
+                    }
+                    hud.HideBubble();
+                    boss._Process(0.01);
+                    Check(posts.Active, scene + " pending story gate does not waste a break waiting for paused attacks");
+                }
                 root.QueueFree(); Pool.DespawnAll();
                 foreach (string group in new[] { "aoe", "boss_edge_volleys", "boss_animal_techniques" })
                     foreach (var node in GetTree().GetNodesInGroup(group)) node.QueueFree();

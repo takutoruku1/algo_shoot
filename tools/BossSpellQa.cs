@@ -1221,7 +1221,6 @@ public partial class BossSpellQa : Node
             await Shot("aoe_Koharu_cross");
             await ClearStrikes(world);
         }
-        if (boss is BossAkari) await CheckCorridor(game, boss, hud, world);
         var owner = new Node2D();
         world.AddChild(owner);
         var cancelled = new AreaStrike();
@@ -1234,44 +1233,6 @@ public partial class BossSpellQa : Node
         caster.CancelPendingAttacks();
     }
 
-    private async Task CheckCorridor(GameManager game, Enemy boss, Hud hud, Node2D world)
-    {
-        foreach (var diff in Enum.GetValues<GameManager.Diff>())
-        {
-            game.Difficulty = diff;
-            var corridor = new CorridorRun { Boss = boss };
-            world.AddChild(corridor);
-            corridor.SetPhysicsProcess(false);
-            float gap = diff switch { GameManager.Diff.Easy => 64, GameManager.Diff.Hard => 42, GameManager.Diff.Lunatic => 34, _ => 52 };
-            float speed = diff switch { GameManager.Diff.Easy => 60, GameManager.Diff.Hard => 80, GameManager.Diff.Lunatic => 90, _ => 70 };
-            Check(Read<float>(corridor, "_gap") == gap && corridor.ScrollSpeed == speed,
-                $"Akari corridor/{diff}: original gap and speed retained");
-            Check(Read<Texture2D>(corridor, "_letterTex").GetWidth() > 0, "corridor uses the same unsent-letter illustration");
-            corridor._PhysicsProcess(1.48d);
-            Check(!corridor.RunActive, "corridor preview stays harmless for 1.5 seconds");
-            if (diff == GameManager.Diff.Normal)
-            {
-                hud.AnnounceSpell("あかり", BossHandles.AkariSpell, "雨の帰り道", new Color("6c9cd8"));
-                await Shot("aoe_Akari_corridor_preview");
-            }
-            corridor._PhysicsProcess(3.02d);
-            Check(corridor.RunActive && !corridor.Finished, "corridor activates on its original schedule");
-            for (float x = Field.Left + 12; x < Field.Right; x += 12)
-                Check(!corridor.CoversPoint(new Vector2(x, corridor.GuideYAt(x))), "corridor centerline stays safe");
-            if (diff == GameManager.Diff.Normal) await Shot("aoe_Akari_corridor_active");
-            hud.ShowDialog(Hud.LineKind.Mina, "……少し、待ってください。", "res://char/mina_worried.png");
-            double t = Read<double>(corridor, "_t");
-            corridor._PhysicsProcess(1d);
-            Check(Read<double>(corridor, "_t") == t, "dialogue freezes the illustrated corridor");
-            hud.HideBubble();
-            corridor._PhysicsProcess(9.01d);
-            Check(corridor.Finished, "corridor still ends after the 12-second run");
-            corridor.QueueFree();
-            foreach (var remnant in world.GetChildren().OfType<RemnantEnemy>()) remnant.QueueFree();
-            await Frames(3);
-        }
-        game.Difficulty = GameManager.Diff.Normal;
-    }
 
     private async Task CheckSafeZonePixels()
     {

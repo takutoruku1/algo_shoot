@@ -101,7 +101,6 @@ public partial class AkariPostQa : Node
         if (!story)
         {
             Write(boss, "_memoryPlayed", true);
-            Write(boss, "_corridorFired", true);
         }
         float[] thresholds = { .8f, .6f, .4f, .2f, .01f };
         for (int i = 0; i < 5; i++)
@@ -112,6 +111,10 @@ public partial class AkariPostQa : Node
             await Frames(2);
             if (story && i == 2)
             {
+                var leadIn = Read<CharacterStoryTalk>(boss, "_memoryTalk");
+                Check(leadIn is { Active: true }, "conversation leads into the memory before the third post");
+                typeof(CharacterStoryTalk).GetMethod("Finish", Private)!.Invoke(leadIn, new object[] { root.Hud });
+                await Frames(2);
                 var film = GetTree().GetFirstNodeInGroup("storyfilm") as AkariStoryFilm;
                 Check(film != null && GetTree().GetFirstNodeInGroup("boss_post") == null,
                     "memory runs before the pending third post");
@@ -119,15 +122,9 @@ public partial class AkariPostQa : Node
                 Read<Action>(film!, "_completed", typeof(StoryFilm))();
                 film!.QueueFree();
                 await Frames(3);
-                var corridor = GetTree().GetFirstNodeInGroup("corridor") as CorridorRun;
-                Check(corridor != null && GetTree().GetFirstNodeInGroup("boss_post") == null,
-                    "corridor runs before the pending third post");
-                corridor!._PhysicsProcess(14.0);
-                Call(boss, "TickCorridor");
-                boss.GlobalPosition = new Vector2(Field.Right - 70, 104);
-                Call(boss, "TickCorridor");
-                corridor.QueueFree();
+                for (int frame = 0; frame < 360 && boss.Transforming; frame++) await Frames(1);
                 await Frames(3);
+                Check(GetTree().GetFirstNodeInGroup("corridor") == null, "memory returns directly to combat without a corridor");
             }
             var post = GetTree().GetFirstNodeInGroup("boss_post") as BossPost;
             Check(post != null && post.Index == i, "exactly one shootable post in order");
@@ -238,9 +235,10 @@ public partial class AkariPostQa : Node
             }
             DisplayServer.WindowSetSize(new Vector2I(1280, 720));
         }
-        for (int step = 0; step < 24 && !Read<bool>(draft, "_leaving"); step++)
+        for (int step = 0; step < 80 && !Read<bool>(draft, "_leaving"); step++)
         {
             root.Hud.RevealDialogNow();
+            await Frames(72);
             draft._Process(0.4);
             Input.ParseInputEvent(new InputEventKey { Keycode = Key.Enter, Pressed = true });
             await Frames(2);
@@ -281,7 +279,6 @@ public partial class AkariPostQa : Node
         root.World.AddChild(boss);
         boss.Position = new Vector2(Field.Right - 76, 104);
         Write(boss, "_memoryPlayed", true);
-        Write(boss, "_corridorFired", true);
         root.GetNode<StageBackground>("StageBackground").EnterBoss();
         await Frames(100);
         boss.SetPhysicsProcess(false);
@@ -527,6 +524,7 @@ public partial class AkariPostQa : Node
     }
     private async Task Shot(string name, int settle = 65)
     {
+        if (DisplayServer.GetName() == "headless") return;
         await Frames(settle);
         string path = ProjectSettings.GlobalizePath("res://build/qa_story/akari_posts/shots");
         DirAccess.MakeDirRecursiveAbsolute(path);

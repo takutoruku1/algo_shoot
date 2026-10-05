@@ -515,14 +515,14 @@ public partial class BossMina : Enemy
             if (!GetHud()!.CinematicMode) CompletePhaseTransition();
             return;
         }
-        if (!IsPurified && !_seq && !_memoryPending && !_caster.Active && _posts.TryStart()) return;
-        if (!IsPurified && !_seq && !Hud.BubblePaused && !_caster.Active && PhasePending
+        if (!IsPurified && !_seq && !_memoryPending && _posts.TryStart()) return;
+        if (!IsPurified && !_seq && !Hud.BubblePaused && PhasePending
             && (!_memoryPending || _pattern < 2))
         {
             BeginPhaseTransition();
             return;
         }
-        if (_memoryPending && !_seq && !Hud.BubblePaused && !_caster.Active)
+        if (_memoryPending && !_seq && !Hud.BubblePaused)
         {
             _memoryPending = false;
             _memoryPlayed = true;
