@@ -83,6 +83,14 @@
 
 <!-- 2026-10-05 監査モード(game-designer/engineer/scenario/qa並列)で追加。game-designerは1件TODOへ、engineer/qaは新規指摘0件(qaは全パスclean run)、scenarioは1件BLOCKEDへ(既存BLOCKEDのMinaBattle構造判断に依存のため) -->
 
+<!-- 2026-10-06 監査モード(game-designer/engineer/scenario/qa並列)で追加。engineerは2件TODOへ、game-designerは1件TODOへ、scenario/qaは新規指摘0件(qaは全パスclean run) -->
+
+- [ ] (P2) EnemyBulletSpeedがBossRei/BossMina/BossHikage/CameoBossで書き込み専用の死んだパラメータになっている | engineer | config/boss_stats.iniのbullet_speed調整がこの4ボスに一切効かない。根拠=`src/BossRei.cs:123`・`src/BossMina.cs:77`・`src/BossHikage.cs:46`・`src/CameoBoss.cs:92`はBossTuning経由でiniから`EnemyBulletSpeed`へ代入するのみで、`grep -rn "EnemyBulletSpeed" src/*.cs`の結果どおりこの4ファイルには読み出し箇所が1件も無い（実際の発射は`_ringSpeed`/`_aimedSpeed`/`_spiralSpeed`等の別フィールドやCameoBossの`CameoBulletSpd`定数を直接使用）。`config/boss_stats.ini:27`の`[rei] bullet_speed = 82.0 ; 基準弾速(px/s)＝EnemyBulletSpeed`は実際には効果が無い嘘コメント（`:141`[mina]・`:198`[cameo]も同様）。MidEnemy/EnemySpec.BulletSpeed削除時(DONE 2026-09-02)と同じ方式で、使われていない4箇所の`EnemyBulletSpeed = BossTuning.F(...)`代入とini側の対応する`bullet_speed`キー・コメントを削除する（ゲームプレイに影響なし）か、該当コメントを実態（死んでいる）に修正していずれかで整合させる。
+
+- [ ] (P2) 難易度選択画面(DiffSelect)のLUNATIC解禁条件表示にプレイヤーの現在値が出ずショップ画面と情報粒度が食い違っている | game-designer | 根拠=`src/DiffSelect.cs:340`の`UiKit.Text(..., $"解禁：フォロワー {GameManager.LunaticFollowerReq} または 威力 Lv3", ...)`は条件の定数のみを表示し、プレイヤーの現在のフォロワー数・現在の光の出力Lvを一切出さない（`Followers`/`ChainLevel`の参照は0件）。一方同じ解禁条件を表示する`src/Shop.cs:1167`は`$"LUNATIC解放まで: フォロワー {_game.Followers}/{GameManager.LunaticFollowerReq} ／ 光の出力 Lv{_game.ChainLevel("shot_power", 3)}/3"`と現在値/目標値の両方を出している。`DiffSelect.cs:340`の文言を`$"解禁：フォロワー {_game?.Followers ?? 0}/{GameManager.LunaticFollowerReq} または 威力 Lv{_game?.ChainLevel("shot_power", 3) ?? 0}/3"`に変更し、Shop.csと同じ現在値/目標値表示に揃える（新規ロジック追加不要、既存の公開アクセサ`Followers`(`GameManager.cs:414`)・`ChainLevel`(`GameManager.cs:548`)の参照のみ）。
+
+- [ ] (P3) BossHikage.csのphase1_intervalフォールバック値がini実効値からズレたまま放置されている | engineer | 根拠=`config/boss_stats.ini:179`の`[hikage] phase1_interval`は2026-10-04のDONEタスク（初回ボス難度調整）で`1.1`→`0.95`に変更済みだが、フォールバック用の`src/BossHikage.cs:21`のフィールド初期値`_p1Interval = 1.1`と`:53`の`BossTuning.F("hikage", "phase1_interval", 1.1f)`の第3引数は旧値`1.1f`のまま更新されていない（同DONE項目(本ファイル196行目)自身が「副次的に発見…受入条件外のため未修正、別途起票が要る」と明記したまま今日まで起票されていなかった分）。`BossHikage.cs:21,53`の`1.1`を`0.95f`に変更し、ini実効値とフォールバックを整合させる。
+
 ## WIP
 
 ## BLOCKED
