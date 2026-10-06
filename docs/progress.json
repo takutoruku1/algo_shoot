@@ -1,19 +1,13 @@
 {
-  "generated": "2026-10-06 18:53 UTC",
+  "generated": "2026-10-06 18:56 UTC",
   "counts": {
-    "todo": 2,
+    "todo": 1,
     "wip": 0,
     "blocked": 47,
-    "done": 290
+    "done": 291
   },
-  "percent": 99,
+  "percent": 100,
   "todo": [
-    {
-      "priority": "P2",
-      "title": "難易度選択画面(DiffSelect)のLUNATIC解禁条件表示にプレイヤーの現在値が出ずショップ画面と情報粒度が食い違っている",
-      "worker": "game-designer",
-      "accept": "根拠=`src/DiffSelect.cs:340`の`UiKit.Text(..., $\"解禁：フォロワー {GameManager.LunaticFollowerReq} または 威力 Lv3\", ...)`は条件の定数のみを表示し、プレイヤーの現在のフォロワー数・現在の光の出力Lvを一切出さない（`Followers`/`ChainLevel`の参照は0件）。一方同じ解禁条件を表示する`src/Shop.cs:1167`は`$\"LUNATIC解放まで: フォロワー {_game.Followers}/{GameManager.LunaticFollowerReq} ／ 光の出力 Lv{_game.ChainLevel(\"shot_power\", 3)}/3\"`と現在値/目標値の両方を出している。`DiffSelect.cs:340`の文言を`$\"解禁：フォロワー {_game?.Followers ?? 0}/{GameManager.LunaticFollowerReq} または 威力 Lv{_game?.ChainLevel(\"shot_power\", 3) ?? 0}/3\"`に変更し、Shop.csと同じ現在値/目標値表示に揃える（新規ロジック追加不要、既存の公開アクセサ`Followers`(`GameManager.cs:414`)・`ChainLevel`(`GameManager.cs:548`)の参照のみ）。"
-    },
     {
       "priority": "P3",
       "title": "BossHikage.csのphase1_intervalフォールバック値がini実効値からズレたまま放置されている",
@@ -307,6 +301,12 @@
     }
   ],
   "done": [
+    {
+      "priority": "P2",
+      "title": "難易度選択画面(DiffSelect)のLUNATIC解禁条件表示にプレイヤーの現在値が出ずショップ画面と情報粒度が食い違っている",
+      "worker": "game-designer",
+      "accept": "(完了 2026-10-06) 2026-10-06監査(game-designer)発見。`src/DiffSelect.cs:340`の解禁条件表示が定数のみ（`$\"解禁：フォロワー {GameManager.LunaticFollowerReq} または 威力 Lv3\"`）で現在のフォロワー数・光の出力Lvを出していなかったのに対し、同条件を表示する`src/Shop.cs:1167`は現在値/目標値の両方を出していた不一致を解消。`DiffSelect.cs:340`を`$\"解禁：フォロワー {_game?.Followers ?? 0}/{GameManager.LunaticFollowerReq} または 威力 Lv{_game?.ChainLevel(\"shot_power\", 3) ?? 0}/3\"`に変更し、Shop.csと同じ現在値/目標値表示に揃えた。既存の公開アクセサ`Followers`(`GameManager.cs:414`)・`ChainLevel`(`GameManager.cs:548`)をそのまま使用、新規ロジック追加なし。レイアウト・難易度パラメータ・Shop.cs側は無変更。**検証**: `git diff`で変更が表示文言1行のみであることを確認、`dotnet build algo_shoot.sln` 0 Warning/0 Error（指揮官が再実行して確認済み）。"
+    },
     {
       "priority": "P2",
       "title": "EnemyBulletSpeedがBossRei/BossMina/BossHikage/CameoBossで書き込み専用の死んだパラメータになっている",
@@ -2050,6 +2050,16 @@
   ],
   "commits": [
     {
+      "hash": "dbd36987",
+      "date": "2026-10-06",
+      "subject": "auto: WIP着手 - DiffSelectのLUNATIC解禁条件表示に現在値を追加"
+    },
+    {
+      "hash": "bed931ff",
+      "date": "2026-10-06",
+      "subject": "auto: EnemyBulletSpeed死にパラメータの削除（BossRei/BossMina/BossHikage/CameoBoss）"
+    },
+    {
       "hash": "c42614f9",
       "date": "2026-10-06",
       "subject": "auto: WIP着手 - EnemyBulletSpeed死にパラメータの整理"
@@ -2078,16 +2088,6 @@
       "hash": "f809cf75",
       "date": "2026-10-04",
       "subject": "auto: boss_stats.ini残存旧称「お残し」を「見残し」に置換"
-    },
-    {
-      "hash": "7237c972",
-      "date": "2026-10-04",
-      "subject": "auto: WIP着手 - boss_stats.ini残存旧称「お残し」の置換"
-    },
-    {
-      "hash": "68fff6ae",
-      "date": "2026-10-04",
-      "subject": "auto: コメント内file:line参照ズレを2件修正"
     }
   ]
 }

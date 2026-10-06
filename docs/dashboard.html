@@ -125,16 +125,16 @@
     </div>
 
     <div class="figure">
-      <span class="pct">99<span class="pct-unit">%</span></span>
-      <span class="figure-note">完了 290 / 対象 292 タスク<br>保留 47 件は人間の判断待ちのため対象外</span>
+      <span class="pct">100<span class="pct-unit">%</span></span>
+      <span class="figure-note">完了 291 / 対象 292 タスク<br>保留 47 件は人間の判断待ちのため対象外</span>
     </div>
-    <div class="rail" role="img" aria-label="進捗 99パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span></div>
+    <div class="rail" role="img" aria-label="進捗 100パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span></div>
   </header>
 
   <div class="states">
-    <div class="state done"><div class="state-n">290</div><div class="state-l">完了</div></div>
+    <div class="state done"><div class="state-n">291</div><div class="state-l">完了</div></div>
     <div class="state wip"><div class="state-n">0</div><div class="state-l">作業中</div></div>
-    <div class="state todo"><div class="state-n">2</div><div class="state-l">残り</div></div>
+    <div class="state todo"><div class="state-n">1</div><div class="state-l">残り</div></div>
     <div class="state blocked"><div class="state-n">47</div><div class="state-l">保留</div></div>
   </div>
 
@@ -148,14 +148,6 @@
     <ol class="tasks">
       <li class="task ">
         <div class="task-head">
-          <span class="chip chip-p2">P2</span>
-          <span class="task-title">難易度選択画面(DiffSelect)のLUNATIC解禁条件表示にプレイヤーの現在値が出ずショップ画面と情報粒度が食い違っている</span>
-          <span class="worker">game-designer</span>
-        </div>
-        <p class="accept">根拠=<code>src/DiffSelect.cs:340</code>の<code>UiKit.Text(..., $&quot;解禁：フォロワー {GameManager.LunaticFollowerReq} または 威力 Lv3&quot;, ...)</code>は条件の定数のみを表示し、プレイヤーの現在のフォロワー数・現在の光の出力Lvを一切出さない（<code>Followers</code>/<code>ChainLevel</code>の参照は0件）。一方同じ解禁条件を表示する<code>src/Shop.cs:1167</code>は<code>$&quot;LUNATIC解放まで: フォロワー {_game.Followers}/{GameManager.LunaticFollowerReq} ／ 光の出力 Lv{_game.ChainLevel(&quot;shot_power&quot;, 3)}/3&quot;</code>と現在値/目標値の両方を出している。<code>DiffSelect.cs:340</code>の文言を<code>$&quot;解禁：フォロワー {_game?.Followers ?? 0}/{GameManager.LunaticFollowerReq} または 威力 Lv{_game?.ChainLevel(&quot;shot_power&quot;, 3) ?? 0}/3&quot;</code>に変更し、Shop.csと同じ現在値/目標値表示に揃える（新規ロジック追加不要、既存の公開アクセサ<code>Followers</code>(<code>GameManager.cs:414</code>)・<code>ChainLevel</code>(<code>GameManager.cs:548</code>)の参照のみ）。</p>
-      </li>
-      <li class="task ">
-        <div class="task-head">
           <span class="chip chip-p3">P3</span>
           <span class="task-title">BossHikage.csのphase1_intervalフォールバック値がini実効値からズレたまま放置されている</span>
           <span class="worker">engineer</span>
@@ -167,6 +159,14 @@
   <section>
     <h2>完了</h2>
     <ol class="tasks">
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p2">P2</span>
+          <span class="task-title">難易度選択画面(DiffSelect)のLUNATIC解禁条件表示にプレイヤーの現在値が出ずショップ画面と情報粒度が食い違っている</span>
+          <span class="worker">game-designer</span>
+        </div>
+        <p class="accept">(完了 2026-10-06) 2026-10-06監査(game-designer)発見。<code>src/DiffSelect.cs:340</code>の解禁条件表示が定数のみ（<code>$&quot;解禁：フォロワー {GameManager.LunaticFollowerReq} または 威力 Lv3&quot;</code>）で現在のフォロワー数・光の出力Lvを出していなかったのに対し、同条件を表示する<code>src/Shop.cs:1167</code>は現在値/目標値の両方を出していた不一致を解消。<code>DiffSelect.cs:340</code>を<code>$&quot;解禁：フォロワー {_game?.Followers ?? 0}/{GameManager.LunaticFollowerReq} または 威力 Lv{_game?.ChainLevel(&quot;shot_power&quot;, 3) ?? 0}/3&quot;</code>に変更し、Shop.csと同じ現在値/目標値表示に揃えた。既存の公開アクセサ<code>Followers</code>(<code>GameManager.cs:414</code>)・<code>ChainLevel</code>(<code>GameManager.cs:548</code>)をそのまま使用、新規ロジック追加なし。レイアウト・難易度パラメータ・Shop.cs側は無変更。<strong>検証</strong>: <code>git diff</code>で変更が表示文言1行のみであることを確認、<code>dotnet build algo_shoot.sln</code> 0 Warning/0 Error（指揮官が再実行して確認済み）。</p>
+      </li>
       <li class="task is-done">
         <div class="task-head">
           <span class="chip chip-p2">P2</span>
@@ -2873,18 +2873,18 @@
   <section>
     <h2>直近のコミット</h2>
     <ul class="log">
+      <li><span class="h">dbd36987</span><span>2026-10-06</span><span class="s">auto: WIP着手 - DiffSelectのLUNATIC解禁条件表示に現在値を追加</span></li>
+      <li><span class="h">bed931ff</span><span>2026-10-06</span><span class="s">auto: EnemyBulletSpeed死にパラメータの削除（BossRei/BossMina/BossHikage/CameoBoss）</span></li>
       <li><span class="h">c42614f9</span><span>2026-10-06</span><span class="s">auto: WIP着手 - EnemyBulletSpeed死にパラメータの整理</span></li>
       <li><span class="h">667ae96f</span><span>2026-10-06</span><span class="s">auto: 監査で3件をキューに追加（TODO3件）</span></li>
       <li><span class="h">ea67145d</span><span>2026-10-05</span><span class="s">auto: 後方弾HUDバッジ&quot;OK!&quot;表記の誤読を是正</span></li>
       <li><span class="h">f1f47f97</span><span>2026-10-05</span><span class="s">auto: WIP着手 - 後方弾HUDバッジ&quot;OK!&quot;表記の誤読修正</span></li>
       <li><span class="h">8961d813</span><span>2026-10-05</span><span class="s">auto: 監査で2件をキューに追加（TODO1件・BLOCKED1件）</span></li>
       <li><span class="h">f809cf75</span><span>2026-10-04</span><span class="s">auto: boss_stats.ini残存旧称「お残し」を「見残し」に置換</span></li>
-      <li><span class="h">7237c972</span><span>2026-10-04</span><span class="s">auto: WIP着手 - boss_stats.ini残存旧称「お残し」の置換</span></li>
-      <li><span class="h">68fff6ae</span><span>2026-10-04</span><span class="s">auto: コメント内file:line参照ズレを2件修正</span></li>
     </ul>
   </section>
 
-  <footer>生成 2026-10-06 18:53 UTC — DEV_QUEUE.md より自動生成</footer>
+  <footer>生成 2026-10-06 18:56 UTC — DEV_QUEUE.md より自動生成</footer>
 </div>
 
 <script>
