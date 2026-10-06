@@ -85,9 +85,9 @@
 
 <!-- 2026-10-06 監査モード(game-designer/engineer/scenario/qa並列)で追加。engineerは2件TODOへ、game-designerは1件TODOへ、scenario/qaは新規指摘0件(qaは全パスclean run) -->
 
-- [ ] (P3) BossHikage.csのphase1_intervalフォールバック値がini実効値からズレたまま放置されている | engineer | 根拠=`config/boss_stats.ini:179`の`[hikage] phase1_interval`は2026-10-04のDONEタスク（初回ボス難度調整）で`1.1`→`0.95`に変更済みだが、フォールバック用の`src/BossHikage.cs:21`のフィールド初期値`_p1Interval = 1.1`と`:53`の`BossTuning.F("hikage", "phase1_interval", 1.1f)`の第3引数は旧値`1.1f`のまま更新されていない（同DONE項目(本ファイル196行目)自身が「副次的に発見…受入条件外のため未修正、別途起票が要る」と明記したまま今日まで起票されていなかった分）。`BossHikage.cs:21,53`の`1.1`を`0.95f`に変更し、ini実効値とフォールバックを整合させる。
-
 ## WIP
+
+- [ ] (P3) BossHikage.csのphase1_intervalフォールバック値がini実効値からズレたまま放置されている | engineer | 根拠=`config/boss_stats.ini:179`の`[hikage] phase1_interval`は2026-10-04のDONEタスク（初回ボス難度調整）で`1.1`→`0.95`に変更済みだが、フォールバック用の`src/BossHikage.cs:21`のフィールド初期値`_p1Interval = 1.1`と`:53`の`BossTuning.F("hikage", "phase1_interval", 1.1f)`の第3引数は旧値`1.1f`のまま更新されていない（同DONE項目(本ファイル196行目)自身が「副次的に発見…受入条件外のため未修正、別途起票が要る」と明記したまま今日まで起票されていなかった分）。`BossHikage.cs:21,53`の`1.1`を`0.95f`に変更し、ini実効値とフォールバックを整合させる。
 
 ## BLOCKED
 
