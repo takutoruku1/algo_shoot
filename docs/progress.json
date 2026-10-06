@@ -1,13 +1,26 @@
 {
-  "generated": "2026-10-05 19:04 UTC",
+  "generated": "2026-10-06 18:53 UTC",
   "counts": {
-    "todo": 0,
+    "todo": 2,
     "wip": 0,
     "blocked": 47,
-    "done": 289
+    "done": 290
   },
-  "percent": 100,
-  "todo": [],
+  "percent": 99,
+  "todo": [
+    {
+      "priority": "P2",
+      "title": "難易度選択画面(DiffSelect)のLUNATIC解禁条件表示にプレイヤーの現在値が出ずショップ画面と情報粒度が食い違っている",
+      "worker": "game-designer",
+      "accept": "根拠=`src/DiffSelect.cs:340`の`UiKit.Text(..., $\"解禁：フォロワー {GameManager.LunaticFollowerReq} または 威力 Lv3\", ...)`は条件の定数のみを表示し、プレイヤーの現在のフォロワー数・現在の光の出力Lvを一切出さない（`Followers`/`ChainLevel`の参照は0件）。一方同じ解禁条件を表示する`src/Shop.cs:1167`は`$\"LUNATIC解放まで: フォロワー {_game.Followers}/{GameManager.LunaticFollowerReq} ／ 光の出力 Lv{_game.ChainLevel(\"shot_power\", 3)}/3\"`と現在値/目標値の両方を出している。`DiffSelect.cs:340`の文言を`$\"解禁：フォロワー {_game?.Followers ?? 0}/{GameManager.LunaticFollowerReq} または 威力 Lv{_game?.ChainLevel(\"shot_power\", 3) ?? 0}/3\"`に変更し、Shop.csと同じ現在値/目標値表示に揃える（新規ロジック追加不要、既存の公開アクセサ`Followers`(`GameManager.cs:414`)・`ChainLevel`(`GameManager.cs:548`)の参照のみ）。"
+    },
+    {
+      "priority": "P3",
+      "title": "BossHikage.csのphase1_intervalフォールバック値がini実効値からズレたまま放置されている",
+      "worker": "engineer",
+      "accept": "根拠=`config/boss_stats.ini:179`の`[hikage] phase1_interval`は2026-10-04のDONEタスク（初回ボス難度調整）で`1.1`→`0.95`に変更済みだが、フォールバック用の`src/BossHikage.cs:21`のフィールド初期値`_p1Interval = 1.1`と`:53`の`BossTuning.F(\"hikage\", \"phase1_interval\", 1.1f)`の第3引数は旧値`1.1f`のまま更新されていない（同DONE項目(本ファイル196行目)自身が「副次的に発見…受入条件外のため未修正、別途起票が要る」と明記したまま今日まで起票されていなかった分）。`BossHikage.cs:21,53`の`1.1`を`0.95f`に変更し、ini実効値とフォールバックを整合させる。"
+    }
+  ],
   "wip": [],
   "blocked": [
     {
@@ -294,6 +307,12 @@
     }
   ],
   "done": [
+    {
+      "priority": "P2",
+      "title": "EnemyBulletSpeedがBossRei/BossMina/BossHikage/CameoBossで書き込み専用の死んだパラメータになっている",
+      "worker": "engineer",
+      "accept": "(完了 2026-10-06) 2026-10-06監査(engineer)発見。config/boss_stats.iniのbullet_speed調整がこの4ボスに一切効かない死にパラメータだった。MidEnemy/EnemySpec.BulletSpeed削除時(DONE 2026-09-02)と同じ方式(a)=完全削除を採用。`src/BossRei.cs:123`・`src/BossMina.cs:77`・`src/BossHikage.cs:46`・`src/CameoBoss.cs:92`の書き込み専用代入`EnemyBulletSpeed = BossTuning.F(...)`を削除し、`config/boss_stats.ini`の`[rei]`/`[mina]`/`[hikage]`/`[cameo]`各セクションの対応する`bullet_speed`キー・コメントも削除。実際の発射ロジック（`_ringSpeed`/`_aimedSpeed`/`_spiralSpeed`、CameoBossの`CameoBulletSpd`定数等）・`[akari]`/`[koharu]`（実際に`EnemyBulletSpeed`を読み出して使用中のため対象外）は無変更。**検証**: `grep -rn \"EnemyBulletSpeed\" src/*.cs`で削除4ファイルからの残存参照0件・`grep -n bullet_speed config/boss_stats.ini`で[akari]/[koharu]のみ残存を確認、`git diff`で変更が死にコード削除のみであることを確認、`dotnet build algo_shoot.sln` 0 Warning/0 Error（指揮官が再実行して確認済み）。"
+    },
     {
       "priority": "P3",
       "title": "後方弾HUDバッジの\"OK!\"表記がボタン操作可能に見える誤読を招く",
@@ -2031,44 +2050,44 @@
   ],
   "commits": [
     {
-      "hash": "f1f47f9",
+      "hash": "c42614f9",
+      "date": "2026-10-06",
+      "subject": "auto: WIP着手 - EnemyBulletSpeed死にパラメータの整理"
+    },
+    {
+      "hash": "667ae96f",
+      "date": "2026-10-06",
+      "subject": "auto: 監査で3件をキューに追加（TODO3件）"
+    },
+    {
+      "hash": "ea67145d",
+      "date": "2026-10-05",
+      "subject": "auto: 後方弾HUDバッジ\"OK!\"表記の誤読を是正"
+    },
+    {
+      "hash": "f1f47f97",
       "date": "2026-10-05",
       "subject": "auto: WIP着手 - 後方弾HUDバッジ\"OK!\"表記の誤読修正"
     },
     {
-      "hash": "8961d81",
+      "hash": "8961d813",
       "date": "2026-10-05",
       "subject": "auto: 監査で2件をキューに追加（TODO1件・BLOCKED1件）"
     },
     {
-      "hash": "f809cf7",
+      "hash": "f809cf75",
       "date": "2026-10-04",
       "subject": "auto: boss_stats.ini残存旧称「お残し」を「見残し」に置換"
     },
     {
-      "hash": "7237c97",
+      "hash": "7237c972",
       "date": "2026-10-04",
       "subject": "auto: WIP着手 - boss_stats.ini残存旧称「お残し」の置換"
     },
     {
-      "hash": "68fff6a",
+      "hash": "68fff6ae",
       "date": "2026-10-04",
       "subject": "auto: コメント内file:line参照ズレを2件修正"
-    },
-    {
-      "hash": "19c9403",
-      "date": "2026-10-04",
-      "subject": "auto: WIP着手 - コメント内file:line参照ズレの修正"
-    },
-    {
-      "hash": "17eaf92",
-      "date": "2026-10-04",
-      "subject": "auto: 実装中の副次的発見を1件キューに追加（boss_stats.ini旧称残存）"
-    },
-    {
-      "hash": "1f8f35a",
-      "date": "2026-10-04",
-      "subject": "auto: boss_stats.iniの旧世界観名称・旧称コメントを是正"
     }
   ]
 }

@@ -89,7 +89,6 @@ public partial class CameoBoss : Enemy
         PanelInk = BossTuning.I("cameo", "panel_ink", CameoPanelInk);
         OrbitRadius = BossTuning.F("cameo", "orbit_radius", CameoOrbitR);
         SpinSpeed = BossTuning.F("cameo", "spin_speed", CameoSpin);
-        EnemyBulletSpeed = BossTuning.F("cameo", "bullet_speed", CameoBulletSpd);
         BarCount = Mathf.Max(1, BossTuning.I("cameo", "hp_bars", CameoBars)); // HPバー方式ON（総HP=BarHp×本数）
 
         PreTexPath = Theme.PreTex;
