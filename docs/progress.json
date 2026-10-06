@@ -1,20 +1,13 @@
 {
-  "generated": "2026-10-06 18:56 UTC",
+  "generated": "2026-10-06 18:57 UTC",
   "counts": {
-    "todo": 1,
+    "todo": 0,
     "wip": 0,
     "blocked": 47,
-    "done": 291
+    "done": 292
   },
   "percent": 100,
-  "todo": [
-    {
-      "priority": "P3",
-      "title": "BossHikage.csのphase1_intervalフォールバック値がini実効値からズレたまま放置されている",
-      "worker": "engineer",
-      "accept": "根拠=`config/boss_stats.ini:179`の`[hikage] phase1_interval`は2026-10-04のDONEタスク（初回ボス難度調整）で`1.1`→`0.95`に変更済みだが、フォールバック用の`src/BossHikage.cs:21`のフィールド初期値`_p1Interval = 1.1`と`:53`の`BossTuning.F(\"hikage\", \"phase1_interval\", 1.1f)`の第3引数は旧値`1.1f`のまま更新されていない（同DONE項目(本ファイル196行目)自身が「副次的に発見…受入条件外のため未修正、別途起票が要る」と明記したまま今日まで起票されていなかった分）。`BossHikage.cs:21,53`の`1.1`を`0.95f`に変更し、ini実効値とフォールバックを整合させる。"
-    }
-  ],
+  "todo": [],
   "wip": [],
   "blocked": [
     {
@@ -301,6 +294,12 @@
     }
   ],
   "done": [
+    {
+      "priority": "P3",
+      "title": "BossHikage.csのphase1_intervalフォールバック値がini実効値からズレたまま放置されている",
+      "worker": "engineer",
+      "accept": "(完了 2026-10-06) 2026-10-06監査(engineer)発見。`config/boss_stats.ini:179`の`[hikage] phase1_interval`は2026-10-04に`1.1`→`0.95`に変更済みだったが、フォールバック用の`src/BossHikage.cs:21`のフィールド初期値`_p1Interval = 1.1`と`:52`の`BossTuning.F(\"hikage\", \"phase1_interval\", 1.1f)`の第3引数が旧値`1.1f`のまま残っていた不整合を解消。両箇所を`0.95`/`0.95f`に変更しini実効値とフォールバックを整合。他の値（phase2/phase3, roam_speed等）・ini本体は無変更。**検証**: `git diff`で変更が数値2箇所のみであることを確認、`dotnet build algo_shoot.sln` 0 Warning/0 Error。"
+    },
     {
       "priority": "P2",
       "title": "難易度選択画面(DiffSelect)のLUNATIC解禁条件表示にプレイヤーの現在値が出ずショップ画面と情報粒度が食い違っている",
@@ -2050,6 +2049,16 @@
   ],
   "commits": [
     {
+      "hash": "a83e2410",
+      "date": "2026-10-06",
+      "subject": "auto: WIP着手 - BossHikage phase1_intervalフォールバック値の整合"
+    },
+    {
+      "hash": "c6241f16",
+      "date": "2026-10-06",
+      "subject": "auto: DiffSelectのLUNATIC解禁条件表示に現在値を追加"
+    },
+    {
       "hash": "dbd36987",
       "date": "2026-10-06",
       "subject": "auto: WIP着手 - DiffSelectのLUNATIC解禁条件表示に現在値を追加"
@@ -2078,16 +2087,6 @@
       "hash": "f1f47f97",
       "date": "2026-10-05",
       "subject": "auto: WIP着手 - 後方弾HUDバッジ\"OK!\"表記の誤読修正"
-    },
-    {
-      "hash": "8961d813",
-      "date": "2026-10-05",
-      "subject": "auto: 監査で2件をキューに追加（TODO1件・BLOCKED1件）"
-    },
-    {
-      "hash": "f809cf75",
-      "date": "2026-10-04",
-      "subject": "auto: boss_stats.ini残存旧称「お残し」を「見残し」に置換"
     }
   ]
 }

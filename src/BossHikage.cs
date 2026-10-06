@@ -18,7 +18,7 @@ public partial class BossHikage : Enemy
     private const float BulletR = 3.4f;
 
     // ── INI 外出しのバランス値（config/boss_stats.ini [hikage]。読めなければ現行既定値）──
-    private double _p1Interval = 1.1, _p2Interval = 0.085, _p3Interval = 0.72;
+    private double _p1Interval = 0.95, _p2Interval = 0.085, _p3Interval = 0.72;
     private int _p1Count = 18, _p3Count = 12;
     private float _p1Speed = 70f, _p2Speed = 90f;
 
@@ -49,7 +49,7 @@ public partial class BossHikage : Enemy
         BarCount = bars > 0 ? bars : DiffBars(finalBoss: false);
 
         // 弾幕の外出し値（INIに無ければフィールド初期値＝現行値のまま）。
-        _p1Interval = BossTuning.F("hikage", "phase1_interval", 1.1f);
+        _p1Interval = BossTuning.F("hikage", "phase1_interval", 0.95f);
         _p1Count = BossTuning.I("hikage", "phase1_count", 18);
         _p1Speed = BossTuning.F("hikage", "phase1_speed", 70f);
         _p2Interval = BossTuning.F("hikage", "phase2_interval", 0.085f);
