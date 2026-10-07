@@ -557,8 +557,16 @@ public partial class StageZero : Node
     }
 
     // ボム練習：ダミー敵を3体まとめて出す（ボムは全画面浄化なので3体居れば1発で巻き込める）。
+    // SpawnDummy()と同種の簡易デバウンス（直前スポーンから一定時間内の呼び出しは素通り）。
+    // BombKillNeed進行条件・SafetyTimeoutには影響しない（単なる多重スポーン防止）。
+    private double _lastBombClusterSpawnAt = double.NegativeInfinity;
+
     private void SpawnBombCluster()
     {
+        double now = Time.GetTicksMsec() / 1000.0;
+        if (now - _lastBombClusterSpawnAt < DummySpawnDebounce) return;
+        _lastBombClusterSpawnAt = now;
+
         for (int i = 0; i < BombKillNeed; i++)
         {
             var e = new GlyphMote(); // 弾を撃たない＝練習中に痛手なし
@@ -588,8 +596,16 @@ public partial class StageZero : Node
 
     // 向き反転練習：今向いている方向とは逆側（＝背後）にダミーを置く。撃たずとも良い、無害な標的（撃ち込めば消える）。
     // 「引用リプ」(FlankAim) が背後に着座する体験を模して、向きを変える理由を作る。
+    // SpawnDummy()と同種の簡易デバウンス（直前スポーンから一定時間内の呼び出しは素通り）。
+    // FlipNeed進行条件・SafetyTimeoutには影響しない（単なる多重スポーン防止）。
+    private double _lastFlankDummySpawnAt = double.NegativeInfinity;
+
     private void SpawnFlankDummy()
     {
+        double now = Time.GetTicksMsec() / 1000.0;
+        if (now - _lastFlankDummySpawnAt < DummySpawnDebounce) return;
+        _lastFlankDummySpawnAt = now;
+
         float px = Player?.GlobalPosition.X ?? CenterX;
         int facing = Player?.Facing ?? 1;
         float x = facing >= 0 ? Mathf.Max(20f, px - 140f) : Mathf.Min(364f, px + 140f);

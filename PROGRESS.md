@@ -1,20 +1,20 @@
 # PROGRESS — 自動開発の進捗
 
 > `node tools/progress.mjs` が `DEV_QUEUE.md` から自動生成。手で編集しない。
-> 生成: 2026-10-06 18:57 UTC
+> 生成: 2026-10-07 18:38 UTC
 
 ## 消化率
 
 ```
-████████████████████  100%   (完了 292 / 対象 292)
+████████████████████  100%   (完了 293 / 対象 294)
 ```
 
 | 状態 | 件数 |
 |---|---:|
-| ✅ 完了 | 292 |
+| ✅ 完了 | 293 |
 | 🔨 作業中 | 0 |
-| 📋 残り | 0 |
-| ⛔ 保留（人間の判断待ち） | 47 |
+| 📋 残り | 1 |
+| ⛔ 保留（人間の判断待ち） | 49 |
 
 ## 🔨 いま作業中
 
@@ -22,10 +22,12 @@ _なし_
 
 ## 📋 次にやること
 
-_キューが空です_
+- `P3` Audio.cs冒頭コメント「鳴らす土台のみ」が実態（BGM11本配線済み）と矛盾している
 
 ## ⛔ 保留（自動では進められない）
 
+- `wiki/08_仮台本/01_声の劣化.md`が新規提案のまま一度もDEV_QUEUEに記録・判断されていない
+- `wiki/08_仮台本/02_共感ポイント.md`が新規提案のまま一度もDEV_QUEUEに記録・判断されていない
 - StageMina.cs/BossMina.csが承認済み仮台本08(2026-09-05)のF1〜F3少年台詞置換指示に反し、案C未反映の少年中心セリフをそのまま稼働させ続けている
 - FINAL「暴走したミナ」内での歴代ボス背景“追体験”演出(MinaRoot.Journey)が案C以前の旧面順のまま実装され、演出コメント自身の論理(道を遡る)とも矛盾している
 - `docs/ストーリー見直しロードマップ.md`と`docs/タッグ見直し_シナリオUI提案.md`が案C承認(2026-09-05)後も無警告のまま「少年実在」前提の内容を残している
@@ -76,6 +78,7 @@ _キューが空です_
 
 ## ✅ 完了
 
+- `P2` STAGE0チュートリアル「ボム練習」(case10)と「向き反転練習」(case16)がrespawn-killの高速ループでPurifiedCount暴走とFPS急落を起こす
 - `P3` BossHikage.csのphase1_intervalフォールバック値がini実効値からズレたまま放置されている
 - `P2` 難易度選択画面(DiffSelect)のLUNATIC解禁条件表示にプレイヤーの現在値が出ずショップ画面と情報粒度が食い違っている
 - `P2` EnemyBulletSpeedがBossRei/BossMina/BossHikage/CameoBossで書き込み専用の死んだパラメータになっている
@@ -371,11 +374,11 @@ _キューが空です_
 
 ## 直近のコミット
 
-- `a83e2410` 2026-10-06 auto: WIP着手 - BossHikage phase1_intervalフォールバック値の整合
-- `c6241f16` 2026-10-06 auto: DiffSelectのLUNATIC解禁条件表示に現在値を追加
-- `dbd36987` 2026-10-06 auto: WIP着手 - DiffSelectのLUNATIC解禁条件表示に現在値を追加
-- `bed931ff` 2026-10-06 auto: EnemyBulletSpeed死にパラメータの削除（BossRei/BossMina/BossHikage/CameoBoss）
-- `c42614f9` 2026-10-06 auto: WIP着手 - EnemyBulletSpeed死にパラメータの整理
-- `667ae96f` 2026-10-06 auto: 監査で3件をキューに追加（TODO3件）
-- `ea67145d` 2026-10-05 auto: 後方弾HUDバッジ"OK!"表記の誤読を是正
-- `f1f47f97` 2026-10-05 auto: WIP着手 - 後方弾HUDバッジ"OK!"表記の誤読修正
+- `0541e89` 2026-10-07 auto: WIP着手 - STAGE0ボム練習/向き反転練習のrespawn-killデバウンス追加
+- `fd602e0` 2026-10-07 auto: 監査で4件をキューに追加（TODO2件・BLOCKED2件）
+- `e55e803` 2026-10-06 auto: BossHikage phase1_intervalフォールバック値をini実効値(0.95)に整合
+- `a83e241` 2026-10-06 auto: WIP着手 - BossHikage phase1_intervalフォールバック値の整合
+- `c6241f1` 2026-10-06 auto: DiffSelectのLUNATIC解禁条件表示に現在値を追加
+- `dbd3698` 2026-10-06 auto: WIP着手 - DiffSelectのLUNATIC解禁条件表示に現在値を追加
+- `bed931f` 2026-10-06 auto: EnemyBulletSpeed死にパラメータの削除（BossRei/BossMina/BossHikage/CameoBoss）
+- `c42614f` 2026-10-06 auto: WIP着手 - EnemyBulletSpeed死にパラメータの整理
