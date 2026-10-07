@@ -85,9 +85,19 @@
 
 <!-- 2026-10-06 監査モード(game-designer/engineer/scenario/qa並列)で追加。engineerは2件TODOへ、game-designerは1件TODOへ、scenario/qaは新規指摘0件(qaは全パスclean run) -->
 
+<!-- 2026-10-07 監査モード(game-designer/engineer/scenario/qa並列)で追加。qaは1件TODOへ、engineerは1件TODOへ、game-designerは新規指摘0件、scenarioは新規TODO0件(BLOCKEDへ2件) -->
+
+- [ ] (P2) STAGE0チュートリアル「ボム練習」(case10)と「向き反転練習」(case16)がrespawn-killの高速ループでPurifiedCount暴走とFPS急落を起こす | engineer | 2026-10-07監査(qa)発見。`src/StageZero.cs:578-583`の`SpawnDummy()`は`_lastDummySpawnAt`による0.5秒デバウンスを持つが、同種の即時再湧き構造を持つ`SpawnBombCluster()`(`src/StageZero.cs:560-568`、呼び出し元`:262,274,278`の`else if (!bombed && CountLiveEnemies() == 0) SpawnBombCluster();`)と`SpawnFlankDummy()`(`:591-599`、呼び出し元`:436,438`)にはデバウンスが無い。実機再現ログ`build/qa/progress.log:79-86`で`t=074.5 purified=27/99 fps=145`→`t=077.5 purified=602 fps=15`まで暴走を確認。`SpawnBombCluster()`と`SpawnFlankDummy()`にも`SpawnDummy()`と同様の`_lastDummySpawnAt`方式デバウンス(0.5秒)を追加する。`BombKillNeed`/`FlipNeed`/`SafetyTimeout`等の進行条件は変更しない。`dotnet build algo_shoot.sln`が0 Warning/0 Errorで通ること。
+- [ ] (P3) Audio.cs冒頭コメント「鳴らす土台のみ」が実態（BGM11本配線済み）と矛盾している | engineer | 2026-10-07監査(engineer)発見。`src/Audio.cs:11`「※この段階では『鳴らす土台』のみ。実音源（.ogg等）は別途調達して各所で差し込む。」は2026-06-18の初期実装時点のコメントのまま。実際には`audio/*.ogg`11本が実在し各`Load*()`（例`src/Audio.cs:1014 LoadBgmStageRei()`）経由で既に配線済み（2026-07-23コミットで導入）。一方SE/タイプ音は今も合成プレースホルダのままなので、そちらは「土台のみ」の記述が正しい。`:11`の文言を「BGM(11本)はライセンス実音源に差し替え済み。SE/会話タイプ音は合成プレースホルダのまま」等、実態に合わせて修正する（コメント1箇所の文言修正のみ、ロジック無変更）。`dotnet build algo_shoot.sln`が0 Warning/0 Errorで通ること。
+
 ## WIP
 
 ## BLOCKED
+
+<!-- 2026-10-07 監査モード(scenario)で追加。仮台本草稿が一度もDEV_QUEUEに記録・判断されていない運用漏れ2件 -->
+
+- [ ] `wiki/08_仮台本/01_声の劣化.md`が新規提案のまま一度もDEV_QUEUEに記録・判断されていない | scenario | 要ユーザー判断（仮台本未承認）。2026-10-07監査(scenario)発見。`wiki/08_仮台本/01_声の劣化.md:1-11`は「少年＝遺されたアーカイブの再生」という真相を、FINALの既存実装（`src/BossMina.cs:65`「……今度は、ぼくが行く番だ。」／`src/StageMina.cs:49-50`）を到達点として手前の章に文字欠落の勾番を敷く提案。本文冒頭で「検討中の草稿。実装された物語ではない。採用可否はこの台本を読んで決める」と自己申告したまま`grep -n "声の劣化" DEV_QUEUE.md`が1件もヒットせず未記録。かつ対象の`BossMina.cs`/`StageMina.cs`は既存BLOCKED（本ファイル内、2026-10-05発見「案C仮台本08のF1〜F3少年台詞置換指示に反し未置換のまま稼働中」）と同一コード領域で、01の演出を深化させる対象そのものが別件の判断待ち状態にある。要ユーザー判断: (a)01を正式採用し仮台本化を進める（既存BLOCKEDのMinaBattle構造判断が先に要る）、(b)案C完全移行(少年line削除)が決まれば01は前提消失のため却下、(c)保留のまま存置。
+- [ ] `wiki/08_仮台本/02_共感ポイント.md`が新規提案のまま一度もDEV_QUEUEに記録・判断されていない | scenario | 要ユーザー判断（仮台本未承認）。2026-10-07監査(scenario)発見。`wiki/08_仮台本/02_共感ポイント.md:1-10`は三人(あかり/こはる/レイ)の「闇の解像度」挿入行と「ミナ発の決定打」二段構成の草稿で、冒頭に「検討中の草稿。実装された物語ではない」と自己申告したまま`grep -n "共感ポイント" DEV_QUEUE.md`が0件で未記録。承認済み仮台本06〜08(2026-09-05承認)は既に同種の二段構成でSTAGE1〜3を実装済みだが、02が06〜08に吸収済みなのか02独自の未反映提案が残っているのかの整理が一度もされていない。要ユーザー判断: (a)02は06〜08に吸収済みとしてファイル冒頭に「反映済み・非正典の初稿」と注記して完結扱い、(b)02に未収録の独自提案が残っているなら抽出して仮台本化の是非を判断、(c)保留のまま存置。
 
 <!-- 2026-10-05 監査モード(scenario)で追加。既存BLOCKED(直下2件先、2026-09-07発見「案C正典にはミナ本人とのラスボス戦が存在しないが実装に残存」)のMinaBattle構造判断に依存するため、置換自体は仮台本08に確定済みテキストがあっても先行着手不能 -->
 
