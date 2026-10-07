@@ -87,10 +87,11 @@
 
 <!-- 2026-10-07 監査モード(game-designer/engineer/scenario/qa並列)で追加。qaは1件TODOへ、engineerは1件TODOへ、game-designerは新規指摘0件、scenarioは新規TODO0件(BLOCKEDへ2件) -->
 
-- [ ] (P2) STAGE0チュートリアル「ボム練習」(case10)と「向き反転練習」(case16)がrespawn-killの高速ループでPurifiedCount暴走とFPS急落を起こす | engineer | 2026-10-07監査(qa)発見。`src/StageZero.cs:578-583`の`SpawnDummy()`は`_lastDummySpawnAt`による0.5秒デバウンスを持つが、同種の即時再湧き構造を持つ`SpawnBombCluster()`(`src/StageZero.cs:560-568`、呼び出し元`:262,274,278`の`else if (!bombed && CountLiveEnemies() == 0) SpawnBombCluster();`)と`SpawnFlankDummy()`(`:591-599`、呼び出し元`:436,438`)にはデバウンスが無い。実機再現ログ`build/qa/progress.log:79-86`で`t=074.5 purified=27/99 fps=145`→`t=077.5 purified=602 fps=15`まで暴走を確認。`SpawnBombCluster()`と`SpawnFlankDummy()`にも`SpawnDummy()`と同様の`_lastDummySpawnAt`方式デバウンス(0.5秒)を追加する。`BombKillNeed`/`FlipNeed`/`SafetyTimeout`等の進行条件は変更しない。`dotnet build algo_shoot.sln`が0 Warning/0 Errorで通ること。
 - [ ] (P3) Audio.cs冒頭コメント「鳴らす土台のみ」が実態（BGM11本配線済み）と矛盾している | engineer | 2026-10-07監査(engineer)発見。`src/Audio.cs:11`「※この段階では『鳴らす土台』のみ。実音源（.ogg等）は別途調達して各所で差し込む。」は2026-06-18の初期実装時点のコメントのまま。実際には`audio/*.ogg`11本が実在し各`Load*()`（例`src/Audio.cs:1014 LoadBgmStageRei()`）経由で既に配線済み（2026-07-23コミットで導入）。一方SE/タイプ音は今も合成プレースホルダのままなので、そちらは「土台のみ」の記述が正しい。`:11`の文言を「BGM(11本)はライセンス実音源に差し替え済み。SE/会話タイプ音は合成プレースホルダのまま」等、実態に合わせて修正する（コメント1箇所の文言修正のみ、ロジック無変更）。`dotnet build algo_shoot.sln`が0 Warning/0 Errorで通ること。
 
 ## WIP
+
+- [ ] (P2) STAGE0チュートリアル「ボム練習」(case10)と「向き反転練習」(case16)がrespawn-killの高速ループでPurifiedCount暴走とFPS急落を起こす | engineer | 2026-10-07監査(qa)発見。`src/StageZero.cs:578-583`の`SpawnDummy()`は`_lastDummySpawnAt`による0.5秒デバウンスを持つが、同種の即時再湧き構造を持つ`SpawnBombCluster()`(`src/StageZero.cs:560-568`、呼び出し元`:262,274,278`の`else if (!bombed && CountLiveEnemies() == 0) SpawnBombCluster();`)と`SpawnFlankDummy()`(`:591-599`、呼び出し元`:436,438`)にはデバウンスが無い。実機再現ログ`build/qa/progress.log:79-86`で`t=074.5 purified=27/99 fps=145`→`t=077.5 purified=602 fps=15`まで暴走を確認。`SpawnBombCluster()`と`SpawnFlankDummy()`にも`SpawnDummy()`と同様の`_lastDummySpawnAt`方式デバウンス(0.5秒)を追加する。`BombKillNeed`/`FlipNeed`/`SafetyTimeout`等の進行条件は変更しない。`dotnet build algo_shoot.sln`が0 Warning/0 Errorで通ること。
 
 ## BLOCKED
 
