@@ -1,19 +1,19 @@
 # PROGRESS — 自動開発の進捗
 
 > `node tools/progress.mjs` が `DEV_QUEUE.md` から自動生成。手で編集しない。
-> 生成: 2026-10-07 18:38 UTC
+> 生成: 2026-10-07 18:39 UTC
 
 ## 消化率
 
 ```
-████████████████████  100%   (完了 293 / 対象 294)
+████████████████████  100%   (完了 294 / 対象 294)
 ```
 
 | 状態 | 件数 |
 |---|---:|
-| ✅ 完了 | 293 |
+| ✅ 完了 | 294 |
 | 🔨 作業中 | 0 |
-| 📋 残り | 1 |
+| 📋 残り | 0 |
 | ⛔ 保留（人間の判断待ち） | 49 |
 
 ## 🔨 いま作業中
@@ -22,7 +22,7 @@ _なし_
 
 ## 📋 次にやること
 
-- `P3` Audio.cs冒頭コメント「鳴らす土台のみ」が実態（BGM11本配線済み）と矛盾している
+_キューが空です_
 
 ## ⛔ 保留（自動では進められない）
 
@@ -78,6 +78,7 @@ _なし_
 
 ## ✅ 完了
 
+- `P3` Audio.cs冒頭コメント「鳴らす土台のみ」が実態（BGM11本配線済み）と矛盾している
 - `P2` STAGE0チュートリアル「ボム練習」(case10)と「向き反転練習」(case16)がrespawn-killの高速ループでPurifiedCount暴走とFPS急落を起こす
 - `P3` BossHikage.csのphase1_intervalフォールバック値がini実効値からズレたまま放置されている
 - `P2` 難易度選択画面(DiffSelect)のLUNATIC解禁条件表示にプレイヤーの現在値が出ずショップ画面と情報粒度が食い違っている
@@ -374,11 +375,11 @@ _なし_
 
 ## 直近のコミット
 
+- `1e722be` 2026-10-07 auto: WIP着手 - Audio.cs冒頭コメントの実態反映
+- `c34d4dc` 2026-10-07 auto: STAGE0ボム練習/向き反転練習のrespawn-killデバウンス追加
 - `0541e89` 2026-10-07 auto: WIP着手 - STAGE0ボム練習/向き反転練習のrespawn-killデバウンス追加
 - `fd602e0` 2026-10-07 auto: 監査で4件をキューに追加（TODO2件・BLOCKED2件）
 - `e55e803` 2026-10-06 auto: BossHikage phase1_intervalフォールバック値をini実効値(0.95)に整合
 - `a83e241` 2026-10-06 auto: WIP着手 - BossHikage phase1_intervalフォールバック値の整合
 - `c6241f1` 2026-10-06 auto: DiffSelectのLUNATIC解禁条件表示に現在値を追加
 - `dbd3698` 2026-10-06 auto: WIP着手 - DiffSelectのLUNATIC解禁条件表示に現在値を追加
-- `bed931f` 2026-10-06 auto: EnemyBulletSpeed死にパラメータの削除（BossRei/BossMina/BossHikage/CameoBoss）
-- `c42614f` 2026-10-06 auto: WIP着手 - EnemyBulletSpeed死にパラメータの整理

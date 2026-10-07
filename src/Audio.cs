@@ -8,7 +8,8 @@ using System.Collections.Generic;
 //   バスは default_bus_layout.tres（Master/Music/SE/Voice/Amb/Alert）。
 //   --qa 時は自己ミュート（QaPilot の無音・高速実行を妨げない / pitfalls P9）。
 //
-// ※この段階では「鳴らす土台」のみ。実音源（.ogg等）は別途調達して各所で差し込む。
+// ※BGM（audio/*.ogg 11本）はライセンス実音源に差し替え済み（各 Load*() 参照）。
+//   SE・会話タイプ音は今も合成プレースホルダのまま。
 public partial class Audio : Node
 {
     public static Audio Instance = null!;

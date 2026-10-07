@@ -1,20 +1,13 @@
 {
-  "generated": "2026-10-07 18:38 UTC",
+  "generated": "2026-10-07 18:39 UTC",
   "counts": {
-    "todo": 1,
+    "todo": 0,
     "wip": 0,
     "blocked": 49,
-    "done": 293
+    "done": 294
   },
   "percent": 100,
-  "todo": [
-    {
-      "priority": "P3",
-      "title": "Audio.cs冒頭コメント「鳴らす土台のみ」が実態（BGM11本配線済み）と矛盾している",
-      "worker": "engineer",
-      "accept": "2026-10-07監査(engineer)発見。`src/Audio.cs:11`「※この段階では『鳴らす土台』のみ。実音源（.ogg等）は別途調達して各所で差し込む。」は2026-06-18の初期実装時点のコメントのまま。実際には`audio/*.ogg`11本が実在し各`Load*()`（例`src/Audio.cs:1014 LoadBgmStageRei()`）経由で既に配線済み（2026-07-23コミットで導入）。一方SE/タイプ音は今も合成プレースホルダのままなので、そちらは「土台のみ」の記述が正しい。`:11`の文言を「BGM(11本)はライセンス実音源に差し替え済み。SE/会話タイプ音は合成プレースホルダのまま」等、実態に合わせて修正する（コメント1箇所の文言修正のみ、ロジック無変更）。`dotnet build algo_shoot.sln`が0 Warning/0 Errorで通ること。"
-    }
-  ],
+  "todo": [],
   "wip": [],
   "blocked": [
     {
@@ -313,6 +306,12 @@
     }
   ],
   "done": [
+    {
+      "priority": "P3",
+      "title": "Audio.cs冒頭コメント「鳴らす土台のみ」が実態（BGM11本配線済み）と矛盾している",
+      "worker": "engineer",
+      "accept": "(完了 2026-10-07) 2026-10-07監査(engineer)発見。`src/Audio.cs:11`「※この段階では『鳴らす土台』のみ。実音源（.ogg等）は別途調達して各所で差し込む。」は2026-06-18の初期実装時点のコメントのまま残存していたが、実際には`audio/*.ogg`11本が実在し各`Load*()`経由で既に配線済み（2026-07-23コミットで導入）。文言を「BGM（audio/*.ogg 11本）はライセンス実音源に差し替え済み（各Load*()参照）。SE・会話タイプ音は今も合成プレースホルダのまま。」に修正。ロジックは無変更。**検証**: `git diff`で変更がコメント1箇所のみであることを確認、`dotnet build algo_shoot.sln` 0 Warning/0 Error。"
+    },
     {
       "priority": "P2",
       "title": "STAGE0チュートリアル「ボム練習」(case10)と「向き反転練習」(case16)がrespawn-killの高速ループでPurifiedCount暴走とFPS急落を起こす",
@@ -2074,6 +2073,16 @@
   ],
   "commits": [
     {
+      "hash": "1e722be",
+      "date": "2026-10-07",
+      "subject": "auto: WIP着手 - Audio.cs冒頭コメントの実態反映"
+    },
+    {
+      "hash": "c34d4dc",
+      "date": "2026-10-07",
+      "subject": "auto: STAGE0ボム練習/向き反転練習のrespawn-killデバウンス追加"
+    },
+    {
       "hash": "0541e89",
       "date": "2026-10-07",
       "subject": "auto: WIP着手 - STAGE0ボム練習/向き反転練習のrespawn-killデバウンス追加"
@@ -2102,16 +2111,6 @@
       "hash": "dbd3698",
       "date": "2026-10-06",
       "subject": "auto: WIP着手 - DiffSelectのLUNATIC解禁条件表示に現在値を追加"
-    },
-    {
-      "hash": "bed931f",
-      "date": "2026-10-06",
-      "subject": "auto: EnemyBulletSpeed死にパラメータの削除（BossRei/BossMina/BossHikage/CameoBoss）"
-    },
-    {
-      "hash": "c42614f",
-      "date": "2026-10-06",
-      "subject": "auto: WIP着手 - EnemyBulletSpeed死にパラメータの整理"
     }
   ]
 }
