@@ -87,6 +87,11 @@
 
 <!-- 2026-10-07 監査モード(game-designer/engineer/scenario/qa並列)で追加。qaは1件TODOへ、engineerは1件TODOへ、game-designerは新規指摘0件、scenarioは新規TODO0件(BLOCKEDへ2件) -->
 
+<!-- 2026-10-08 監査モード(game-designer/engineer/scenario/qa並列)で追加。game-designerは1件TODOへ、engineerは1件TODOへ、scenarioは新規TODO0件(BLOCKEDへ1件)、qaは新規指摘0件(全パスclean run) -->
+
+- [ ] (P1) HUD左上バッジの自動退避ゾーンが新バッジ3つ(炎上/集中打撃/後方弾)を未カバー | game-designer | 2026-10-08監査(game-designer)発見。`src/Hud.cs:211`の`TopLeftZone = new Rect2(10, 12, 240, 240)`（下端y=252）が、後から追加された`DrawBurning`(`Hud.cs:1397`,y=249-273)・`DrawFocusFire`(`Hud.cs:1414`,y=277-301)・`DrawBackfire`(`Hud.cs:1437`,y=305-329、`Hud.cs:839`で所持ゲート無し全プレイ常設)の足元をカバーしておらず、敵弾通過時の自動フェード(`UpdateTopLeftFade`,`Hud.cs:414-436`)が発火しない。`TopLeftZone`の高さを240→320に広げ(`Hud.cs:211`)、`Hud.cs:209-210`の内包物コメントも8要素に更新すること。ロジック変更なし、見た目のみ。
+- [ ] (P3) WorldGrade.csの「PlayerNormXが公開されたら」コメントが既に解決済みの実装と矛盾 | engineer | 2026-10-08監査(engineer)発見。`src/WorldGrade.cs:24-25`のコメントは「`GameManager.PlayerNormX`が公開されたらそちらを優先する」という未来条件文だが、`GameManager.cs:142`で既に`public float PlayerNormX`として公開済みで、`WorldGrade.cs:94`の`Nx`プロパティも`BgScroll.PlayerNx()`(`StageBackground.cs:338-341`)経由で既にそれを優先利用している。コメントを「既に公開済み・優先利用中」の確定済み事実に書き換えること。ロジック変更なし。
+
 ## WIP
 
 ## BLOCKED
@@ -196,6 +201,10 @@
 <!-- 2026-09-30 監査モード(engineer)で追加 -->
 
 - [ ] Koharu面等で低確率(3回中1回相当)に再現するSIGABRTクラッシュ(Godot mono GC/ファイナライザ競合)が未起票のまま放置 | engineer | 要ユーザー判断（通常プレイでの再現性を切り分けないと対応方針が決まらない）。2026-09-30監査(engineer)発見。DONE(完了2026-09-16、Training.tscnクラッシュ対応)の検証記録内で担当engineer自身が「`FATAL: csharp_lang && !csharp_lang->script_bindings.is_empty()`というGodot 4.6.3 mono側のGC/ファイナライザスレッド競合クラッシュは、Training固有ではなく低確率ながら他ステージ(Koharu、`InputEventAction`過多が支配的要因)でも未修正コードのまま3回中1回再現した」「他ステージ側の低確率フレークは本タスクの受入条件外のため未着手（別途起票が要るなら追記する）」と明記したまま、その"別途起票"が一度も行われていなかった。当該修正`src/UiKit.cs:281-296 Box()`(StyleBoxFlatのstatic再利用化)はTrainingで支配的だった別要因(過剰生成)を潰しただけで、Koharu側の"InputEventAction過多"という別要因には対応していない(`src/QaPilot.cs:279-280`/`src/DemoPilot.cs:339-340`のInputEventAction送出箇所は変更なしで現存、2026-09-30確認)。既存BLOCKED「高負荷並列実行時のみ観測されたエンジン側SIGSEGVクラッシュ(Rei/Lunatic)」とは症状(SIGABRT vs SIGSEGV)・再現条件(bot高頻度入力 vs CPU競合下の複数プロセス同時実行)が異なる別問題で重複ではない。要ユーザー判断: 通常プレイ(人間操作、bot高頻度入力ではない環境)でも同条件が再現するか確認してから、(a)原因調査・対処に着手する、(b)bot特有の事象として許容し対応不要とする、のいずれか指定してほしい。再現条件の切り分け自体がGodotエンジン内部の調査を要し1タスクの規模を超えるため自動着手不可。
+
+<!-- 2026-10-08 監査モード(scenario)で追加 -->
+
+- [ ] STAGE3レイ「消された一行」の伏線設置(S3-5b)と回収(S3-8)のテキストが、承認済み仮台本07/11間の内部矛盾のまま実装でも食い違っている | scenario | 要ユーザー判断（承認済み仮台本07と11が同一台詞の内容について相反する記述を持つ）。2026-10-08監査(scenario)発見。仮台本11(`wiki/08_仮台本/11_引用ポストの嵐.md:99,102`)はS3-5bの剥がし下テキストを「もう、いいかな」、S3-8で返す「消した一行」を別物の「わたしに、気づいてよ。わたしを、見てよ」とし両者は別行と明記。一方仮台本07(`wiki/08_仮台本/07_粗い台本_案C_2_こはるとレイ.md:277,284,337`)と12(`wiki/08_仮台本/12_キャラ設定シートv2_社会人版.md:126`)はS3-5bで剥がした一行そのものが「気づいてよ」であると明記し11と矛盾。実装は`src/StageRei.cs:203-206`(S3-5b)で11側のテキスト「もう、いいかな」を採用、`src/BossRei.cs:90-91,104`(S3-8)で07/12側の「S3-5bの回収」という注記と「気づいてよ」テキストを採用しており、実装上も伏線の仕込みと回収が食い違っている。要ユーザー判断: (a)11の設計を正式採用し`BossRei.cs:90-91,104`の「S3-5bの回収」の注記・含意を訂正、(b)07/12の設計を正式採用し`StageRei.cs:203`のテキストを「気づいてよ」系に差し替え、(c)保留のまま存置。いずれの場合も台本07・11自身の内部矛盾の訂正も要する。
 
 ## DONE
 - [x] (P3) Audio.cs冒頭コメント「鳴らす土台のみ」が実態（BGM11本配線済み）と矛盾している | engineer | (完了 2026-10-07) 2026-10-07監査(engineer)発見。`src/Audio.cs:11`「※この段階では『鳴らす土台』のみ。実音源（.ogg等）は別途調達して各所で差し込む。」は2026-06-18の初期実装時点のコメントのまま残存していたが、実際には`audio/*.ogg`11本が実在し各`Load*()`経由で既に配線済み（2026-07-23コミットで導入）。文言を「BGM（audio/*.ogg 11本）はライセンス実音源に差し替え済み（各Load*()参照）。SE・会話タイプ音は今も合成プレースホルダのまま。」に修正。ロジックは無変更。**検証**: `git diff`で変更がコメント1箇所のみであることを確認、`dotnet build algo_shoot.sln` 0 Warning/0 Error。
