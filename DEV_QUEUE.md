@@ -89,10 +89,11 @@
 
 <!-- 2026-10-08 監査モード(game-designer/engineer/scenario/qa並列)で追加。game-designerは1件TODOへ、engineerは1件TODOへ、scenarioは新規TODO0件(BLOCKEDへ1件)、qaは新規指摘0件(全パスclean run) -->
 
-- [ ] (P1) HUD左上バッジの自動退避ゾーンが新バッジ3つ(炎上/集中打撃/後方弾)を未カバー | game-designer | 2026-10-08監査(game-designer)発見。`src/Hud.cs:211`の`TopLeftZone = new Rect2(10, 12, 240, 240)`（下端y=252）が、後から追加された`DrawBurning`(`Hud.cs:1397`,y=249-273)・`DrawFocusFire`(`Hud.cs:1414`,y=277-301)・`DrawBackfire`(`Hud.cs:1437`,y=305-329、`Hud.cs:839`で所持ゲート無し全プレイ常設)の足元をカバーしておらず、敵弾通過時の自動フェード(`UpdateTopLeftFade`,`Hud.cs:414-436`)が発火しない。`TopLeftZone`の高さを240→320に広げ(`Hud.cs:211`)、`Hud.cs:209-210`の内包物コメントも8要素に更新すること。ロジック変更なし、見た目のみ。
 - [ ] (P3) WorldGrade.csの「PlayerNormXが公開されたら」コメントが既に解決済みの実装と矛盾 | engineer | 2026-10-08監査(engineer)発見。`src/WorldGrade.cs:24-25`のコメントは「`GameManager.PlayerNormX`が公開されたらそちらを優先する」という未来条件文だが、`GameManager.cs:142`で既に`public float PlayerNormX`として公開済みで、`WorldGrade.cs:94`の`Nx`プロパティも`BgScroll.PlayerNx()`(`StageBackground.cs:338-341`)経由で既にそれを優先利用している。コメントを「既に公開済み・優先利用中」の確定済み事実に書き換えること。ロジック変更なし。
 
 ## WIP
+
+- [ ] (P1) HUD左上バッジの自動退避ゾーンが新バッジ3つ(炎上/集中打撃/後方弾)を未カバー | game-designer | 2026-10-08監査(game-designer)発見。`src/Hud.cs:211`の`TopLeftZone = new Rect2(10, 12, 240, 240)`（下端y=252）が、後から追加された`DrawBurning`(`Hud.cs:1397`,y=249-273)・`DrawFocusFire`(`Hud.cs:1414`,y=277-301)・`DrawBackfire`(`Hud.cs:1437`,y=305-329、`Hud.cs:839`で所持ゲート無し全プレイ常設)の足元をカバーしておらず、敵弾通過時の自動フェード(`UpdateTopLeftFade`,`Hud.cs:414-436`)が発火しない。`TopLeftZone`の高さを240→320に広げ(`Hud.cs:211`)、`Hud.cs:209-210`の内包物コメントも8要素に更新すること。ロジック変更なし、見た目のみ。
 
 ## BLOCKED
 
