@@ -21,8 +21,8 @@ using Godot;
 //   ・左右ヒント：右端寄りに薄い赤み（危険）、左端寄りに薄い青み（落ち着き）。nx連動・端1/4のみ・α≤0.10。
 //
 //   ZIndex は StageImagery(-50) の上・MurkVignette(-45)/弾(0..) の奥（-48/-47）。中央は薄いので弾を隠さない。
-//   Player を group("player") から引いて nx=clamp(x/384,0,1) を算出。GameManager.PlayerNormX が公開されたら
-//   そちらを優先する（参照は Nx プロパティ1箇所に集約）。
+//   GameManager.PlayerNormX は既に公開済みで、BgScroll.PlayerNx() 経由でそちらを優先利用している
+//   （未取得時のみ group("player") から nx=clamp(x/384,0,1) にフォールバック。参照は Nx プロパティ1箇所に集約）。
 public partial class WorldGrade : Node2D
 {
     private const float W = 384f, H = 216f;
