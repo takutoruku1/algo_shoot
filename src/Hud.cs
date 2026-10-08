@@ -206,9 +206,10 @@ public partial class Hud : CanvasLayer
     // 0 より大きい間は弾が一瞬途切れても薄いまま＝弾の切れ目で濃くならずチカチカしない（フリッカ対策の主役）。
     private double _topLeftHold;
     private const double TopLeftHoldDur = 0.6;  // 弾が完全に途切れてから濃く戻り始めるまでの保持時間（秒）
-    // 左上クラスタの占有域（設計座標1280x720）。LIFE/BOMB・ショット・やさしさ・目標・スキルの
-    // 各チップを内包する矩形。弾がこの域に入っている間だけクラスタを薄くして弾を透かす。
-    private static readonly Rect2 TopLeftZone = new Rect2(10, 12, 240, 240);
+    // 左上クラスタの占有域（設計座標1280x720）。LIFE/BOMB・ショット・やさしさ・目標・スキル・
+    // 炎上中・集中打撃・後方弾の各チップ（計8要素）を内包する矩形。弾がこの域に入っている間だけ
+    // クラスタを薄くして弾を透かす。
+    private static readonly Rect2 TopLeftZone = new Rect2(10, 12, 240, 320);
 
     // 操作ガイド：プレイ中ずっと右端に常駐する縦パネル（一度きりの旧タイマー方式は廃止）。
     // 会話・チュートリアル中は透過を下げて弾と説明の邪魔をしない（後述 DrawControls 参照）。

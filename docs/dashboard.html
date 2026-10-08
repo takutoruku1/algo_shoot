@@ -126,16 +126,16 @@
 
     <div class="figure">
       <span class="pct">100<span class="pct-unit">%</span></span>
-      <span class="figure-note">完了 294 / 対象 294 タスク<br>保留 49 件は人間の判断待ちのため対象外</span>
+      <span class="figure-note">完了 295 / 対象 296 タスク<br>保留 50 件は人間の判断待ちのため対象外</span>
     </div>
     <div class="rail" role="img" aria-label="進捗 100パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span></div>
   </header>
 
   <div class="states">
-    <div class="state done"><div class="state-n">294</div><div class="state-l">完了</div></div>
+    <div class="state done"><div class="state-n">295</div><div class="state-l">完了</div></div>
     <div class="state wip"><div class="state-n">0</div><div class="state-l">作業中</div></div>
-    <div class="state todo"><div class="state-n">0</div><div class="state-l">残り</div></div>
-    <div class="state blocked"><div class="state-n">49</div><div class="state-l">保留</div></div>
+    <div class="state todo"><div class="state-n">1</div><div class="state-l">残り</div></div>
+    <div class="state blocked"><div class="state-n">50</div><div class="state-l">保留</div></div>
   </div>
 
   <section>
@@ -145,12 +145,28 @@
 
   <section>
     <h2>キュー（上から消化）</h2>
-    <p class="empty">キューが空です。タスクを積んでください</p>
+    <ol class="tasks">
+      <li class="task ">
+        <div class="task-head">
+          <span class="chip chip-p3">P3</span>
+          <span class="task-title">WorldGrade.csの「PlayerNormXが公開されたら」コメントが既に解決済みの実装と矛盾</span>
+          <span class="worker">engineer</span>
+        </div>
+        <p class="accept">2026-10-08監査(engineer)発見。<code>src/WorldGrade.cs:24-25</code>のコメントは「<code>GameManager.PlayerNormX</code>が公開されたらそちらを優先する」という未来条件文だが、<code>GameManager.cs:142</code>で既に<code>public float PlayerNormX</code>として公開済みで、<code>WorldGrade.cs:94</code>の<code>Nx</code>プロパティも<code>BgScroll.PlayerNx()</code>(<code>StageBackground.cs:338-341</code>)経由で既にそれを優先利用している。コメントを「既に公開済み・優先利用中」の確定済み事実に書き換えること。ロジック変更なし。</p>
+      </li></ol>
   </section>
 
   <section>
     <h2>完了</h2>
     <ol class="tasks">
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p1">P1</span>
+          <span class="task-title">HUD左上バッジの自動退避ゾーンが新バッジ3つ(炎上/集中打撃/後方弾)を未カバー</span>
+          <span class="worker">game-designer</span>
+        </div>
+        <p class="accept">(完了 2026-10-08) 2026-10-08監査(game-designer)発見。<code>src/Hud.cs:211</code>の<code>TopLeftZone</code>の高さが240で下端y=252止まりだったため、後から追加された<code>DrawBurning</code>(y=249-273)・<code>DrawFocusFire</code>(y=277-301)・<code>DrawBackfire</code>(y=305-329、所持ゲート無しで全プレイ常設)の足元が自動フェード(<code>UpdateTopLeftFade</code>)の判定域外になっていた。<code>TopLeftZone</code>の高さを240→320に変更（下端y=332で全8要素を包含）、<code>Hud.cs:209-211</code>のコメントも8要素列挙に更新。ロジック・当たり判定・難易度は無変更。<strong>検証</strong>: <code>git diff</code>で変更が<code>Rect2</code>の高さ1値とコメント3行のみであることを確認、<code>dotnet build algo_shoot.sln</code> 0 Warning/0 Error（指揮官が実行確認）。</p>
+      </li>
       <li class="task is-done">
         <div class="task-head">
           <span class="chip chip-p3">P3</span>
@@ -2899,24 +2915,32 @@
           <span class="worker">engineer</span>
         </div>
         <p class="accept">要ユーザー判断（通常プレイでの再現性を切り分けないと対応方針が決まらない）。2026-09-30監査(engineer)発見。DONE(完了2026-09-16、Training.tscnクラッシュ対応)の検証記録内で担当engineer自身が「<code>FATAL: csharp_lang &amp;&amp; !csharp_lang-&gt;script_bindings.is_empty()</code>というGodot 4.6.3 mono側のGC/ファイナライザスレッド競合クラッシュは、Training固有ではなく低確率ながら他ステージ(Koharu、<code>InputEventAction</code>過多が支配的要因)でも未修正コードのまま3回中1回再現した」「他ステージ側の低確率フレークは本タスクの受入条件外のため未着手（別途起票が要るなら追記する）」と明記したまま、その&quot;別途起票&quot;が一度も行われていなかった。当該修正<code>src/UiKit.cs:281-296 Box()</code>(StyleBoxFlatのstatic再利用化)はTrainingで支配的だった別要因(過剰生成)を潰しただけで、Koharu側の&quot;InputEventAction過多&quot;という別要因には対応していない(<code>src/QaPilot.cs:279-280</code>/<code>src/DemoPilot.cs:339-340</code>のInputEventAction送出箇所は変更なしで現存、2026-09-30確認)。既存BLOCKED「高負荷並列実行時のみ観測されたエンジン側SIGSEGVクラッシュ(Rei/Lunatic)」とは症状(SIGABRT vs SIGSEGV)・再現条件(bot高頻度入力 vs CPU競合下の複数プロセス同時実行)が異なる別問題で重複ではない。要ユーザー判断: 通常プレイ(人間操作、bot高頻度入力ではない環境)でも同条件が再現するか確認してから、(a)原因調査・対処に着手する、(b)bot特有の事象として許容し対応不要とする、のいずれか指定してほしい。再現条件の切り分け自体がGodotエンジン内部の調査を要し1タスクの規模を超えるため自動着手不可。</p>
+      </li>
+      <li class="task is-blocked">
+        <div class="task-head">
+          <span class="chip chip-none">—</span>
+          <span class="task-title">STAGE3レイ「消された一行」の伏線設置(S3-5b)と回収(S3-8)のテキストが、承認済み仮台本07/11間の内部矛盾のまま実装でも食い違っている</span>
+          <span class="worker">scenario</span>
+        </div>
+        <p class="accept">要ユーザー判断（承認済み仮台本07と11が同一台詞の内容について相反する記述を持つ）。2026-10-08監査(scenario)発見。仮台本11(<code>wiki/08_仮台本/11_引用ポストの嵐.md:99,102</code>)はS3-5bの剥がし下テキストを「もう、いいかな」、S3-8で返す「消した一行」を別物の「わたしに、気づいてよ。わたしを、見てよ」とし両者は別行と明記。一方仮台本07(<code>wiki/08_仮台本/07_粗い台本_案C_2_こはるとレイ.md:277,284,337</code>)と12(<code>wiki/08_仮台本/12_キャラ設定シートv2_社会人版.md:126</code>)はS3-5bで剥がした一行そのものが「気づいてよ」であると明記し11と矛盾。実装は<code>src/StageRei.cs:203-206</code>(S3-5b)で11側のテキスト「もう、いいかな」を採用、<code>src/BossRei.cs:90-91,104</code>(S3-8)で07/12側の「S3-5bの回収」という注記と「気づいてよ」テキストを採用しており、実装上も伏線の仕込みと回収が食い違っている。要ユーザー判断: (a)11の設計を正式採用し<code>BossRei.cs:90-91,104</code>の「S3-5bの回収」の注記・含意を訂正、(b)07/12の設計を正式採用し<code>StageRei.cs:203</code>のテキストを「気づいてよ」系に差し替え、(c)保留のまま存置。いずれの場合も台本07・11自身の内部矛盾の訂正も要する。</p>
       </li></ol>
   </section>
 
   <section>
     <h2>直近のコミット</h2>
     <ul class="log">
+      <li><span class="h">de7274a</span><span>2026-10-08</span><span class="s">auto: WIP着手 - HUD左上バッジ自動退避ゾーンの拡張</span></li>
+      <li><span class="h">02985da</span><span>2026-10-08</span><span class="s">auto: 監査で3件をキューに追加（TODO2件・BLOCKED1件）</span></li>
+      <li><span class="h">9db4e46</span><span>2026-10-07</span><span class="s">auto: Audio.cs冒頭コメントをBGM配線済みの実態に合わせて修正</span></li>
       <li><span class="h">1e722be</span><span>2026-10-07</span><span class="s">auto: WIP着手 - Audio.cs冒頭コメントの実態反映</span></li>
       <li><span class="h">c34d4dc</span><span>2026-10-07</span><span class="s">auto: STAGE0ボム練習/向き反転練習のrespawn-killデバウンス追加</span></li>
       <li><span class="h">0541e89</span><span>2026-10-07</span><span class="s">auto: WIP着手 - STAGE0ボム練習/向き反転練習のrespawn-killデバウンス追加</span></li>
       <li><span class="h">fd602e0</span><span>2026-10-07</span><span class="s">auto: 監査で4件をキューに追加（TODO2件・BLOCKED2件）</span></li>
       <li><span class="h">e55e803</span><span>2026-10-06</span><span class="s">auto: BossHikage phase1_intervalフォールバック値をini実効値(0.95)に整合</span></li>
-      <li><span class="h">a83e241</span><span>2026-10-06</span><span class="s">auto: WIP着手 - BossHikage phase1_intervalフォールバック値の整合</span></li>
-      <li><span class="h">c6241f1</span><span>2026-10-06</span><span class="s">auto: DiffSelectのLUNATIC解禁条件表示に現在値を追加</span></li>
-      <li><span class="h">dbd3698</span><span>2026-10-06</span><span class="s">auto: WIP着手 - DiffSelectのLUNATIC解禁条件表示に現在値を追加</span></li>
     </ul>
   </section>
 
-  <footer>生成 2026-10-07 18:39 UTC — DEV_QUEUE.md より自動生成</footer>
+  <footer>生成 2026-10-08 18:44 UTC — DEV_QUEUE.md より自動生成</footer>
 </div>
 
 <script>
