@@ -96,8 +96,6 @@
 
 ## WIP
 
-- [ ] (P1) レイ(STAGE3)のパネル耐久がB-5強化対応から取り残され進行逆転 | game-designer | `config/boss_stats.ini:60`(akari `panel_ink=3`、コメント「2→3（B-5: 強化が伸びた中盤でシールド段が痩せない用）」)・`:93`(koharu同)・`:137`(mina `panel_ink=4`)に対し、`:24`のrei `panel_ink=2`と`src/BossRei.cs:120`の既定値2だけがB-5対応から漏れ、進行3番目の通常ボス(akari→koharu→reiの順、`GameManager.cs:200-202`)が盾の硬さで1番手のakariより薄い逆転になっている。`config/boss_stats.ini:24`のpanel_inkを2→3へ、`src/BossRei.cs:120`の既定値も2→3へ合わせる（または意図的に据え置く理由をコメントで明記する）こと。
-
 ## BLOCKED
 
 <!-- 2026-10-07 監査モード(scenario)で追加。仮台本草稿が一度もDEV_QUEUEに記録・判断されていない運用漏れ2件 -->
@@ -215,6 +213,7 @@
 - [ ] STAGE3レイ「消された一行」の伏線設置(S3-5b)と回収(S3-8)のテキストが、承認済み仮台本07/11間の内部矛盾のまま実装でも食い違っている | scenario | 要ユーザー判断（承認済み仮台本07と11が同一台詞の内容について相反する記述を持つ）。2026-10-08監査(scenario)発見。仮台本11(`wiki/08_仮台本/11_引用ポストの嵐.md:99,102`)はS3-5bの剥がし下テキストを「もう、いいかな」、S3-8で返す「消した一行」を別物の「わたしに、気づいてよ。わたしを、見てよ」とし両者は別行と明記。一方仮台本07(`wiki/08_仮台本/07_粗い台本_案C_2_こはるとレイ.md:277,284,337`)と12(`wiki/08_仮台本/12_キャラ設定シートv2_社会人版.md:126`)はS3-5bで剥がした一行そのものが「気づいてよ」であると明記し11と矛盾。実装は`src/StageRei.cs:203-206`(S3-5b)で11側のテキスト「もう、いいかな」を採用、`src/BossRei.cs:90-91,104`(S3-8)で07/12側の「S3-5bの回収」という注記と「気づいてよ」テキストを採用しており、実装上も伏線の仕込みと回収が食い違っている。要ユーザー判断: (a)11の設計を正式採用し`BossRei.cs:90-91,104`の「S3-5bの回収」の注記・含意を訂正、(b)07/12の設計を正式採用し`StageRei.cs:203`のテキストを「気づいてよ」系に差し替え、(c)保留のまま存置。いずれの場合も台本07・11自身の内部矛盾の訂正も要する。
 
 ## DONE
+- [x] (P1) レイ(STAGE3)のパネル耐久がB-5強化対応から取り残され進行逆転 | game-designer | (完了 2026-10-09) 2026-10-09監査(game-designer)発見。`config/boss_stats.ini:60`(akari `panel_ink=3`)・`:93`(koharu同)・`:137`(mina `panel_ink=4`)はB-5対応でパネル耐久が強化されていたが、`:24`のrei `panel_ink=2`と`src/BossRei.cs:120`の既定値2だけが取り残され、進行3番目の通常ボスが1番手のakariより盾が薄い逆転になっていた。`config/boss_stats.ini:24`のpanel_inkを2→3に変更し、他ボスと同一文言のB-5コメントを付与。`src/BossRei.cs:120`の`BossTuning.I("rei", "panel_ink", 2)`の既定値も3に変更し、ini実効値と一致させた。他ボス・ロジックは無変更。**検証**: 変更は数値2箇所とコメントのみ、`dotnet build algo_shoot.sln` 0 Warning/0 Error。
 - [x] (P3) WorldGrade.csの「PlayerNormXが公開されたら」コメントが既に解決済みの実装と矛盾 | engineer | (完了 2026-10-08) 2026-10-08監査(engineer)発見。`src/WorldGrade.cs:24-25`のコメントが「`GameManager.PlayerNormX`が公開されたらそちらを優先する」という未来条件文のまま残存していたが、`GameManager.cs:142`で既に`public float PlayerNormX`として公開済みで、`WorldGrade.cs:94`の`Nx`プロパティも`BgScroll.PlayerNx()`(`StageBackground.cs:338-341`)経由で既にそれを優先利用（未取得時のみgroup("player")にフォールバック）していた。コメントを確定済みの事実に書き換え。ロジックは無変更。**検証**: 変更はコメント2行のみ、`dotnet build algo_shoot.sln` 0 Warning/0 Error。
 - [x] (P1) HUD左上バッジの自動退避ゾーンが新バッジ3つ(炎上/集中打撃/後方弾)を未カバー | game-designer | (完了 2026-10-08) 2026-10-08監査(game-designer)発見。`src/Hud.cs:211`の`TopLeftZone`の高さが240で下端y=252止まりだったため、後から追加された`DrawBurning`(y=249-273)・`DrawFocusFire`(y=277-301)・`DrawBackfire`(y=305-329、所持ゲート無しで全プレイ常設)の足元が自動フェード(`UpdateTopLeftFade`)の判定域外になっていた。`TopLeftZone`の高さを240→320に変更（下端y=332で全8要素を包含）、`Hud.cs:209-211`のコメントも8要素列挙に更新。ロジック・当たり判定・難易度は無変更。**検証**: `git diff`で変更が`Rect2`の高さ1値とコメント3行のみであることを確認、`dotnet build algo_shoot.sln` 0 Warning/0 Error（指揮官が実行確認）。
 - [x] (P3) Audio.cs冒頭コメント「鳴らす土台のみ」が実態（BGM11本配線済み）と矛盾している | engineer | (完了 2026-10-07) 2026-10-07監査(engineer)発見。`src/Audio.cs:11`「※この段階では『鳴らす土台』のみ。実音源（.ogg等）は別途調達して各所で差し込む。」は2026-06-18の初期実装時点のコメントのまま残存していたが、実際には`audio/*.ogg`11本が実在し各`Load*()`経由で既に配線済み（2026-07-23コミットで導入）。文言を「BGM（audio/*.ogg 11本）はライセンス実音源に差し替え済み（各Load*()参照）。SE・会話タイプ音は今も合成プレースホルダのまま。」に修正。ロジックは無変更。**検証**: `git diff`で変更がコメント1箇所のみであることを確認、`dotnet build algo_shoot.sln` 0 Warning/0 Error。

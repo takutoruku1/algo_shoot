@@ -125,17 +125,17 @@
     </div>
 
     <div class="figure">
-      <span class="pct">100<span class="pct-unit">%</span></span>
-      <span class="figure-note">完了 296 / 対象 296 タスク<br>保留 50 件は人間の判断待ちのため対象外</span>
+      <span class="pct">99<span class="pct-unit">%</span></span>
+      <span class="figure-note">完了 297 / 対象 299 タスク<br>保留 51 件は人間の判断待ちのため対象外</span>
     </div>
-    <div class="rail" role="img" aria-label="進捗 100パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span></div>
+    <div class="rail" role="img" aria-label="進捗 99パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span></div>
   </header>
 
   <div class="states">
-    <div class="state done"><div class="state-n">296</div><div class="state-l">完了</div></div>
+    <div class="state done"><div class="state-n">297</div><div class="state-l">完了</div></div>
     <div class="state wip"><div class="state-n">0</div><div class="state-l">作業中</div></div>
-    <div class="state todo"><div class="state-n">0</div><div class="state-l">残り</div></div>
-    <div class="state blocked"><div class="state-n">50</div><div class="state-l">保留</div></div>
+    <div class="state todo"><div class="state-n">2</div><div class="state-l">残り</div></div>
+    <div class="state blocked"><div class="state-n">51</div><div class="state-l">保留</div></div>
   </div>
 
   <section>
@@ -145,12 +145,36 @@
 
   <section>
     <h2>キュー（上から消化）</h2>
-    <p class="empty">キューが空です。タスクを積んでください</p>
+    <ol class="tasks">
+      <li class="task ">
+        <div class="task-head">
+          <span class="chip chip-p2">P2</span>
+          <span class="task-title">ショップ「おすすめ」のステージ進行分岐が到達不能で拡散/ホーミング推薦が1段飛ばされる</span>
+          <span class="worker">game-designer</span>
+        </div>
+        <p class="accept"><code>src/Shop.cs:141-144</code>の<code>int stage = IsStageCleared(&quot;koharu&quot;) ? 3 : IsStageCleared(&quot;akari&quot;) ? 2 : IsStageCleared(&quot;rei&quot;) ? 1 : 0;</code>は、linear進行(<code>GameManager.cs:311-317</code>でakari→koharu→reiの順にしか解禁されない)の下では「reiクリア済だがkoharu/akari未クリア」が起こり得ず3項目目の<code>stage=1</code>分岐が到達不能。akariを1本クリアした時点で即<code>Base(2)</code>に飛び、1本クリア直後に出すべき<code>Base(1)</code>(<code>spread_1</code>/<code>homing_1</code>/<code>bomb_count_1</code>の解放入口)が出ない。stage算出の判定順（またはstage値のマッピング）を、akariクリアのみの時点で確実に<code>Base(1)</code>が最初の推薦候補になるよう修正すること。</p>
+      </li>
+      <li class="task ">
+        <div class="task-head">
+          <span class="chip chip-p2">P2</span>
+          <span class="task-title">AreaSpellCasterのミナ(FINAL)予兆時間フォールバック値がbalance修正後のini実効値と不一致</span>
+          <span class="worker">engineer</span>
+        </div>
+        <p class="accept"><code>src/AreaSpellCaster.cs:300</code>の<code>default:</code>ケース（キー&quot;mina&quot;）が<code>_warnMin = 0.8f; _warnMax = 1.2f;</code>のままだが、<code>config/boss_stats.ini:159-160</code>の<code>[mina] aoe_warn_min/aoe_warn_max</code>は2026-10-04に視認性改善のため<code>1.0/1.4</code>へ変更済み(DEV_QUEUE.md DONE記録)。<code>BossTuning.F()</code>はiniキーが無い場合のみこのハードコード値を使うため、exeフォルダに部分上書きiniを置く運用でaoe_warn_min/maxキーを省略すると意図的に是正したはずの最短・視認性最悪の予兆時間(0.8/1.2s)へサイレントに戻る。<code>src/AreaSpellCaster.cs:300</code>を<code>_warnMin = 1.0f; _warnMax = 1.4f;</code>へ修正し、ini実効値と一致させること（ロジック変更なし、リテラル2値の同期のみ）。</p>
+      </li></ol>
   </section>
 
   <section>
     <h2>完了</h2>
     <ol class="tasks">
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p1">P1</span>
+          <span class="task-title">レイ(STAGE3)のパネル耐久がB-5強化対応から取り残され進行逆転</span>
+          <span class="worker">game-designer</span>
+        </div>
+        <p class="accept">(完了 2026-10-09) 2026-10-09監査(game-designer)発見。<code>config/boss_stats.ini:60</code>(akari <code>panel_ink=3</code>)・<code>:93</code>(koharu同)・<code>:137</code>(mina <code>panel_ink=4</code>)はB-5対応でパネル耐久が強化されていたが、<code>:24</code>のrei <code>panel_ink=2</code>と<code>src/BossRei.cs:120</code>の既定値2だけが取り残され、進行3番目の通常ボスが1番手のakariより盾が薄い逆転になっていた。<code>config/boss_stats.ini:24</code>のpanel_inkを2→3に変更し、他ボスと同一文言のB-5コメントを付与。<code>src/BossRei.cs:120</code>の<code>BossTuning.I(&quot;rei&quot;, &quot;panel_ink&quot;, 2)</code>の既定値も3に変更し、ini実効値と一致させた。他ボス・ロジックは無変更。<strong>検証</strong>: 変更は数値2箇所とコメントのみ、<code>dotnet build algo_shoot.sln</code> 0 Warning/0 Error。</p>
+      </li>
       <li class="task is-done">
         <div class="task-head">
           <span class="chip chip-p3">P3</span>
@@ -2551,6 +2575,14 @@
       <li class="task is-blocked">
         <div class="task-head">
           <span class="chip chip-none">—</span>
+          <span class="task-title"><code>wiki/08_仮台本/04_冒頭台本_案C.md</code>が新規提案のまま一度もDEV_QUEUEに記録・判断されていない</span>
+          <span class="worker">scenario</span>
+        </div>
+        <p class="accept">要ユーザー判断（仮台本未承認）。2026-10-09監査(scenario)発見。<code>wiki/08_仮台本/04_冒頭台本_案C.md:3</code>は「検討中の草稿。実装された物語ではない…承認待ち」と自己申告する、プロローグ全編を「下書き選択式」（プレイヤーが台詞を選び、選ばなかった2つが『散った言葉』としてFINAL/エピローグ/鍵アカPWで回収される）に丸ごと置き換える完全台本(<code>:59-193</code>)だが、<code>grep -n &quot;冒頭台本&quot; DEV_QUEUE.md</code>は0件で一度も記録・判断されていない。同根の仮台本01・02は2026-10-07監査でBLOCKED済み(本ファイル:98-99)だが、04はその監査でも見落とされていた。現行実装の正典プロローグ(<code>src/Prologue.cs</code>、承認済み仮台本06ベース)とは選択UIの有無・一人称構造(who=0が「少年」ではなく「あなた＝プレイヤー自身」になる)という根本仕様が異なり、採用すれば新規UI実装(下書き選択の保存・FINAL/エピローグ/鍵アカPWでの回収)を伴う。要ユーザー判断: (a)04を正式採用し仮台本化・実装計画を進める（新規ゲーム機構を伴うため別途engineerも要る規模）、(b)却下する、(c)保留のまま存置する。</p>
+      </li>
+      <li class="task is-blocked">
+        <div class="task-head">
+          <span class="chip chip-none">—</span>
           <span class="task-title">FINAL「暴走したミナ」内での歴代ボス背景“追体験”演出(MinaRoot.Journey)が案C以前の旧面順のまま実装され、演出コメント自身の論理(道を遡る)とも矛盾している</span>
           
         </div>
@@ -2929,18 +2961,18 @@
   <section>
     <h2>直近のコミット</h2>
     <ul class="log">
+      <li><span class="h">abc9a6e</span><span>2026-10-09</span><span class="s">auto: WIP着手 - レイのパネル耐久B-5対応漏れ修正</span></li>
+      <li><span class="h">b6027ca</span><span>2026-10-09</span><span class="s">auto: 監査で4件をキューに追加（TODO3件・BLOCKED1件）</span></li>
+      <li><span class="h">b1f2954</span><span>2026-10-08</span><span class="s">auto: WorldGrade.csコメントを実態に合わせて修正</span></li>
       <li><span class="h">5b85ca8</span><span>2026-10-08</span><span class="s">auto: WIP着手 - WorldGrade.csコメントの実態反映</span></li>
       <li><span class="h">7e5fdd1</span><span>2026-10-08</span><span class="s">auto: HUD左上バッジ自動退避ゾーンの拡張(240→320)</span></li>
       <li><span class="h">de7274a</span><span>2026-10-08</span><span class="s">auto: WIP着手 - HUD左上バッジ自動退避ゾーンの拡張</span></li>
       <li><span class="h">02985da</span><span>2026-10-08</span><span class="s">auto: 監査で3件をキューに追加（TODO2件・BLOCKED1件）</span></li>
       <li><span class="h">9db4e46</span><span>2026-10-07</span><span class="s">auto: Audio.cs冒頭コメントをBGM配線済みの実態に合わせて修正</span></li>
-      <li><span class="h">1e722be</span><span>2026-10-07</span><span class="s">auto: WIP着手 - Audio.cs冒頭コメントの実態反映</span></li>
-      <li><span class="h">c34d4dc</span><span>2026-10-07</span><span class="s">auto: STAGE0ボム練習/向き反転練習のrespawn-killデバウンス追加</span></li>
-      <li><span class="h">0541e89</span><span>2026-10-07</span><span class="s">auto: WIP着手 - STAGE0ボム練習/向き反転練習のrespawn-killデバウンス追加</span></li>
     </ul>
   </section>
 
-  <footer>生成 2026-10-08 18:45 UTC — DEV_QUEUE.md より自動生成</footer>
+  <footer>生成 2026-10-09 18:35 UTC — DEV_QUEUE.md より自動生成</footer>
 </div>
 
 <script>

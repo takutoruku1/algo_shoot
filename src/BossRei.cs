@@ -117,7 +117,7 @@ public partial class BossRei : Enemy
         Points = BossTuning.I("rei", "points", 1500);
         BodyRadius = BossTuning.F("rei", "body_radius", 9f);
         PanelCount = BossTuning.I("rei", "panel_count", 5); // 「二番」の言葉（黒い吹き出し）
-        PanelInk = BossTuning.I("rei", "panel_ink", 2);
+        PanelInk = BossTuning.I("rei", "panel_ink", 3); // 2→3（B-5: 中盤でシールド段が痩せない用）
         OrbitRadius = BossTuning.F("rei", "orbit_radius", 26f);
         SpinSpeed = BossTuning.F("rei", "spin_speed", 0.9f);
 
