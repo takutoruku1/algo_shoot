@@ -297,7 +297,7 @@ public partial class AreaSpellCaster : Node2D
             default: // mina（暴走）：全テレグラフ同時・濁った全色
                 _disp = "ミナ"; _handle = "@mina_ai_";
                 _tint = new Color("e072ac"); _hot = new Color("ff8cc4");
-                _warnMin = 0.8; _warnMax = 1.2; _interval = 6.0;
+                _warnMin = 1.0; _warnMax = 1.4; _interval = 6.0;
                 _shapes = new[] { H_, V, C, R };
                 _spells = new (string, AreaStrike.Shape?)[] { ("全テレグラフ同時", null), ("濁渦と雨", null) };
                 break;

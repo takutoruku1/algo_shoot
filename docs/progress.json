@@ -1,20 +1,13 @@
 {
-  "generated": "2026-10-09 18:37 UTC",
+  "generated": "2026-10-09 18:39 UTC",
   "counts": {
-    "todo": 1,
+    "todo": 0,
     "wip": 0,
     "blocked": 51,
-    "done": 298
+    "done": 299
   },
   "percent": 100,
-  "todo": [
-    {
-      "priority": "P2",
-      "title": "AreaSpellCasterのミナ(FINAL)予兆時間フォールバック値がbalance修正後のini実効値と不一致",
-      "worker": "engineer",
-      "accept": "`src/AreaSpellCaster.cs:300`の`default:`ケース（キー\"mina\"）が`_warnMin = 0.8f; _warnMax = 1.2f;`のままだが、`config/boss_stats.ini:159-160`の`[mina] aoe_warn_min/aoe_warn_max`は2026-10-04に視認性改善のため`1.0/1.4`へ変更済み(DEV_QUEUE.md DONE記録)。`BossTuning.F()`はiniキーが無い場合のみこのハードコード値を使うため、exeフォルダに部分上書きiniを置く運用でaoe_warn_min/maxキーを省略すると意図的に是正したはずの最短・視認性最悪の予兆時間(0.8/1.2s)へサイレントに戻る。`src/AreaSpellCaster.cs:300`を`_warnMin = 1.0f; _warnMax = 1.4f;`へ修正し、ini実効値と一致させること（ロジック変更なし、リテラル2値の同期のみ）。"
-    }
-  ],
+  "todo": [],
   "wip": [],
   "blocked": [
     {
@@ -325,6 +318,12 @@
     }
   ],
   "done": [
+    {
+      "priority": "P2",
+      "title": "AreaSpellCasterのミナ(FINAL)予兆時間フォールバック値がbalance修正後のini実効値と不一致",
+      "worker": "engineer",
+      "accept": "(完了 2026-10-09) 2026-10-09監査(engineer)発見。`src/AreaSpellCaster.cs:300`の`default:`ケース（キー\"mina\"）の`_warnMin`/`_warnMax`が旧値0.8/1.2のままだったが、`config/boss_stats.ini:159-160`の`[mina] aoe_warn_min/aoe_warn_max`は2026-10-04に視認性改善のため1.0/1.4へ変更済み。`BossTuning.F()`はiniキーが無い場合のみこのハードコード値を使うため、exeフォルダに部分上書きiniを置く運用でキーを省略すると是正前の最短・視認性最悪の予兆時間へサイレントに戻ってしまう不整合を解消。`_warnMin = 1.0; _warnMax = 1.4;`に変更しini実効値と一致させた。他ボス(rei/akari/koharu)のケースは無変更。**検証**: 変更は数値2箇所のみ、`dotnet build algo_shoot.sln` 0 Warning/0 Error。"
+    },
     {
       "priority": "P2",
       "title": "ショップ「おすすめ」のステージ進行分岐が到達不能で拡散/ホーミング推薦が1段飛ばされる",
@@ -2116,6 +2115,16 @@
   ],
   "commits": [
     {
+      "hash": "f6cdfb4",
+      "date": "2026-10-09",
+      "subject": "auto: WIP着手 - AreaSpellCasterミナ予兆時間フォールバック同期"
+    },
+    {
+      "hash": "a886333",
+      "date": "2026-10-09",
+      "subject": "auto: ショップおすすめのステージ進行分岐を一本道順に修正"
+    },
+    {
       "hash": "f89b11f",
       "date": "2026-10-09",
       "subject": "auto: WIP着手 - ショップおすすめのステージ進行分岐修正"
@@ -2144,16 +2153,6 @@
       "hash": "5b85ca8",
       "date": "2026-10-08",
       "subject": "auto: WIP着手 - WorldGrade.csコメントの実態反映"
-    },
-    {
-      "hash": "7e5fdd1",
-      "date": "2026-10-08",
-      "subject": "auto: HUD左上バッジ自動退避ゾーンの拡張(240→320)"
-    },
-    {
-      "hash": "de7274a",
-      "date": "2026-10-08",
-      "subject": "auto: WIP着手 - HUD左上バッジ自動退避ゾーンの拡張"
     }
   ]
 }

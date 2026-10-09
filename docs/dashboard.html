@@ -126,15 +126,15 @@
 
     <div class="figure">
       <span class="pct">100<span class="pct-unit">%</span></span>
-      <span class="figure-note">完了 298 / 対象 299 タスク<br>保留 51 件は人間の判断待ちのため対象外</span>
+      <span class="figure-note">完了 299 / 対象 299 タスク<br>保留 51 件は人間の判断待ちのため対象外</span>
     </div>
     <div class="rail" role="img" aria-label="進捗 100パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span></div>
   </header>
 
   <div class="states">
-    <div class="state done"><div class="state-n">298</div><div class="state-l">完了</div></div>
+    <div class="state done"><div class="state-n">299</div><div class="state-l">完了</div></div>
     <div class="state wip"><div class="state-n">0</div><div class="state-l">作業中</div></div>
-    <div class="state todo"><div class="state-n">1</div><div class="state-l">残り</div></div>
+    <div class="state todo"><div class="state-n">0</div><div class="state-l">残り</div></div>
     <div class="state blocked"><div class="state-n">51</div><div class="state-l">保留</div></div>
   </div>
 
@@ -145,20 +145,20 @@
 
   <section>
     <h2>キュー（上から消化）</h2>
-    <ol class="tasks">
-      <li class="task ">
-        <div class="task-head">
-          <span class="chip chip-p2">P2</span>
-          <span class="task-title">AreaSpellCasterのミナ(FINAL)予兆時間フォールバック値がbalance修正後のini実効値と不一致</span>
-          <span class="worker">engineer</span>
-        </div>
-        <p class="accept"><code>src/AreaSpellCaster.cs:300</code>の<code>default:</code>ケース（キー&quot;mina&quot;）が<code>_warnMin = 0.8f; _warnMax = 1.2f;</code>のままだが、<code>config/boss_stats.ini:159-160</code>の<code>[mina] aoe_warn_min/aoe_warn_max</code>は2026-10-04に視認性改善のため<code>1.0/1.4</code>へ変更済み(DEV_QUEUE.md DONE記録)。<code>BossTuning.F()</code>はiniキーが無い場合のみこのハードコード値を使うため、exeフォルダに部分上書きiniを置く運用でaoe_warn_min/maxキーを省略すると意図的に是正したはずの最短・視認性最悪の予兆時間(0.8/1.2s)へサイレントに戻る。<code>src/AreaSpellCaster.cs:300</code>を<code>_warnMin = 1.0f; _warnMax = 1.4f;</code>へ修正し、ini実効値と一致させること（ロジック変更なし、リテラル2値の同期のみ）。</p>
-      </li></ol>
+    <p class="empty">キューが空です。タスクを積んでください</p>
   </section>
 
   <section>
     <h2>完了</h2>
     <ol class="tasks">
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p2">P2</span>
+          <span class="task-title">AreaSpellCasterのミナ(FINAL)予兆時間フォールバック値がbalance修正後のini実効値と不一致</span>
+          <span class="worker">engineer</span>
+        </div>
+        <p class="accept">(完了 2026-10-09) 2026-10-09監査(engineer)発見。<code>src/AreaSpellCaster.cs:300</code>の<code>default:</code>ケース（キー&quot;mina&quot;）の<code>_warnMin</code>/<code>_warnMax</code>が旧値0.8/1.2のままだったが、<code>config/boss_stats.ini:159-160</code>の<code>[mina] aoe_warn_min/aoe_warn_max</code>は2026-10-04に視認性改善のため1.0/1.4へ変更済み。<code>BossTuning.F()</code>はiniキーが無い場合のみこのハードコード値を使うため、exeフォルダに部分上書きiniを置く運用でキーを省略すると是正前の最短・視認性最悪の予兆時間へサイレントに戻ってしまう不整合を解消。<code>_warnMin = 1.0; _warnMax = 1.4;</code>に変更しini実効値と一致させた。他ボス(rei/akari/koharu)のケースは無変更。<strong>検証</strong>: 変更は数値2箇所のみ、<code>dotnet build algo_shoot.sln</code> 0 Warning/0 Error。</p>
+      </li>
       <li class="task is-done">
         <div class="task-head">
           <span class="chip chip-p2">P2</span>
@@ -2961,18 +2961,18 @@
   <section>
     <h2>直近のコミット</h2>
     <ul class="log">
+      <li><span class="h">f6cdfb4</span><span>2026-10-09</span><span class="s">auto: WIP着手 - AreaSpellCasterミナ予兆時間フォールバック同期</span></li>
+      <li><span class="h">a886333</span><span>2026-10-09</span><span class="s">auto: ショップおすすめのステージ進行分岐を一本道順に修正</span></li>
       <li><span class="h">f89b11f</span><span>2026-10-09</span><span class="s">auto: WIP着手 - ショップおすすめのステージ進行分岐修正</span></li>
       <li><span class="h">0632c9b</span><span>2026-10-09</span><span class="s">auto: レイのパネル耐久B-5対応漏れ修正(panel_ink 2→3)</span></li>
       <li><span class="h">abc9a6e</span><span>2026-10-09</span><span class="s">auto: WIP着手 - レイのパネル耐久B-5対応漏れ修正</span></li>
       <li><span class="h">b6027ca</span><span>2026-10-09</span><span class="s">auto: 監査で4件をキューに追加（TODO3件・BLOCKED1件）</span></li>
       <li><span class="h">b1f2954</span><span>2026-10-08</span><span class="s">auto: WorldGrade.csコメントを実態に合わせて修正</span></li>
       <li><span class="h">5b85ca8</span><span>2026-10-08</span><span class="s">auto: WIP着手 - WorldGrade.csコメントの実態反映</span></li>
-      <li><span class="h">7e5fdd1</span><span>2026-10-08</span><span class="s">auto: HUD左上バッジ自動退避ゾーンの拡張(240→320)</span></li>
-      <li><span class="h">de7274a</span><span>2026-10-08</span><span class="s">auto: WIP着手 - HUD左上バッジ自動退避ゾーンの拡張</span></li>
     </ul>
   </section>
 
-  <footer>生成 2026-10-09 18:37 UTC — DEV_QUEUE.md より自動生成</footer>
+  <footer>生成 2026-10-09 18:39 UTC — DEV_QUEUE.md より自動生成</footer>
 </div>
 
 <script>
