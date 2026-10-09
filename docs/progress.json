@@ -1,19 +1,13 @@
 {
-  "generated": "2026-10-09 18:35 UTC",
+  "generated": "2026-10-09 18:37 UTC",
   "counts": {
-    "todo": 2,
+    "todo": 1,
     "wip": 0,
     "blocked": 51,
-    "done": 297
+    "done": 298
   },
-  "percent": 99,
+  "percent": 100,
   "todo": [
-    {
-      "priority": "P2",
-      "title": "ショップ「おすすめ」のステージ進行分岐が到達不能で拡散/ホーミング推薦が1段飛ばされる",
-      "worker": "game-designer",
-      "accept": "`src/Shop.cs:141-144`の`int stage = IsStageCleared(\"koharu\") ? 3 : IsStageCleared(\"akari\") ? 2 : IsStageCleared(\"rei\") ? 1 : 0;`は、linear進行(`GameManager.cs:311-317`でakari→koharu→reiの順にしか解禁されない)の下では「reiクリア済だがkoharu/akari未クリア」が起こり得ず3項目目の`stage=1`分岐が到達不能。akariを1本クリアした時点で即`Base(2)`に飛び、1本クリア直後に出すべき`Base(1)`(`spread_1`/`homing_1`/`bomb_count_1`の解放入口)が出ない。stage算出の判定順（またはstage値のマッピング）を、akariクリアのみの時点で確実に`Base(1)`が最初の推薦候補になるよう修正すること。"
-    },
     {
       "priority": "P2",
       "title": "AreaSpellCasterのミナ(FINAL)予兆時間フォールバック値がbalance修正後のini実効値と不一致",
@@ -331,6 +325,12 @@
     }
   ],
   "done": [
+    {
+      "priority": "P2",
+      "title": "ショップ「おすすめ」のステージ進行分岐が到達不能で拡散/ホーミング推薦が1段飛ばされる",
+      "worker": "game-designer",
+      "accept": "(完了 2026-10-09) 2026-10-09監査(game-designer)発見。`src/Shop.cs:141-144`の`int stage = IsStageCleared(\"koharu\") ? 3 : IsStageCleared(\"akari\") ? 2 : IsStageCleared(\"rei\") ? 1 : 0;`は、linear進行(`GameManager.cs:311-317`でakari→koharu→reiの順にしか解禁されない)の下では3項目目`IsStageCleared(\"rei\") ? 1`が到達不能なデッドコードで、akariクリア直後に即`stage=2`(hitbox/bomb_power)へ飛び、本来最初に出すべき`stage=1`(spread/homing/bomb_count)が一度も出ない設計ミスだった。判定順を進行順どおり`IsStageCleared(\"rei\") ? 3 : IsStageCleared(\"koharu\") ? 2 : IsStageCleared(\"akari\") ? 1 : 0`に変更し、akariクリア直後→stage1、koharuクリア後→stage2、reiクリア後→stage3という意図した推薦曲線に揃えた。`Base()`本体・フォールバック遡り・買える物優先ソートは無変更。**検証**: 変更は`src/Shop.cs:141-144`の判定順のみ、`dotnet build algo_shoot.sln` 0 Warning/0 Error。"
+    },
     {
       "priority": "P1",
       "title": "レイ(STAGE3)のパネル耐久がB-5強化対応から取り残され進行逆転",
@@ -2116,6 +2116,16 @@
   ],
   "commits": [
     {
+      "hash": "f89b11f",
+      "date": "2026-10-09",
+      "subject": "auto: WIP着手 - ショップおすすめのステージ進行分岐修正"
+    },
+    {
+      "hash": "0632c9b",
+      "date": "2026-10-09",
+      "subject": "auto: レイのパネル耐久B-5対応漏れ修正(panel_ink 2→3)"
+    },
+    {
       "hash": "abc9a6e",
       "date": "2026-10-09",
       "subject": "auto: WIP着手 - レイのパネル耐久B-5対応漏れ修正"
@@ -2144,16 +2154,6 @@
       "hash": "de7274a",
       "date": "2026-10-08",
       "subject": "auto: WIP着手 - HUD左上バッジ自動退避ゾーンの拡張"
-    },
-    {
-      "hash": "02985da",
-      "date": "2026-10-08",
-      "subject": "auto: 監査で3件をキューに追加（TODO2件・BLOCKED1件）"
-    },
-    {
-      "hash": "9db4e46",
-      "date": "2026-10-07",
-      "subject": "auto: Audio.cs冒頭コメントをBGM配線済みの実態に合わせて修正"
     }
   ]
 }

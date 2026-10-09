@@ -138,9 +138,9 @@ public partial class Shop : Node2D
             1 => new[] { "spread_1", "homing_1", "bomb_count_1" },
             _ => new[] { "shot_power_1", "fire_rate_1", "max_life_1" },
         };
-        int stage = _game.IsStageCleared("koharu") ? 3
-            : _game.IsStageCleared("akari") ? 2
-            : _game.IsStageCleared("rei") ? 1
+        int stage = _game.IsStageCleared("rei") ? 3
+            : _game.IsStageCleared("koharu") ? 2
+            : _game.IsStageCleared("akari") ? 1
             : 0;
 
         // ①所持済みidを除外。段階のベースが全部所持済みなら前段（易しい方）へ遡ってフォールバック。
