@@ -91,11 +91,12 @@
 
 <!-- 2026-10-09 監査モード(game-designer/engineer/scenario/qa並列)で追加。game-designerは2件TODOへ、engineerは1件TODOへ、scenarioは新規TODO0件(BLOCKEDへ1件)、qaは新規指摘0件(全パスclean run) -->
 
-- [ ] (P1) レイ(STAGE3)のパネル耐久がB-5強化対応から取り残され進行逆転 | game-designer | `config/boss_stats.ini:60`(akari `panel_ink=3`、コメント「2→3（B-5: 強化が伸びた中盤でシールド段が痩せない用）」)・`:93`(koharu同)・`:137`(mina `panel_ink=4`)に対し、`:24`のrei `panel_ink=2`と`src/BossRei.cs:120`の既定値2だけがB-5対応から漏れ、進行3番目の通常ボス(akari→koharu→reiの順、`GameManager.cs:200-202`)が盾の硬さで1番手のakariより薄い逆転になっている。`config/boss_stats.ini:24`のpanel_inkを2→3へ、`src/BossRei.cs:120`の既定値も2→3へ合わせる（または意図的に据え置く理由をコメントで明記する）こと。
 - [ ] (P2) ショップ「おすすめ」のステージ進行分岐が到達不能で拡散/ホーミング推薦が1段飛ばされる | game-designer | `src/Shop.cs:141-144`の`int stage = IsStageCleared("koharu") ? 3 : IsStageCleared("akari") ? 2 : IsStageCleared("rei") ? 1 : 0;`は、linear進行(`GameManager.cs:311-317`でakari→koharu→reiの順にしか解禁されない)の下では「reiクリア済だがkoharu/akari未クリア」が起こり得ず3項目目の`stage=1`分岐が到達不能。akariを1本クリアした時点で即`Base(2)`に飛び、1本クリア直後に出すべき`Base(1)`(`spread_1`/`homing_1`/`bomb_count_1`の解放入口)が出ない。stage算出の判定順（またはstage値のマッピング）を、akariクリアのみの時点で確実に`Base(1)`が最初の推薦候補になるよう修正すること。
 - [ ] (P2) AreaSpellCasterのミナ(FINAL)予兆時間フォールバック値がbalance修正後のini実効値と不一致 | engineer | `src/AreaSpellCaster.cs:300`の`default:`ケース（キー"mina"）が`_warnMin = 0.8f; _warnMax = 1.2f;`のままだが、`config/boss_stats.ini:159-160`の`[mina] aoe_warn_min/aoe_warn_max`は2026-10-04に視認性改善のため`1.0/1.4`へ変更済み(DEV_QUEUE.md DONE記録)。`BossTuning.F()`はiniキーが無い場合のみこのハードコード値を使うため、exeフォルダに部分上書きiniを置く運用でaoe_warn_min/maxキーを省略すると意図的に是正したはずの最短・視認性最悪の予兆時間(0.8/1.2s)へサイレントに戻る。`src/AreaSpellCaster.cs:300`を`_warnMin = 1.0f; _warnMax = 1.4f;`へ修正し、ini実効値と一致させること（ロジック変更なし、リテラル2値の同期のみ）。
 
 ## WIP
+
+- [ ] (P1) レイ(STAGE3)のパネル耐久がB-5強化対応から取り残され進行逆転 | game-designer | `config/boss_stats.ini:60`(akari `panel_ink=3`、コメント「2→3（B-5: 強化が伸びた中盤でシールド段が痩せない用）」)・`:93`(koharu同)・`:137`(mina `panel_ink=4`)に対し、`:24`のrei `panel_ink=2`と`src/BossRei.cs:120`の既定値2だけがB-5対応から漏れ、進行3番目の通常ボス(akari→koharu→reiの順、`GameManager.cs:200-202`)が盾の硬さで1番手のakariより薄い逆転になっている。`config/boss_stats.ini:24`のpanel_inkを2→3へ、`src/BossRei.cs:120`の既定値も2→3へ合わせる（または意図的に据え置く理由をコメントで明記する）こと。
 
 ## BLOCKED
 
