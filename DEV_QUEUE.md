@@ -89,6 +89,12 @@
 
 <!-- 2026-10-08 監査モード(game-designer/engineer/scenario/qa並列)で追加。game-designerは1件TODOへ、engineerは1件TODOへ、scenarioは新規TODO0件(BLOCKEDへ1件)、qaは新規指摘0件(全パスclean run) -->
 
+<!-- 2026-10-09 監査モード(game-designer/engineer/scenario/qa並列)で追加。game-designerは2件TODOへ、engineerは1件TODOへ、scenarioは新規TODO0件(BLOCKEDへ1件)、qaは新規指摘0件(全パスclean run) -->
+
+- [ ] (P1) レイ(STAGE3)のパネル耐久がB-5強化対応から取り残され進行逆転 | game-designer | `config/boss_stats.ini:60`(akari `panel_ink=3`、コメント「2→3（B-5: 強化が伸びた中盤でシールド段が痩せない用）」)・`:93`(koharu同)・`:137`(mina `panel_ink=4`)に対し、`:24`のrei `panel_ink=2`と`src/BossRei.cs:120`の既定値2だけがB-5対応から漏れ、進行3番目の通常ボス(akari→koharu→reiの順、`GameManager.cs:200-202`)が盾の硬さで1番手のakariより薄い逆転になっている。`config/boss_stats.ini:24`のpanel_inkを2→3へ、`src/BossRei.cs:120`の既定値も2→3へ合わせる（または意図的に据え置く理由をコメントで明記する）こと。
+- [ ] (P2) ショップ「おすすめ」のステージ進行分岐が到達不能で拡散/ホーミング推薦が1段飛ばされる | game-designer | `src/Shop.cs:141-144`の`int stage = IsStageCleared("koharu") ? 3 : IsStageCleared("akari") ? 2 : IsStageCleared("rei") ? 1 : 0;`は、linear進行(`GameManager.cs:311-317`でakari→koharu→reiの順にしか解禁されない)の下では「reiクリア済だがkoharu/akari未クリア」が起こり得ず3項目目の`stage=1`分岐が到達不能。akariを1本クリアした時点で即`Base(2)`に飛び、1本クリア直後に出すべき`Base(1)`(`spread_1`/`homing_1`/`bomb_count_1`の解放入口)が出ない。stage算出の判定順（またはstage値のマッピング）を、akariクリアのみの時点で確実に`Base(1)`が最初の推薦候補になるよう修正すること。
+- [ ] (P2) AreaSpellCasterのミナ(FINAL)予兆時間フォールバック値がbalance修正後のini実効値と不一致 | engineer | `src/AreaSpellCaster.cs:300`の`default:`ケース（キー"mina"）が`_warnMin = 0.8f; _warnMax = 1.2f;`のままだが、`config/boss_stats.ini:159-160`の`[mina] aoe_warn_min/aoe_warn_max`は2026-10-04に視認性改善のため`1.0/1.4`へ変更済み(DEV_QUEUE.md DONE記録)。`BossTuning.F()`はiniキーが無い場合のみこのハードコード値を使うため、exeフォルダに部分上書きiniを置く運用でaoe_warn_min/maxキーを省略すると意図的に是正したはずの最短・視認性最悪の予兆時間(0.8/1.2s)へサイレントに戻る。`src/AreaSpellCaster.cs:300`を`_warnMin = 1.0f; _warnMax = 1.4f;`へ修正し、ini実効値と一致させること（ロジック変更なし、リテラル2値の同期のみ）。
+
 ## WIP
 
 ## BLOCKED
@@ -101,6 +107,10 @@
 <!-- 2026-10-05 監査モード(scenario)で追加。既存BLOCKED(直下2件先、2026-09-07発見「案C正典にはミナ本人とのラスボス戦が存在しないが実装に残存」)のMinaBattle構造判断に依存するため、置換自体は仮台本08に確定済みテキストがあっても先行着手不能 -->
 
 - [ ] StageMina.cs/BossMina.csが承認済み仮台本08(2026-09-05)のF1〜F3少年台詞置換指示に反し、案C未反映の少年中心セリフをそのまま稼働させ続けている | scenario→engineer | 要ユーザー判断（MinaBattle構造の存続/統合判断に依存）。2026-10-05監査(scenario)発見。仮台本`wiki/08_仮台本/08_粗い台本_案C_3_FINALと結末.md:24,34`「少年の宣言4行は削除」「少年の行は無し」(F1)に対し、実装`src/StageMina.cs:47-50`は少年(who=0)の宣言4行(「……ミナ。」等)をそのまま保持（`:36`の内部コメント自身が「正典v3(S2)」=案C未反映と自認）。仮台本`:42,44-50`「BREAK合図の少年行を三人(あかり/こはる/レイ)の援護3行に置換」に対し`src/BossMina.cs:254 OnBreakCue()`は`ShowBossLine("少年","ミナ! いまだ、撃ち抜け!",...)`のまま未置換(話者名リテラル`"少年"`表示も`Hud.cs:449,492-494`の表示規約と不整合)。仮台本`:57`「核が開く。少年行は削除」(F3邂逅)に対し`src/BossMina.cs:60-66`の`Lines`配列は少年の3行をそのまま保持し、レイの反転回収行(仮台本`:61`「ねえ、知ってた?…この人に、そっくりよ。」)は`grep -rn "そっくりよ" src/`0件で未実装。既存BLOCKED(2026-09-07発見、本ファイル内「案C正典にはミナ本人とのラスボス戦(StageMina/MinaBattle)が存在しない」)は「回収先が実装に存在しない」という前提だったが実際には`BossMina.cs`が同シーンを既に実装済みで中身が未置換のまま、という点が新規発見。置換後テキスト自体は仮台本08:29-31(F1投稿残響)・44-50(BREAK3行)・61(F3反転行)に一字一句確定済みで新規創作ではないが、配置先(StageMina/BossMina独立構成を維持するかFinal.csのF1〜F4統合に合わせるか)が既存BLOCKEDの要ユーザー判断に依存するため先行着手不能。要ユーザー判断: (a)既存BLOCKED(MinaBattle構造)の判断を先に下す、(b)その上で確定済みテキストをStageMina.cs/BossMina.csへ転記してよいか指示する。
+
+<!-- 2026-10-09 監査モード(scenario)で追加。仮台本草稿が一度もDEV_QUEUEに記録・判断されていない運用漏れ(01/02の見落とし分) -->
+
+- [ ] `wiki/08_仮台本/04_冒頭台本_案C.md`が新規提案のまま一度もDEV_QUEUEに記録・判断されていない | scenario | 要ユーザー判断（仮台本未承認）。2026-10-09監査(scenario)発見。`wiki/08_仮台本/04_冒頭台本_案C.md:3`は「検討中の草稿。実装された物語ではない…承認待ち」と自己申告する、プロローグ全編を「下書き選択式」（プレイヤーが台詞を選び、選ばなかった2つが『散った言葉』としてFINAL/エピローグ/鍵アカPWで回収される）に丸ごと置き換える完全台本(`:59-193`)だが、`grep -n "冒頭台本" DEV_QUEUE.md`は0件で一度も記録・判断されていない。同根の仮台本01・02は2026-10-07監査でBLOCKED済み(本ファイル:98-99)だが、04はその監査でも見落とされていた。現行実装の正典プロローグ(`src/Prologue.cs`、承認済み仮台本06ベース)とは選択UIの有無・一人称構造(who=0が「少年」ではなく「あなた＝プレイヤー自身」になる)という根本仕様が異なり、採用すれば新規UI実装(下書き選択の保存・FINAL/エピローグ/鍵アカPWでの回収)を伴う。要ユーザー判断: (a)04を正式採用し仮台本化・実装計画を進める（新規ゲーム機構を伴うため別途engineerも要る規模）、(b)却下する、(c)保留のまま存置する。
 
 <!-- 2026-09-28 監査モード(scenario/engineerが独立に同一件を発見。1件に統合) -->
 
