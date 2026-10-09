@@ -91,9 +91,9 @@
 
 <!-- 2026-10-09 監査モード(game-designer/engineer/scenario/qa並列)で追加。game-designerは2件TODOへ、engineerは1件TODOへ、scenarioは新規TODO0件(BLOCKEDへ1件)、qaは新規指摘0件(全パスclean run) -->
 
-- [ ] (P2) AreaSpellCasterのミナ(FINAL)予兆時間フォールバック値がbalance修正後のini実効値と不一致 | engineer | `src/AreaSpellCaster.cs:300`の`default:`ケース（キー"mina"）が`_warnMin = 0.8f; _warnMax = 1.2f;`のままだが、`config/boss_stats.ini:159-160`の`[mina] aoe_warn_min/aoe_warn_max`は2026-10-04に視認性改善のため`1.0/1.4`へ変更済み(DEV_QUEUE.md DONE記録)。`BossTuning.F()`はiniキーが無い場合のみこのハードコード値を使うため、exeフォルダに部分上書きiniを置く運用でaoe_warn_min/maxキーを省略すると意図的に是正したはずの最短・視認性最悪の予兆時間(0.8/1.2s)へサイレントに戻る。`src/AreaSpellCaster.cs:300`を`_warnMin = 1.0f; _warnMax = 1.4f;`へ修正し、ini実効値と一致させること（ロジック変更なし、リテラル2値の同期のみ）。
-
 ## WIP
+
+- [ ] (P2) AreaSpellCasterのミナ(FINAL)予兆時間フォールバック値がbalance修正後のini実効値と不一致 | engineer | `src/AreaSpellCaster.cs:300`の`default:`ケース（キー"mina"）が`_warnMin = 0.8f; _warnMax = 1.2f;`のままだが、`config/boss_stats.ini:159-160`の`[mina] aoe_warn_min/aoe_warn_max`は2026-10-04に視認性改善のため`1.0/1.4`へ変更済み(DEV_QUEUE.md DONE記録)。`BossTuning.F()`はiniキーが無い場合のみこのハードコード値を使うため、exeフォルダに部分上書きiniを置く運用でaoe_warn_min/maxキーを省略すると意図的に是正したはずの最短・視認性最悪の予兆時間(0.8/1.2s)へサイレントに戻る。`src/AreaSpellCaster.cs:300`を`_warnMin = 1.0f; _warnMax = 1.4f;`へ修正し、ini実効値と一致させること（ロジック変更なし、リテラル2値の同期のみ）。
 
 ## BLOCKED
 
