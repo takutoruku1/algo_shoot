@@ -513,8 +513,8 @@ public partial class GameManager : Node
         new() { Id = "bf_track_1",    Name = "後方追尾I",   Desc = "後方弾の旋回90・同時2発",  MaxLevel = 1, BaseCost = 460,  ParentId = "bf_power_1" },
         // ── 生存・経済系 ──
         new() { Id = "move_speed_1",  Name = "身のこなしI", Desc = "移動速度UP＋回避のキレ",   MaxLevel = 1, BaseCost = 100,  ParentId = "" },
-        new() { Id = "move_speed_2",  Name = "身のこなしII",Desc = "移動・回避 段2",           MaxLevel = 1, BaseCost = 250,  ParentId = "move_speed_1" },
-        new() { Id = "move_speed_3",  Name = "身のこなしIII",Desc = "移動・回避 段3",          MaxLevel = 1, BaseCost = 350,  ParentId = "move_speed_2" },
+        new() { Id = "move_speed_2",  Name = "身のこなしII",Desc = "移動速度 ×1.24・回避CD 0.68s", MaxLevel = 1, BaseCost = 250,  ParentId = "move_speed_1" },
+        new() { Id = "move_speed_3",  Name = "身のこなしIII",Desc = "移動速度 ×1.36・回避CD 0.65s", MaxLevel = 1, BaseCost = 350,  ParentId = "move_speed_2" },
         new() { Id = "contam_1",      Name = "澄んだ心I",   Desc = "汚染の上昇を抑え、心の効率を底上げ", MaxLevel = 1, BaseCost = 100,  ParentId = "move_speed_1" },
         new() { Id = "contam_2",      Name = "澄んだ心II",  Desc = "汚染耐性 段2（旧Lv3効果に補償）", MaxLevel = 1, BaseCost = 300,  ParentId = "contam_1" },
         new() { Id = "hitbox_1",      Name = "回避域I",     Desc = "被弾判定 ×0.88",           MaxLevel = 1, BaseCost = 100,  ParentId = "contam_1" },
@@ -528,8 +528,8 @@ public partial class GameManager : Node
         new() { Id = "max_life_2",    Name = "最大♥II",     Desc = "ライフ上限 +2",            MaxLevel = 1, BaseCost = 550,  ParentId = "max_life_1" },
         new() { Id = "bomb_count_1",  Name = "ボム所持I",   Desc = "初期ボム +1",              MaxLevel = 1, BaseCost = 100,  ParentId = "max_life_1" },
         new() { Id = "bomb_count_2",  Name = "ボム所持II",  Desc = "初期ボム +2",              MaxLevel = 1, BaseCost = 450,  ParentId = "bomb_count_1" },
-        new() { Id = "bomb_power_1",  Name = "ボム威力I",   Desc = "ボム直撃が穢れを深く祓う 段1", MaxLevel = 1, BaseCost = 100,  ParentId = "max_life_1" },
-        new() { Id = "bomb_power_2",  Name = "ボム威力II",  Desc = "ボム直撃 段2",             MaxLevel = 1, BaseCost = 350,  ParentId = "bomb_power_1" },
+        new() { Id = "bomb_power_1",  Name = "ボム威力I",   Desc = "ボム直撃ダメージ ×1.25",   MaxLevel = 1, BaseCost = 100,  ParentId = "max_life_1" },
+        new() { Id = "bomb_power_2",  Name = "ボム威力II",  Desc = "ボム直撃ダメージ ×1.50",   MaxLevel = 1, BaseCost = 350,  ParentId = "bomb_power_1" },
     };
 
     public static UpgradeDef? GetUpgradeDef(string id)

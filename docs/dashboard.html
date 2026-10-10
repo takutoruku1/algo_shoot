@@ -125,16 +125,16 @@
     </div>
 
     <div class="figure">
-      <span class="pct">99<span class="pct-unit">%</span></span>
-      <span class="figure-note">完了 300 / 対象 302 タスク<br>保留 51 件は人間の判断待ちのため対象外</span>
+      <span class="pct">100<span class="pct-unit">%</span></span>
+      <span class="figure-note">完了 301 / 対象 302 タスク<br>保留 51 件は人間の判断待ちのため対象外</span>
     </div>
-    <div class="rail" role="img" aria-label="進捗 99パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span></div>
+    <div class="rail" role="img" aria-label="進捗 100パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span></div>
   </header>
 
   <div class="states">
-    <div class="state done"><div class="state-n">300</div><div class="state-l">完了</div></div>
+    <div class="state done"><div class="state-n">301</div><div class="state-l">完了</div></div>
     <div class="state wip"><div class="state-n">0</div><div class="state-l">作業中</div></div>
-    <div class="state todo"><div class="state-n">2</div><div class="state-l">残り</div></div>
+    <div class="state todo"><div class="state-n">1</div><div class="state-l">残り</div></div>
     <div class="state blocked"><div class="state-n">51</div><div class="state-l">保留</div></div>
   </div>
 
@@ -148,14 +148,6 @@
     <ol class="tasks">
       <li class="task ">
         <div class="task-head">
-          <span class="chip chip-p2">P2</span>
-          <span class="task-title">move_speed/bomb_power強化アイテムの説明が「段N」表記で具体的な効果量を隠している</span>
-          <span class="worker">game-designer</span>
-        </div>
-        <p class="accept">2026-10-10監査(game-designer)発見。<code>GameManager.cs:516-517</code>の<code>move_speed_2</code>/<code>move_speed_3</code>は<code>&quot;移動・回避 段2&quot;</code>/<code>&quot;段3&quot;</code>で実効果(<code>MoveSpeedMul=1+0.12*Lv</code>、<code>DodgeCooldown</code>/<code>DodgeDistance</code>、<code>GameManager.cs:778,844-845</code>)を一切見せない。<code>bomb_power_1</code>/<code>bomb_power_2</code>(<code>GameManager.cs:531-532</code>)も<code>&quot;段1&quot;</code>/<code>&quot;段2&quot;</code>のみで実効果<code>BombPowerMul=1+0.25*Lv</code>(<code>GameManager.cs:784</code>)を見せない。他の大半のノード(<code>shot_power_1</code>=&quot;+1&quot;、<code>fire_rate_1</code>=&quot;×0.92&quot;等)は具体数値を表示している中でこの2系統だけ不透明。<code>move_speed_2</code>→<code>&quot;移動速度 ×1.24・回避CD 0.72s&quot;</code>、<code>move_speed_3</code>→<code>&quot;移動速度 ×1.36・回避CD 0.68s&quot;</code>、<code>bomb_power_1</code>→<code>&quot;ボム直撃ダメージ ×1.25&quot;</code>、<code>bomb_power_2</code>→<code>&quot;ボム直撃ダメージ ×1.50&quot;</code>にDescを変更する（<code>contam_2</code>は非線形補償のため対象外、現状維持でよい）。数値ロジックは変更せずDescのみ修正。Shop.cs/TrainingRoot.csは<code>d.Desc</code>を直接描画するため両画面に自動反映される。</p>
-      </li>
-      <li class="task ">
-        <div class="task-head">
           <span class="chip chip-p3">P3</span>
           <span class="task-title">コメント内のfile:line参照が実装からまた3箇所ズレている(2026-09是正後の再発)</span>
           <span class="worker">engineer</span>
@@ -167,6 +159,14 @@
   <section>
     <h2>完了</h2>
     <ol class="tasks">
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p2">P2</span>
+          <span class="task-title">move_speed/bomb_power強化アイテムの説明が「段N」表記で具体的な効果量を隠している</span>
+          <span class="worker">game-designer</span>
+        </div>
+        <p class="accept">(完了 2026-10-10) 2026-10-10監査(game-designer)発見。<code>GameManager.cs:516-517</code>の<code>move_speed_2</code>/<code>move_speed_3</code>は<code>&quot;移動・回避 段2&quot;</code>/<code>&quot;段3&quot;</code>で実効果(<code>MoveSpeedMul=1+0.12*Lv</code>、<code>DodgeCooldown</code>、<code>GameManager.cs:778,844</code>)を一切見せず、<code>bomb_power_1</code>/<code>bomb_power_2</code>(<code>GameManager.cs:531-532</code>)も<code>&quot;段1&quot;</code>/<code>&quot;段2&quot;</code>のみで実効果<code>BombPowerMul=1+0.25*Lv</code>(<code>GameManager.cs:784</code>)を見せていなかった。<code>move_speed_2</code>→<code>&quot;移動速度 ×1.24・回避CD 0.68s&quot;</code>、<code>move_speed_3</code>→<code>&quot;移動速度 ×1.36・回避CD 0.65s&quot;</code>、<code>bomb_power_1</code>→<code>&quot;ボム直撃ダメージ ×1.25&quot;</code>、<code>bomb_power_2</code>→<code>&quot;ボム直撃ダメージ ×1.50&quot;</code>にDescを変更(<code>contam_2</code>は非線形補償のため対象外、変更なし)。<strong>検証時の訂正</strong>: 当初の受入条件案は<code>DodgeCooldown</code>配列<code>{0.80,0.72,0.68,0.65}</code>のインデックスをChainLevelと1段ズレて読んだ誤りで<code>move_speed_2→0.72s</code>/<code>move_speed_3→0.68s</code>としていたが、実装前にChainLevel(&quot;move_speed&quot;,3)の実際の値(move_speed_2購入時=2、move_speed_3購入時=3)で再計算し、正しい<code>0.68s</code>/<code>0.65s</code>に訂正して実装した。数値ロジックは無変更。<strong>検証</strong>: 変更は4箇所のDesc文字列のみ、<code>dotnet build algo_shoot.sln</code> 0 Warning/0 Error。</p>
+      </li>
       <li class="task is-done">
         <div class="task-head">
           <span class="chip chip-p2">P2</span>
@@ -2985,18 +2985,18 @@
   <section>
     <h2>直近のコミット</h2>
     <ul class="log">
+      <li><span class="h">5630149</span><span>2026-10-10</span><span class="s">auto: WIP着手 - move_speed/bomb_power強化アイテムの説明を具体数値表記に変更</span></li>
+      <li><span class="h">0643ab0</span><span>2026-10-10</span><span class="s">auto: ホーミング/拡散弾の威力表示を変更前→変更後の書式に統一</span></li>
       <li><span class="h">d2e0134</span><span>2026-10-10</span><span class="s">auto: WIP着手 - ホーミング/拡散弾の威力表示を変更前→変更後の書式に統一</span></li>
       <li><span class="h">8dc6f36</span><span>2026-10-10</span><span class="s">auto: 監査で3件をキューに追加（TODO3件）</span></li>
       <li><span class="h">6f5c0e8</span><span>2026-10-09</span><span class="s">auto: AreaSpellCasterミナ予兆時間フォールバック値をini実効値に同期(0.8/1.2→1.0/1.4)</span></li>
       <li><span class="h">f6cdfb4</span><span>2026-10-09</span><span class="s">auto: WIP着手 - AreaSpellCasterミナ予兆時間フォールバック同期</span></li>
       <li><span class="h">a886333</span><span>2026-10-09</span><span class="s">auto: ショップおすすめのステージ進行分岐を一本道順に修正</span></li>
       <li><span class="h">f89b11f</span><span>2026-10-09</span><span class="s">auto: WIP着手 - ショップおすすめのステージ進行分岐修正</span></li>
-      <li><span class="h">0632c9b</span><span>2026-10-09</span><span class="s">auto: レイのパネル耐久B-5対応漏れ修正(panel_ink 2→3)</span></li>
-      <li><span class="h">abc9a6e</span><span>2026-10-09</span><span class="s">auto: WIP着手 - レイのパネル耐久B-5対応漏れ修正</span></li>
     </ul>
   </section>
 
-  <footer>生成 2026-10-10 18:41 UTC — DEV_QUEUE.md より自動生成</footer>
+  <footer>生成 2026-10-10 18:44 UTC — DEV_QUEUE.md より自動生成</footer>
 </div>
 
 <script>

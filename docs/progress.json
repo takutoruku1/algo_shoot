@@ -1,19 +1,13 @@
 {
-  "generated": "2026-10-10 18:41 UTC",
+  "generated": "2026-10-10 18:44 UTC",
   "counts": {
-    "todo": 2,
+    "todo": 1,
     "wip": 0,
     "blocked": 51,
-    "done": 300
+    "done": 301
   },
-  "percent": 99,
+  "percent": 100,
   "todo": [
-    {
-      "priority": "P2",
-      "title": "move_speed/bomb_power強化アイテムの説明が「段N」表記で具体的な効果量を隠している",
-      "worker": "game-designer",
-      "accept": "2026-10-10監査(game-designer)発見。`GameManager.cs:516-517`の`move_speed_2`/`move_speed_3`は`\"移動・回避 段2\"`/`\"段3\"`で実効果(`MoveSpeedMul=1+0.12*Lv`、`DodgeCooldown`/`DodgeDistance`、`GameManager.cs:778,844-845`)を一切見せない。`bomb_power_1`/`bomb_power_2`(`GameManager.cs:531-532`)も`\"段1\"`/`\"段2\"`のみで実効果`BombPowerMul=1+0.25*Lv`(`GameManager.cs:784`)を見せない。他の大半のノード(`shot_power_1`=\"+1\"、`fire_rate_1`=\"×0.92\"等)は具体数値を表示している中でこの2系統だけ不透明。`move_speed_2`→`\"移動速度 ×1.24・回避CD 0.72s\"`、`move_speed_3`→`\"移動速度 ×1.36・回避CD 0.68s\"`、`bomb_power_1`→`\"ボム直撃ダメージ ×1.25\"`、`bomb_power_2`→`\"ボム直撃ダメージ ×1.50\"`にDescを変更する（`contam_2`は非線形補償のため対象外、現状維持でよい）。数値ロジックは変更せずDescのみ修正。Shop.cs/TrainingRoot.csは`d.Desc`を直接描画するため両画面に自動反映される。"
-    },
     {
       "priority": "P3",
       "title": "コメント内のfile:line参照が実装からまた3箇所ズレている(2026-09是正後の再発)",
@@ -331,6 +325,12 @@
     }
   ],
   "done": [
+    {
+      "priority": "P2",
+      "title": "move_speed/bomb_power強化アイテムの説明が「段N」表記で具体的な効果量を隠している",
+      "worker": "game-designer",
+      "accept": "(完了 2026-10-10) 2026-10-10監査(game-designer)発見。`GameManager.cs:516-517`の`move_speed_2`/`move_speed_3`は`\"移動・回避 段2\"`/`\"段3\"`で実効果(`MoveSpeedMul=1+0.12*Lv`、`DodgeCooldown`、`GameManager.cs:778,844`)を一切見せず、`bomb_power_1`/`bomb_power_2`(`GameManager.cs:531-532`)も`\"段1\"`/`\"段2\"`のみで実効果`BombPowerMul=1+0.25*Lv`(`GameManager.cs:784`)を見せていなかった。`move_speed_2`→`\"移動速度 ×1.24・回避CD 0.68s\"`、`move_speed_3`→`\"移動速度 ×1.36・回避CD 0.65s\"`、`bomb_power_1`→`\"ボム直撃ダメージ ×1.25\"`、`bomb_power_2`→`\"ボム直撃ダメージ ×1.50\"`にDescを変更(`contam_2`は非線形補償のため対象外、変更なし)。**検証時の訂正**: 当初の受入条件案は`DodgeCooldown`配列`{0.80,0.72,0.68,0.65}`のインデックスをChainLevelと1段ズレて読んだ誤りで`move_speed_2→0.72s`/`move_speed_3→0.68s`としていたが、実装前にChainLevel(\"move_speed\",3)の実際の値(move_speed_2購入時=2、move_speed_3購入時=3)で再計算し、正しい`0.68s`/`0.65s`に訂正して実装した。数値ロジックは無変更。**検証**: 変更は4箇所のDesc文字列のみ、`dotnet build algo_shoot.sln` 0 Warning/0 Error。"
+    },
     {
       "priority": "P2",
       "title": "ホーミング/拡散弾の威力強化アイテムの表示が1.0を跨ぐため強化なのに弱体化に見える",
@@ -2134,6 +2134,16 @@
   ],
   "commits": [
     {
+      "hash": "5630149",
+      "date": "2026-10-10",
+      "subject": "auto: WIP着手 - move_speed/bomb_power強化アイテムの説明を具体数値表記に変更"
+    },
+    {
+      "hash": "0643ab0",
+      "date": "2026-10-10",
+      "subject": "auto: ホーミング/拡散弾の威力表示を変更前→変更後の書式に統一"
+    },
+    {
       "hash": "d2e0134",
       "date": "2026-10-10",
       "subject": "auto: WIP着手 - ホーミング/拡散弾の威力表示を変更前→変更後の書式に統一"
@@ -2162,16 +2172,6 @@
       "hash": "f89b11f",
       "date": "2026-10-09",
       "subject": "auto: WIP着手 - ショップおすすめのステージ進行分岐修正"
-    },
-    {
-      "hash": "0632c9b",
-      "date": "2026-10-09",
-      "subject": "auto: レイのパネル耐久B-5対応漏れ修正(panel_ink 2→3)"
-    },
-    {
-      "hash": "abc9a6e",
-      "date": "2026-10-09",
-      "subject": "auto: WIP着手 - レイのパネル耐久B-5対応漏れ修正"
     }
   ]
 }
