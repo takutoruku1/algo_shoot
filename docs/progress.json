@@ -1,20 +1,13 @@
 {
-  "generated": "2026-10-10 18:44 UTC",
+  "generated": "2026-10-10 18:46 UTC",
   "counts": {
-    "todo": 1,
+    "todo": 0,
     "wip": 0,
     "blocked": 51,
-    "done": 301
+    "done": 302
   },
   "percent": 100,
-  "todo": [
-    {
-      "priority": "P3",
-      "title": "コメント内のfile:line参照が実装からまた3箇所ズレている(2026-09是正後の再発)",
-      "worker": "engineer",
-      "accept": "2026-10-10監査(engineer)発見。(1)`src/Player.cs:265`のコメント「TryDodgeの実行可否ガード(1019行目)」を「1029行目」に修正(実ガードは`src/Player.cs:1029`)。(2)`src/QaPilot.cs:321`のコメント「Player.cs:660の判定で何も起きず無害」を「GameManager.cs:1295の判定」に修正(実ガード`if (IsOverload |  | _kindFill < 1f) return false;`は`src/GameManager.cs:1295`の`TryActivateKindness()`内。現在の`Player.cs:660`は`SetBackfireReady`のHUD通知呼び出しで無関係)。(3)`src/DemoPilot.cs:260`のコメント「引用リプ(FlankAim。FlankCampX=40。Spawner.cs:112-123)」のうち`Spawner.cs:112-123`を実位置`Spawner.cs:127-139`に修正(現在の112-123行目はデフォルトテーマの雑魚生成分岐でFlankAim関連ロジックではない)。いずれもコメント文言のみの修正でロジック変更は不要。"
-    }
-  ],
+  "todo": [],
   "wip": [],
   "blocked": [
     {
@@ -325,6 +318,12 @@
     }
   ],
   "done": [
+    {
+      "priority": "P3",
+      "title": "コメント内のfile:line参照が実装からまた3箇所ズレている(2026-09是正後の再発)",
+      "worker": "engineer",
+      "accept": "(完了 2026-10-10) 2026-10-10監査(engineer)発見。(1)`src/Player.cs:265`のコメント「TryDodgeの実行可否ガード(1019行目)」を実ガード位置`src/Player.cs:1029`に合わせて「1029行目」に修正。(2)`src/QaPilot.cs:321`のコメント「Player.cs:660の判定で何も起きず無害」を、実ガード`if (IsOverload |  | _kindFill < 1f) return false;`(`TryActivateKindness()`内)の実位置`src/GameManager.cs:1295`に合わせて「GameManager.cs:1295の判定」に修正。(3)`src/DemoPilot.cs:260`のコメント「Spawner.cs:112-123」を、FlankAim関連ロジック(FlankRampGate判定〜SetFlankEntry呼び出し)の実位置`src/Spawner.cs:127-139`に合わせて修正。いずれもコメント文言のみの修正でロジック変更なし。**検証**: 変更は3ファイルのコメント内数字のみ、`dotnet build algo_shoot.sln` 0 Warning/0 Error。"
+    },
     {
       "priority": "P2",
       "title": "move_speed/bomb_power強化アイテムの説明が「段N」表記で具体的な効果量を隠している",
@@ -2134,6 +2133,16 @@
   ],
   "commits": [
     {
+      "hash": "924aaa3",
+      "date": "2026-10-10",
+      "subject": "auto: WIP着手 - コメント内file:line参照の3箇所ズレを修正"
+    },
+    {
+      "hash": "c10e19a",
+      "date": "2026-10-10",
+      "subject": "auto: move_speed/bomb_power強化アイテムの説明を具体数値表記に変更"
+    },
+    {
       "hash": "5630149",
       "date": "2026-10-10",
       "subject": "auto: WIP着手 - move_speed/bomb_power強化アイテムの説明を具体数値表記に変更"
@@ -2162,16 +2171,6 @@
       "hash": "f6cdfb4",
       "date": "2026-10-09",
       "subject": "auto: WIP着手 - AreaSpellCasterミナ予兆時間フォールバック同期"
-    },
-    {
-      "hash": "a886333",
-      "date": "2026-10-09",
-      "subject": "auto: ショップおすすめのステージ進行分岐を一本道順に修正"
-    },
-    {
-      "hash": "f89b11f",
-      "date": "2026-10-09",
-      "subject": "auto: WIP着手 - ショップおすすめのステージ進行分岐修正"
     }
   ]
 }

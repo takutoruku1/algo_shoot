@@ -126,15 +126,15 @@
 
     <div class="figure">
       <span class="pct">100<span class="pct-unit">%</span></span>
-      <span class="figure-note">完了 301 / 対象 302 タスク<br>保留 51 件は人間の判断待ちのため対象外</span>
+      <span class="figure-note">完了 302 / 対象 302 タスク<br>保留 51 件は人間の判断待ちのため対象外</span>
     </div>
     <div class="rail" role="img" aria-label="進捗 100パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span></div>
   </header>
 
   <div class="states">
-    <div class="state done"><div class="state-n">301</div><div class="state-l">完了</div></div>
+    <div class="state done"><div class="state-n">302</div><div class="state-l">完了</div></div>
     <div class="state wip"><div class="state-n">0</div><div class="state-l">作業中</div></div>
-    <div class="state todo"><div class="state-n">1</div><div class="state-l">残り</div></div>
+    <div class="state todo"><div class="state-n">0</div><div class="state-l">残り</div></div>
     <div class="state blocked"><div class="state-n">51</div><div class="state-l">保留</div></div>
   </div>
 
@@ -145,20 +145,20 @@
 
   <section>
     <h2>キュー（上から消化）</h2>
-    <ol class="tasks">
-      <li class="task ">
-        <div class="task-head">
-          <span class="chip chip-p3">P3</span>
-          <span class="task-title">コメント内のfile:line参照が実装からまた3箇所ズレている(2026-09是正後の再発)</span>
-          <span class="worker">engineer</span>
-        </div>
-        <p class="accept">2026-10-10監査(engineer)発見。(1)<code>src/Player.cs:265</code>のコメント「TryDodgeの実行可否ガード(1019行目)」を「1029行目」に修正(実ガードは<code>src/Player.cs:1029</code>)。(2)<code>src/QaPilot.cs:321</code>のコメント「Player.cs:660の判定で何も起きず無害」を「GameManager.cs:1295の判定」に修正(実ガード<code>if (IsOverload |  | _kindFill &lt; 1f) return false;</code>は<code>src/GameManager.cs:1295</code>の<code>TryActivateKindness()</code>内。現在の<code>Player.cs:660</code>は<code>SetBackfireReady</code>のHUD通知呼び出しで無関係)。(3)<code>src/DemoPilot.cs:260</code>のコメント「引用リプ(FlankAim。FlankCampX=40。Spawner.cs:112-123)」のうち<code>Spawner.cs:112-123</code>を実位置<code>Spawner.cs:127-139</code>に修正(現在の112-123行目はデフォルトテーマの雑魚生成分岐でFlankAim関連ロジックではない)。いずれもコメント文言のみの修正でロジック変更は不要。</p>
-      </li></ol>
+    <p class="empty">キューが空です。タスクを積んでください</p>
   </section>
 
   <section>
     <h2>完了</h2>
     <ol class="tasks">
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p3">P3</span>
+          <span class="task-title">コメント内のfile:line参照が実装からまた3箇所ズレている(2026-09是正後の再発)</span>
+          <span class="worker">engineer</span>
+        </div>
+        <p class="accept">(完了 2026-10-10) 2026-10-10監査(engineer)発見。(1)<code>src/Player.cs:265</code>のコメント「TryDodgeの実行可否ガード(1019行目)」を実ガード位置<code>src/Player.cs:1029</code>に合わせて「1029行目」に修正。(2)<code>src/QaPilot.cs:321</code>のコメント「Player.cs:660の判定で何も起きず無害」を、実ガード<code>if (IsOverload |  | _kindFill &lt; 1f) return false;</code>(<code>TryActivateKindness()</code>内)の実位置<code>src/GameManager.cs:1295</code>に合わせて「GameManager.cs:1295の判定」に修正。(3)<code>src/DemoPilot.cs:260</code>のコメント「Spawner.cs:112-123」を、FlankAim関連ロジック(FlankRampGate判定〜SetFlankEntry呼び出し)の実位置<code>src/Spawner.cs:127-139</code>に合わせて修正。いずれもコメント文言のみの修正でロジック変更なし。<strong>検証</strong>: 変更は3ファイルのコメント内数字のみ、<code>dotnet build algo_shoot.sln</code> 0 Warning/0 Error。</p>
+      </li>
       <li class="task is-done">
         <div class="task-head">
           <span class="chip chip-p2">P2</span>
@@ -2985,18 +2985,18 @@
   <section>
     <h2>直近のコミット</h2>
     <ul class="log">
+      <li><span class="h">924aaa3</span><span>2026-10-10</span><span class="s">auto: WIP着手 - コメント内file:line参照の3箇所ズレを修正</span></li>
+      <li><span class="h">c10e19a</span><span>2026-10-10</span><span class="s">auto: move_speed/bomb_power強化アイテムの説明を具体数値表記に変更</span></li>
       <li><span class="h">5630149</span><span>2026-10-10</span><span class="s">auto: WIP着手 - move_speed/bomb_power強化アイテムの説明を具体数値表記に変更</span></li>
       <li><span class="h">0643ab0</span><span>2026-10-10</span><span class="s">auto: ホーミング/拡散弾の威力表示を変更前→変更後の書式に統一</span></li>
       <li><span class="h">d2e0134</span><span>2026-10-10</span><span class="s">auto: WIP着手 - ホーミング/拡散弾の威力表示を変更前→変更後の書式に統一</span></li>
       <li><span class="h">8dc6f36</span><span>2026-10-10</span><span class="s">auto: 監査で3件をキューに追加（TODO3件）</span></li>
       <li><span class="h">6f5c0e8</span><span>2026-10-09</span><span class="s">auto: AreaSpellCasterミナ予兆時間フォールバック値をini実効値に同期(0.8/1.2→1.0/1.4)</span></li>
       <li><span class="h">f6cdfb4</span><span>2026-10-09</span><span class="s">auto: WIP着手 - AreaSpellCasterミナ予兆時間フォールバック同期</span></li>
-      <li><span class="h">a886333</span><span>2026-10-09</span><span class="s">auto: ショップおすすめのステージ進行分岐を一本道順に修正</span></li>
-      <li><span class="h">f89b11f</span><span>2026-10-09</span><span class="s">auto: WIP着手 - ショップおすすめのステージ進行分岐修正</span></li>
     </ul>
   </section>
 
-  <footer>生成 2026-10-10 18:44 UTC — DEV_QUEUE.md より自動生成</footer>
+  <footer>生成 2026-10-10 18:46 UTC — DEV_QUEUE.md より自動生成</footer>
 </div>
 
 <script>
