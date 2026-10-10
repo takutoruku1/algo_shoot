@@ -51,7 +51,6 @@ public partial class OpeningFilm : Node2D
     private static readonly Vector2[] PortraitFocus = { new(0.52f, 0.24f), new(0.64f, 0.25f), new(0.51f, 0.24f), new(0.45f, 0.2f) };
     private static readonly Vector2[] DailyFocus = { new(0.73f, 0.32f), new(0.35f, 0.32f), new(0.73f, 0.32f) };
     private const float RecallBeat = 0.42f;
-    private const int TypeStride = 2;
     private readonly List<List<string>> _captionPages = new();
     private readonly List<DialoguePacing.Page[]> _captionPacing = new();
     private static double CaptionStart(int shot) => shot switch
@@ -90,6 +89,7 @@ public partial class OpeningFilm : Node2D
     private bool _leaving;
     private bool SkipVisible => Elapsed > 1 && !_leaving && Elapsed < Duration - 1.3;
     private int _loggedShot = -1;   // 会話ログへ字幕を積んだカット（カット切替ごとに1回）
+    private DialogueBox.TypeCursor _typeCursor;   // 字幕の送り音（1文字ごとのピッ）をどこまで鳴らしたか
     private int Shot => FindShot(Elapsed);
 
     public override void _Ready()
@@ -229,12 +229,11 @@ public partial class OpeningFilm : Node2D
         TypeCaptions(previousTime);
     }
 
-    // 字幕の文字送り音（2026-10-03）。話者は LogCaption の割り当てと揃える
-    //   ＝三人は相手（Other＝くぐもった音色）／ミナは Mina（澄んだ音色）。
-    //   カット9（まだ届いていない声が、待っている。）とカット10（消された言葉は、消えていない。）は
-    //   ナレ＝語りなので**鳴らさない**（PlayType の Narration 無音と同じ判断。カット10のタイトル
-    //   "Refrain" はロゴで台詞でないので同様）。
-    //   同じ理由で鳴らさないもの：スマホUIの固定文字（下書き／保存／かな／キー）・@ハンドル・
+    // 字幕の文字送り音（2026-10-03／1文字ごと 2026-10-09）。話者は LogCaption の割り当てと揃える
+    //   ＝三人は相手（Other＝くぐもった音色）／ミナは Mina（澄んだ音色）／カット9の語りは Narration。
+    //   カット10（消された言葉は、消えていない。）は1文字ずつ打ち出さず、タイトルと一緒にフェードで出る
+    //   ＝**意図して鳴らさない**（"Refrain" もロゴで台詞でない）。
+    //   同じく1文字ずつ出ないので鳴らさないもの：スマホUIの固定文字（下書き／保存／かな／キー）・@ハンドル・
     //   砕けるパネルに焼かれた投稿本文。どれも1文字ずつ出てこない飾りで、ここに音を足すと
     //   チャージ/ショットの合図（PlayChargeReady 等）を潰す（mitsuda pitfalls P1/P2）。
     private void TypeCaptions(double previousTime)
@@ -243,13 +242,10 @@ public partial class OpeningFilm : Node2D
         if (shot is >= 5 and <= 8)
             TypeName(previousTime, Cuts[shot] + 0.18, _cast[shot - 5].CharacterName,
                 shot == 8 ? Hud.LineKind.Mina : Hud.LineKind.Other);
-        if (shot is < 1 or > 8) return;
-        double start = Cuts[shot] + CaptionStart(shot);
-        var before = DialogueBox.CaptionAt(_captionPages[shot], previousTime - start, _captionPacing[shot]);
-        var now = DialogueBox.CaptionAt(_captionPages[shot], Elapsed - start, _captionPacing[shot]);
-        int previous = before.Page == now.Page ? before.Shown : 0;
-        if (now.Shown < now.Page.Length && now.Shown / TypeStride > previous / TypeStride)
-            Audio.Instance?.PlayType(shot is 4 or 8 ? Hud.LineKind.Mina : Hud.LineKind.Other, now.Page, now.Shown);
+        if (shot is < 1 or > 9) return;
+        var now = DialogueBox.CaptionAt(_captionPages[shot], Elapsed - Cuts[shot] - CaptionStart(shot), _captionPacing[shot]);
+        DialogueBox.TypeSound(shot == 9 ? Hud.LineKind.Narration : shot is 4 or 8 ? Hud.LineKind.Mina : Hud.LineKind.Other,
+            now.Page, now.Shown, ref _typeCursor);
     }
 
     // 名前の1文字ずつの出（DrawName と同じ 0.09 秒刻み）に合わせた一打。名前は1〜2文字なので間引かない。
@@ -919,7 +915,7 @@ public partial class OpeningFilm : Node2D
         var box = DialogueBox.FullScreen;
         DialogueBox.DrawFrame(canvas, box, speaker, accent);
         var caption = DialogueBox.CaptionAt(_captionPages[Shot], Elapsed - Cuts[Shot] - CaptionStart(Shot), _captionPacing[Shot]);
-        DialogueBox.DrawBody(canvas, box, caption.Page, caption.Shown, alpha);
+        DialogueBox.DrawBody(canvas, box, caption.Page, caption.Shown, alpha, pacing: caption.Pacing);
     }
 
     private void DrawName(Node2D canvas, string name, Vector2 position, int size, float time, float alpha, bool vertical)

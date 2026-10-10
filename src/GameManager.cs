@@ -984,9 +984,9 @@ public partial class GameManager : Node
     public float SpreadRateMul => 1.35f;       // 旧 spread_rate_1
     public float HomingPowerMul => 1.05f;      // 旧 homing_power_2
     public float HomingRateMul => 1.40f;       // 旧 homing_rate_1
-    public int HomingTurnRateOverride => 200;  // 旧 homing_rate_1（0=Bullet 既定150 を使う、の上書き）
-    public float AccelChargeDelay => 0.5f;     // 旧 accel_charge_2
-    public float AccelLaunchSpeed => 760f;     // 旧 accel_speed_1
+    public int HomingTurnRateOverride => Jobs.Get(Job.Heal).HomingTurnRate;
+    public float AccelChargeDelay => Jobs.Get(Job.Melee).AccelDelay;
+    public float AccelLaunchSpeed => Jobs.Get(Job.Melee).ShotSpeed;
     public float BombPowerMul => 1.25f;        // 旧 bomb_power_1
     public int BackfireDamage => 3;            // 旧 bf_power_2（ダメージ 1+2）
     public float BackfireInterval => 0.7f;     // 旧 bf_rate_1

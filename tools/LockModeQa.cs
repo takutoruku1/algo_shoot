@@ -73,8 +73,11 @@ public partial class LockModeQa : Node
         if (!IsInstanceValid(e1) || !IsInstanceValid(e2)) { GD.Print("[LM] NG enemy despawned"); _fail++; return; }
 
         Check("最初は OFF（モードなし）", !player.LockArmed && !player.LockedOn);
+        float normalMoveSpeed = player.MoveSpeed;
         await Tap(Key.S);
         Check("S で追尾（掴む＋モード）", player.LockedOn && player.LockArmed);
+        Check("ロック中は通常の80%の移動速度", Mathf.IsEqualApprox(player.MoveSpeed, normalMoveSpeed * 0.8f));
+        Check("予兆の計算も同じロック速度を使う", Mathf.IsEqualApprox(player.SlowestMoveSpeed, player.MoveSpeed));
         Check("追尾先は最寄り e1", ReferenceEquals(player.LockTarget, e1));
         await Shot("lock_tracking");
 
@@ -83,6 +86,7 @@ public partial class LockModeQa : Node
         e2.GlobalPosition = new Vector2(Field.Right + 480, 108);
         await Frames(4);
         Check("全員が画面外：掴みは外れる", !player.LockedOn);
+        Check("対象がない待機中は通常の移動速度", Mathf.IsEqualApprox(player.MoveSpeed, normalMoveSpeed));
         Check("全員が画面外：モードは残る（待機）", player.LockArmed);
         await Shot("lock_waiting");
 
@@ -128,6 +132,7 @@ public partial class LockModeQa : Node
         // 追尾中の Shift 押し離し → 解除
         await Tap(Key.Shift);
         Check("追尾中に Shift を離すと解除", !player.LockedOn && !player.LockArmed);
+        Check("解除すると通常の移動速度に戻る", Mathf.IsEqualApprox(player.MoveSpeed, normalMoveSpeed));
 
         // ── ①' Shift でロックしたまま会話に入る（2026-09-27 作者指摘）──
         //   会話中に Shift を離す → 会話が明けたとき、ロックは残っていない。

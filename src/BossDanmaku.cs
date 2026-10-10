@@ -57,13 +57,14 @@ public sealed class BossDanmaku
                     "akari" => new("6c9cd8"), "koharu" => new("e8945a"),
                     "rei" => new("967bd8"), _ => new("769cdb"),
                 };
-                var bullet = pool.Spawn(_boss.ShotCenter, direction * speed, true, 2.6f, 1, BulletShape.Dart, tint);
-                bullet.UseBossProjectile();
-                if (charged)
+                if (_boss.BodyShotJob is Job job)
                 {
-                    Vector2 position = _boss.ShotCenter + direction.Normalized() * (18 + layer * 10);
-                    bullet.MakeLeadIn(position);
-                    bullet.MakeAccel(6f, speed * 1.3f * game.BulletSpeedMul, 0.85f + layer * 0.12f);
+                    pool.SpawnBossShot(_boss.ShotCenter, direction, job, charged);
+                }
+                else
+                {
+                    var bullet = pool.Spawn(_boss.ShotCenter, direction * speed, true, 2.6f, 1, BulletShape.Dart, tint);
+                    bullet.SetSprite(BulletArt.Get("mina_memory"));
                 }
             }
         _wave++;

@@ -118,13 +118,13 @@ public partial class OpeningFilmQa : Node
 
             // ── 字幕の文字送り音（2026-10-03）───────────────────────────────────────
             //   耳で判定できないことは見ない。見るのは「刻みが本編と同じ」「字幕が消える前に打ち切る」
-            //   「記号ごとに語尾のピッチが動く」「話者ごとに抑揚の幅が違う」「ナレは無音」。
+            //   「記号ごとに語尾のピッチが動く」「話者差はピッチだけ」「ナレにも音がある」。
             const BindingFlags Stat = BindingFlags.Static | BindingFlags.NonPublic;
             var audio = GetNode<Audio>("/root/Audio");
-            int stride = (int)typeof(OpeningFilm).GetField("TypeStride", Stat)!.GetRawConstantValue()!;
+            // 刻みは本編と同じ「1文字ごと」（2026-10-09・DialogueBox.TypeSound を共用。間引きの定数はもう無い）。
             Check(DialogueBox.DefaultCharsPerSec == (float)typeof(Hud).GetField("CharsPerSec", Stat)!.GetRawConstantValue()!
-                && stride == (int)typeof(Hud).GetField("TypeStride", Stat)!.GetRawConstantValue()!,
-                "captions tick at the in-game typewriter's rate and stride");
+                && typeof(OpeningFilm).GetField("TypeStride", Stat) == null && typeof(Hud).GetField("TypeStride", Stat) == null,
+                "captions tick at the in-game typewriter's rate, one sound per character");
             var captions = (System.Collections.Generic.List<System.Collections.Generic.List<string>>)typeof(OpeningFilm)
                 .GetField("_captionPages", Private)!.GetValue(film)!;
             for (int i = 1; i <= 9; i++)
@@ -134,47 +134,41 @@ public partial class OpeningFilmQa : Node
                     $"caption {i} finishes typing and reading before it fades");
             }
 
+            // 送り音の契約（2026-10-09 composer 改訂・src/Audio.cs）：話者差はピッチだけ、抑揚は語尾の上げ下げだけ。
+            //   途中はほぼ一定（ドラクエの「ピッピッピッ」）、乱数は ±0.06 半音。
             var prosody = typeof(Audio).GetMethod("Prosody", Private)!;
             var voiceOf = typeof(Audio).GetMethod("VoiceOf", Private)!;
             object Tone(Hud.LineKind kind) => voiceOf.Invoke(audio, new object[] { kind })!;
-            float Say(Hud.LineKind kind, string line, int index)
+            float Once(string line, int index) => ((ValueTuple<float, float>)prosody.Invoke(audio, new object[] { line, index })!).Item1;
+            float Say(string line, int index)
             {
-                object tone = Tone(kind);
                 float sum = 0;
-                for (int n = 0; n < 128; n++)   // ±0.18半音の乱数揺らぎは平均で消す
-                    sum += ((ValueTuple<float, float>)prosody.Invoke(audio, new object[] { line, index, tone })!).Item1;
+                for (int n = 0; n < 128; n++) sum += Once(line, index);   // ±0.06 半音の乱数は平均で消す
                 return sum / 128f;
             }
-            float Range(Hud.LineKind kind, string line)
+            foreach (var (kind, semitones) in new[] { (Hud.LineKind.Boy, 0f), (Hud.LineKind.Mina, 2f), (Hud.LineKind.Other, -3f),
+                (Hud.LineKind.Companion, -1f), (Hud.LineKind.Relay, 1f), (Hud.LineKind.Post, 3f), (Hud.LineKind.Narration, -2f) })
             {
-                float lo = 99f, hi = -99f;
-                for (int i = 0; i < line.Length; i++)
-                {
-                    float v = Say(kind, line, i);
-                    lo = Mathf.Min(lo, v); hi = Mathf.Max(hi, v);
-                }
-                return hi - lo;
+                float pitch = (float)Tone(kind).GetType().GetProperty("Pitch")!.GetValue(Tone(kind))!;
+                Check(Mathf.Abs(12f * Mathf.Log(pitch) / Mathf.Log(2f) - semitones) < 0.05f,
+                    $"{kind} differs from the others by pitch only: {semitones:+0;-0;0} semitones");
             }
-            const string ask = "ほんとうに、そうなの？";
+            // 語尾の一打（行の最後の文字）と行頭の差＝その終わり方の語尾の動き（行全体の持ち上げは差で消える）。
+            foreach (var (line, rise, label) in new[] { ("ほんとうに、そうなの？", 2.4f, "a question lifts the last sound"),
+                ("ほんとうに、そうなの！", 0.8f, "an exclamation rises a little"), ("ほんとうに、そうなの…", -1.5f, "a trailing ellipsis sinks"),
+                ("ほんとうに、そうなの。", -0.8f, "a full stop settles slightly"), ("ほんとうに、そうなの、", -0.3f, "a comma barely moves") })
+                Check(Mathf.Abs(Say(line, line.Length - 1) - Say(line, 0) - rise) < 0.12f, $"{label} ({rise:+0.0;-0.0} semitones)");
             const string tell = "ほんとうに、そうなの。";
-            const string trail = "ほんとうに、そうなの…";
-            const string cry = "ほんとうに、そうなの！";
-            int closing = ask.Length - 2;   // 終止記号の1つ前＝語尾の一打
-            Check(Say(Hud.LineKind.Mina, ask, closing) > Say(Hud.LineKind.Mina, ask, 2) + 1.2f,
-                "a question lifts its pitch toward the end");
-            Check(Say(Hud.LineKind.Mina, tell, closing) < Say(Hud.LineKind.Mina, tell, 2) - 0.5f,
-                "a full stop settles the pitch downward");
-            Check(Say(Hud.LineKind.Mina, trail, closing) < Say(Hud.LineKind.Mina, tell, closing),
-                "a trailing ellipsis sinks further than a full stop");
-            Check(Say(Hud.LineKind.Mina, cry, closing) > Say(Hud.LineKind.Mina, tell, closing),
-                "an exclamation stays raised instead of falling");
-            Check(Range(Hud.LineKind.Mina, tell) > Range(Hud.LineKind.Boy, tell)
-                && Range(Hud.LineKind.Boy, tell) > Range(Hud.LineKind.Other, tell)
-                && Range(Hud.LineKind.Other, tell) > Range(Hud.LineKind.Post, tell),
-                "Mina moves most and the stifled boss voice least — speakers differ in range");
+            bool steady = true;
+            for (int i = 1; i <= 6; i++) steady &= Mathf.Abs(Say(tell, i) - Say(tell, 0)) < 0.05f;
+            Check(steady, "the middle of a line stays on one pitch, like a steady typewriter");
+            float lo = 99f, hi = -99f;
+            for (int n = 0; n < 512; n++) { float v = Once(tell, 0); lo = Mathf.Min(lo, v); hi = Mathf.Max(hi, v); }
+            Check(hi - lo <= 0.121f, $"the random wobble stays within ±0.06 semitones ({lo:+0.000;-0.000}..{hi:+0.000;-0.000})");
             object narration = Tone(Hud.LineKind.Narration);
-            Check(narration.GetType().GetProperty("Stream")!.GetValue(narration) == null,
-                "narration keeps no type sound at all");
+            // 2026-10-09 から地の文も鳴る（ドラクエの文字送り。音色は Audio 側で低く短い版）。
+            Check(narration.GetType().GetProperty("Stream")!.GetValue(narration) != null,
+                "narration has its own type sound");
             var daily = Read<Texture2D[]>(film, "_daily");
             Check(daily.Length == 3 && Array.TrueForAll(daily, tex => tex.GetWidth() > 1000), "three dedicated full-resolution daily scenes");
             var portraits = Read<Texture2D[]>(film, "_cutins");

@@ -59,6 +59,8 @@ public partial class TitleMenu : Node2D
     {
         _game = GetNode<GameManager>("/root/Game");
         TextureFilter = TextureFilterEnum.Linear;
+        // タイトルを眺めている間に、会話本文のかな・英数・約物の字形を作っておく（GlyphWarmer 冒頭のコメント）。
+        GlyphWarmer.WarmBase(this);
         _titleFont = (FontFile)GD.Load<FontFile>("res://assets/fonts/CormorantGaramond-Italic.ttf").Duplicate();
         _menuFont = (FontFile)GD.Load<FontFile>("res://assets/fonts/ShipporiMincho-SemiBold.ttf").Duplicate();
         foreach (var font in new[] { _titleFont, _menuFont })
@@ -312,7 +314,7 @@ public partial class TitleMenu : Node2D
         DrawTitleBlock();
         DrawMenu();
         DrawTalk();
-        UiKit.Text(this, UiKit.Mono, new Vector2(98, 679), "ver 2.034", UiKit.FontSmall, new Color(Muted, 0.7f * Reveal(0.6f, 0.7f)));
+        UiKit.Text(this, UiKit.Mono, new Vector2(98, 679), "ver 2.035", UiKit.FontSmall, new Color(Muted, 0.7f * Reveal(0.6f, 0.7f)));
         DrawRect(new Rect2(0, 0, UiKit.DesignW, UiKit.DesignH), new Color(Ink, 0.8f * (1 - Reveal(0, 0.9f))));
         DrawToast();
         if (_picking) DrawSlotPicker();

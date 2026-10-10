@@ -57,9 +57,11 @@ public partial class EnemyProjectileQa : Node
                     }
                     await CheckPixels(name, art);
                 }
-                foreach (var (theme, scene) in new[] { (StageTheme.Akari, "Akari"), (StageTheme.Koharu, "Koharu"),
-                    (StageTheme.Rei, "Rei"), (StageTheme.Mina, "MinaBattle") })
-                    await CheckStage(game, theme, scene);
+                await CheckSunsetColors();
+                if (!OS.GetCmdlineUserArgs().Contains("--appearance"))
+                    foreach (var (theme, scene) in new[] { (StageTheme.Akari, "Akari"), (StageTheme.Koharu, "Koharu"),
+                        (StageTheme.Rei, "Rei"), (StageTheme.Mina, "MinaBattle") })
+                        await CheckStage(game, theme, scene);
                 CheckReuse();
             }
             Audio.Instance?.StopMusic(0);
@@ -126,6 +128,8 @@ public partial class EnemyProjectileQa : Node
             var entrance = typeof(Enemy).GetMethod("TickEntrance", Private)!;
             entrance.Invoke(source, new object[] { 0d });
             entrance.Invoke(source, new object[] { 2d });
+            hud.HoldBubble = false;
+            hud.HideBubble();
             hud.HideSpellCard();
             Write(hud, "_bannerTimer", 0d);
             Write(hud, "_cutinTimer", 0d);
@@ -341,17 +345,15 @@ public partial class EnemyProjectileQa : Node
                 if (theme == StageTheme.Akari && phase == 0)
                 {
                     var shots = Bullets();
-                    float speed = (float)typeof(Enemy).GetField("EnemyBulletSpeed", Private)!.GetValue(boss)!;
                     // 扇は自機狙い＝本数は必ず奇数（ScaleBulletsOdd）。中心の1本が自機の正面を通る。
                     Check(shots.Length == game.ScaleBulletsOdd(Read<int>(boss, "_fanCount"))
-                        && shots.All(b => b.Radius == 3f && Mathf.IsEqualApprox(b.Velocity.Length(), speed * game.BulletSpeedMul)
-                            && ReferenceEquals(Read<Texture2D>(b, "_sprite"), BulletArt.AkariSticky)),
-                        $"Akari/{diff}: folded paper fan preserves count, speed and hit radius");
+                        && shots.All(b => b.Radius == Jobs.Get(Job.Melee).ShotRadius && b.AccelCharging
+                            && ReferenceEquals(Read<BulletArt.PlayerVisual>(b, "_playerVisual"), BulletArt.PlayerShot(Job.Melee))),
+                        $"Akari/{diff}: fan preserves count and uses Akari's acceleration shot");
                 }
                 if (theme == StageTheme.Rei)
-                    Check(Bullets().All(b => ReferenceEquals(Read<Texture2D>(b, "_sprite"),
-                        BulletArt.Get(new[] { "rei_comment", "rei_subscriber", "rei_microphone", "rei_film" }[phase]))),
-                        $"Rei phase {phase} uses its own motif");
+                    Check(Bullets().All(b => ReferenceEquals(Read<BulletArt.PlayerVisual>(b, "_playerVisual"), BulletArt.PlayerShot(Job.Magic))),
+                        $"Rei phase {phase} uses Rei's existing projectile");
                 if (diff == GameManager.Diff.Normal && phase == 0)
                 {
                     foreach (var b in Bullets()) { b.GlobalPosition += b.Velocity * 0.7f; b.SetPhysicsProcess(false); }
@@ -367,9 +369,8 @@ public partial class EnemyProjectileQa : Node
             Call(boss, "FireFinale", Pool, 3d);
             CheckIllustrated($"{theme}/{diff}/finale");
             if (theme == StageTheme.Akari)
-                Check(Bullets().Any(b => ReferenceEquals(Read<Texture2D>(b, "_sprite"), BulletArt.AkariSticky))
-                    && Bullets().Any(b => ReferenceEquals(Read<Texture2D>(b, "_sprite"), BulletArt.AkariDocs)),
-                    $"Akari/{diff}: finale uses folded paper without replacing the document spiral");
+                Check(Bullets().All(b => ReferenceEquals(Read<BulletArt.PlayerVisual>(b, "_playerVisual"), BulletArt.PlayerShot(Job.Melee))),
+                    $"Akari/{diff}: all finale body shots use Akari's projectile");
         }
         Pool.DespawnAll();
         game.Difficulty = GameManager.Diff.Normal;
@@ -734,11 +735,91 @@ public partial class EnemyProjectileQa : Node
     private void CheckIllustrated(string label)
     {
         var bullets = Bullets();
-        Check(bullets.Length > 0 && bullets.All(b => Read<Texture2D?>(b, "_sprite") != null),
+        Check(bullets.Length > 0 && bullets.All(b => Read<Texture2D?>(b, "_sprite") != null
+            || Read<BulletArt.PlayerVisual?>(b, "_playerVisual") != null),
             $"{label}: all {bullets.Length} projectiles have illustrations");
         Check(bullets.All(b => b.Radius > 0 && b.Damage == 1 &&
             b.GetChildren().OfType<CollisionShape2D>().Any(c => c.Shape is CircleShape2D shape && shape.Radius == b.Radius)),
             $"{label}: hit shapes and damage remain intact");
+    }
+
+    private async Task CheckSunsetColors()
+    {
+        var root = GD.Load<PackedScene>("res://Koharu.tscn").Instantiate<KoharuRoot>();
+        GetTree().Root.AddChild(root);
+        GetTree().CurrentScene = root;
+        root.ProcessMode = ProcessModeEnum.Disabled;
+        root.Hud.HoldBubble = false;
+        root.Hud.HideBubble();
+        var background = root.GetNode<StageBackground>("StageBackground");
+        var bullet = Pool.Spawn(new Vector2(120, 80), Vector2.Left * 70, true, 4, 1,
+            BulletShape.Diamond, new Color("e072ac"));
+        bullet.SetPhysicsProcess(false);
+        var material = bullet.Material;
+        Check(background.IsSunset && material is ShaderMaterial && bullet.Tint == new Color("e072ac"),
+            "sunset changes rendering only; source color, shape and movement remain intact");
+        bullet.SetWord("QA", coreArt: BulletArt.KoharuBadge);
+        Check(bullet.Material == null && Read<BulletWordCore>(bullet, "_wordCore").Material == material,
+            "sunset correction applies to the dangerous post core, not the text card");
+        Pool.DespawnAll();
+
+        var viewport = new SubViewport
+        {
+            Size = new Vector2I(96, 32), TransparentBg = true, World2D = new World2D(),
+            RenderTargetUpdateMode = SubViewport.UpdateMode.Always,
+        };
+        AddChild(viewport);
+        var canvas = new Node2D();
+        viewport.AddChild(canvas);
+        canvas.Draw += () =>
+        {
+            canvas.DrawRect(new Rect2(4, 4, 24, 24), new Color("e072ac"));
+            canvas.DrawRect(new Rect2(36, 4, 24, 24), new Color("429cdb"));
+            canvas.DrawRect(new Rect2(68, 4, 24, 24), Colors.White);
+        };
+        await Frames(3);
+        await ToSignal(RenderingServer.Singleton, RenderingServer.SignalName.FramePostDraw);
+        using var original = viewport.GetTexture().GetImage();
+        canvas.Material = material;
+        await Frames(3);
+        await ToSignal(RenderingServer.Singleton, RenderingServer.SignalName.FramePostDraw);
+        using var adjusted = viewport.GetTexture().GetImage();
+        var pink = adjusted.GetPixel(16, 16);
+        Check(pink.G > pink.R + 0.2f && pink.G > pink.B, "pink becomes green against the pink sunset");
+        Check(adjusted.GetPixel(48, 16).IsEqualApprox(original.GetPixel(48, 16))
+            && adjusted.GetPixel(80, 16).IsEqualApprox(original.GetPixel(80, 16)),
+            "blue details and white highlights keep their original colors");
+        bool sameAlpha = true;
+        for (int y = 0; y < 32; y++)
+            for (int x = 0; x < 96; x++)
+                sameAlpha &= adjusted.GetPixel(x, y).A == original.GetPixel(x, y).A;
+        Check(sameAlpha, "color correction preserves every silhouette pixel");
+        viewport.QueueFree();
+
+        foreach (bool sunset in new[] { true, false })
+        {
+            if (!sunset) background.BeginMidboss();
+            background.GetNode<BgLayers>("BgLayers")._Process(2);
+            var arts = new[] { BulletArt.KoharuBadge, BulletArt.KoharuTicket, BulletArt.KoharuAcrylic,
+                BulletArt.KoharuPenlight, BulletArt.KoharuUchiwa, BulletArt.AkariEnvelope };
+            for (int i = 0; i < arts.Length; i++)
+            {
+                var shot = Pool.Spawn(new Vector2(110 + i * 43, 75), Vector2.Left * 70, true, 4);
+                shot.SetSprite(arts[i], 0);
+                shot.Rotation = 0;
+                shot.SetPhysicsProcess(false);
+                Check(sunset ? shot.Material == material : shot.Material == null,
+                    "background selects only the sunset color correction");
+            }
+            await Frames(3);
+            await Shot(sunset ? "sunset_original_shapes" : "room_original_colors");
+            Pool.DespawnAll();
+        }
+        root.QueueFree();
+        await Frames(3);
+        var normal = Pool.Spawn(Vector2.One * 100, Vector2.Zero, true);
+        Check(normal.Material == null, "pooled shots do not carry sunset colors into other scenes");
+        Pool.DespawnAll();
     }
 
     private void CheckReuse()

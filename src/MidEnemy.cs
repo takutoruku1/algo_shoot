@@ -129,8 +129,8 @@ public partial class MidEnemy : Enemy
         Bounce,        // 声援の人：弾みながら入る（上下に波打つ）。着座後も大きく弾む
         Trudge,        // 荷物の人：重くゆっくり。着座後は沈んだまま僅かに漂う
         Jitter,        // 匿名の人：細かく震えながら直進。着座後も小刻みに上下
-        StepCut,       // 切り抜きの人：段でカクッと進む（コマ送り）。着座後も段で上下に飛ぶ
-        Scroll,        // 数字の人：一定速で入り、着座後は下→上へ登って一気に戻る（鋸波）
+        StepCut,       // 切り抜きの人：止めを挟みながら滑らかに切り返す
+        Scroll,        // 数字の人：ゆっくり登り、短い弧で下へ戻る
         Erase,         // 消しゴムの残響：横に擦るように左右へ揺れながら入る
         Drift,         // 記憶の残響：漂う。ゆっくり大きく蛇行して入り、着座後も広く漂う
         Await,         // 未応答の残響：入りは普通、着座後はほぼ静止して長周期で一度だけ浮く
@@ -148,6 +148,10 @@ public partial class MidEnemy : Enemy
         Shoulder,
         Weave,
         Pulse,
+        Orbit,
+        FigureEight,
+        Swoop,
+        Glide,
     }
     private MoveStyle _move;
     private MoveVariant _moveVariant;
@@ -159,6 +163,8 @@ public partial class MidEnemy : Enemy
     private float _lastLateral;     // 前フレームの横オフセット（差分適用用。位置の直接置換をしない）
     private float _campBaseX;       // 着座した瞬間の X（横揺れはこの周囲でのみ振れる）
     private float _campY;           // 着座後の等速往復の“芯”の Y（SwayAmp のうねりはこれに足す。位置から積まない）
+    private double _campBlendT;
+    private Vector2 _campArrival;
 
     // ─── 進入撃ちのゲート（2026-09-06）───
     //   旧仕様は「居座り点に着くまで一切撃たない」＝出現から 1.5〜3.2 秒、射線上を無防備に歩くだけの
@@ -228,8 +234,11 @@ public partial class MidEnemy : Enemy
     private double _gazeT;            // 次に視線を変えるまでの残り秒
     private float _spin;             // こはるペンライトの“クルッ”用：余韻回転(rad)。撃つ瞬間に蹴って減衰
     private float _kick;             // 予告/発射の溜め：一瞬の縦スカッシュ量（0で平常、減衰）
-    private float _startle;          // 人型の“ビクッ”用：不定期に入る一瞬の身じろぎ（0で平常、減衰）
+    private float _startle;
     private double _startleT;        // 次の身じろぎまでの残り秒
+    private int _gesture;
+    private Vector2 _motionPrevious;
+    private Vector2 _motionVelocity;
 
     // 1枚絵の transform で“生きてる感”を出す周期モーションの型（種＝モチーフごと）。
     // ─── 2026-09-17 差別化 ───
@@ -369,7 +378,7 @@ public partial class MidEnemy : Enemy
     {
         if (p is AttackPattern.None or AttackPattern.FlankAim or AttackPattern.BuzzWall or AttackPattern.KoharuPrayerCarry)
             return MoveVariant.Native;
-        return (MoveVariant)(int)(GD.Randi() % 4);
+        return (MoveVariant)(int)(GD.Randi() % 8);
     }
 
     // 着座後の上下往復の速度(px/s)。従来は全種 14f 固定だった。
@@ -404,18 +413,12 @@ public partial class MidEnemy : Enemy
     // ─── 着座後の縦の動き（自前の形を持つ種だけ）───
     // 戻り値は _baseY からのオフセット(px)。null を返した種は従来どおり _vy の等速往復に任せる。
     // ★どの形も有界（±26px 以内）。この後 CampTopY〜CampBottomY にクランプされるので盤面外へは出られない。
-    // ★形が“飛ぶ”箇所（鋸波のリセット・段送りの段・着座直後の位相合流）は、呼び出し側の速度上限
-    //   （SpeedCeil=58px/s・合成ベクトル長）で滑らかに丸められる＝瞬間移動にはならない。
     // ★「止まる」種（Absent/Settle/Await/Wall）は 0 近傍に張り付く。止まっていても浄化はできるので
     //   進行不能にはならない（居座り＝倒すまで去らない は従来どおり不変）。
     private float? CampVerticalOverride(float t) => _move switch
     {
-        // 数字の人：下から上へゆっくり登り（13px/s）、上限でぱっと下へ戻る（鋸波＝ランキングのスクロール）。
-        // 装飾（ReiMetrics モーション）の視線スクロールと同じ周期感を、実際の位置でも出す。
-        // “戻り”は速度上限で 58px/s（約 0.6 秒）に丸められる＝登りの 4 倍以上速い戻り、として読める。
-        MoveStyle.Scroll => 22f - Mathf.PosMod(t * 0.30f, 1f) * 44f,
-        // 切り抜きの人：段でカクッと上下に飛ぶ（コマ送り）。5段に量子化＝なめらかに動かない。
-        MoveStyle.StepCut => Mathf.Round(Mathf.Sin(t * 0.85f) * 2.5f) / 2.5f * 24f,
+        MoveStyle.Scroll => -ScrollWave(t * 0.30f) * 22f,
+        MoveStyle.StepCut => HoldWave(t * 0.85f) * 24f,
         // 空席の人：ほとんど動かない。超低周波でわずかに沈むだけ＝「いない人」を静止で語る。
         MoveStyle.Absent => Mathf.Sin(t * 0.35f) * 3.5f,
         // こはるグッズの箱：重くて動けない。Absent より更に小さく。
@@ -426,8 +429,7 @@ public partial class MidEnemy : Enemy
         MoveStyle.Wall => Mathf.Sin(t * 0.30f) * 2.2f,
         // 記憶の残響：漂う。ゆっくり大きく、周期の違う2波で不定形に。
         MoveStyle.Drift => Mathf.Sin(t * 0.55f) * 15f + Mathf.Sin(t * 0.31f) * 8f,
-        // 声援の人：弾む。上へ跳ねて落ちる（|sin| の非対称＝接地のリズム）。
-        MoveStyle.Bounce => -Mathf.Abs(Mathf.Sin(t * 1.9f)) * 20f + 10f,
+        MoveStyle.Bounce => Mathf.Cos(t * 3.8f) * 10f,
         // 荷物の人：沈んだまま僅かに漂う＋抱えきれない細かい震え。
         MoveStyle.Trudge => 5f + Mathf.Sin(t * 0.6f) * 4f + Mathf.Sin(t * 7.5f) * 0.8f,
         // 匿名の人：小刻みに上下し続ける（誰でもない揺らぎ）。
@@ -445,7 +447,7 @@ public partial class MidEnemy : Enemy
         MoveStyle.Erase    => Mathf.Sin(t * 3.6f) * 6.5f,   // 横に擦る
         MoveStyle.Drift    => Mathf.Sin(t * 0.42f) * 7f,    // ゆっくり漂う
         MoveStyle.Jitter   => Mathf.Sin(t * 10.5f) * 1.6f,  // 細かく震える
-        MoveStyle.StepCut  => Mathf.Round(Mathf.Sin(t * 1.3f) * 2f) / 2f * 5f, // 段で横にも飛ぶ
+        MoveStyle.StepCut  => HoldWave(t * 1.3f) * 5f,
         MoveStyle.Walk     => Mathf.Sin(t * 2.8f) * 2.2f,   // 歩の重心移動
         MoveStyle.Flutter  => Mathf.Sin(t * 1.7f) * 4f,     // ひらひら
         MoveStyle.Hover    => Mathf.Sin(t * 0.9f) * 5f,     // ふわふわ浮遊
@@ -466,10 +468,27 @@ public partial class MidEnemy : Enemy
             Mathf.Sin(t * 1.15f + _movePhase) * 4.5f,
             Mathf.Sin(t * 0.62f + _movePhase + Mathf.Pi * 0.5f) * 7f),
         MoveVariant.Pulse => new Vector2(
-            Mathf.Round(Mathf.Sin(t * 0.86f + _movePhase) * 2f) * 2f,
+            HoldWave(t * 0.86f + _movePhase) * 4f,
             -Mathf.Pow(Mathf.Max(0f, Mathf.Sin(t * 0.78f + _movePhase)), 2f) * 8f),
+        MoveVariant.Orbit => new Vector2(
+            Mathf.Cos(t * 0.90f) * 6f * _arcSign, Mathf.Sin(t * 0.90f) * 9f),
+        MoveVariant.FigureEight => new Vector2(
+            Mathf.Sin(t * 1.30f) * 5f, Mathf.Sin(t * 0.65f) * 11f),
+        MoveVariant.Swoop => new Vector2(
+            Mathf.Sin(t * 0.72f) * 5f * _arcSign, -Mathf.Pow(Mathf.Sin(t * 0.36f), 2f) * 12f),
+        MoveVariant.Glide => new Vector2(
+            HoldWave(t * 0.55f) * 5f, Mathf.Sin(t * 0.55f + 0.8f) * 6f),
         _ => Vector2.Zero,
     };
+
+    private static float HoldWave(float t) => Mathf.SmoothStep(-1f, 1f, 0.5f + 0.5f * Mathf.Sin(t));
+
+    private static float ScrollWave(float t)
+    {
+        float phase = Mathf.PosMod(t, 1f);
+        return phase < 0.78f ? -Mathf.Cos(Mathf.Pi * phase / 0.78f)
+            : Mathf.Cos(Mathf.Pi * (phase - 0.78f) / 0.22f);
+    }
 
     // ─── 進入の速度プロファイル ───
     // 引数 p は進捗 0（出現）→1（着座直前）。返すのは Max(MoveSpeed, ApproachFloor) に掛ける倍率。
@@ -523,6 +542,10 @@ public partial class MidEnemy : Enemy
             MoveVariant.Shoulder => 0.94f + 0.18f * Mathf.SmoothStep(0.58f, 1f, p),
             MoveVariant.Weave => 0.96f + 0.12f * Mathf.Sin(p * Mathf.Pi),
             MoveVariant.Pulse => 0.90f + 0.22f * Mathf.Abs(Mathf.Sin(t * 1.7f)),
+            MoveVariant.Orbit => 0.94f + 0.10f * Mathf.Sin(p * Mathf.Pi),
+            MoveVariant.FigureEight => 0.96f + 0.12f * Mathf.Sin(t * 1.1f),
+            MoveVariant.Swoop => 0.86f + 0.28f * Mathf.Sin(p * Mathf.Pi),
+            MoveVariant.Glide => 1.08f - 0.18f * Mathf.SmoothStep(0f, 1f, p),
             _ => 1f,
         };
         return Mathf.Clamp(v * variant, ApproachSpeedMin, ApproachSpeedMax);
@@ -548,8 +571,7 @@ public partial class MidEnemy : Enemy
             MoveStyle.Hesitant => _arcSign * Mathf.Sin(t * 1.25f) * 12f * fade,
             // 匿名の人：細かい震え（周期の違う2波＝非周期に見せる）。振幅は小さく、読みを妨げない
             MoveStyle.Jitter => (Mathf.Sin(t * 12.0f) * 2.2f + Mathf.Sin(t * 4.7f) * 3.4f) * fade,
-            // 切り抜きの人：段でカクッと横へ飛ぶ（量子化）＝コマ送りの軌道
-            MoveStyle.StepCut => Mathf.Round(Mathf.Sin(t * 2.3f) * 3f) / 3f * 13f * fade,
+            MoveStyle.StepCut => HoldWave(t * 2.3f) * 13f * fade,
             // 消しゴムの残響：横に擦るような速い往復
             MoveStyle.Erase => Mathf.Sin(t * 4.4f) * 10f * fade,
             // 記憶の残響：ゆっくり大きく蛇行＝漂って入ってくる（最大の“ふらつき”）
@@ -573,9 +595,14 @@ public partial class MidEnemy : Enemy
     private float VariantLateralOffset(float p, float t, float fade) => _moveVariant switch
     {
         MoveVariant.Shoulder => _arcSign
-            * (Mathf.SmoothStep(0.12f, 0.42f, p) - Mathf.SmoothStep(0.62f, 0.95f, p)) * 15f,
+            * (Mathf.SmoothStep(0f, 1f, (p - 0.12f) / 0.30f)
+                - Mathf.SmoothStep(0f, 1f, (p - 0.62f) / 0.33f)) * 15f,
         MoveVariant.Weave => Mathf.Sin(p * Mathf.Tau * 1.35f + _movePhase) * 10f * fade,
         MoveVariant.Pulse => _arcSign * Mathf.Sin(t * 2.2f) * (7f + 5f * Mathf.Sin(p * Mathf.Pi)) * fade,
+        MoveVariant.Orbit => _arcSign * Mathf.Sin(p * Mathf.Tau) * 16f * fade,
+        MoveVariant.FigureEight => Mathf.Sin(p * Mathf.Tau * 2f) * 12f * fade,
+        MoveVariant.Swoop => _arcSign * 22f * fade * fade,
+        MoveVariant.Glide => _arcSign * HoldWave(p * Mathf.Tau) * 14f * fade,
         _ => 0f,
     };
 
@@ -719,10 +746,11 @@ public partial class MidEnemy : Enemy
 
                 // 進入だけ最低速度を保証＝遅い種でも素早く居座って攻撃に移れる（従来の保証）。
                 // そこへ種ごとの速度倍率を掛け、最後に SpeedCeil で頭を押さえる。
-                // ＝実効速度は常に 28.5〜58px/s。0 や負にはならないので必ず着座し、
+                // 停止直前はさらに減速するが、0 にはしないので必ず着座し、
                 //   58 < 66（強化なし・最遅ジョブの自機）なので**どの種にも必ず振り切れる**。
                 float approach = Mathf.Min(
                     Mathf.Max(_spec.MoveSpeed, ApproachFloor) * ApproachSpeedMul(p), SpeedCeil);
+                approach = Mathf.Min(approach, 12f + dist * 2f);
                 Vector2 fwd = to / dist;   // 目標点への単位ベクトル（正規化を1回に）
                 float fwdStep = approach * dt;   // このフレームに許される移動量（＝速度の予算）
 
@@ -789,6 +817,8 @@ public partial class MidEnemy : Enemy
                 return;
             }
             _camped = true;   // 居座り開始
+            _campArrival = GlobalPosition;
+            _campBlendT = 0;
             _baseY = camp.Y;  // 以降の上下往復の中心
             _campY = camp.Y;  // 等速往復の芯もここから
             // 着座 X を確定。以降の横揺れはこの値の周囲 ±CampDriftMax でのみ振れる
@@ -846,16 +876,11 @@ public partial class MidEnemy : Enemy
         float nx = _campBaseX + Mathf.Clamp(CampHorizontalDrift(pt) + variantOffset.X, -CampDriftMax, CampDriftMax);
         nx = Mathf.Clamp(nx, Field.Left + CampMarginX, Field.Right - CampMarginX);
 
-        // ★【速度上限の要・着座側／2026-09-22】目標位置 (nx,ny) へ“向かう”が、1 フレームの移動量は
-        //   SpeedCeil×dt を超えない（進入側と同じく合成ベクトル長で丸める＝横の癖を足しても 58 を超えない）。
-        //   上の形（往復・sin・鋸波・段送り）はどれも“目標位置”を返すだけなので、ここで移動量を丸めれば
-        //   ・鋸波（Scroll）の「上限でぱっと戻る」44px の瞬間移動 → 58px/s で約 0.6 秒かけて戻る
-        //     （登りは 13px/s なので 4 倍以上速い“戻り”のまま＝鋸波の読みは残る）
-        //   ・段送り（StepCut）の 9.6px の段 → 58px/s で 10 フレームかけて飛ぶ（保持 0.5 秒〜に対して十分“段”）
-        //   ・着座した瞬間の「進入の終点 → 形の初期位相」の飛び（最大 24px）→ 滑らかに合流
-        //   が全部まとめて上限内に収まる。連続的な形は上限に触れない振幅・周期に留めてある
-        //   （最速：Jitter ≒ 40px/s・Bounce ≒ 38px/s、最遅：Wall ≒ 1px/s）ので、種ごとの差はそのまま残る。
-        Vector2 toTarget = new Vector2(nx, ny) - GlobalPosition;
+        // 位相の異なる待機軌道へ合流する瞬間も、速度上限と現在位置からの連続性を保つ。
+        _campBlendT += delta;
+        float blend = Mathf.SmoothStep(0f, 1f, Mathf.Min(1f, (float)_campBlendT / 0.7f));
+        Vector2 target = _campArrival.Lerp(new Vector2(nx, ny), blend);
+        Vector2 toTarget = (target - GlobalPosition) * (1f - Mathf.Exp(-8f * dt));
         float maxStep = SpeedCeil * dt;
         if (toTarget.LengthSquared() > maxStep * maxStep) toTarget = toTarget.Normalized() * maxStep;
         GlobalPosition += toTarget;
@@ -1560,11 +1585,16 @@ public partial class MidEnemy : Enemy
             _body = GetNodeOrNull<Sprite2D>("Body");
             if (_body == null) return;            // まだ立ち絵が無い（プレースホルダ種）
             _bodyBaseScale = _body.Scale.Y;       // SetupBodySprite が決めた素のスケールを基準に保持
+            _motionPrevious = GlobalPosition;
         }
 
         _motionT += delta;
         float t = (float)_motionT + _motionPhase; // 個体位相込みの時刻（群れの非同期化）
         float dt = (float)delta;
+        if (dt > 0f)
+            _motionVelocity = _motionVelocity.Lerp(((GlobalPosition - _motionPrevious) / dt).LimitLength(SpeedCeil),
+                1f - Mathf.Exp(-7f * dt));
+        _motionPrevious = GlobalPosition;
 
         // 共通の溜め減衰（予告/発射キック）。0へ向けて速やかに抜ける＝予告の“戻し”の余韻。
         if (_kick > 0f) _kick = Mathf.Max(0f, _kick - dt * 3.2f);
@@ -1620,8 +1650,7 @@ public partial class MidEnemy : Enemy
             case LivingMotion.KoComparison:
             {
                 // 三角波に近い往復＝「見て、止めて、反対を見る」の刻み（正弦だと常に動いて落ち着かない）。
-                float look = Mathf.Sin(t * 2.6f);
-                look = Mathf.Sign(look) * Mathf.Pow(Mathf.Abs(look), 0.45f); // 端で保持する台形寄りへ
+                float look = HoldWave(t * 2.6f);
                 rot = look * 0.105f;                              // 首振り ±6.0°
                 ox = look * 1.5f;                                 // 首の動きに体がわずかに連れられる
                 oy = Mathf.Sin(t * 2.0f) * 0.5f;
@@ -1658,22 +1687,19 @@ public partial class MidEnemy : Enemy
                 sx = 1f + 0.020f * Mathf.Sin(t * 7.9f);           // 輪郭そのものが定まらない
                 break;
 
-            // 切り抜きの人：切り取る。横方向にカクッと刻む（連続でなく段で動く＝フレーム送り／コマ切り）。
             case LivingMotion.ReiClip:
             {
-                // 連続値を段（4段）へ量子化＝「なめらかに動かない」ことで“編集された動き”に見せる。
-                float step = Mathf.Round(Mathf.Sin(t * 2.3f) * 4f) / 4f;
+                float step = HoldWave(t * 2.3f);
                 ox = step * 2.2f;
-                rot = step * 0.055f;                              // ±3.2° を段で刻む
-                oy = Mathf.Round(Mathf.Sin(t * 1.7f) * 3f) / 3f * 1.0f;
+                rot = step * 0.055f;
+                oy = HoldWave(t * 1.7f);
                 break;
             }
 
-            // 数字の人：数字を追う。視線（体ごと）が下からゆっくり登り、上限でぱっと下へ戻る＝スクロール。
             case LivingMotion.ReiMetrics:
             {
-                float scroll = Mathf.PosMod(t * 0.42f, 1f);       // 0→1 の鋸波（ゆっくり登る）
-                oy = 1.8f - scroll * 3.6f;                        // 下から上へ。1周の終わりに一気に戻る
+                float scroll = 0.5f + 0.5f * ScrollWave(t * 0.42f);
+                oy = 1.8f - scroll * 3.6f;
                 rot = -0.020f + scroll * 0.040f;                  // 見上げる角度も一緒に登る
                 sy = 1f + 0.018f * scroll;
                 break;
@@ -1778,29 +1804,35 @@ public partial class MidEnemy : Enemy
             sx *= 1f + (_spec.Humanoid ? 0.040f : 0.08f) * _kick;
         }
 
-        // 人型の“ビクッ”：不定期に一瞬だけ身じろぐ（周期モーションの機械的な反復を破る）。
-        // 12種すべてに乗る共通の生命感で、間隔は個体ごとにランダム＝群れが揃わない。
         if (_spec.Humanoid)
         {
             _startleT -= delta;
             if (_startleT <= 0)
             {
                 _startle = 1f;
+                _gesture = (int)(GD.Randi() % 4);
                 _startleT = GD.RandRange(2.6, 6.4);
             }
             if (_startle > 0f)
             {
-                _startle = Mathf.Max(0f, _startle - dt * 4.5f);
-                float s = _startle * _startle;          // 立ち上がりだけ鋭く、抜けは速い
-                oy -= s * 1.1f;
-                rot += s * 0.030f;
-                sy *= 1f + 0.028f * s;
+                _startle = Mathf.Max(0f, _startle - dt * 1.25f);
+                float s = Mathf.Pow(Mathf.Sin(_startle * Mathf.Pi), 2f);
+                switch (_gesture)
+                {
+                    case 0: oy -= s * 1.4f; sy *= 1f + 0.035f * s; break;
+                    case 1: ox += s * 1.6f * _arcSign; rot += s * 0.045f * _arcSign; break;
+                    case 2: oy += s * 0.9f; rot -= s * 0.04f; sy *= 1f - 0.025f * s; break;
+                    case 3: ox -= s * 1.2f * _arcSign; oy -= s * 0.6f; rot -= s * 0.03f * _arcSign; break;
+                }
             }
         }
 
-        // 合成して反映（基準スケールへ係数を掛ける）。Rotation は FlipH と独立に効く。
-        _body.Position = new Vector2(ox, oy);
-        _body.Rotation = rot;
-        _body.Scale = new Vector2(_bodyBaseScale * sx, _bodyBaseScale * sy);
+        rot += Mathf.Clamp(_motionVelocity.X / SpeedCeil, -1f, 1f) * 0.035f
+            - Mathf.Clamp(_motionVelocity.Y / SpeedCeil, -1f, 1f) * 0.025f;
+        if (_spec.Humanoid) rot = Mathf.Clamp(rot, -0.15f, 0.15f);
+        float follow = 1f - Mathf.Exp(-14f * dt);
+        _body.Position = _body.Position.Lerp(new Vector2(ox, oy), follow);
+        _body.Rotation = Mathf.LerpAngle(_body.Rotation, rot, follow);
+        _body.Scale = _body.Scale.Lerp(new Vector2(_bodyBaseScale * sx, _bodyBaseScale * sy), follow);
     }
 }

@@ -120,7 +120,7 @@ public partial class BossEdgeVolley : Node2D
             foreach (var gate in _gates)
             {
                 var bullet = _pool.Spawn(gate, _direction * _speed, true, 3.4f, 1, BulletShape.Diamond, _accent);
-                bullet.UseBossProjectile();
+                bullet.SetSprite(_art);
             }
             _rows++;
         }

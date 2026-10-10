@@ -127,6 +127,8 @@ public partial class DialogToolbarQa : Node
             Check(ReadSettingsAuto() == false, "(a) settings.json \"auto\" saved as false");
 
             // (b) SKIP
+            Check(!Read<bool>(Read<DialogToolbar>(hud, "_toolbar"), "_skipAvailable"),
+                "unread dialogue presents the skip icon as unavailable");
             await Tap(Key.S);
             Check(!Hud.SkipLatched, "(b) S on an unread line: latch drops immediately");
             readField.SetValue(hud, true);   // この行を「表示時点で既読だった」ことにする
@@ -134,6 +136,8 @@ public partial class DialogToolbarQa : Node
             Check(Hud.SkipLatched, "(b) S on a read line: latch stays ON");
             Check(Hud.SkipHeld, "(b) SkipHeld is true while latched");
             Check(hud.FastForwarding, "(b) FastForwarding is true on the read line");
+            Check(Read<bool>(Read<DialogToolbar>(hud, "_toolbar"), "_skipAvailable"),
+                "read dialogue enables the illustrated skip icon");
             await Frames(10);
             Check(Hud.SkipLatched, "(b) latch holds across frames on a read line");
             hud.ShowDialog(Hud.LineKind.Mina, $"ツールバー検証の未読の二行目です。{stamp}");

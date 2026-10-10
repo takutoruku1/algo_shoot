@@ -91,13 +91,10 @@ public partial class BossAnimalTechnique : Node2D
         if (_wave < Waves && _time >= _warning + _wave * WaveInterval)
         {
             _boss.ShowAnimalAttack();
-            float speed = _id == "rei" ? (_wave == 1 ? 155f : 68f) : 92f + _wave * 12f;
             foreach (var shot in Volley(_wave))
             {
-                var bullet = _pool.Spawn(_boss.ShotCenter, shot.Direction * speed, true, 3.2f, 1, BulletShape.Diamond, _color);
-                bullet.UseBossProjectile();
+                var bullet = _pool.SpawnBossShot(_boss.ShotCenter, shot.Direction, _boss.BodyShotJob!.Value, true);
                 bullet.MakeLeadIn(shot.Origin);
-                if (_id == "akari") bullet.MakeAccel(18f, speed, 0.28f);
             }
             _wave++;
         }

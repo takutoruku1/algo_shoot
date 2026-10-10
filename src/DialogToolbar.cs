@@ -76,6 +76,7 @@ public sealed class DialogToolbar
 
     // ホバー中のボタン（-1＝無し）。描画のハイライトと QA が読む。
     public int Hover { get; private set; } = -1;
+    private bool _skipAvailable;
     // ラッチ中の右上の印を出すか（ボックスが出ておらず、ポーズメニュー・ログも開いていない）。描画と QA が読む。
     public bool LatchMarkVisible { get; private set; }
     // 直近に描いた印の矩形（設計座標。描かなかったフレームは空）。QA 用。
@@ -107,6 +108,8 @@ public sealed class DialogToolbar
     public void Tick(Node owner, double delta, bool shown, Vector2 anchor, bool unreadLine, bool startTapOpensMenu = false)
     {
         bool blocked = Pad.UiBlocked(owner);
+        bool choice = owner.GetTree().GetFirstNodeInGroup("choice_overlay") != null;
+        _skipAvailable = !unreadLine && !choice;
 
         // キーの押下は表示の有無に関係なく毎フレーム追う＝ボックスが出る前からの押しっぱなしをエッジにしない。
         bool a = Input.IsKeyPressed(Key.A) || Pad.Pressed(JoyButton.Y);
@@ -135,8 +138,12 @@ public sealed class DialogToolbar
             if (aEdge || click == Auto) ToggleAutoAdvance(owner.GetNodeOrNull<GameManager>("/root/Game"));
             if (sEdge || rbTap || click == Skip)
             {
-                Hud.SkipLatched = !Hud.SkipLatched;
-                Audio.Instance?.PlayUiMove();
+                if (_skipAvailable)
+                {
+                    Hud.SkipLatched = !Hud.SkipLatched;
+                    Audio.Instance?.PlayUiMove();
+                }
+                else Audio.Instance?.PlayUiCancel();
             }
             if (click == Log) owner.GetNodeOrNull<Backlog>("/root/Backlog")?.Open();
             if (click == Menu || (startTapOpensMenu && startTap)) OpenPauseFromToolbar(owner);
@@ -147,7 +154,6 @@ public sealed class DialogToolbar
         if (Hud.SkipLatched)
         {
             bool unread = shown && unreadLine;
-            bool choice = owner.GetTree().GetFirstNodeInGroup("choice_overlay") != null;
             if (unread || choice) Hud.SkipLatched = false;
         }
         LatchMarkVisible = Hud.SkipLatched && !shown && !blocked && !OverlayOpen(owner);
@@ -221,9 +227,10 @@ public sealed class DialogToolbar
                 Menu => ci.GetNodeOrNull<PauseMenu>("/root/PauseMenu")?.IsOpen == true,
                 _ => false,
             };
-            DrawButton(ci, ButtonRect(anchor, i), i, on, Hover == i, breath);
+            DrawButton(ci, ButtonRect(anchor, i), i, on, Hover == i, breath, i != Skip || _skipAvailable);
         }
-        if (Hover >= 0) DrawTip(ci, ButtonRect(anchor, Hover), Tips[Hover]);
+        if (Hover >= 0) DrawTip(ci, ButtonRect(anchor, Hover),
+            Hover == Skip && !_skipAvailable ? "未読のためスキップできません" : Tips[Hover]);
     }
 
     // ラッチ中の印「▶▶」（設計座標・呼び出し側が BeginDesign 済み）。毎フレーム呼んでよい（出す条件はここで見る）。
@@ -259,8 +266,10 @@ public sealed class DialogToolbar
         if (hover && progress == 0) DrawTip(ci, rect, "映像をスキップ");
     }
 
-    private static void DrawButton(CanvasItem ci, Rect2 r, int i, bool on, bool hover, float breath)
+    private static void DrawButton(CanvasItem ci, Rect2 r, int i, bool on, bool hover, float breath, bool enabled)
     {
+        on &= enabled;
+        hover &= enabled;
         Color tint = i == Skip ? SkipActive : Active;
         bool pressed = hover && Input.IsMouseButtonPressed(MouseButton.Left);
         if (on || hover)
@@ -269,7 +278,7 @@ public sealed class DialogToolbar
                 3f, new Color(tint, on ? 0.8f * breath : 0.35f), on ? 1.5f : 1f);
         }
         Color ink = i >= Log && (on || hover) ? tint : Colors.White;
-        ink.A = on || hover ? 1f : 0.78f;
+        ink.A = !enabled ? 0.28f : on || hover ? 1f : 0.78f;
         DrawIcon(ci, new Rect2(r.Position + new Vector2(6, 4 + (pressed ? 1 : 0)), new Vector2(24, 20)), i,
             ink, active: on && i <= Skip);
     }

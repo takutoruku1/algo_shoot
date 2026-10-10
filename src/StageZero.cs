@@ -357,14 +357,15 @@ public partial class StageZero : Node
             Hud.HoldBubble = true;
             Hud.ClearTutorialHint();
             TutShowLine(lines);
+            return false;
         }
-        if (_zEdge && _lineHold >= 0.15 && !Hud.DialogRevealed)
+        if (_zEdge && !Hud.DialogRevealed)
         {
             Hud.RevealDialogNow();
             _lineHold = 0;
         }
-        else if (_lineHold >= 0.15 && Hud.DialogRevealed
-                 && (_zEdge || Hud.FastForwarding || (Hud.AutoAdvanceReady && _lineHold >= 1.4)))  // FastForwarding=既読スキップ（Ctrl/RB長押し・既読行のみ・#22）
+        else if (Hud.DialogRevealed
+                 && (_zEdge || (Hud.FastForwarding && _lineHold >= 0.15) || (Hud.AutoAdvanceReady && _lineHold >= 1.4)))
         {
             _lineHold = 0;
             _tLine++;

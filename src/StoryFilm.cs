@@ -173,13 +173,14 @@ public partial class StoryFilm : Node2D
             return;
         }
         if (_hud.DialogRevealed) _readT += delta;
-        if (edge && _lineT >= 0.2 && !_hud.DialogRevealed)
+        if (edge && !_hud.DialogRevealed)
         {
             _hud.RevealDialogNow();
             _readT = 0;
         }
-        else if (_lineT >= _lines[_line].Hold && _hud.DialogRevealed
-                 && (edge || _hud.FastForwarding || (_hud.AutoAdvanceReady && _readT >= AutoRead)))
+        else if (_hud.DialogRevealed
+                 && (edge || (_hud.FastForwarding && _lineT >= 0.15)
+                     || (_lineT >= _lines[_line].Hold && _hud.AutoAdvanceReady && _readT >= AutoRead)))
         {
             _line++;
             if (_line == _lines.Length) BeginLeave();

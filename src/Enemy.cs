@@ -123,7 +123,21 @@ public partial class Enemy : Area2D
     protected bool BodyAttacking => _attackPoseT > 0;
     private BossTransformation? _transformation;
     public bool Transforming => IsInstanceValid(_transformation) && !_transformation!.IsQueuedForDeletion();
-    internal bool HasEvolved => _form2 || this is BossMina { IsDragonForm: true };
+    internal bool HasEvolved => _form2 || this is BossMina { EncounterPhase: > 0 };
+    internal Job? BodyShotJob => this switch
+    {
+        BossAkari => Job.Melee,
+        BossKoharu => Job.Heal,
+        BossRei => Job.Magic,
+        BossMina => Job.Tank,
+        CameoBoss cameo => cameo.Theme.Fire switch
+        {
+            CameoFireTheme.AkariGrief => Job.Melee,
+            CameoFireTheme.KoharuFalling => Job.Heal,
+            _ => Job.Magic,
+        },
+        _ => null,
+    };
     private double _attackPoseT;
     private const double AttackPoseDur = 0.55;
     private double _animalMotionT, _animalTechniqueCooldown = 3.0;
@@ -526,20 +540,17 @@ public partial class Enemy : Area2D
         ? GlobalPosition + _bodySprite.Position
         : GlobalPosition;
 
-    // 現在のスペルの弾形・色（と絵）で敵弾を1発撃つ（各ボスの pool.Spawn 置き換え用）。
-    //   湧き位置は必ず ShotCenter。パターンが指定した発射点(pos)へは、弾自身が短い導入区間で
-    //   飛んでいってから本来の速度・軌道へ移る（Bullet.MakeLeadIn）。ずれが 3px 未満なら導入は付かない
-    //   ＝中心から撃っている大多数のパターンは従来と完全に同一。
-    //   fromCenter:false は「その場所に出ること自体が意味を持つ」置き弾（配膳の格子・上端からの雨・
-    //   ぶら下げる祈り弾）専用。体から出す演出を付けるとギミックが壊れるものだけに使う。
+    // 置き弾・落下弾はキャラクターの本体射撃へ変換せず、元のスペル素材と軌道を保つ。
     protected Bullet FireBullet(BulletPool pool, Vector2 pos, Vector2 vel, float radius = 3.4f, int dmg = 1,
         bool fromCenter = true)
     {
-        var b = pool.Spawn(fromCenter ? ShotCenter : pos, vel, isEnemy: true, radius, dmg,
-            CurShape, CurTintSet ? CurTint : (Color?)null);
+        bool characterShot = fromCenter && BodyShotJob.HasValue;
+        var b = characterShot
+            ? pool.SpawnBossShot(ShotCenter, vel, BodyShotJob!.Value, HasEvolved)
+            : pool.Spawn(fromCenter ? ShotCenter : pos, vel, isEnemy: true, radius, dmg,
+                CurShape, CurTintSet ? CurTint : (Color?)null);
         if (fromCenter) b.MakeLeadIn(pos);
-        if (HasHpBar) b.UseBossProjectile();
-        else if (CurSprite != null) b.SetSprite(CurSprite, CurSpriteRot);
+        if (!characterShot && CurSprite != null) b.SetSprite(CurSprite, CurSpriteRot);
         // 改心後の遅延発射は表示・衝突させずに返す（撃破の瞬間に消した弾が後追いで湧かない）。
         //   BulletPool.Spawn の BubblePaused と同じ作法＝呼び元が b を触っても落ちない。
         if (_purified || GaugeVulnerable || GaugeReforming) pool.Despawn(b);

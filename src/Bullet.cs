@@ -213,7 +213,6 @@ public partial class Bullet : Area2D
     private Node2D? _launchTarget;
     private Panel? _launchPanel;
     private Vector2 _launchTargetPosition, _launchTargetVelocity;
-    private bool _bossProjectile;
 
     public void SetLaunchTarget(Node2D target, Panel? panel)
     {
@@ -223,28 +222,44 @@ public partial class Bullet : Area2D
         _launchTargetVelocity = Vector2.Zero;
     }
 
-    public void UseBossProjectile()
+    public void UseCharacterProjectile(Job character)
     {
-        _bossProjectile = true;
+        _playerVisual = BulletArt.PlayerShot(character);
         _sprite = null;
         _spriteRotSpeed = 0;
-        _playerVisual = BulletArt.PlayerShot(Job.Tank);
-        Material = EnemyShotMaterial;
+        TextureFilter = TextureFilterEnum.LinearWithMipmaps;
+        Material = Charged ? BossChargeMaterial : BossShotMaterial;
         Rotation = Velocity.Angle();
         QueueRedraw();
     }
 
-    private static ShaderMaterial? _enemyShotMaterial;
-    private static ShaderMaterial EnemyShotMaterial => _enemyShotMaterial ??= new ShaderMaterial
+    private const string BossShotShader = @"
+void fragment() {
+    vec3 c = COLOR.rgb;
+    float hi = max(c.r, max(c.g, c.b));
+    float lo = min(c.r, min(c.g, c.b));
+    COLOR.rgb = vec3(hi + lo) - c;
+}";
+    private static ShaderMaterial? _bossShotMaterial, _bossChargeMaterial;
+    private static ShaderMaterial BossShotMaterial => _bossShotMaterial ??= new ShaderMaterial
+    {
+        Shader = new Shader { Code = "shader_type canvas_item; render_mode blend_add;" + BossShotShader },
+    };
+    private static ShaderMaterial BossChargeMaterial => _bossChargeMaterial ??= new ShaderMaterial
+    {
+        Shader = new Shader { Code = "shader_type canvas_item;" + BossShotShader },
+    };
+
+    private Material? EnemyMaterial => GetTree().CurrentScene?.GetNodeOrNull<StageBackground>("StageBackground")?.IsSunset == true
+        ? SunsetShotMaterial : null;
+    private static ShaderMaterial? _sunsetShotMaterial;
+    private static ShaderMaterial SunsetShotMaterial => _sunsetShotMaterial ??= new ShaderMaterial
     {
         Shader = new Shader { Code = @"shader_type canvas_item;
-render_mode unshaded;
-varying vec4 shot_color;
-void vertex() { shot_color = COLOR; }
 void fragment() {
-    vec4 tex = texture(TEXTURE, UV);
-    float light = max(tex.r, max(tex.g, tex.b));
-    COLOR = vec4(shot_color.rgb * (0.65 + 0.35 * light), shot_color.a * tex.a);
+    vec3 c = COLOR.rgb;
+    float warm = smoothstep(0.03, 0.12, c.r - c.g) * smoothstep(-0.08, 0.03, c.r - c.b);
+    COLOR.rgb = mix(c, c.grb, warm);
 }" },
     };
     private const float HomingTurnRate = 150f; // deg/s（“曲がって当たる”手応え側へ。漂う弾は HomingLife で始末する）
@@ -313,6 +328,8 @@ void fragment() {
             AddChild(_wordCore);
         }
         _wordCore.CoreR = Radius;
+        _wordCore.Material = EnemyMaterial;
+        Material = null;
         _wordCore.PunchCol = ChipBg();
         _wordCore.Neon = NeonOf(_wordAccent, GameManager.Instance!.SelectedJob); // 芯の縁も通常弾と同じ蛍光の規則
         _wordCore.Art = coreArt ?? BulletArt.Get("enemy_rei_anonymous");
@@ -390,10 +407,9 @@ void fragment() {
     internal static Color NeonOf(Color tint, Job job)
     {
         tint.ToHsv(out float h, out float s, out float v);
-        if (s < PaleS || v < DarkV) h = 0.15f;
-        else h = Mathf.Wrap(h + 0.5f, 0, 1);
+        if (s < PaleS || v < DarkV) NeonDefault.ToHsv(out h, out _, out _);
         BulletArt.PlayerColor(job).ToHsv(out float ph, out _, out _);
-        if (Mathf.Abs(Mathf.Wrap(h - ph, -0.5f, 0.5f)) < PlayerBand) h = Mathf.Wrap(h + 0.25f, 0f, 1f);
+        if (Mathf.Abs(Mathf.Wrap(h - ph, -0.5f, 0.5f)) < PlayerBand) h = Mathf.Wrap(h + 1f / 3f, 0f, 1f);
         return Color.FromHsv(h, NeonS, NeonV);
     }
     internal static Color RimOf(Color neon) => neon.Lerp(Colors.White, RimWhite);
@@ -548,7 +564,7 @@ void fragment() {
         _playerVisual = isEnemy ? null : BulletArt.PlayerShot(GameManager.Instance!.SelectedJob);
         TextureFilter = isEnemy ? TextureFilterEnum.ParentNode : TextureFilterEnum.LinearWithMipmaps;
         // 自機の通常弾だけ加算ブレンド＝縁取りの無い光条（敵弾は通常ブレンド＝暗い縁取りが立つ）。
-        Material = isEnemy ? EnemyShotMaterial : PlayerGlow;
+        Material = isEnemy ? EnemyMaterial : PlayerGlow;
         Damage = damage;
         Radius = radius;
         Active = true;
@@ -571,9 +587,9 @@ void fragment() {
         _sprite = null; _spriteRotSpeed = 0f; _spriteSway = 0f;
         Shape = shape;
         TintSet = tint.HasValue;
-        Tint = isEnemy ? NeonOf(tint ?? EnemyMid, GameManager.Instance!.SelectedJob) : tint ?? Colors.White;
+        if (tint.HasValue) Tint = tint.Value;
         // 蛍光縁の色はここで一度だけ決める（_Draw は Activate/SetSprite 時の記録のみ＝毎フレーム計算しない）。
-        if (isEnemy) { _neon = Tint; TintSet = true; }
+        if (isEnemy) _neon = NeonOf(TintSet ? Tint : EnemyMid, GameManager.Instance!.SelectedJob);
         Homing = homing;
         BackwardHoming = backwardHoming; // 再利用時に持ち越さない（既定 false）
         TurnRateOverride = 0;            // 旋回上書きも再利用時にリセット（付与は Spawn 後に設定）
@@ -582,7 +598,6 @@ void fragment() {
         _launchTarget = null;
         _launchPanel = null;
         _launchTargetVelocity = Vector2.Zero;
-        _bossProjectile = false;
         _retargetT = 0f;                 // 再探索タイマーも持ち越さない（次フレームで即1回探索）
         // 加速球フラグ群も再利用時に必ずリセット（プール再利用で持ち越すと別の弾が誤加速する）。
         Accel = false; _accelDone = false; _accelDelay = 0f; _fastSpeed = 0f; _accelDir = Vector2.Zero; _age = 0f;
@@ -844,17 +859,17 @@ void fragment() {
             Rotation = (_age + _leadElapsed) * _spriteRotSpeed + _spriteSway;
 
         // ホーミング：右側の最寄りの穢れ標的へ向きを補間（速度の大きさは一定）。
-        if (Homing && !IsEnemy)
+        if (Homing)
         {
             SteerToTarget((float)edelta);
         }
         // 旋回は変換行列だけを更新し、画像の描画コマンドを毎フレーム作り直さない。
-        if ((!IsEnemy || _bossProjectile) && Velocity.LengthSquared() > 0.01f) Rotation = Velocity.Angle();
+        if (_playerVisual != null && Velocity.LengthSquared() > 0.01f) Rotation = Velocity.Angle();
 
         GlobalPosition += Velocity * (float)edelta;
 
         // 自機のホーミング弾は 2.5 秒で寿命切れ（画面内を漂う“自機弾の雲”を作らない）。
-        if (Homing && !IsEnemy && _age >= HomingLife)
+        if (Homing && _age >= HomingLife)
         {
             var hp = GetNodeOrNull<BulletPool>("/root/Pool");
             if (hp != null) hp.Despawn(this); else Deactivate();
@@ -881,7 +896,7 @@ void fragment() {
     private void SteerToTarget(float delta)
     {
         var player = GetTree().GetFirstNodeInGroup("player") as Player;
-        var locked = BackwardHoming ? null : player?.LockTarget as Enemy;
+        var locked = IsEnemy || BackwardHoming ? null : player?.LockTarget as Enemy;
         var tgt = _homeTarget;
         bool lost = tgt == null || !IsInstanceValid(tgt) || (tgt is Enemy en && en.IsPurified)
             || (Charged && _chargeHits.Contains(tgt.GetInstanceId()));
@@ -931,6 +946,7 @@ void fragment() {
     // Velocity がほぼ 0（加速球のタメ中など）の場合だけ、フラグから従来の既定（前方=右/後方=左）へ落とす。
     private Node2D? AcquireTarget()
     {
+        if (IsEnemy) return GetTree().GetFirstNodeInGroup("player") as Node2D;
         float vx = Velocity.X;
         float sx = Mathf.Abs(vx) > 0.01f ? Mathf.Sign(vx) : (BackwardHoming ? -1f : 1f);
         Node2D? best = null;
@@ -1043,15 +1059,9 @@ void fragment() {
             return;
         }
 
-        if (!IsEnemy || _bossProjectile)
+        if (_playerVisual != null)
         {
-            if (IsEnemy)
-            {
-                DrawCircle(Vector2.Zero, r + 0.5f, new Color("151020"), true, -1, true);
-                DrawCircle(Vector2.Zero, r - 0.2f, _neon, true, -1, true);
-            }
             DrawPlayerProjectile(r);
-            if (IsEnemy) DrawEnemyCore(r);
             return;
         }
 
@@ -1120,7 +1130,7 @@ void fragment() {
             ChargeShotFx.DrawProjectile(this, art, ChargeJob, _age, r, ChargeStage);
             return;
         }
-        Color accent = IsEnemy ? _neon : art.Accent;
+        Color accent = art.Accent;
         if (AccelCharging)
         {
             float progress = _accelDelay > 0 ? Mathf.Clamp(_age / _accelDelay, 0, 1) : 1;
@@ -1143,8 +1153,7 @@ void fragment() {
         }
         float scale = r * 3.8f / Mathf.Max(art.Region.Size.X, art.Region.Size.Y);
         DrawTextureRectRegion(art.Texture,
-            new Rect2((art.Region.Position - art.Pivot) * scale, art.Region.Size * scale), art.Region,
-            IsEnemy ? accent : Colors.White);
+            new Rect2((art.Region.Position - art.Pivot) * scale, art.Region.Size * scale), art.Region);
     }
 
     // テクスチャ弾（こはる＝推し活グッズ／あかり＝仕事の書類）。
@@ -1173,11 +1182,10 @@ void fragment() {
         float pad = sil.PadFrac * longSide;
         var big = new Rect2(-half - new Vector2(pad, pad), ts + new Vector2(pad * 2f, pad * 2f));
         DrawTextureRect(sil.Glow, big, false, GlowOf(neon));
-        DrawTextureRect(sil.Rim, big.Grow(0.6f / scale), false, new Color("11121d"));
         DrawTextureRect(sil.Rim, big, false, RimOf(neon));
 
         // 本体。グレイズ軟化済みは白へ寄せた淡色を薄く乗せる（他の弾と同じ「和らいだ」の合図）。
-        DrawTextureRect(tex, dst, false, new Color(neon, Softened ? 0.75f : 1f));
+        DrawTextureRect(tex, dst, false, Softened ? new Color(1f, 1f, 1f, 0.75f) : Colors.White);
         DrawSetTransform(Vector2.Zero, 0f, Vector2.One);
     }
 

@@ -16,6 +16,7 @@ public partial class Epilogue : Node2D
     private int _line;
     private double _lineT;
     private double _reveal;        // タイプライター表示済み文字数（＝現在ページ内）
+    private DialogueBox.TypeCursor _typeCursor;   // 送り音（1文字ごとのピッ）をどこまで鳴らしたか
     private GameManager? _game;    // 文字送り速度（MsgCharsPerSec）を本編設定と共有
     private bool _musicStarted;    // E5b のオルゴールを実際に鳴らしたか（未調達なら false＝停止も呼ばない）
 
@@ -38,7 +39,7 @@ public partial class Epilogue : Node2D
     private int _page;
     private DialoguePacing.Page[] _pagePacing = System.Array.Empty<DialoguePacing.Page>();
     private DialoguePacing.Page? CurPacing => _page < _pagePacing.Length ? _pagePacing[_page] : null;
-    private bool PageReady => _reveal >= CurPage.Length && (_ffNow || _autoT >= DialogueBox.PageWait(CurPacing));
+    private bool PageReady => _reveal >= CurPage.Length;
     private int _pagedKey = -1;                // _pages を構築済みの行キー（phase×1000+line）
     private string CurPage => _pages.Count > 0 ? _pages[Mathf.Min(_page, _pages.Count - 1)] : "";
     private bool LastPage => _pages.Count == 0 || _page >= _pages.Count - 1;
@@ -302,7 +303,10 @@ public partial class Epilogue : Node2D
         int pageLen = curT != null ? CurPage.Length : 0;
         bool pageWasRevealed = _reveal >= pageLen;
         if (curT != null && _reveal < pageLen)
+        {
             _reveal = DialogueBox.AdvanceReveal(CurPage, _reveal, delta, _game?.MsgCharsPerSec ?? DialogueBox.DefaultCharsPerSec, CurPacing);
+            DialogueBox.TypeSound(KindOf((_phase == PhGaze ? _gaze : _end)[_line].Who), CurPage, _reveal, ref _typeCursor);
+        }
 
         // 既読スキップ（#22）：行の表示開始時に一度だけ「既読か」を控え（＝高速送りの可否）、表示と同時に既読へ記録。
         int readKey = _phase * 1000 + _line;
@@ -324,7 +328,7 @@ public partial class Epilogue : Node2D
         switch (_phase)
         {
             case PhGaze:   // E5b 見上げる（夜）
-                if ((zEdge || _ffNow || autoGo) && _lineT >= 0.25 && (_reveal < pageLen || PageReady))
+                if (zEdge || ((_ffNow || autoGo) && _lineT >= 0.25))
                 {
                     _autoT = 0;
                     if (curT != null && _reveal < pageLen) { _reveal = pageLen; } // 1回目で現在ページ全文（早送り）
@@ -372,7 +376,7 @@ public partial class Epilogue : Node2D
                 }
                 // 「本日の業務は、以上です。」を送り切って選択点に着いたら提示する。
                 if (_e6ChoiceLine >= 0 && _line >= _e6ChoiceLine) { ShowE6Choice(); break; }
-                if ((zEdge || _ffNow || autoGo) && _lineT >= 0.25 && (_reveal < pageLen || PageReady))
+                if (zEdge || ((_ffNow || autoGo) && _lineT >= 0.25))
                 {
                     _autoT = 0;
                     if (curT != null && _reveal < pageLen) { _reveal = pageLen; }
@@ -605,15 +609,17 @@ public partial class Epilogue : Node2D
     //   三人（あかり／こはる／レイ）は「相手」種別で、色は EdgeFor の面の色をそのまま渡す。
     private static void LogLine(DLine d)
     {
-        var kind = d.Who switch
-        {
-            "地"     => Hud.LineKind.Narration,
-            "ミナ"   => Hud.LineKind.Mina,
-            "あなた" => Hud.LineKind.Boy,
-            _        => Hud.LineKind.Other,
-        };
-        Hud.PushLog(kind, d.Who == "地" ? "" : d.Who, d.Text, EdgeFor(d.Who));
+        Hud.PushLog(KindOf(d.Who), d.Who == "地" ? "" : d.Who, d.Text, EdgeFor(d.Who));
     }
+
+    // 話者 → 行の種別（会話ログの本文色と、送り音の音色の両方に使う）。
+    private static Hud.LineKind KindOf(string who) => who switch
+    {
+        "地"     => Hud.LineKind.Narration,
+        "ミナ"   => Hud.LineKind.Mina,
+        "あなた" => Hud.LineKind.Boy,
+        _        => Hud.LineKind.Other,
+    };
 
     // 話者ごとの縁色。三人（あかり／こはる／レイ）は面の色を借りて、ミナと取り違えないようにする。
     private static Color EdgeFor(string who) => who switch
@@ -634,9 +640,10 @@ public partial class Epilogue : Node2D
         var box = DialogueBox.FullScreen;
         UiKit.BeginDesign(this);
         DialogueBox.DrawFrame(this, box, narr ? "" : d.Who, EdgeFor(d.Who));
-        int shown = narr ? CurPage.Length : Mathf.Clamp((int)_reveal, 0, CurPage.Length);
+        double shown = narr ? CurPage.Length : _reveal;
         float alpha = narr ? Mathf.Clamp((float)_lineT / 0.35f, 0, 1) : 1;
-        DialogueBox.DrawBody(this, box, CurPage, shown, alpha);
+        DialogueBox.DrawBody(this, box, CurPage, shown, alpha,
+            speed: _game?.MsgCharsPerSec ?? DialogueBox.DefaultCharsPerSec, pacing: CurPacing);
         if ((narr ? _lineT >= 0.35 : PageReady) && !_ffNow)
             DialogueBox.DrawContinue(this, box, !LastPage);
         UiKit.EndDesign(this);

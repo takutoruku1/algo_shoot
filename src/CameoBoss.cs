@@ -45,7 +45,7 @@ public partial class CameoBoss : Enemy
     // 後で調整しやすいよう、ここ1か所に集約する。総HP = Enemy.BarHp(100) × CameoBars。
     private const int CameoBars = 2;
     private const int CameoPanels = 3;        // 周回パネル枚数（本戦5より少なめ）
-    private const int CameoPanelInk = 12;
+    private const int CameoPanelInk = 18;
     private const float CameoOrbitR = 24f;    // パネル周回半径
     private const float CameoSpin = 1.0f;     // パネル周回速度(rad/s)
     private const float CameoBodyR = 14f;     // 本体当たり「横」半径（カプセルの半径）

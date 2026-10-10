@@ -26,6 +26,7 @@ public partial class Prologue : Node2D
     private int _line;
     private double _lineT;
     private double _reveal;        // タイプライター表示済み文字数（＝現在ページ内）
+    private DialogueBox.TypeCursor _typeCursor;   // 送り音（1文字ごとのピッ）をどこまで鳴らしたか
     private GameManager? _game;    // 文字送り速度（MsgCharsPerSec）を本編設定と共有
 
     // テキストボックスは2行固定。2行超の行はページに割り、送り（Z）で続きを読ませる（本文は削らない）。
@@ -33,7 +34,7 @@ public partial class Prologue : Node2D
     private int _page;
     private DialoguePacing.Page[] _pagePacing = System.Array.Empty<DialoguePacing.Page>();
     private DialoguePacing.Page? CurPacing => _page < _pagePacing.Length ? _pagePacing[_page] : null;
-    private bool PageReady => _reveal >= CurPage.Length && (_ffNow || _autoT >= DialogueBox.PageWait(CurPacing));
+    private bool PageReady => _reveal >= CurPage.Length;
     private int _pagedLine = -1;               // _pages を構築済みの行 index
     private string CurPage => _pages.Count > 0 ? _pages[Mathf.Min(_page, _pages.Count - 1)] : "";
     private bool LastPage => _pages.Count == 0 || _page >= _pages.Count - 1;
@@ -436,7 +437,10 @@ public partial class Prologue : Node2D
         int len = _line < _talk.Count ? CurPage.Length : 0;
         bool pageWasRevealed = _reveal >= len;
         if (_reveal < len)
+        {
             _reveal = DialogueBox.AdvanceReveal(CurPage, _reveal, delta, _game?.MsgCharsPerSec ?? DialogueBox.DefaultCharsPerSec, CurPacing);
+            DialogueBox.TypeSound(KindOf(_talk[_line].Who), CurPage, _reveal, ref _typeCursor);
+        }
         // 既読スキップ（#22）：行の表示開始時に一度だけ「既読か」を控え（＝高速送りの可否）、表示と同時に既読へ記録。
         if (_readIdx != _line && _line < _talk.Count)
         {
@@ -453,7 +457,7 @@ public partial class Prologue : Node2D
         // AUTO（会話ボックスの AUTO ボタン／設定の「オート会話送り」）：現在ページの全文表示後 AutoAfterReveal 秒で送る。
         if (pageWasRevealed) _autoT += delta; else _autoT = 0;
         bool autoGo = (_game?.AutoAdvanceDialog ?? false) && _autoT >= (CurPacing?.AutoWait ?? AutoAfterReveal);
-        if ((zEdge || _ffNow || autoGo) && _lineT >= 0.25 && (_reveal < len || PageReady))
+        if (zEdge || ((_ffNow || autoGo) && _lineT >= 0.25))
         {
             _autoT = 0;
             if (_reveal < len)
@@ -859,13 +863,21 @@ public partial class Prologue : Node2D
         DrawCircle(c, 4.5f * grow, new Color(0.9f, 0.97f, 1f));
     }
 
-    // --- フェーズ3：話者の立ち絵を中央に表示（行ごとの表情を反映） ---
     private void DrawTalkSpeakers()
     {
         if (_line >= _talk.Count) return;
         if (_talk[_line].Who == WhoFx) return;   // 演出行のあいだは立ち絵も引く（中央のカードに場を譲る）
         string face = _talk[_line].Face;
-        if (string.IsNullOrEmpty(face)) return;   // システム表示・投稿・あなたの下書きには立ち絵を出さない
+        if (_talk[_line].Who == WhoYou)
+        {
+            for (int i = _line - 1; i >= 0; i--)
+            {
+                if (_talk[i].Who != WhoMina) continue;
+                face = _talk[i].Face;
+                break;
+            }
+        }
+        if (string.IsNullOrEmpty(face)) return;
         var tex = ResourceLoader.Load<Texture2D>(face);
         if (tex != null)
         {
@@ -895,15 +907,17 @@ public partial class Prologue : Node2D
     private static void LogLine(DLine d)
     {
         var (label, col) = SpeakerOf(d);
-        var kind = d.Who switch
-        {
-            WhoYou  => Hud.LineKind.Boy,
-            WhoMina => Hud.LineKind.Mina,
-            WhoPost => Hud.LineKind.Post,
-            _       => Hud.LineKind.Narration,
-        };
-        Hud.PushLog(kind, d.Who == WhoSys ? "システム" : label, d.Text, col);
+        Hud.PushLog(KindOf(d.Who), d.Who == WhoSys ? "システム" : label, d.Text, col);
     }
+
+    // 話者 → 行の種別（会話ログの本文色と、送り音の音色の両方に使う）。
+    private static Hud.LineKind KindOf(int who) => who switch
+    {
+        WhoYou  => Hud.LineKind.Boy,
+        WhoMina => Hud.LineKind.Mina,
+        WhoPost => Hud.LineKind.Post,
+        _       => Hud.LineKind.Narration,
+    };
 
     // --- フェーズ3：会話ボックス ---
     private void DrawTalk()
@@ -915,8 +929,9 @@ public partial class Prologue : Node2D
         UiKit.BeginDesign(this);
         var box = DialogueBox.FullScreen;
         DialogueBox.DrawFrame(this, box, label, edge);
-        DialogueBox.DrawBody(this, box, CurPage, Mathf.Clamp((int)_reveal, 0, CurPage.Length),
-            ink: d.Who == WhoSys ? Code : DialogueBox.Ink);
+        DialogueBox.DrawBody(this, box, CurPage, _reveal,
+            ink: d.Who == WhoSys ? Code : DialogueBox.Ink,
+            speed: _game?.MsgCharsPerSec ?? DialogueBox.DefaultCharsPerSec, pacing: CurPacing);
         if (PageReady && !_ffNow)
             DialogueBox.DrawContinue(this, box, !LastPage);
         UiKit.EndDesign(this);

@@ -180,7 +180,7 @@ public partial class Hub : Node2D
     private bool NeedsSnsIntro => _game.HeartsSaved == 0 && !_game.IsIdleDialogSeen(SnsIntroSeenKey);
     private static readonly (string, string)[] SnsIntro =
     {
-        ("あなた", "ホームに戻って、「Y」を開こう。声が残っている投稿に、観測のしるしをつける。"),
+        ("あなた", "ここが「Y」のタイムラインだよ。声が残っている投稿に、観測のしるしをつけるね。"),
         ("ミナ", "ありました。……小さな声でも、見失わずに済みますね。"),
         ("あなた", "その投稿を選んで。ここから先は、僕が道を開く。"),
         ("あなた", "ミナ。僕には、他の誰かをフェイクレルムへダイブさせる力がある。"),
@@ -224,6 +224,7 @@ public partial class Hub : Node2D
     private int _dlgIdx;
     private double _dlgLineT;
     private double _dlgReveal;     // タイプライター表示済み文字数（＝現在ページ内）
+    private DialogueBox.TypeCursor _dlgTypeCursor;   // 送り音（1文字ごとのピッ）をどこまで鳴らしたか
     private string? _dlgReplyId;
     private string? _dlgSeenKey;
 
@@ -232,7 +233,7 @@ public partial class Hub : Node2D
     private int _dlgPage;
     private DialoguePacing.Page[] _dlgPacing = System.Array.Empty<DialoguePacing.Page>();
     private DialoguePacing.Page? DlgPacing => _dlgPage < _dlgPacing.Length ? _dlgPacing[_dlgPage] : null;
-    private bool DlgPageReady => _dlgReveal >= DlgCurPage.Length && (_ffNow || _dlgAutoT >= DialogueBox.PageWait(DlgPacing));
+    private bool DlgPageReady => _dlgReveal >= DlgCurPage.Length;
     private int _dlgPagedIdx = -1;                 // _dlgPages を構築済みの行 index
     private static float DlgBodyWrapW => DialogueBox.WrapWidth(DialogBox);
     private string DlgCurPage => _dlgPages.Count > 0 ? _dlgPages[Mathf.Min(_dlgPage, _dlgPages.Count - 1)] : "";
@@ -809,6 +810,8 @@ public partial class Hub : Node2D
         _dlg = ((string sp, string tx)[])lines.Clone(); _dlgIdx = 0; _dlgLineT = 0; _dlgReveal = 0; _dlgReplyId = replyId;
         _dlgReadIdx = -1; _dlgReadBefore = false; _ffNow = false; _dlgLogIdx = -1; _dlgAutoT = 0;
         _dlgPages.Clear(); _dlgPage = 0; _dlgPagedIdx = -1;
+        // この会話の字形を先に作る（ハブの台本は大きく、読み込み中に作り切れないことがある・GlyphWarmer）。
+        GlyphWarmer.WarmFirst(this, System.Linq.Enumerable.Select(_dlg, line => line.sp + line.tx));
     }
 
     // 行ごとの立ち絵（_dlgFaces）→ テクスチャ。指定が無ければ null＝話者から引く既定のまま。
@@ -863,7 +866,10 @@ public partial class Hub : Node2D
         // 句読点の間は本編HUDと共有する。
         bool pageWasRevealed = _dlgReveal >= len;
         if (_dlgReveal < len)
+        {
             _dlgReveal = DialogueBox.AdvanceReveal(DlgCurPage, _dlgReveal, delta, _game?.MsgCharsPerSec ?? DialogueBox.DefaultCharsPerSec, DlgPacing);
+            DialogueBox.TypeSound(DialogLogKind(_dlg[_dlgIdx].sp), DlgCurPage, _dlgReveal, ref _dlgTypeCursor);
+        }
         // 高速送り：現在ページ即時表示 → 後続ページは飛ばし、最終ページ完了で次行へ（Ctrl/RB を離した瞬間に止まる）。
         if (_ffNow)
         {
@@ -882,7 +888,7 @@ public partial class Hub : Node2D
         // 会話中はカードのホットスポットを登録しない＝画面全体が「送り」になり、クリック誤爆は起きない。
         bool z = Pad.AdvanceHeld();
         bool zEdge = z && !_zHeld; _zHeld = z;
-        if (zEdge && _t > 0.15 && (_dlgReveal < len || DlgPageReady))
+        if (zEdge && _t > 0.15)
         {
             if (_dlgReveal < len) _dlgReveal = len; // 1回目で全文（早送り）
             else if (!DlgLastPage) DlgNextPage();   // 後続ページがあれば続きへ
@@ -3377,7 +3383,8 @@ public partial class Hub : Node2D
         var box = DialogBox;
         bool draft = top == DraftTop;
         DialogueBox.DrawFrame(this, box, sp, accent, top < 0 || draft ? null : face, draft, faceTop: Mathf.Max(0, top));
-        DialogueBox.DrawBody(this, box, DlgCurPage, Mathf.Clamp((int)_dlgReveal, 0, DlgCurPage.Length));
+        DialogueBox.DrawBody(this, box, DlgCurPage, _dlgReveal,
+            speed: _game?.MsgCharsPerSec ?? DialogueBox.DefaultCharsPerSec, pacing: DlgPacing);
         if (!_autoplay && DlgPageReady && !_ffNow)
             DialogueBox.DrawContinue(this, box, !DlgLastPage);
     }

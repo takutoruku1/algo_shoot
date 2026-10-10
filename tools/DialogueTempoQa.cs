@@ -54,12 +54,21 @@ public partial class DialogueTempoQa : Node
             }
             double shown = DialogueBox.AdvanceReveal(text, 0, 0.4);
             Check(shown > 0 && shown < 9, "default dialogue is only partially revealed after 0.4 seconds");
-            Check(DialogueBox.RevealDuration("あ、いう") > DialogueBox.RevealDuration("あいうえ") + 0.1, "comma adds a breath");
-            Check(DialogueBox.RevealDuration("……あ") > DialogueBox.RevealDuration("あいう") + 0.3, "ellipsis adds a hesitation once per run");
+            // ドラクエの文字送り：句読点や行頭で暗黙に溜めない。息継ぎは台本の Beat（DialoguePacing）で置く。
+            foreach (float speed in new[] { DialogueBox.Speed(0), DialogueBox.Speed(1), DialogueBox.Speed(2) })
+                Check(Math.Abs(DialogueBox.RevealDuration("あ、い。う！え？お……か", speed) - 12 / speed) < 0.0001
+                    && Math.Abs(DialogueBox.RevealDuration("あいうえおかきくけこさし", speed) - 12 / speed) < 0.0001,
+                    $"{speed} cps: punctuation and line starts take exactly one character time");
+            CheckSteadyInk("あ、いう。えお！\nかき……くけ？こ", null, "unscripted punctuation");
+            CheckSteadyInk(text, null, "a real two-sentence line");
+            const string scripted = "潜れます。……潜れる、はずです。";
+            var scriptedPacing = DialoguePacing.ForPages(scripted, new[] { scripted })[0];
+            CheckSteadyInk(scripted, scriptedPacing, "an authored hesitation");
             double stepped = 0;
             for (int i = 0; i < 60; i++) stepped = DialogueBox.AdvanceReveal(text, stepped, 1.0 / 60);
             Check(Math.Abs(stepped - DialogueBox.AdvanceReveal(text, 0, 1)) < 0.0001, "reveal timing is independent of frame rate");
             CheckAuthoredTiming(width);
+            await CheckSmoothDrawing();
 
             var hud = new Hud { HoldBubble = true };
             AddChild(hud);
@@ -72,15 +81,11 @@ public partial class DialogueTempoQa : Node
             Check(Read<float>(hud, "_dlgRevealed") < pagingPages[0].Length && !hud.DialogRevealed, "HUD uses gradual reveal");
             hud.RevealDialogNow();
             Check(Read<int>(hud, "_dlgPage") == 0 && Read<float>(hud, "_dlgRevealed") == pagingPages[0].Length, "first press reveals only the current page");
-            for (int i = 0; i < 4; i++) { hud._Process(0.1); hud.RevealDialogNow(); }
-            Check(Read<int>(hud, "_dlgPage") == 0, "rapid clicks keep the revealed page visible for at least half a second");
-            hud._Process(0.11);
+            hud._Process(0.01);
             hud.RevealDialogNow();
-            Check(Read<int>(hud, "_dlgPage") == 1 && Read<float>(hud, "_dlgRevealed") == 0, "a fresh click after the pause starts the next page from zero");
+            Check(Read<int>(hud, "_dlgPage") == 1 && Read<float>(hud, "_dlgRevealed") == 0, "the next press immediately opens the next page without a forced reading pause");
             hud.RevealDialogNow();
-            Check(!hud.DialogRevealed, "the final page also waits before allowing the next speaker");
-            hud._Process(0.51);
-            Check(hud.DialogRevealed, "manual dialogue can advance after the reading pause");
+            Check(hud.DialogRevealed, "the final page is immediately ready for a fresh manual press");
             hud.ShowDialog(Hud.LineKind.Mina, pagingText);
             game.AutoAdvanceDialog = true;
             for (int i = 0; i < 600 && !hud.AutoAdvanceReady; i++) hud._Process(1.0 / 60);
@@ -99,11 +104,7 @@ public partial class DialogueTempoQa : Node
             hud._Process(0.3);
             Check((int)Read<float>(hud, "_dlgRevealed") == 0, "Mina takes a beat before the sincere reply");
             hud.RevealDialogNow();
-            Check(!hud.DialogRevealed, "a manual reveal keeps the authored afterglow");
-            hud._Process(0.3);
-            hud.RevealDialogNow();
-            hud._Process(0.3);
-            Check(hud.DialogRevealed, "extra presses during the afterglow do not restart its timer");
+            Check(hud.DialogRevealed, "manual reveal bypasses the authored afterglow without changing automatic pacing");
             hud.ShowDialog(Hud.LineKind.Other, "……好きだよ。いまも。");
             hud.RevealDialogNow();
             game.AutoAdvanceDialog = true;
@@ -120,6 +121,7 @@ public partial class DialogueTempoQa : Node
             hud.HideBubble();
             hud.QueueFree();
             await Frames(2);
+            await CheckMidbossDialogue(game);
 
             var epilogue = GD.Load<PackedScene>("res://Epilogue.tscn").Instantiate<Epilogue>();
             GetTree().Root.AddChild(epilogue);
@@ -176,6 +178,118 @@ public partial class DialogueTempoQa : Node
         for (int i = 0; i < count; i++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
     }
 
+    private async Task CheckSmoothDrawing()
+    {
+        if (DisplayServer.GetName() == "headless") return;
+        await Frames(2);
+        DisplayServer.WindowSetMode(DisplayServer.WindowMode.Windowed);
+        var canvas = new DialogueRevealQaCanvas();
+        AddChild(canvas);
+        string folder = ProjectSettings.GlobalizePath("res://build/qa_story/dialogue_tempo");
+        DirAccess.MakeDirRecursiveAbsolute(folder);
+        async Task<Image> Capture(double elapsed)
+        {
+            canvas.Shown = DialogueBox.AdvanceReveal(canvas.Page, 0, elapsed, canvas.Speed, canvas.Pacing);
+            canvas.QueueRedraw();
+            await Frames(3);
+            await ToSignal(RenderingServer.Singleton, RenderingServer.SignalName.FramePostDraw);
+            return GetViewport().GetTexture().GetImage();
+        }
+        static double Difference(Image a, Image b, Rect2I rect)
+        {
+            double total = 0;
+            for (int y = rect.Position.Y; y < rect.End.Y; y++)
+                for (int x = rect.Position.X; x < rect.End.X; x++)
+                {
+                    var first = a.GetPixel(x, y);
+                    var second = b.GetPixel(x, y);
+                    total += Math.Abs(first.R - second.R) + Math.Abs(first.G - second.G) + Math.Abs(first.B - second.B);
+                }
+            return total;
+        }
+        foreach (int width in new[] { 960, 1280 })
+        {
+            DisplayServer.WindowSetSize(new Vector2I(width, width * 9 / 16));
+            await Frames(4);
+            float scale = width / UiKit.DesignW;
+            var body = new Rect2I((int)(96 * scale), (int)(570 * scale), (int)(1088 * scale), (int)(88 * scale));
+            var firstLetter = new Rect2I(body.Position, new Vector2I((int)(24 * scale), (int)(42 * scale)));
+            canvas.Page = "あいうえお。\nAV office か\u3099 🙂";
+            foreach (float speed in new[] { DialogueBox.Speed(0), DialogueBox.Speed(1), DialogueBox.Speed(2) })
+            {
+                canvas.Speed = speed;
+                using var full = await Capture(100);
+                canvas.Reference = true;
+                using (var reference = await Capture(100))
+                    Check(Difference(full, reference, body) < 1, $"{width}px: shaped glyphs match full text, including kerning and combined characters");
+                canvas.Reference = false;
+                double start = DialogueBox.RevealDuration("あ", speed) + 0.002;
+                using var a = await Capture(start);
+                using var b = await Capture(start + 1.0 / 60);
+                using var c = await Capture(start + 2.0 / 60);
+                if (Difference(a, b, body) <= 1 || Difference(b, c, body) <= 1)
+                {
+                    a.SavePng($"{folder}/smooth_failure_0.png");
+                    b.SavePng($"{folder}/smooth_failure_1.png");
+                    c.SavePng($"{folder}/smooth_failure_2.png");
+                    GD.Print($"Reveal capture: {a.GetSize()}, window: {DisplayServer.WindowGetSize()}, deltas: {Difference(a, b, body)}, {Difference(b, c, body)}");
+                }
+                Check(Difference(a, b, body) > 1 && Difference(b, c, body) > 1,
+                    $"{width}px, {speed} cps: successive frames change smoothly between whole characters");
+                Check(Difference(a, full, firstLetter) < 1 && Difference(b, full, firstLetter) < 1,
+                    "already revealed letters stay in exactly the same position");
+                if (speed == DialogueBox.DefaultCharsPerSec)
+                {
+                    a.SavePng($"{folder}/smooth_{width}_0.png");
+                    b.SavePng($"{folder}/smooth_{width}_1.png");
+                    c.SavePng($"{folder}/smooth_{width}_2.png");
+                    full.SavePng($"{folder}/smooth_{width}_full.png");
+                }
+            }
+            canvas.Speed = DialogueBox.DefaultCharsPerSec;
+            canvas.Page = "あ、いう";
+            using var afterComma = await Capture(DialogueBox.RevealDuration("あ、") + 0.002);
+            using var afterCommaNext = await Capture(DialogueBox.RevealDuration("あ、") + 0.002 + 1.0 / 60);
+            Check(Difference(afterComma, afterCommaNext, body) > 1, "the letter after a comma keeps fading in on the next frame");
+            canvas.Page = "心配です。";
+            canvas.Pacing = DialoguePacing.ForPages(canvas.Page, new[] { canvas.Page })[0];
+            using var empty = await Capture(0);
+            using var lead = await Capture(0.3);
+            Check(Difference(empty, lead, body) < 1, "authored lead-in remains empty until the reveal begins");
+            canvas.Pacing = null;
+        }
+        canvas.QueueFree();
+        DisplayServer.WindowSetSize(new Vector2I(1280, 720));
+        await Frames(3);
+    }
+
+    // 60fps で1フレームずつ送り、画面のインク（DialogueBox.VisibleInk）が毎フレーム増えることを見る。
+    //   止まってよいのは台本の Lead/Beat の位置だけ（その間は直前の言葉を残して待つ）。
+    private static void CheckSteadyInk(string page, DialoguePacing.Page? pacing, string label)
+    {
+        foreach (float speed in new[] { DialogueBox.Speed(0), DialogueBox.Speed(1), DialogueBox.Speed(2) })
+        {
+            double shown = 0, ink = 0;
+            int stalls = 0, authored = 0;
+            string where = "";
+            while (shown < page.Length)
+            {
+                double next = DialogueBox.AdvanceReveal(page, shown, 1.0 / 60, speed, pacing);
+                double nextInk = DialogueBox.VisibleInk(page, next, speed, pacing);
+                if (nextInk - ink < 1e-9 && next < page.Length)
+                {
+                    if ((pacing?.Before((int)shown) ?? 0) > 0 || (pacing?.Before((int)next) ?? 0) > 0) authored++;
+                    else { stalls++; where = $"{(int)shown} after \"{(shown >= 1 ? page[(int)shown - 1] : '^')}\""; }
+                }
+                shown = next;
+                ink = nextInk;
+            }
+            Check(stalls == 0, $"{speed} cps, {label}: text moves on every frame ({stalls} stalled frames{(stalls > 0 ? ", last at " + where : "")}; {authored} authored)");
+            if (pacing != null && pacing.Beats.Count > 0)
+                Check(authored > 0, $"{speed} cps, {label}: the authored beat still holds the screen");
+        }
+    }
+
     private static void CheckAuthoredTiming(float width)
     {
         foreach (var (source, cue) in DialoguePacing.Cues)
@@ -223,6 +337,88 @@ public partial class DialogueTempoQa : Node
             "ordinary dialogue is not slowed indiscriminately");
     }
 
+    private async Task CheckMidbossDialogue(GameManager game)
+    {
+        var lines = ((int who, string text, string face)[])typeof(StageAkari)
+            .GetField("MidPre", BindingFlags.Static | BindingFlags.NonPublic)!.GetValue(null)!;
+        foreach (bool skip in new[] { false, true })
+        {
+            game.SelectedJob = Job.Tank;
+            game.SelectedEntry = GameManager.StageEntry.AfterMidBoss;
+            game.Difficulty = GameManager.Diff.Normal;
+            game.AutoAdvanceDialog = false;
+            Hud.SkipLatched = false;
+            Input.ActionRelease("ui_accept");
+            var root = GD.Load<PackedScene>("res://Akari.tscn").Instantiate<Node2D>();
+            GetTree().Root.AddChild(root);
+            GetTree().CurrentScene = root;
+            root.SetProcess(false);
+            var stage = root.GetNode<StageAkari>("StageAkari");
+            var hud = root.GetNode<Hud>("Hud");
+            stage.SetProcess(false);
+            hud.SetProcess(false);
+            root.GetNode<Node2D>("World").ProcessMode = ProcessModeEnum.Disabled;
+            await Frames(3);
+            stage._Process(0.01);
+            if (skip)
+            {
+                Set(stage, "_introLine", lines.Length - 1);
+                typeof(StageAkari).GetMethod("ShowLine", Private)!.Invoke(stage, new object[] { lines });
+                hud._Process(0.4);
+                hud.RevealDialogNow();
+                Check(Read<string>(hud, "_dlgText") == "僕もだ。ミナ、君と一緒に、もう一度会いに行きたい。"
+                    && Read<bool>(hud, "_dlgReadBefore"), "reported midboss line is recognised as read on replay");
+                await Shot(root, "midboss_read_skip");
+                const BindingFlags stat = BindingFlags.Static | BindingFlags.NonPublic;
+                typeof(Pad).GetField("_mousePos", stat)!.SetValue(null, hud.ToolbarRect(DialogToolbar.Skip).GetCenter());
+                typeof(Pad).GetField("_mL", stat)!.SetValue(null, true);
+                typeof(Pad).GetField("_mLPrev", stat)!.SetValue(null, false);
+                hud._Process(0.01);
+                Check(Hud.SkipLatched && hud.FastForwarding, "clicking the reported scene's read-skip icon activates fast forward");
+                stage._Process(0.2);
+                typeof(Pad).GetField("_mL", stat)!.SetValue(null, false);
+                stage._Process(0.01);
+                hud._Process(0.01);
+                Check(Read<int>(stage, "_choicePhase") == 1 && !Hud.SkipLatched,
+                    "read skip advances the reported line and stops at the choice");
+            }
+            else
+            {
+                for (int press = 0; press < 32 && Read<int>(stage, "_choicePhase") == 0; press++)
+                {
+                    int line = Read<int>(stage, "_introLine"), page = Read<int>(hud, "_dlgPage");
+                    var pages = Read<List<string>>(hud, "_dlgPages");
+                    int pageCount = pages.Count, pageLength = pages[page].Length;
+                    bool full = Read<float>(hud, "_dlgRevealed") >= pageLength;
+                    Input.ActionPress("ui_accept");
+                    hud._Process(0.01);
+                    stage._Process(0.01);
+                    if (!full)
+                        Check(Read<int>(stage, "_introLine") == line && Read<int>(hud, "_dlgPage") == page
+                            && Read<float>(hud, "_dlgRevealed") == pageLength,
+                            "rapid press reveals the current page without also skipping it");
+                    else if (page < pageCount - 1)
+                        Check(Read<int>(stage, "_introLine") == line && Read<int>(hud, "_dlgPage") == page + 1,
+                            "next rapid press immediately opens the next page");
+                    else
+                        Check(Read<int>(stage, "_introLine") == line + 1,
+                            "next rapid press immediately advances the speaker with no debounce loss");
+                    int after = Read<int>(stage, "_introLine");
+                    stage._Process(0.01);
+                    Check(Read<int>(stage, "_introLine") == after, "holding confirm does not advance a second line");
+                    Input.ActionRelease("ui_accept");
+                    hud._Process(0.01);
+                    stage._Process(0.01);
+                }
+            }
+            Check(Read<ChoiceOverlay>(stage, "_choice") is { Decided: false },
+                "dialogue completion leaves the following choice undecided");
+            Input.ActionRelease("ui_accept");
+            root.QueueFree();
+            await Frames(3);
+        }
+    }
+
     private async Task CheckFinalPacing(GameManager game)
     {
         var final = GD.Load<PackedScene>("res://Final.tscn").Instantiate<Final>();
@@ -245,20 +441,17 @@ public partial class DialogueTempoQa : Node
             final._Process(0.01);
             Input.ActionRelease("ui_accept");
         }
-        Press();
-        Check(Read<int>(final, "_line") == index, "manual Final advance respects the invitation beat");
-        final._Process(0.45);
-        Press();
-        Check(Read<int>(final, "_line") == index, "rapid clicks do not bypass the longer authored silence");
-        final._Process(0.55);
-        Press();
-        Check(Read<int>(final, "_line") == index, "Final waits before presenting the player's answer");
-        await Shot(final, "final_invitation_pause");
         game.AutoAdvanceDialog = true;
-        final._Process(0.25);
-        final._Process(0.01);
-        Check(Read<object?>(final, "_choice") != null, "AUTO reaches the answer choice after the invitation's silence");
+        final._Process(0.45);
+        Check(Read<int>(final, "_line") == index, "AUTO respects the invitation beat");
+        final._Process(0.55);
+        Check(Read<int>(final, "_line") == index, "AUTO preserves the longer authored silence");
         game.AutoAdvanceDialog = false;
+        Set(final, "_lineT", 0.01);
+        Press();
+        Check(Read<int>(final, "_line") == index + 1, "manual input immediately leaves the invitation even during its authored silence");
+        final._Process(0.01);
+        Check(Read<ChoiceOverlay>(final, "_choice") is { Decided: false }, "manual advance opens the choice without selecting an answer");
         final.QueueFree();
         await Frames(2);
     }
@@ -274,5 +467,30 @@ public partial class DialogueTempoQa : Node
         DirAccess.MakeDirRecursiveAbsolute(folder);
         using var shot = GetViewport().GetTexture().GetImage();
         shot.SavePng(folder + "/" + name + ".png");
+    }
+}
+
+public partial class DialogueRevealQaCanvas : Node2D
+{
+    public string Page = "";
+    public double Shown;
+    public float Speed = DialogueBox.DefaultCharsPerSec;
+    public DialoguePacing.Page? Pacing;
+    public bool Reference;
+
+    public override void _Draw()
+    {
+        UiKit.BeginDesign(this);
+        DrawRect(new Rect2(0, 0, UiKit.DesignW, UiKit.DesignH), new Color("23323e"));
+        var box = DialogueBox.FullScreen;
+        DialogueBox.DrawFrame(this, box, "ミナ", UiKit.Mina);
+        if (Reference)
+            UiKit.TypewriterLines(this, DialogueBox.Body.Font, new List<string>(Page.Split('\n')),
+                DialogueBox.TextPosition(box) + new Vector2(0, DialogueBox.Body.Font.GetAscent(DialogueBox.Body.Size)),
+                DialogueBox.WrapWidth(box), DialogueBox.Body.Size, DialogueBox.Ink, int.MaxValue,
+                extraLeading: DialogueBox.Body.ExtraLeading);
+        else
+            DialogueBox.DrawBody(this, box, Page, Shown, speed: Speed, pacing: Pacing);
+        UiKit.EndDesign(this);
     }
 }

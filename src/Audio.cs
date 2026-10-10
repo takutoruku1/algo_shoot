@@ -17,7 +17,9 @@ public partial class Audio : Node
 
     private const int SePoolSize = 12;     // 同時発音（弾幕で飽和しても破綻しない）
     private const int AlertPoolSize = 3;   // 被弾など最優先音
-    private const int VoicePoolSize = 3;   // テキスト送り音（重ならない＝2〜3で十分）
+    // テキスト送り音。「ピッ」は最長 38ms（ボス）で、32 文字/秒・毎文字（31ms 間隔）だと常時2音が重なる。
+    //   フレーム落ちで2文字ぶんが同フレームに来ても横取りしないよう 4（TypeBeepQa で実測）。
+    private const int VoicePoolSize = 4;
     private const float SilentDb = -60f;   // フェード時の実質無音
 
     // 実マスタリング音源（道中の実音源 BGM 等）に乗せる固定の音量オフセット（VolumeDb）。
@@ -81,7 +83,9 @@ public partial class Audio : Node
     // 会話タイプライター送り音（Voiceバス。設計 1-4「話者で音色を変える」）。
     //   少年=温かい木質 / ミナ=澄んだガラス / ボス（穢れ）=低くくぐもり。ナレ=無音。
     //   ごく短い（10〜25ms）ブリップ。1〜2文字に1回だけ・ピッチ微ゆらぎで機械反復を避ける。
-    public AudioStreamWav TypBoy = null!, TypMina = null!, TypBoss = null!;
+    // 文字送り音（2026-10-09 ドラクエ風に作り直し）。TypBoy/TypMina/TypBoss は同一の「ピッ」を指す
+    //   （話者差はピッチだけ＝同じゲームの同じ文字送り音）。TypNarr は語り用の短い版。
+    public AudioStreamWav TypBoy = null!, TypMina = null!, TypBoss = null!, TypNarr = null!;
 
     // BGM。BgmStage/BgmBoss はコード合成のループ（実音源が来たら差し替える）。
     //   全曲で M.I.N.A. モチーフ（ド ミ レ ソ＝523/659/587/784Hz）を共有し「一つの主題の変奏」に。
@@ -294,9 +298,10 @@ public partial class Audio : Node
         SfxUiCancel  = SynthUiCancel();
         SfxUiBuy     = SynthUiBuy();
         SfxUiDeny    = SynthUiDeny();
-        TypBoy  = SynthTypeBoy();
-        TypMina = SynthTypeMina();
-        TypBoss = SynthTypeBoss();
+        TypBoy  = SynthTypeBeep(TypeBeepDur);
+        TypMina = TypBoy;   // 骨格は共通。話者差は VoiceOf のピッチだけで付ける
+        TypBoss = TypBoy;
+        TypNarr = SynthTypeBeep(TypeBeepDurNarr);
         BgmMenu   = LoadBgmMenu();
         BgmStage  = BuildBgm();
         BgmStageRei    = LoadBgmStageRei();
@@ -429,7 +434,14 @@ public partial class Audio : Node
         AudioStreamPlayer? p = null;
         for (int i = 0; i < pool.Count; i++)
             if (!pool[i].Playing) { p = pool[i]; break; }
-        p ??= pool[0]; // 空きが無ければ最古を奪う＝飽和しても破綻しない
+        if (p == null)
+        {
+            // 空きが無ければ最古（再生位置がいちばん進んだもの）を奪う＝飽和しても破綻しない。
+            //   旧実装は常に pool[0] を奪っていて、鳴り始めたばかりの音を切ることがあった。
+            p = pool[0];
+            for (int i = 1; i < pool.Count; i++)
+                if (pool[i].GetPlaybackPosition() > p.GetPlaybackPosition()) p = pool[i];
+        }
         p.Stream = stream;
         p.VolumeDb = volDb;
         p.PitchScale = pitch;
@@ -712,74 +724,69 @@ public partial class Audio : Node
     public void PlayMemoryFlash()
         => Se(SfxMemoryFlash, volDb: -8f);
 
-    // ───────── 会話タイプライター送り音（Voiceバス。設計 1-4「話者で音色」）─────────
-    //   少年=温かい木 / ミナ=澄んだガラス / ボス=くぐもり / ナレ=無音。
-    //   Relay（少年＝ミナの声）は少年寄り、Post（Y投稿）はごく控えめ。
-    //   Hud のタイプライターから 1〜2文字に1回だけ呼ぶ（毎文字は鳴らしすぎ／Hud側で間引く）。
-    //
-    //   抑揚（2026-10-03）: 音色だけ替えても1行ずっと同じピッチ＝棒読みに聞こえる、という指摘への対応。
-    //   line（その行の全文）と index（いま出た文字位置）を渡すと、Prosody が1音ごとのピッチを動かす。
-    //   とくに「？」で終わる行は語尾を持ち上げる（疑問形の抑揚）。line を省略した単発の呼び手
-    //   （ChoiceOverlay の決定音）は従来どおり平坦＋微ゆらぎ。音量帯（-18〜-20dB）は据え置き。
+    // ───────── 会話タイプライター送り音（Voiceバス）─────────
+    //   2026-10-09 作り直し（ユーザー要望「文字表示するときに、ドラクエみたいに効果音つけて」）。
+    //   旧版は話者の声を模した柔らかい正弦（14〜22ms・-18〜-20dB）で、会話中ほぼ聞こえていなかった。
+    //   新版は **短い・硬い・明るい・一定** の矩形パルス「ピッ」1種類を全話者で共有し、話者差はピッチだけ。
+    //   抑揚は「？」で語尾が上がる（ユーザー要望 2026-10-03）を軸に、語尾の上げ下げだけを控えめに残す。
+    //   シグネチャは据え置き（Hud / OpeningFilm / ChoiceOverlay ほか engineer 側の呼び出しの前提）。
     public void PlayType(Hud.LineKind kind, string line = "", int index = -1)
     {
         VoiceTone tone = VoiceOf(kind);
         AudioStreamWav? stream = tone.Stream;
-        if (stream == null) return;   // Narration＝無音（語りとセリフを耳で区別）
-        var (semitones, db) = Prosody(line, index, tone);
+        if (stream == null) return;
+        var (semitones, db) = Prosody(line, index);
         VoiceSe(stream, volDb: tone.Db + db,
             pitch: Mathf.Clamp(tone.Pitch * Mathf.Pow(2f, semitones / 12f), 0.70f, 1.80f));
     }
 
-    // 話者ごとの声色。Span＝終止形（？！…。）の振れ幅の倍率／Wave＝行途中のうねりの深さ(半音)／
-    //   Rate＝そのうねりの速さ。音色だけでなく**抑揚の幅と速さ**でも性格を分ける。
-    private readonly record struct VoiceTone(AudioStreamWav? Stream, float Db, float Pitch,
-                                             float Span, float Wave, float Rate);
+    // 話者ごとの差＝基準ピッチ（と投稿/ナレの音量をわずかに）だけ。音色の骨格は全員共通。
+    //   音量は UI 決定音（PlayUiConfirm -14dB）と同程度の聞こえ方に合わせた（数値根拠は TypeBeepQa）。
+    private readonly record struct VoiceTone(AudioStreamWav? Stream, float Db, float Pitch);
+
+    private const float TypeDb = -16f;   // 旧 -18〜-20dB（投稿 -28dB／ナレ無音）→ 全員この帯へ
 
     private VoiceTone VoiceOf(Hud.LineKind kind) => kind switch
     {
-        //                                音源     音量  基準   Span   Wave   Rate
-        Hud.LineKind.Boy       => new(TypBoy,  -18f, 1.00f, 1.00f, 0.45f, 1.5f), // 素直によく動く
-        Hud.LineKind.Mina      => new(TypMina, -19f, 1.00f, 1.30f, 0.60f, 2.1f), // いちばん動く＝感情を獲得していく当人
-        Hud.LineKind.Other     => new(TypBoss, -18f, 1.00f, 0.65f, 0.28f, 0.9f), // 抑え込んだ声＝重く、動きが少ない
-        Hud.LineKind.Companion => new(TypBoss, -20f, 1.00f, 0.90f, 0.42f, 1.4f), // 改心後の仲間＝同じ音色でもよく動く
-        Hud.LineKind.Relay     => new(TypBoy,  -19f, 1.04f, 0.40f, 0.16f, 1.1f), // 中継＝読み上げ、ほぼ平坦
-        Hud.LineKind.Post      => new(TypMina, -28f, 1.08f, 0.25f, 0.10f, 0.9f), // 投稿＝素っ気ない
-        _ => new(null, 0f, 1f, 0f, 0f, 0f),                                      // Narration＝無音
+        //                                  音源     音量            基準ピッチ
+        Hud.LineKind.Boy       => new(TypBoy,  TypeDb,        1.000f), // 中間＝基準 (0 半音)
+        Hud.LineKind.Mina      => new(TypMina, TypeDb,        1.122f), // やや高め (+2 半音)
+        Hud.LineKind.Other     => new(TypBoss, TypeDb,        0.841f), // ボス＝低め (-3 半音)
+        Hud.LineKind.Companion => new(TypBoss, TypeDb,        0.944f), // 改心後＝ボスより持ち上がる (-1 半音)
+        Hud.LineKind.Relay     => new(TypBoy,  TypeDb,        1.059f), // 中継＝少年の口でミナの声 (+1 半音)
+        Hud.LineKind.Post      => new(TypMina, TypeDb - 2f,   1.189f), // 投稿＝高く少し小さい (+3 半音)。旧 -28dB は実質無音だった
+        // ナレーション：旧版は「語りとセリフを耳で区別する」ため無音だったが、要望は「文字が出れば鳴る」。
+        //   区別は残す＝少し低く(-2 半音)・少し短く(22ms の短い版 TypNarr)・わずかに小さく(-1dB)。
+        //   低く・短い「ポッ」はセリフの「ピッ」と並べても同じ系統に聞こえ、かつ一歩引いた語りに聞こえる。
+        _                      => new(TypNarr, TypeDb - 1f,   0.891f),
     };
 
     // 1音ぶんの抑揚。返り値＝基準ピッチからの差（半音）と音量差（dB）。
-    //   ① 終止形で語尾を上げ下げ（？＝上がる／。＝落ちる／…＝ゆっくり沈む／！＝張る）
-    //   ② 文節ごとに頭高→尾低（日本語の自然な下降。「、」や改行で区切る）
-    //   ③ 行の進行に沿った緩い波（単調な連打を避ける／乱数だけに頼ると雑になる）
-    //   ④ ごく小さな乱数揺らぎ（機械的な反復を消す）
-    private (float Semitones, float Db) Prosody(string line, int index, VoiceTone tone)
+    //   ドラクエの文字送りは基本一定ピッチ。一定で刻むことが「ピッピッピッ」の気持ちよさなので、
+    //   旧版の ②文節ごとの頭高尾低 ③行に沿った波 は廃止（刻みの一定感と喧嘩してリズムが崩れる）。
+    //   残すのは ①語尾の上げ下げ（とくに「？」で上がる＝ユーザー要望 2026-10-03）と
+    //   ④ごく小さな乱数（±0.06 半音＝聴き分けられない幅。完全同一波形の反復で出る機械的な位相の揃いを崩すだけ）。
+    private (float Semitones, float Db) Prosody(string line, int index)
     {
-        if (line.Length == 0 || index < 0)
-            return (_rng.RandfRange(-0.5f, 0.5f), 0f);   // 単発＝従来の ±3% 相当の揺らぎだけ
+        float jitter = _rng.RandfRange(-0.06f, 0.06f);
+        if (line.Length == 0 || index < 0) return (jitter, 0f);   // 単発（ChoiceOverlay の決定音など）＝一定
         float u = Mathf.Clamp(index / (float)Mathf.Max(1, line.Length - 1), 0f, 1f);
         var cadence = Cadence(line);
         float tail = cadence.End * Smooth((u - cadence.From) / Mathf.Max(0.05f, 1f - cadence.From));
-        float phrase = PhraseAt(line, index);
-        float downstep = (0.5f - phrase) * 1.3f;
-        float wave = tone.Wave * (Mathf.Sin(u * Mathf.Tau * tone.Rate) * 0.7f
-                                + Mathf.Sin(u * Mathf.Tau * tone.Rate * 2.3f + 0.9f) * 0.3f);
-        // 音量は飾りに留める（抑揚はピッチが担う）。文節頭を ±0.5dB だけ張り、感嘆でもう +0.6dB。
-        //   既存の音量帯（-18〜-20dB）から 1dB ちょっとしか動かさない＝やかましくしない。
-        return ((cadence.Lift + tail + downstep) * tone.Span + wave + _rng.RandfRange(-0.18f, 0.18f),
-                (0.5f - phrase) * 1.0f + cadence.Accent);
+        return (cadence.Lift + tail + jitter, cadence.Accent);
     }
 
     // 行の終わり方で決まる語尾の動き。End=語尾で到達する差(半音)／From=動き始める行内進行度／
-    //   Lift=行全体の持ち上げ(半音)／Accent=音量差(dB)。
+    //   Lift=行全体の持ち上げ(半音)／Accent=音量差(dB)。旧版より幅を約 2/3〜1/2 に控えめにした。
+    //   「？」だけは耳で分かる幅（+2.4 半音）を残す＝ユーザー自身が要望した抑揚なので消さない。
     private static (float End, float From, float Lift, float Accent) Cadence(string line) => Tail(line) switch
     {
-        '？' or '?' => (+3.2f, 0.58f, +0.0f, +0.2f),  // 疑問＝語尾を持ち上げる（ユーザー要望 2026-10-03）
-        '！' or '!' => (+1.6f, 0.72f, +0.7f, +0.6f),  // 感嘆＝張って高いまま切る（高ピッチ＝再生も短くなる）
-        '…' or '‥' => (-3.0f, 0.42f, -0.2f, -0.6f),  // 言いさし＝ゆっくり長く沈んで消える
-        '。' or '.' or '．' => (-2.0f, 0.60f, 0f, 0f), // 言い切り＝語尾を落とす
-        '、' or '，' => (-0.6f, 0.75f, 0f, 0f),        // まだ続く＝わずかに落とすだけ
-        _ => (-0.9f, 0.65f, 0f, 0f),                  // 記号なし＝普通に言い終わる
+        '？' or '?' => (+2.4f, 0.62f, +0.0f, 0f),     // 疑問＝語尾を持ち上げる（ユーザー要望 2026-10-03）
+        '！' or '!' => (+0.8f, 0.75f, +0.4f, +0.5f),  // 感嘆＝少し張る
+        '…' or '‥' => (-1.5f, 0.50f, 0f, -1.0f),     // 言いさし＝沈んで小さく
+        '。' or '.' or '．' => (-0.8f, 0.70f, 0f, 0f), // 言い切り＝語尾をわずかに落とす
+        '、' or '，' => (-0.3f, 0.80f, 0f, 0f),        // まだ続く＝ほぼ一定
+        _ => (-0.4f, 0.70f, 0f, 0f),                  // 記号なし＝ほぼ一定
     };
 
     // 行末の「意味のある」1文字（空白・改行・閉じ括弧は飛ばす）。
@@ -793,20 +800,6 @@ public partial class Audio : Node
         }
         return '\0';
     }
-
-    // index が属する文節の中での進行度 0..1。文節ごとに頭高→尾低を付けると、
-    //   1行の中でも息継ぎ（言い直し）が聞こえて「しゃべっている感じ」になる。
-    private static float PhraseAt(string line, int index)
-    {
-        int start = 0;
-        for (int i = 0; i < index && i < line.Length; i++) if (PhraseBreak(line[i])) start = i + 1;
-        int end = start;
-        while (end < line.Length && !PhraseBreak(line[end])) end++;
-        return Mathf.Clamp((index - start) / (float)Mathf.Max(1, end - start), 0f, 1f);
-    }
-
-    private static bool PhraseBreak(char c) => c is '、' or '，' or '。' or '．' or '.' or '！' or '!'
-        or '？' or '?' or '…' or '‥' or '\n' or '\r' or '　' or ' ';
 
     private static float Smooth(float v) { v = Mathf.Clamp(v, 0f, 1f); return v * v * (3f - 2f * v); }
 
@@ -1218,63 +1211,39 @@ public partial class Audio : Node
         return MakeWav(s);
     }
 
-    // ───────── 会話タイプライター送り音（話者で音色を変える。設計 1-4）─────────
-    // 少年：中域の柔らかい正弦（木質＝倍音少なめ・角を丸く）。~16ms。
-    private AudioStreamWav SynthTypeBoy()
-    {
-        float dur = 0.016f; int n = (int)(Rate * dur);
-        var s = new float[n];
-        const float f0 = 320f; // 中域・温かい
-        for (int i = 0; i < n; i++)
-        {
-            float t = (float)i / Rate;
-            // 立ち上がりをわずかに鈍らせ「角を丸く」。短い指数減衰。
-            float atk = t < 0.0018f ? t / 0.0018f : 1f;
-            float env = atk * Mathf.Exp(-t / 0.006f);
-            float v = Mathf.Sin(Mathf.Tau * f0 * t)
-                    + 0.10f * Mathf.Sin(Mathf.Tau * f0 * 2f * t); // 倍音はごく薄く＝木質
-            s[i] = v * env * 0.5f;
-        }
-        FadeEnds(s, (int)(0.0008f * Rate));
-        return MakeWav(s);
-    }
+    // ───────── 会話タイプライター送り音「ピッ」（ドラクエ風。2026-10-09）─────────
+    //   25% デューティの矩形パルス（ファミコンの矩形波チャンネル相当の硬く明るい倍音）を、
+    //   ナイキスト手前で打ち切った加算合成で作る（素朴な矩形はエイリアシングでザラつくため）。
+    //   基本周波数 880Hz（A5）。立ち上がり 1ms → 尺の 1/3 を時定数に指数減衰 → 末尾 3ms でゼロへ。
+    //   尺 32ms（セリフ）／22ms（ナレ）。PitchScale で話者差を付けると尺も比例して伸縮する
+    //   （ボス 0.84 倍で 38ms、投稿 1.19 倍で 27ms）＝どの話者でも 25〜40ms に収まる。
+    private const float TypeBeepDur = 0.032f;
+    private const float TypeBeepDurNarr = 0.022f;
+    private const float TypeBeepHz = 880f;
 
-    // ミナ：高域の澄んだガラス質（基音高め＋わずかな上倍音、速くクリアに減衰）。~14ms。
-    private AudioStreamWav SynthTypeMina()
+    private static AudioStreamWav SynthTypeBeep(float dur)
     {
-        float dur = 0.014f; int n = (int)(Rate * dur);
+        int n = (int)(Rate * dur);
         var s = new float[n];
-        const float f0 = 920f; // 高め・澄んだ
+        const float duty = 0.25f;
+        int harmonics = (int)(9000f / TypeBeepHz);   // ~9kHz で打ち切り（PitchScale 1.8 でもナイキスト未満）
+        float tau = dur / 3f;
+        float peak = 0f;
         for (int i = 0; i < n; i++)
         {
             float t = (float)i / Rate;
-            float atk = t < 0.0006f ? t / 0.0006f : 1f; // 鋭く澄んだ立ち上がり
-            float env = atk * Mathf.Exp(-t / 0.0045f);
-            float v = Mathf.Sin(Mathf.Tau * f0 * t)
-                    + 0.22f * Mathf.Sin(Mathf.Tau * f0 * 2.76f * t); // 非整数の上倍音＝ガラスのきらめき
-            s[i] = v * env * 0.42f;
+            float v = 0f;
+            for (int k = 1; k <= harmonics; k++)
+                v += Mathf.Sin(Mathf.Pi * k * duty) / k * Mathf.Cos(Mathf.Tau * k * TypeBeepHz * t - Mathf.Pi * k * duty);
+            float atk = t < 0.001f ? t / 0.001f : 1f;
+            s[i] = v * atk * Mathf.Exp(-t / tau);
+            peak = Mathf.Max(peak, Mathf.Abs(s[i]));
         }
-        FadeEnds(s, (int)(0.0008f * Rate));
-        return MakeWav(s);
-    }
-
-    // ボス（穢れ）：低めでくぐもった音（ローパスで倍音を削る）。~22ms。
-    private AudioStreamWav SynthTypeBoss()
-    {
-        float dur = 0.022f; int n = (int)(Rate * dur);
-        var s = new float[n]; float lp = 0f;
-        const float f0 = 165f; // 低め
-        for (int i = 0; i < n; i++)
-        {
-            float t = (float)i / Rate;
-            float atk = t < 0.0025f ? t / 0.0025f : 1f;
-            float env = atk * Mathf.Exp(-t / 0.008f);
-            float raw = Mathf.Sin(Mathf.Tau * f0 * t)
-                      + 0.18f * Mathf.Sin(Mathf.Tau * f0 * 2f * t);
-            lp += (raw - lp) * 0.10f; // 一極ローパス＝高域を削り「くぐもり」
-            s[i] = lp * env * 0.55f;
-        }
-        FadeEnds(s, (int)(0.0008f * Rate));
+        float g = peak > 0f ? 0.5f / peak : 0f;   // ピーク 0.5 に正規化（他の SE と同じ土俵。音量は VolumeDb 側で決める）
+        for (int i = 0; i < n; i++) s[i] *= g;
+        // 頭は atk(1ms) が担うので FadeEnds（両端）は使わない。末尾 3ms だけ線形にゼロへ＝プチノイズ防止。
+        int fade = (int)(0.003f * Rate);
+        for (int i = 0; i < fade && i < n; i++) s[n - 1 - i] *= (float)i / fade;
         return MakeWav(s);
     }
 

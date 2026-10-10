@@ -183,7 +183,7 @@ public partial class Hud : CanvasLayer
     private int _dlgPage;               // 現在表示中のページ index
     private DialoguePacing.Page[] _pagePacing = System.Array.Empty<DialoguePacing.Page>();
     private DialoguePacing.Page? CurPacing => _dlgPage < _pagePacing.Length ? _pagePacing[_dlgPage] : null;
-    private bool PageReady => _dlgRevealed >= CurPageText.Length && (FastForwarding || _pageReadT >= DialogueBox.PageWait(CurPacing));
+    private bool PageReady => _dlgRevealed >= CurPageText.Length;
     private string CurPageText => (_dlgPages.Count > 0 && _dlgPage < _dlgPages.Count) ? _dlgPages[_dlgPage] : _dlgText;
     private bool OnLastPage => _dlgPages.Count == 0 || _dlgPage >= _dlgPages.Count - 1;
     private const float CharsPerSec = DialogueBox.DefaultCharsPerSec;
@@ -198,8 +198,7 @@ public partial class Hud : CanvasLayer
     public bool BattleMemoryTempo;
     // 現在行の種類（タイプ送り音の音色＝話者を決める）。LineKind を取らない経路は既定＝Narration（無音）。
     private LineKind _dlgKind = LineKind.Narration;
-    private int _typePrevRevealed;      // 直前フレームの revealed 整数部（新しく出た文字を差分検出）
-    private const int TypeStride = 2;   // 何文字に1回鳴らすか（毎文字は鳴らしすぎ）
+    private DialogueBox.TypeCursor _typeCursor;   // 送り音の「どこまで鳴らしたか」（新しく出た文字を差分検出）
 
     // ───────── 立ち絵の生命感（吉田明彦：常時の微細な生命感／見た目のみ・進行に無影響）─────────
     // 呼吸：話者の立ち絵だけを Sin で上下に微細に揺らす。やりすぎない。
@@ -339,17 +338,10 @@ public partial class Hud : CanvasLayer
         if (_messageTimer > 0 && _dlgText.Length > 0 && _dlgRevealed < CurPageText.Length)
         {
             _dlgRevealed = (float)DialogueBox.AdvanceReveal(CurPageText, _dlgRevealed, delta, _game?.MsgCharsPerSec ?? CharsPerSec, CurPacing);
-            // 文字が新たに出た瞬間だけ、TypeStride 文字に1回、話者の音色で送り音（Voiceバス）。
-            // ナレ（Narration）は PlayType 側で無音。即時全文表示（RevealDialogNow）は差分が一気に増えるが
-            // 「1ストライド境界を跨いだか」だけで判定するので、増分の数だけ連打しない＝大量再生を防ぐ。
-            int rev = Mathf.FloorToInt(_dlgRevealed);
-            if (rev > _typePrevRevealed)
-            {
-                // 行の全文と現在位置を渡す＝PlayType 側で抑揚が付く（語尾の「？」で上がる等）。
-                if (rev < CurPageText.Length && rev / TypeStride != _typePrevRevealed / TypeStride)
-                    Audio.Instance?.PlayType(_dlgKind, CurPageText, rev);
-                _typePrevRevealed = rev;
-            }
+            // 文字が新たに出たフレームごとに1回、話者の音色で送り音（ドラクエの「ピッ」・Voiceバス・ナレも鳴る）。
+            // 即時全文表示（RevealDialogNow／既読送り）はここを通らないので鳴らない。行の全文と位置を渡す＝
+            // PlayType 側で抑揚が付く（語尾の「？」で上がる等）。
+            DialogueBox.TypeSound(_dlgKind, CurPageText, _dlgRevealed, ref _typeCursor);
         }
 
         if (_messageTimer > 0 && _dlgText.Length > 0 && pageWasRevealed) _pageReadT += delta;
@@ -567,7 +559,7 @@ public partial class Hud : CanvasLayer
         _dlgIsDialog = dialog; _dlgRevealed = 0;
         _pageReadT = 0;
         // 新しい行＝送り音の差分検出をリセット。送り音の音色は kind（Narration＝無音）。
-        _typePrevRevealed = 0; _dlgKind = kind;
+        _typeCursor = default; _dlgKind = kind;
         Texture2D? next = string.IsNullOrEmpty(portrait) ? null : ResourceLoader.Load<Texture2D>(portrait);
         _dlgDraftMark = draftMark && next == null;
         BuildDialogPages();
@@ -619,7 +611,7 @@ public partial class Hud : CanvasLayer
         _dlgPage++;
         _dlgRevealed = 0;
         _pageReadT = 0;
-        _typePrevRevealed = 0;
+        _typeCursor = default;
         _revealWasDone = false;
     }
 
@@ -1686,7 +1678,8 @@ public partial class Hud : CanvasLayer
             if (fade > 0 && _dlgPortraitPrev != null)
                 UiKit.FaceAvatar(ci, center, 17, _dlgPortraitPrev, accent, false, alpha: fade);
         }
-        DialogueBox.DrawBody(ci, box, page, Mathf.Clamp((int)_dlgRevealed, 0, page.Length));
+        DialogueBox.DrawBody(ci, box, page, _dlgRevealed,
+            speed: _game?.MsgCharsPerSec ?? CharsPerSec, pacing: CurPacing);
         if (PageReady && !FastForwarding)
             DialogueBox.DrawContinue(ci, box, !OnLastPage);
     }

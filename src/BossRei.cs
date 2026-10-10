@@ -149,7 +149,7 @@ public partial class BossRei : Enemy
         BodyRadius = BossTuning.F("rei", "body_radius", 19f);
         BodyHalfH = BossTuning.F("rei", "body_half_h", 23f);   // 縦長カプセル（絵の形に沿わせる）
         PanelCount = BossTuning.I("rei", "panel_count", 5); // 「二番」の言葉（黒い吹き出し）
-        PanelInk = BossTuning.I("rei", "panel_ink", 36);
+        PanelInk = BossTuning.I("rei", "panel_ink", 54);
         OrbitRadius = BossTuning.F("rei", "orbit_radius", 26f);
         SpinSpeed = BossTuning.F("rei", "spin_speed", 0.9f);
         PanelsFire = false;
@@ -574,14 +574,14 @@ public partial class BossRei : Enemy
             // 会話が畳まれて post 差し替えが走り、「割れる」より先に「別の絵になった」が来てしまう。
             // QA の自動送りも同じ経路（Pad.AdvanceHeld）を通るので、同じだけ待つ。
             var dialogHud = GetHud()!;
-            if (zEdge && _lineT >= 0.25 && !ShellPeelBusy && !dialogHud.DialogRevealed)
+            if (zEdge && !ShellPeelBusy && !dialogHud.DialogRevealed)
             {
                 dialogHud.RevealDialogNow();
                 _lineT = 0;
                 NotifyCryProgress();
             }
-            else if (_lineT >= 0.25 && !ShellPeelBusy && dialogHud.DialogRevealed
-                     && (zEdge || dialogHud.FastForwarding || (dialogHud.AutoAdvanceReady && _lineT >= 1.4)))
+            else if (!ShellPeelBusy && dialogHud.DialogRevealed
+                     && (zEdge || (dialogHud.FastForwarding && _lineT >= 0.25) || (dialogHud.AutoAdvanceReady && _lineT >= 1.4)))
             {
                 _lineT = 0; _line++;
                 NotifyCryProgress(); // 送れている間は保険タイムアウトを起こさない

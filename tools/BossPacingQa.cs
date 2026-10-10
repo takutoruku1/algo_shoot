@@ -230,6 +230,14 @@ public partial class BossPacingQa : Node
 
     private async Task Shields(GameManager game, Enemy boss, Player player, Hud hud, string id, bool powered, bool charged)
     {
+        int expectedInk = boss is CameoBoss ? 18 : id switch
+        {
+            "Akari" => 36, "Koharu" => 48, "Rei" => 54, "MinaBattle" => 66,
+            _ => throw new ArgumentOutOfRangeException(nameof(id)),
+        };
+        Check(Read<int>(boss, "PanelInk", typeof(Enemy)) == expectedInk
+            && Read<List<Panel>>(boss, "_panels", typeof(Enemy)).All(panel => panel.Ink == expectedInk),
+            $"{id}: shield panels start with the increased durability ({expectedInk})");
         var times = new List<double>();
         double elapsed = 0, fire = 0;
         string previous = "";

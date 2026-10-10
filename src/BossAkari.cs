@@ -119,7 +119,7 @@ public partial class BossAkari : Enemy
         BodyRadius = BossTuning.F("akari", "body_radius", 19f);
         BodyHalfH = BossTuning.F("akari", "body_half_h", 23f);   // 縦長カプセル（絵の形に沿わせる）
         PanelCount = BossTuning.I("akari", "panel_count", 5); // 自責の言葉（黒い吹き出し）
-        PanelInk = BossTuning.I("akari", "panel_ink", 24);
+        PanelInk = BossTuning.I("akari", "panel_ink", 36);
         OrbitRadius = BossTuning.F("akari", "orbit_radius", 26f);
         SpinSpeed = BossTuning.F("akari", "spin_speed", 0.9f);
         PanelsFire = false;      // 攻撃は本体の自責弾
@@ -376,17 +376,13 @@ public partial class BossAkari : Enemy
         }
     }
 
-    // グレイズで和らぐ弾（#12 機構側）：自機を追う2スペル（「ずっと一緒」「離さない」）の弾だけ、
-    // グレイズ（かすり）すると減速×Bullet.GrazeSoftenMul＋淡色化する＝離さないと迫る距離が、触れると和らぐ。
-    // 被弾判定は不変（安全化しすぎ防止）。フィナーレでは無効＝最後の圧は緩めない。
     private void AimedSpread(BulletPool pool)
     {
         float baseA = Mathf.Atan2(AimAtPlayer().Y, AimAtPlayer().X);
         for (int i = -_aimedWing; i <= _aimedWing; i++)
         {
             float a = baseA + i * Mathf.DegToRad(14f);
-            var b = FireBullet(pool, GlobalPosition, new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * _aimedSpeed, 4.0f);
-            b.SoftenOnGraze = true; // AimedSpread は「ずっと一緒」(pattern2)専用＝スペル限定が自然に成立
+            FireBullet(pool, GlobalPosition, new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * _aimedSpeed, 4.0f);
         }
     }
 
@@ -396,8 +392,7 @@ public partial class BossAkari : Enemy
         for (int s = 0; s < 2; s++)
         {
             float a = _ringOff + Mathf.Pi * s;
-            var b = FireBullet(pool, GlobalPosition, new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * _spiralSpeed, 2.6f);
-            if (_pattern == 3 && !_finale) b.SoftenOnGraze = true; // 「離さない」中のみ（フィナーレ流用時は付けない）
+            FireBullet(pool, GlobalPosition, new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * _spiralSpeed, 2.6f);
         }
     }
 
@@ -551,14 +546,14 @@ public partial class BossAkari : Enemy
         if (_seq)
         {
             var dialogHud = GetHud()!;
-            if (zEdge && _lineT >= 0.25 && !dialogHud.DialogRevealed)
+            if (zEdge && !dialogHud.DialogRevealed)
             {
                 dialogHud.RevealDialogNow();
                 _lineT = 0;
                 NotifyCryProgress();
             }
-            else if (_lineT >= 0.25 && dialogHud.DialogRevealed
-                     && (zEdge || dialogHud.FastForwarding || (dialogHud.AutoAdvanceReady && _lineT >= 1.4)))
+            else if (dialogHud.DialogRevealed
+                     && (zEdge || (dialogHud.FastForwarding && _lineT >= 0.25) || (dialogHud.AutoAdvanceReady && _lineT >= 1.4)))
             {
                 _lineT = 0; _line++;
                 NotifyCryProgress(); // 送れている間は保険タイムアウトを起こさない

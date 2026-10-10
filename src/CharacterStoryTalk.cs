@@ -63,14 +63,14 @@ public class CharacterStoryTalk
         bool zEdge = z && !_zHeld;
         _zHeld = z;
         _lineT += delta;
-        if (zEdge && _lineT >= 0.25 && !hud.DialogRevealed)
+        if (zEdge && !hud.DialogRevealed)
         {
             hud.RevealDialogNow();   // 1段目：まず全文表示（読み飛ばし防止）
             _lineT = 0;
             return;
         }
-        if (_lineT < 0.25 || !hud.DialogRevealed) return;
-        if (!(zEdge || hud.FastForwarding || (hud.AutoAdvanceReady && _lineT >= 1.4))) return;
+        if (!hud.DialogRevealed) return;
+        if (!(zEdge || (hud.FastForwarding && _lineT >= 0.25) || (hud.AutoAdvanceReady && _lineT >= 1.4))) return;
         _lineT = 0;
         _line++;
         if (_line >= _lines.Length) { Finish(hud); return; }

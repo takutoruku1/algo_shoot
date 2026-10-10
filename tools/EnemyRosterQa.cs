@@ -52,6 +52,16 @@ public partial class EnemyRosterQa : Node
             Check(paths.Count == 12 && EnemyTable.CharactersFor(StageTheme.Default).Count == 0,
                 "twelve assets registered without changing the tutorial roster");
 
+            await CheckMotionVariants();
+            if (Array.IndexOf(OS.GetCmdlineUserArgs(), "--motion-only") >= 0)
+            {
+                await CheckApproachAlwaysCamps();
+                await MotionShots(game);
+                GD.Print("[EnemyRosterQA] MOTION ALL PASS");
+                GetTree().Quit();
+                return;
+            }
+
             foreach (var (theme, scene) in new[] { (StageTheme.Akari, "Akari"), (StageTheme.Koharu, "Koharu"), (StageTheme.Rei, "Rei") })
                 await CheckStage(game, theme, scene);
             Check(_characterPatterns.Count == 9 && _attackSignatures.Count == 9, "nine distinct projectile attacks");
@@ -77,6 +87,117 @@ public partial class EnemyRosterQa : Node
             GetTree().Paused = false;
             GetTree().Quit(1);
         }
+    }
+
+    private async Task CheckMotionVariants()
+    {
+        var world = new Node2D();
+        GetTree().Root.AddChild(world);
+        var variants = Enum.GetValues(typeof(MidEnemy).GetNestedType("MoveVariant", BindingFlags.NonPublic)!);
+        Check(variants.Length == 8, "eight entry and hover variants are available");
+        var specs = new List<EnemySpec>();
+        foreach (var theme in new[] { StageTheme.Akari, StageTheme.Koharu, StageTheme.Rei, StageTheme.Mina })
+        {
+            specs.AddRange(EnemyTable.CharactersFor(theme));
+            if (theme == StageTheme.Mina) continue;
+            var (shooter, drifter) = EnemyTable.For(theme);
+            specs.Add(shooter);
+            specs.Add(drifter);
+        }
+        foreach (var spec in specs)
+        {
+            foreach (object variant in variants)
+            {
+                var endPositions = new List<Vector2>();
+                foreach (int fps in new[] { 30, 120 })
+                {
+                    GD.Seed(241);
+                    var enemy = new MidEnemy { Position = new Vector2(Field.Right + 14, 70) };
+                    enemy.Configure(spec);
+                    enemy.SetSilentEntry(new Vector2(260, 110));
+                    world.AddChild(enemy);
+                    enemy.SetPhysicsProcess(false);
+                    Write(enemy, "_moveVariant", variant);
+                    Write(enemy, "_approachFired", true);
+                    Write(enemy, "_fireT", -1000d);
+                    Write(enemy, "_startleT", 1000d);
+                    var lateral = (Func<float, float>)typeof(MidEnemy).GetMethod("LateralOffset", Private)!
+                        .CreateDelegate(typeof(Func<float, float>), enemy);
+                    Check(Math.Abs(lateral(0)) < 0.001f && Math.Abs(lateral(1)) < 0.001f,
+                        $"{spec.Pattern}/{variant}: entry curves meet both endpoints without a lateral jump");
+                    var move = (Action<double>)typeof(MidEnemy).GetMethod("UpdateMovement", Private)!
+                        .CreateDelegate(typeof(Action<double>), enemy);
+                    var body = enemy.GetNode<Sprite2D>("Body");
+                    float maxSpeed = 0;
+                    for (int frame = 0; frame < fps * 18; frame++)
+                    {
+                        if (spec.Humanoid && frame % (fps * 4) == 0)
+                        {
+                            Write(enemy, "_gesture", frame / (fps * 4) % 4);
+                            Write(enemy, "_startle", 1f);
+                        }
+                        Vector2 before = enemy.Position;
+                        Vector2 pose = body.Position;
+                        float angle = body.Rotation;
+                        move(1d / fps);
+                        maxSpeed = Mathf.Max(maxSpeed, before.DistanceTo(enemy.Position) * fps);
+                        if (spec.Humanoid && frame > fps)
+                        {
+                            if (pose.DistanceTo(body.Position) * fps > 40f || Math.Abs(Mathf.AngleDifference(angle, body.Rotation)) * fps > 1.8f)
+                                throw new Exception($"{spec.Pattern}/{variant}/{fps}: discontinuous body pose");
+                            if (Math.Abs(body.Rotation) > 0.151f || body.Scale.X <= 0 || body.Scale.Y <= 0)
+                                throw new Exception($"{spec.Pattern}/{variant}/{fps}: invalid body transform");
+                        }
+                        if (frame == fps * 12 && !Read<bool>(enemy, "_camped"))
+                            throw new Exception($"{spec.Pattern}/{variant}/{fps}: entry did not finish");
+                        if (frame > fps * 12 && (Math.Abs(enemy.Position.X - 260) > 9.1f
+                            || enemy.Position.Y < 28 || enemy.Position.Y > 188))
+                            throw new Exception($"{spec.Pattern}/{variant}/{fps}: hover left its safe area");
+                    }
+                    Check(maxSpeed <= 58.1f, $"{spec.Pattern}/{variant}/{fps}: smooth motion stays below player speed ({maxSpeed:0.0})");
+                    Check(Read<float>(enemy, "BodyRadius", typeof(Enemy)) == 8f, "body collision radius stays unchanged");
+                    endPositions.Add(enemy.Position);
+                    enemy.QueueFree();
+                    await Frames(1);
+                }
+                Check(endPositions[0].DistanceTo(endPositions[1]) < 3f,
+                    $"{spec.Pattern}/{variant}: 30 and 120 Hz paths stay consistent");
+            }
+        }
+        world.QueueFree();
+        await Frames(2);
+    }
+
+    private async Task MotionShots(GameManager game)
+    {
+        game.SelectedEntry = GameManager.StageEntry.Start;
+        var root = GD.Load<PackedScene>("res://Akari.tscn").Instantiate<Node2D>();
+        GetTree().Root.AddChild(root);
+        GetTree().CurrentScene = root;
+        root.GetNode("StageAkari").SetProcess(false);
+        var world = root.GetNode<Node2D>("World");
+        world.ProcessMode = ProcessModeEnum.Disabled;
+        root.GetNode<Hud>("Hud").HideBubble();
+        var enemies = new List<MidEnemy>();
+        foreach (var theme in new[] { StageTheme.Akari, StageTheme.Koharu, StageTheme.Rei, StageTheme.Mina })
+            foreach (var spec in EnemyTable.CharactersFor(theme))
+            {
+                int i = enemies.Count;
+                var enemy = new MidEnemy { Position = new Vector2(182 + (i % 4) * 54, 40 + (i / 4) * 62) };
+                enemy.Configure(spec);
+                world.AddChild(enemy);
+                enemies.Add(enemy);
+            }
+        foreach (int frame in Enumerable.Range(0, 60))
+        {
+            foreach (var enemy in enemies) Call(enemy, "TickLivingMotion", 1d / 60);
+            if (frame != 0 && frame != 20 && frame != 59) continue;
+            await Frames(2);
+            await Shot($"motion_{frame:00}");
+        }
+        Check(enemies.All(e => e.GetNode<Sprite2D>("Body").Texture != null), "all twelve animated character assets render");
+        root.QueueFree();
+        await Frames(3);
     }
 
     private async Task CheckStage(GameManager game, StageTheme theme, string scene)

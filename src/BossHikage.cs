@@ -41,7 +41,7 @@ public partial class BossHikage : Enemy
         Points = BossTuning.I("hikage", "points", 1200);
         BodyRadius = BossTuning.F("hikage", "body_radius", 9f);
         PanelCount = BossTuning.I("hikage", "panel_count", 6); // 黒い炎のリング（盾＝剥がしてHPを削る。攻撃は本体の弾幕）
-        PanelInk = BossTuning.I("hikage", "panel_ink", 4);
+        PanelInk = BossTuning.I("hikage", "panel_ink", 6);
         OrbitRadius = BossTuning.F("hikage", "orbit_radius", 28f);
         SpinSpeed = BossTuning.F("hikage", "spin_speed", 1.2f);
         PanelsFire = false;      // 弾はパネルでなく本体の幾何学弾幕で撃つ

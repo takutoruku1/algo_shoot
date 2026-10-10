@@ -55,6 +55,11 @@ public sealed class JobTuning
     public float PowerMul = 1f;              // 弾の基礎威力倍率（基準1.0）
 
     public string ChargeDescription = "";
+    public float ShotSpeed = 360f;
+    public float ShotRadius = 3f;
+    public BulletShape ShotShape = BulletShape.Dart;
+    public float AccelDelay = 0.5f;
+    public int HomingTurnRate = 200;
     public int ChargeWays = 1;
     public float ChargeSpreadDegrees;
     public int ChargePower = 12;
@@ -102,6 +107,7 @@ public static class Jobs
         new()
         {
             Id = Job.Melee, Mode = GameManager.ShotMode.Accel,
+            ShotSpeed = 760f, ShotRadius = 3.4f, ShotShape = BulletShape.Orb,
             CharacterId = "akari", CharacterName = "あかり", PlayerTexturePath = "res://char/player/akari/akari_idle_v2.png",
             UnlockStageId = "akari",
             ChargeDescription = "高威力の加速弾",
@@ -118,6 +124,7 @@ public static class Jobs
         new()
         {
             Id = Job.Heal, Mode = GameManager.ShotMode.Homing,
+            ShotSpeed = 200f, ShotShape = BulletShape.Seeker,
             CharacterId = "koharu", CharacterName = "こはる", PlayerTexturePath = "res://char/player/koharu/koharu_idle_v2.png",
             UnlockStageId = "koharu",
             ChargeDescription = "3発の追尾弾",
@@ -140,6 +147,7 @@ public static class Jobs
         new()
         {
             Id = Job.Magic, Mode = GameManager.ShotMode.Spread,
+            ShotSpeed = 320f, ShotShape = BulletShape.Petal,
             CharacterId = "rei", CharacterName = "レイ", PlayerTexturePath = "res://char/player/rei/rei_idle_v2.png",
             UnlockStageId = "rei",
             ChargeDescription = "5方向の拡散弾",

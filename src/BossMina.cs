@@ -34,8 +34,6 @@ public partial class BossMina : Enemy
     private float _ringOff;
     private int _pattern;
     private const int PatternCount = 5;
-    private Texture2D?[][] _spellArt = null!;
-    private int _visualPattern, _artIndex;
 
     private bool _seq;
     private int _line;
@@ -139,7 +137,6 @@ public partial class BossMina : Enemy
     {
         var s = Spells[_pattern % Spells.Length];
         _mover.SetNextAttack(StanceOf(_pattern));
-        _artIndex = 0;
         SetMemoryVisual(_pattern);
         GetHud()?.SetBossBarTint(s.tint); // HPバーもスペル色へ（#26 フェーズ移行の可視化）
         GetHud()?.SetBossPhaseName($"ミナ / {s.name}");
@@ -147,16 +144,13 @@ public partial class BossMina : Enemy
 
     private void SetMemoryVisual(int pattern)
     {
-        _visualPattern = pattern;
         var spell = Spells[pattern];
         SetSpellVisual(spell.shape, spell.tint);
     }
 
     private void FireMemoryBullet(BulletPool pool, Vector2 pos, Vector2 velocity, float radius)
     {
-        var bullet = FireBullet(pool, pos, velocity, radius);
-        var art = _spellArt[_visualPattern];
-        bullet.SetSprite(art[_artIndex++ % art.Length], 28f);
+        FireBullet(pool, pos, velocity, radius);
     }
 
     private static readonly (int who, string text, string face)[] Lines =
@@ -210,7 +204,7 @@ public partial class BossMina : Enemy
         BodyRadius = BossTuning.F("mina", "body_radius", 16f);
         BodyHalfH = BossTuning.F("mina", "body_half_h", 20f);   // 縦長カプセル（絵の形に沿わせる）
         PanelCount = BossTuning.I("mina", "panel_count", 6); // 渦巻く悲鳴の言葉（黒い吹き出し）
-        PanelInk = BossTuning.I("mina", "panel_ink", 44);
+        PanelInk = BossTuning.I("mina", "panel_ink", 66);
         OrbitRadius = BossTuning.F("mina", "orbit_radius", 32f);
         SpinSpeed = BossTuning.F("mina", "spin_speed", 1.0f);
         PanelsFire = false;
@@ -254,15 +248,6 @@ public partial class BossMina : Enemy
         _mover.Configure("mina", new Vector2(Field.BossCenterX, Field.BossZoneCenterY), Field.BossZoneHalfW, Field.BossZoneHalfH);
         GetHud()?.ShowBossBar("穢れたわたし", BossHandles.MinaBattle, this);
         GetHud()?.UpdateBossBar(CurrentBarIndex, TotalBars, CurrentBarFrac);
-        _spellArt = new Texture2D?[][]
-        {
-            new[] { BulletArt.Get("mina_butterfly"), BulletArt.Get("mina_memory") },
-            new[] { BulletArt.AkariEnvelope, BulletArt.AkariDocs },
-            new[] { BulletArt.KoharuAcrylic, BulletArt.KoharuPenlight },
-            new[] { BulletArt.Get("enemy_rei_anonymous"), BulletArt.Get("enemy_rei_metrics") },
-            new[] { BulletArt.Get("mina_butterfly"), BulletArt.AkariEnvelope,
-                BulletArt.KoharuPenlight, BulletArt.Get("enemy_rei_anonymous") },
-        };
         ApplySpell();
 
         _caster = new MinaPhaseAttacks();
@@ -560,14 +545,14 @@ public partial class BossMina : Enemy
         if (_seq)
         {
             var dialogHud = GetHud()!;
-            if (zEdge && _lineT >= 0.25 && !dialogHud.DialogRevealed)
+            if (zEdge && !dialogHud.DialogRevealed)
             {
                 dialogHud.RevealDialogNow();
                 _lineT = 0;
                 NotifyCryProgress();
             }
-            else if (_lineT >= 0.25 && dialogHud.DialogRevealed
-                     && (zEdge || dialogHud.FastForwarding || (dialogHud.AutoAdvanceReady && _lineT >= 1.4)))
+            else if (dialogHud.DialogRevealed
+                     && (zEdge || (dialogHud.FastForwarding && _lineT >= 0.25) || (dialogHud.AutoAdvanceReady && _lineT >= 1.4)))
             {
                 _lineT = 0; _line++;
                 NotifyCryProgress(); // 送れている間は保険タイムアウトを起こさない

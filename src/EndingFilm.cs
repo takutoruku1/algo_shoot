@@ -20,6 +20,7 @@ public partial class EndingFilm : Node2D
     private bool _inputArmed, _leaving;
     private double _skipHold, _leaveTime;
     private int _loggedShot = -1;   // 会話ログへ字幕を積んだカット（カット切替ごとに1回）
+    private DialogueBox.TypeCursor _typeCursor;   // 字幕の送り音（1文字ごとのピッ）をどこまで鳴らしたか
     private int Shot
     {
         get
@@ -76,6 +77,7 @@ public partial class EndingFilm : Node2D
         else
         {
             Elapsed = Math.Min(Duration, Elapsed + delta);
+            TypeCaption();
             // カットの字幕を会話ログ（L / Tab で開く Backlog）へ積む（2026-09-26）。本文・話者・色は _Draw と同じ。
             if (Shot != _loggedShot)
             {
@@ -92,6 +94,16 @@ public partial class EndingFilm : Node2D
             if (Elapsed >= Duration) { Complete(); return; }
         }
         QueueRedraw();
+    }
+
+    // 字幕の送り音。描画（_Draw の CaptionAt）と同じ時計で、文字が出たフレームごとに1回鳴らす。
+    private void TypeCaption()
+    {
+        int shot = Shot;
+        if (Lines[shot].Length == 0) return;
+        var caption = DialogueBox.CaptionAt(_captionPages[shot], Elapsed - Cuts[shot] - 0.25, _captionPacing[shot]);
+        DialogueBox.TypeSound(Speakers[shot] == "ミナ" ? Hud.LineKind.Mina : Hud.LineKind.Other,
+            caption.Page, caption.Shown, ref _typeCursor);
     }
 
     private static bool SkipHeld() => Input.IsKeyPressed(Key.Escape) || Input.IsKeyPressed(Key.X)
@@ -163,7 +175,7 @@ public partial class EndingFilm : Node2D
             var box = DialogueBox.FullScreen;
             DialogueBox.DrawFrame(this, box, Speakers[shot], AccentFor(Speakers[shot]));
             var caption = DialogueBox.CaptionAt(_captionPages[shot], local - 0.25, _captionPacing[shot]);
-            DialogueBox.DrawBody(this, box, caption.Page, caption.Shown, captionAlpha);
+            DialogueBox.DrawBody(this, box, caption.Page, caption.Shown, captionAlpha, pacing: caption.Pacing);
         }
         if (Elapsed > 1 && shot < 9)
             DialogToolbar.DrawFilmSkip(this, Mathf.Clamp((float)(_skipHold / 0.65), 0, 1), SkipRect.HasPoint(Pad.MousePos()));

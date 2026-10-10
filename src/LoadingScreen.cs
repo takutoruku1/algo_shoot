@@ -28,6 +28,8 @@ public partial class LoadingScreen : CanvasLayer
     public static void Open(Node from, string destination, PhoneAppTransition? phone = null)
     {
         if (IsActive) return;
+        // 暗転と読み込みの裏で、行き先の台本の字形を作り始める（行頭のカクつき対策・GlyphWarmer）。
+        GlyphWarmer.WarmScene(from, destination);
         _active = new LoadingScreen
         {
             Name = "LoadingScreen", Layer = 256, ProcessPriority = -1000,

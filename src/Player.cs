@@ -325,7 +325,7 @@ public partial class Player : Area2D
     //     **向き反転とは別系統**で、こちらは _facing を書き換えない（_facing は +1 のまま。
     //     ロック中だけ ShotDir が上書きされる）。
     //   ・ロック中は移動が遅くなる（LockMoveMul）＝照準を任せるあいだは足が重い、という取引。
-    private const float LockMoveMul = 0.4f;
+    private const float LockMoveMul = 0.8f;
     private bool _locked;                     // ロックオン中か（対象を実際に掴んでいる）
     // ロックオン**モード**（2026-09-26 作者指示「画面から敵が消えてもロックオン解除しないで」）。
     //   _locked が「今この敵を掴んでいる」なのに対し、こちらは「狙う意思」。対象が倒れた・画面外へ出た・
@@ -1318,7 +1318,7 @@ public partial class Player : Area2D
     {
         Vector2 direction = ShotDir;
         Vector2 side = new(-direction.Y, direction.X);
-        Vector2 vel = direction * 360f;
+        Vector2 vel = direction * Jobs.Get(Job.Tank).ShotSpeed;
         int pierce = _game?.ShotPierceCount ?? 0;
         int rdmg = dmg + (_game?.RapidPowerBonus ?? 0); // 連射モード専用の威力上乗せ
         int lines = 2 + (_game?.ExtraLines ?? 0) + LinePower;
@@ -1327,7 +1327,7 @@ public partial class Player : Area2D
                      : lines == 4 ? new[] { -9f, -3f, 3f, 9f }
                                   : new[] { -12f, -6f, 0f, 6f, 12f };
         foreach (float offset in offs)
-            _pool.Spawn(muzzle + side * offset, vel, isEnemy: false, 3f, rdmg, BulletShape.Dart).Pierce = pierce;
+            _pool.Spawn(muzzle + side * offset, vel, isEnemy: false, Jobs.Get(Job.Tank).ShotRadius, rdmg, BulletShape.Dart).Pierce = pierce;
     }
 
     // 加速球：発射したら自機のすぐ前でほぼ静止して“タメ”を作り、タメ後にロケットのように急加速して発進する。
@@ -1339,8 +1339,8 @@ public partial class Player : Area2D
         Vector2 direction = ShotDir;
         Vector2 side = new(-direction.Y, direction.X);
         const float charge = 12f;
-        float fast = _game?.AccelLaunchSpeed ?? 640f;
-        float delay = _game?.AccelChargeDelay ?? 0.8f;
+        float fast = _game?.AccelLaunchSpeed ?? Jobs.Get(Job.Melee).ShotSpeed;
+        float delay = _game?.AccelChargeDelay ?? Jobs.Get(Job.Melee).AccelDelay;
         int admg = dmg + (_game?.AccelPowerBonus ?? 0); // 加速球専用の威力軸（加速威力ノード）
 
         // 同時タメ中の弾数を上限化：無効化(非Active)/発進済み分を掃除してから残数を確認し、
@@ -1361,7 +1361,7 @@ public partial class Player : Area2D
                                   : new[] { -12f, -6f, 0f, 6f, 12f };
         foreach (float offset in adys)
         {
-            var b = _pool.Spawn(muzzle + side * offset, direction * fast, isEnemy: false, 3.4f, admg);
+            var b = _pool.Spawn(muzzle + side * offset, direction * fast, isEnemy: false, Jobs.Get(Job.Melee).ShotRadius, admg);
             b.MakeAccel(charge, fast, delay); // タメ(ほぼ静止)→delay秒後に発進
             if (LockedOn) b.SetLaunchTarget(_lockTarget!, LockedUnfolder);
             b.Pierce = pierce;
@@ -1382,7 +1382,8 @@ public partial class Player : Area2D
             float t = n == 1 ? 0f : (float)i / (n - 1) - 0.5f;
             float ang = ShotAngle + t * Mathf.DegToRad(70f);
             Vector2 dir = new Vector2(Mathf.Cos(ang), Mathf.Sin(ang));
-            var sb = _pool.Spawn(muzzle, dir * 320f, isEnemy: false, 3f, sdmg, BulletShape.Petal);
+            var shot = Jobs.Get(Job.Magic);
+            var sb = _pool.Spawn(muzzle, dir * shot.ShotSpeed, isEnemy: false, shot.ShotRadius, sdmg, shot.ShotShape);
             sb.Chain = chain;
             sb.Pierce = spierce;
         }
@@ -1401,7 +1402,8 @@ public partial class Player : Area2D
             float t = shots == 1 ? 0f : (float)i / (shots - 1) - 0.5f;
             float ang = ShotAngle + t * Mathf.DegToRad(40f);
             Vector2 dir = new Vector2(Mathf.Cos(ang), Mathf.Sin(ang));
-            var hb = _pool.Spawn(muzzle, dir * 200f, isEnemy: false, 3f, hdmg, BulletShape.Seeker, null, homing: true); // 弾速 260→200
+            var shot = Jobs.Get(Job.Heal);
+            var hb = _pool.Spawn(muzzle, dir * shot.ShotSpeed, isEnemy: false, shot.ShotRadius, hdmg, shot.ShotShape, null, homing: true);
             if (turn > 0) hb.TurnRateOverride = turn;
             hb.Pierce = hpierce;
         }
@@ -1962,56 +1964,37 @@ public partial class Player : Area2D
     }
 }
 
-// Keep the emblem above the animated sprite and anchored to the collision body.
-// 色味：この点だけは**どのステージでも完全に明るい**（2026-09-27 作者指摘「少なくとも自機の当たり判定は
-//   分かるよう明るい方がいい」）。盤面に居るので各 Root の CanvasModulate（夜の冷色 Tint）で芯の色が
-//   青く濁る＝暗い背景に溶ける。BossGauge と同じく 1/Tint を SelfModulate に置いて打ち消す
-//   （強さ TintLift.PlayerCore=1＝完全）。判定の色も同じ補正で背景から浮かせる。
-//   大きさ・形・当たり判定そのものは一切触っていない＝変わるのは見え方だけ。
-//   α には入れない＝被弾点滅（親 Player の Modulate のα）はそのまま芯にも乗る。
+// Keep the marker above the animated sprite, anchored to the collision body, and independent of the stage tint.
 public partial class PlayerHitDot : Node2D
 {
     public float Radius = 2f;
     public string CharacterId = "mina";
-    public Texture2D Texture { get; private set; } = null!;
-    private Vector2 _jewelCenter;
-    private CanvasModulate? _worldTint;   // 世界の色味（無い面は null＝打ち消し不要）
+    private CanvasModulate? _worldTint;
 
     public override void _Ready()
     {
         _worldTint = TintLift.Find(this);
-        SelfModulate = TintLift.Of(_worldTint, TintLift.PlayerCore);   // 初フレームから明るく出す
-        Texture = GD.Load<Texture2D>($"res://char/player/{CharacterId}/{CharacterId}_core_v1.png");
-        TextureFilter = TextureFilterEnum.Linear;
-        // The flame and ribbon are asymmetric; center the jewel, not their image bounds.
-        _jewelCenter = new Vector2(0.5f, CharacterId switch
-        {
-            "mina" => 0.46f,
-            "akari" => 0.66f,
-            "rei" => 0.56f,
-            _ => 0.5f,
-        });
+        SelfModulate = TintLift.Of(_worldTint, TintLift.PlayerCore);
     }
 
     public override void _Draw()
     {
-
-        Vector2 size = Texture.GetSize();
-        Vector2 center = size * _jewelCenter;
-        float extent = Mathf.Max(Mathf.Max(center.X, size.X - center.X), Mathf.Max(center.Y, size.Y - center.Y));
-        float scale = (Radius + 1.6f) / extent;
-        DrawTextureRect(Texture, new Rect2(-center * scale, size * scale), false);
-        DrawCircle(Vector2.Zero, Radius + 1.2f, new Color("101018"), true, -1, true);
-        DrawCircle(Vector2.Zero, Radius + 0.5f, Colors.White, true, -1, true);
-        Color marker = CharacterId is "akari" or "koharu" ? new Color("16eaff") : new Color("ffe51f");
-        DrawCircle(Vector2.Zero, Radius, marker, true, -1, true);
-        DrawCircle(Vector2.Zero, 0.7f, new Color("101018"), true, -1, true);
+        Color marker = CharacterId is "akari" or "koharu" ? new Color("53d9bf") : new Color("f57568");
+        float edge = Radius + 0.55f;
+        Vector2[] outline = { Vector2.Up * edge, Vector2.Right * edge,
+            Vector2.Down * edge, Vector2.Left * edge };
+        DrawColoredPolygon(outline, new Color("202127"));
+        var top = Vector2.Up * Radius;
+        var right = Vector2.Right * Radius;
+        var bottom = Vector2.Down * Radius;
+        var left = Vector2.Left * Radius;
+        DrawColoredPolygon(new[] { top, right, bottom, left }, marker);
+        DrawColoredPolygon(new[] { top, Vector2.Zero, left }, marker.Lightened(0.28f));
+        DrawColoredPolygon(new[] { right, bottom, Vector2.Zero }, marker.Darkened(0.16f));
     }
-
 
     public override void _Process(double delta)
     {
-        // Tint は Warmth で暖色へ動き、ボスの realm 暴露では白へ抜けるので毎フレーム引き直す（BossGauge と同じ）。
         SelfModulate = TintLift.Of(_worldTint, TintLift.PlayerCore);
     }
 }

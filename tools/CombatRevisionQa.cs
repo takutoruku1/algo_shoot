@@ -90,7 +90,9 @@ public partial class CombatRevisionQa : Node
                 for (int i = 0; i < 600; i++) danmaku.Tick(1d / 60);
                 int shots = Hostile().Length;
                 densities.Add(shots);
-                Check(shots >= 60 && Hostile().All(b => b.CollisionMask == 1 && Read<bool>(b, "_bossProjectile")), scene + " sustained non-destructible player-style danmaku");
+                Check(shots >= 60 && Hostile().All(b => b.CollisionMask == 1
+                    && ReferenceEquals(Read<BulletArt.PlayerVisual>(b, "_playerVisual"), BulletArt.PlayerShot(boss.BodyShotJob!.Value))),
+                    scene + " sustained non-destructible character danmaku");
                 Pool.DespawnAll();
                 var sentinel = Pool.Spawn(new Vector2(350, 190), Vector2.Zero, true, 3);
                 sentinel.SetPhysicsProcess(false);
@@ -236,7 +238,7 @@ public partial class CombatRevisionQa : Node
         Write(player, "_locked", true); Write(player, "_lockTarget", boss);
         float locked = player.MoveSpeed;
         Write(player, "_locked", false);
-        Check(Mathf.IsEqualApprox(locked, player.MoveSpeed * .4f), "lock movement is half the previous speed");
+        Check(Mathf.IsEqualApprox(locked, player.MoveSpeed * .8f), "lock movement is 80 percent of normal speed");
         Pool.DespawnAll();
         var volley = BossEdgeVolley.Begin(boss, "akari", 0);
         volley.SetPhysicsProcess(false);

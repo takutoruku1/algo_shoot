@@ -58,6 +58,28 @@ public partial class BulletPool : Node2D
         return b;
     }
 
+    public Bullet SpawnBossShot(Vector2 position, Vector2 direction, Job character, bool charged)
+    {
+        var job = Jobs.Get(character);
+        float speed = charged ? job.ChargeSpeed : job.ShotSpeed;
+        float radius = charged ? job.ChargeRadius : job.ShotRadius;
+        var velocity = direction.Normalized() * speed;
+        var bullet = Spawn(position, velocity, true, radius, 1, job.ShotShape,
+            homing: job.Mode == GameManager.ShotMode.Homing);
+        // 本体弾は自機の素の性能を共有し、敵弾用の速度倍率を重ねない。
+        bullet.Velocity = velocity;
+        if (bullet.Homing) bullet.TurnRateOverride = job.HomingTurnRate;
+        if (charged)
+        {
+            bullet.MakeCharged(character);
+            if (bullet.Homing) bullet.TurnRateOverride = 240;
+        }
+        if (job.Mode == GameManager.ShotMode.Accel)
+            bullet.MakeAccel(charged ? 240f : 12f, speed, charged ? 0.12f : job.AccelDelay);
+        bullet.UseCharacterProjectile(character);
+        return bullet;
+    }
+
     // 画面上の全弾を一括で非アクティブ化（リスタート時のクリア用）。
     public void DespawnAll()
     {

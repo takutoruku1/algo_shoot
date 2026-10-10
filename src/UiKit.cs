@@ -132,7 +132,7 @@ public static class UiKit
 
     // ── フォント（遅延ロード・AA付き）──
     private static FontFile? _zenR, _zenB, _zenBlack, _mono;
-    private static FontFile Load(ref FontFile? slot, string path)
+    private static FontFile Load(ref FontFile? slot, string path, bool msdf = true)
     {
         if (slot != null) return slot;
         slot = ResourceLoader.Load<FontFile>(path);
@@ -140,17 +140,19 @@ public static class UiKit
         {
             slot.Antialiasing = TextServer.FontAntialiasing.Gray;
             slot.SubpixelPositioning = TextServer.SubpixelPositioning.Auto;
-            slot.MultichannelSignedDistanceField = true;
+            slot.MultichannelSignedDistanceField = msdf;
             slot.MsdfSize = 96;
             slot.MsdfPixelRange = 16;
             slot.Hinting = TextServer.Hinting.None;
+            if (!msdf) slot.Oversampling = 2;
         }
         return slot!;
     }
     public static FontFile Zen      => Load(ref _zenR, "res://assets/fonts/ZenKakuGothicNew-Regular.ttf");
     public static FontFile ZenBold  => Load(ref _zenB, "res://assets/fonts/ZenKakuGothicNew-Bold.ttf");
     public static FontFile ZenBlack => Load(ref _zenBlack, "res://assets/fonts/ZenKakuGothicNew-Black.ttf");
-    public static FontFile Mono     => Load(ref _mono, "res://assets/fonts/JetBrainsMono.ttf");
+    // JetBrains Mono's 8 produces a broken MSDF glyph; rasterize numeric text at double resolution.
+    public static FontFile Mono     => Load(ref _mono, "res://assets/fonts/JetBrainsMono.ttf", msdf: false);
 
     // ── 設計座標モードの開始/終了 ──
     // 以降の Draw 呼び出しを 1280×720 設計座標で行えるようスケール変換をかける。

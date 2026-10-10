@@ -184,7 +184,7 @@ public partial class BossKoharu : Enemy
         BodyRadius = BossTuning.F("koharu", "body_radius", 19f);
         BodyHalfH = BossTuning.F("koharu", "body_half_h", 23f);   // 縦長カプセル（絵の形に沿わせる）
         PanelCount = BossTuning.I("koharu", "panel_count", 5); // 「むだだ」等の言葉（黒い吹き出し）
-        PanelInk = BossTuning.I("koharu", "panel_ink", 32);
+        PanelInk = BossTuning.I("koharu", "panel_ink", 48);
         OrbitRadius = BossTuning.F("koharu", "orbit_radius", 26f);
         SpinSpeed = BossTuning.F("koharu", "spin_speed", 0.85f);
         PanelsFire = false;
@@ -364,8 +364,7 @@ public partial class BossKoharu : Enemy
         {
             float t = k > 1 ? (float)i / (k - 1) - 0.5f : 0f;
             float a = baseA + t * Mathf.DegToRad(78f);
-            var b = FireBullet(pool, GlobalPosition, new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * EnemyBulletSpeed, 3.6f);
-            b.IsPatternBullet = true;
+            FireBullet(pool, GlobalPosition, new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * EnemyBulletSpeed, 3.6f);
         }
     }
 
@@ -776,14 +775,14 @@ public partial class BossKoharu : Enemy
         if (_seq)
         {
             var dialogHud = GetHud()!;
-            if (zEdge && _lineT >= 0.25 && !dialogHud.DialogRevealed)
+            if (zEdge && !dialogHud.DialogRevealed)
             {
                 dialogHud.RevealDialogNow();
                 _lineT = 0;
                 NotifyCryProgress();
             }
-            else if (_lineT >= 0.25 && dialogHud.DialogRevealed
-                     && (zEdge || dialogHud.FastForwarding || (dialogHud.AutoAdvanceReady && _lineT >= 1.4)))
+            else if (dialogHud.DialogRevealed
+                     && (zEdge || (dialogHud.FastForwarding && _lineT >= 0.25) || (dialogHud.AutoAdvanceReady && _lineT >= 1.4)))
             {
                 _lineT = 0; _line++;
                 NotifyCryProgress(); // 送れている間は保険タイムアウトを起こさない

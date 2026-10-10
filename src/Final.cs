@@ -18,6 +18,7 @@ public partial class Final : Node2D
     private int _line;
     private double _lineT;
     private double _reveal;        // タイプライター表示済み文字数（＝現在ページ内）
+    private DialogueBox.TypeCursor _typeCursor;   // 送り音（1文字ごとのピッ）をどこまで鳴らしたか
     private GameManager? _game;    // 文字送り速度（MsgCharsPerSec）を本編設定と共有
 
     // テキストボックスは2行固定。2行超の行はページに割り、送り（Z）で続きを読ませる（本文は削らない）。
@@ -25,7 +26,7 @@ public partial class Final : Node2D
     private int _page;
     private DialoguePacing.Page[] _pagePacing = System.Array.Empty<DialoguePacing.Page>();
     private DialoguePacing.Page? CurPacing => _page < _pagePacing.Length ? _pagePacing[_page] : null;
-    private bool PageReady => _reveal >= CurPage.Length && (_ffNow || _autoT >= DialogueBox.PageWait(CurPacing));
+    private bool PageReady => _reveal >= CurPage.Length;
     private int _pagedLine = -1;               // _pages を構築済みの行 index
     private string CurPage => _pages.Count > 0 ? _pages[Mathf.Min(_page, _pages.Count - 1)] : "";
     private bool LastPage => _pages.Count == 0 || _page >= _pages.Count - 1;
@@ -192,7 +193,10 @@ public partial class Final : Node2D
                 int len = _line < _talk.Count ? page.Length : 0;
                 bool pageWasRevealed = _reveal >= len;
                 if (_reveal < len)
+                {
                     _reveal = DialogueBox.AdvanceReveal(CurPage, _reveal, delta, _game?.MsgCharsPerSec ?? DialogueBox.DefaultCharsPerSec, CurPacing);
+                    DialogueBox.TypeSound(KindOf(_talk[_line].Who), CurPage, _reveal, ref _typeCursor);
+                }
                 // 既読スキップ（#22）：行の表示開始時に一度だけ既読かを控え、表示と同時に既読へ記録。
                 if (_readIdx != _line && _line < _talk.Count)
                 {
@@ -205,7 +209,7 @@ public partial class Final : Node2D
                 // AUTO（会話ボックスの AUTO ボタン／設定の「オート会話送り」）：現在ページの全文表示後 AutoAfterReveal 秒で送る。
                 if (pageWasRevealed) _autoT += delta; else _autoT = 0;
                 bool autoGo = (_game?.AutoAdvanceDialog ?? false) && _autoT >= (CurPacing?.AutoWait ?? AutoAfterReveal);
-                if ((zEdge || _ffNow || autoGo) && _lineT >= 0.25 && (_reveal < len || PageReady))
+                if (zEdge || ((_ffNow || autoGo) && _lineT >= 0.25))
                 {
                     _autoT = 0;
                     if (_reveal < len) { _reveal = len; } // 1回目で現在ページ全文（早送り）＝句点ホールドも飛ばす
@@ -291,9 +295,12 @@ public partial class Final : Node2D
     private static void LogLine(DLine d)
     {
         bool narr = d.Who == "地", mina = d.Who == "ミナ";
-        var kind = narr ? Hud.LineKind.Narration : mina ? Hud.LineKind.Mina : Hud.LineKind.Boy;
-        Hud.PushLog(kind, narr ? "" : d.Who, d.Text, narr ? UiKit.CutNarr : mina ? Cool : Warm);
+        Hud.PushLog(KindOf(d.Who), narr ? "" : d.Who, d.Text, narr ? UiKit.CutNarr : mina ? Cool : Warm);
     }
+
+    // 話者 → 行の種別（会話ログの本文色と、送り音の音色の両方に使う）。
+    private static Hud.LineKind KindOf(string who)
+        => who == "地" ? Hud.LineKind.Narration : who == "ミナ" ? Hud.LineKind.Mina : Hud.LineKind.Boy;
 
     private void DrawTalk()
     {
@@ -304,7 +311,8 @@ public partial class Final : Node2D
         UiKit.BeginDesign(this);
         var box = DialogueBox.FullScreen;
         DialogueBox.DrawFrame(this, box, narr ? "" : d.Who, edge);
-        DialogueBox.DrawBody(this, box, CurPage, Mathf.Clamp((int)_reveal, 0, CurPage.Length));
+        DialogueBox.DrawBody(this, box, CurPage, _reveal,
+            speed: _game?.MsgCharsPerSec ?? DialogueBox.DefaultCharsPerSec, pacing: CurPacing);
         if (PageReady && !_ffNow)
             DialogueBox.DrawContinue(this, box, !LastPage);
         UiKit.EndDesign(this);

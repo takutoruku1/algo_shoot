@@ -93,6 +93,7 @@ public partial class StageBackground : Node2D
     // Mid ＝ 1枚絵の道中／静的な層セット（Stage0・FINAL）。道中3面は _Ready で Route から始まる。
     private enum Mode { Mid, Route, Midboss, Boss }
     private Mode _mode = Mode.Mid;
+    internal bool IsSunset => _mode == Mode.Route && GetParent() is KoharuRoot;
     private double _t;
 
     // 道中：横タイル群（左スクロール・シームレスループ）

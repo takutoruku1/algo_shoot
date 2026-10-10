@@ -467,14 +467,15 @@ public partial class StageKoharu : Node
             if (lines.Length == 0) { Advance(); return; }
             Hud.HoldBubble = true;
             ShowLine(lines);
+            return;
         }
-        if (_zEdge && _lineHold >= 0.15 && !Hud.DialogRevealed)
+        if (_zEdge && !Hud.DialogRevealed)
         {
             Hud.RevealDialogNow();   // 1段目：まず全文表示（読み飛ばし防止）
             _lineHold = 0;
         }
-        else if (_lineHold >= 0.15 && Hud.DialogRevealed
-                 && (_zEdge || Hud.FastForwarding || (Hud.AutoAdvanceReady && _lineHold >= 1.4)))  // FastForwarding=既読スキップ（Ctrl/RB長押し・既読行のみ・#22）
+        else if (Hud.DialogRevealed
+                 && (_zEdge || (Hud.FastForwarding && _lineHold >= 0.15) || (Hud.AutoAdvanceReady && _lineHold >= 1.4)))
         {
             _lineHold = 0;
             _introLine++;
@@ -545,6 +546,7 @@ public partial class StageKoharu : Node
             Hud.HoldBubble = true;
             _input = CommentInput.Show(Hud);
             BeginInputLine();
+            return;
         }
         // 台本を流し切ったあと＝空欄のカーソルを残したまま選択へ。流し切ったら欄を閉じて次へ。
         //   （_introLine は既に配列の外なので、この分岐より下へは進ませない）
@@ -566,13 +568,13 @@ public partial class StageKoharu : Node
         // 入力欄の行は、打ち／消しが終わるまで送れない（手を最後まで見せる）。
         if (isField && !(_input?.Done ?? true)) { _lineHold = 0; return; }
 
-        if (!isField && _zEdge && _lineHold >= 0.15 && !Hud.DialogRevealed)
+        if (!isField && _zEdge && !Hud.DialogRevealed)
         {
             Hud.RevealDialogNow();   // 1段目：まず全文表示（読み飛ばし防止）
             _lineHold = 0;
         }
-        else if (_lineHold >= 0.15 && (isField || Hud.DialogRevealed)
-                 && (_zEdge || Hud.FastForwarding || (Hud.AutoAdvanceReady && _lineHold >= 1.4)))
+        else if ((isField || Hud.DialogRevealed)
+                 && (_zEdge || (Hud.FastForwarding && _lineHold >= 0.15) || (Hud.AutoAdvanceReady && _lineHold >= 1.4)))
         {
             _lineHold = 0;
             _introLine++;

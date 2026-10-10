@@ -37,6 +37,12 @@ public partial class PlayerJobQa : Node
             DisplayServer.WindowSetMode(DisplayServer.WindowMode.Windowed);
             DisplayServer.WindowSetSize(new Vector2I(1280, 720));
             await Frames(1);
+            if (Array.Exists(OS.GetCmdlineUserArgs(), arg => arg == "--hit-marker"))
+            {
+                await CheckHitMarkers(game);
+                await Finish();
+                return;
+            }
             if (Array.Exists(OS.GetCmdlineUserArgs(), arg => arg == "--life"))
             {
                 await CheckLifeHud(game);
@@ -247,7 +253,7 @@ public partial class PlayerJobQa : Node
                 "profile name and handle fit the single account header");
             var marks = Read<Dictionary<Job, Texture2D>>(root.Hud, "_lifeMarks");
             Check(marks[job.Id].ResourcePath == $"res://char/player/{job.CharacterId}/{job.CharacterId}_core_v1.png",
-                $"{job.CharacterId}: LIFE uses the same emblem as the player");
+                $"{job.CharacterId}: LIFE keeps its character emblem");
             var bombMark = Read<Texture2D>(root.Hud, "_bombMark");
             Check(bombMark.ResourcePath == "res://char/ui/bomb_v2.png", "BOMB uses the generated bomb illustration");
             using (var bombImage = bombMark.GetImage())
@@ -443,13 +449,118 @@ public partial class PlayerJobQa : Node
         }
     }
 
+    private async Task CheckHitMarkers(GameManager game)
+    {
+        string output = ProjectSettings.GlobalizePath("res://build/qa_story/hit_marker");
+        DirAccess.MakeDirRecursiveAbsolute(output);
+        game.SetProcess(false);
+        foreach (var job in Jobs.All)
+        {
+            game.SelectedJob = job.Id;
+            game.TrainingSetAllUpgrades(false);
+            var root = GD.Load<PackedScene>("res://Akari.tscn").Instantiate<AkariRoot>();
+            GetTree().Root.AddChild(root);
+            GetTree().CurrentScene = root;
+            root.SetProcess(false);
+            root.Stage.SetProcess(false);
+            root.World.ProcessMode = ProcessModeEnum.Disabled;
+            root.Hud.HoldBubble = false;
+            root.Hud.HideBubble();
+            Hud.BubblePaused = false;
+            Write(root.Hud, "_bannerTimer", 0d);
+            Write(root.Player, "_invincible", false);
+            root.Player._PhysicsProcess(0);
+            Call(root.Player, "SetSpriteVisible", true);
+            CheckMarker(root.Player, job.CharacterId);
+            Check(root.Player.CollisionLayer == 1 && root.Player.CollisionMask == 12,
+                $"{job.CharacterId}: collision layers are unchanged");
+            foreach (var size in new[] { new Vector2I(1152, 648), new Vector2I(1920, 1080) })
+            {
+                DisplayServer.WindowSetSize(size);
+                await Frames(4);
+                await ToSignal(RenderingServer.Singleton, RenderingServer.SignalName.FramePostDraw);
+                using var frame = GetViewport().GetTexture().GetImage();
+                Check(frame.SavePng($"{output}/{job.CharacterId}_{size.X}.png") == Error.Ok,
+                    $"{job.CharacterId}: gameplay capture at {size.X}");
+                float scale = frame.GetWidth() / 384f;
+                Vector2 at = root.Player.GlobalPosition * scale;
+                var center = frame.GetPixel((int)at.X, (int)at.Y);
+                CheckMarkerColor(center, job.CharacterId);
+                using var crop = frame.GetRegion(new Rect2I((int)at.X - 100, (int)at.Y - 120, 200, 240));
+                Check(crop.SavePng($"{output}/{job.CharacterId}_{size.X}_detail.png") == Error.Ok,
+                    $"{job.CharacterId}: marker detail captured");
+            }
+            root.QueueFree();
+            await Frames(3);
+
+            game.TrainingSetUpgrade("n_hitbox", true);
+            var player = new Player();
+            AddChild(player);
+            player.ProcessMode = ProcessModeEnum.Disabled;
+            CheckMarker(player, job.CharacterId);
+            Check(Mathf.IsEqualApprox(player.GetNode<PlayerHitDot>("HitDot").Radius, 1f),
+                $"{job.CharacterId}: upgraded collision radius still halves");
+            player.QueueFree();
+            await Frames(2);
+
+            foreach (float radius in new[] { 1f, 2f })
+            {
+                var viewport = new SubViewport { Size = new Vector2I(80, 80), TransparentBg = true, World2D = new World2D(),
+                    RenderTargetUpdateMode = SubViewport.UpdateMode.Always };
+                AddChild(viewport);
+                var parent = new Node2D();
+                viewport.AddChild(parent);
+                parent.AddChild(new PlayerHitDot { CharacterId = job.CharacterId, Radius = radius,
+                    Position = new Vector2(40, 40), Scale = Vector2.One * 10f });
+                await Frames(3);
+                await ToSignal(RenderingServer.Singleton, RenderingServer.SignalName.FramePostDraw);
+                using var pixels = viewport.GetTexture().GetImage();
+                Check(pixels.SavePng($"{output}/{job.CharacterId}_icon_r{radius}.png") == Error.Ok,
+                    "isolated marker captured");
+                var center = pixels.GetPixel(40, 40);
+                Check(center.A > 0.98f, $"{job.CharacterId}: marker has a solid center, not a hole");
+                CheckMarkerColor(center, job.CharacterId);
+                bool compact = true, noYellow = true;
+                int filled = 0;
+                for (int y = 0; y < 80; y++)
+                for (int x = 0; x < 80; x++)
+                {
+                    var c = pixels.GetPixel(x, y);
+                    if (c.A < 0.02f) continue;
+                    filled++;
+                    compact &= Mathf.Abs(x + 0.5f - 40) <= (radius + 0.8f) * 10
+                        && Mathf.Abs(y + 0.5f - 40) <= (radius + 0.8f) * 10;
+                    noYellow &= !(c.R > 0.7f && c.G > 0.65f && c.B < 0.3f);
+                }
+                Check(compact && filled > radius * radius * 100,
+                    $"{job.CharacterId}: radius {radius} stays compact without a halo ({pixels.GetUsedRect()}, {filled} pixels)");
+                Check(noYellow, $"{job.CharacterId}: no yellow pixels");
+                parent.Modulate = new Color(1f, 1f, 1f, 0.25f);
+                await Frames(2);
+                await ToSignal(RenderingServer.Singleton, RenderingServer.SignalName.FramePostDraw);
+                using var faded = viewport.GetTexture().GetImage();
+                Check(faded.GetPixel(40, 40).A > 0.2f && faded.GetPixel(40, 40).A < center.A * 0.7f,
+                    $"{job.CharacterId}: damage blinking still affects the marker");
+                viewport.QueueFree();
+                await Frames(2);
+            }
+        }
+    }
+
+    private static void CheckMarkerColor(Color color, string character)
+    {
+        bool warm = character is "mina" or "rei";
+        Check(warm ? color.R > 0.65f && color.R > color.G + 0.2f && color.R > color.B + 0.2f
+            : color.G > 0.6f && color.G > color.R + 0.2f,
+            $"{character}: marker has a visible {(warm ? "coral" : "mint")} center");
+    }
+
     private static void CheckMarker(Player player, string character)
     {
         var marker = player.GetNode<PlayerHitDot>("HitDot");
         var body = player.GetNode<Sprite2D>("Sprite");
         var collision = (CircleShape2D)player.GetNode<CollisionShape2D>("HitShape").Shape;
-        Check(marker.CharacterId == character && marker.Texture.ResourcePath == $"res://char/player/{character}/{character}_core_v1.png",
-            $"{character} uses its own generated emblem");
+        Check(marker.CharacterId == character, $"{character} uses its contrasting marker palette");
         Check(Mathf.IsEqualApprox(marker.Radius, collision.Radius) && marker.GlobalPosition.IsEqualApprox(player.GlobalPosition)
             && marker.Rotation == 0f && marker.Scale == Vector2.One && marker.ZIndex > body.ZIndex,
             $"{character} emblem stays above every pose at the unchanged collision center");

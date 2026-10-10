@@ -383,6 +383,7 @@ public partial class EnemyFacingQa : Node
     // 中ボスを1体出し、登場演出だけ手で送り切って戦闘状態にする（qa_koharu_art と同じ作法）。
     private async Task<CameoBoss> SpawnCameo(Node stage, Vector2 at)
     {
+        GetNode<GameManager>("/root/Game").MarkIdleDialogSeen("once_midboss_shield");
         Write(stage, "_stepStarted", false);
         Write(stage, "_lunatic", true);     // 登場カットシーンを挟まずその場で出す（qa_cameo_intro の担当）
         Call(stage, "Step_BossCameo", 0d);
