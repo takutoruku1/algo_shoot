@@ -93,10 +93,11 @@
 
 <!-- 2026-10-10 監査モード(game-designer/engineer/scenario/qa並列)で追加。game-designerは2件TODOへ、engineerは1件TODOへ、scenario/qaは新規指摘0件(qaは全パスclean run) -->
 
-- [ ] (P2) move_speed/bomb_power強化アイテムの説明が「段N」表記で具体的な効果量を隠している | game-designer | 2026-10-10監査(game-designer)発見。`GameManager.cs:516-517`の`move_speed_2`/`move_speed_3`は`"移動・回避 段2"`/`"段3"`で実効果(`MoveSpeedMul=1+0.12*Lv`、`DodgeCooldown`/`DodgeDistance`、`GameManager.cs:778,844-845`)を一切見せない。`bomb_power_1`/`bomb_power_2`(`GameManager.cs:531-532`)も`"段1"`/`"段2"`のみで実効果`BombPowerMul=1+0.25*Lv`(`GameManager.cs:784`)を見せない。他の大半のノード(`shot_power_1`="+1"、`fire_rate_1`="×0.92"等)は具体数値を表示している中でこの2系統だけ不透明。`move_speed_2`→`"移動速度 ×1.24・回避CD 0.72s"`、`move_speed_3`→`"移動速度 ×1.36・回避CD 0.68s"`、`bomb_power_1`→`"ボム直撃ダメージ ×1.25"`、`bomb_power_2`→`"ボム直撃ダメージ ×1.50"`にDescを変更する（`contam_2`は非線形補償のため対象外、現状維持でよい）。数値ロジックは変更せずDescのみ修正。Shop.cs/TrainingRoot.csは`d.Desc`を直接描画するため両画面に自動反映される。
 - [ ] (P3) コメント内のfile:line参照が実装からまた3箇所ズレている(2026-09是正後の再発) | engineer | 2026-10-10監査(engineer)発見。(1)`src/Player.cs:265`のコメント「TryDodgeの実行可否ガード(1019行目)」を「1029行目」に修正(実ガードは`src/Player.cs:1029`)。(2)`src/QaPilot.cs:321`のコメント「Player.cs:660の判定で何も起きず無害」を「GameManager.cs:1295の判定」に修正(実ガード`if (IsOverload || _kindFill < 1f) return false;`は`src/GameManager.cs:1295`の`TryActivateKindness()`内。現在の`Player.cs:660`は`SetBackfireReady`のHUD通知呼び出しで無関係)。(3)`src/DemoPilot.cs:260`のコメント「引用リプ(FlankAim。FlankCampX=40。Spawner.cs:112-123)」のうち`Spawner.cs:112-123`を実位置`Spawner.cs:127-139`に修正(現在の112-123行目はデフォルトテーマの雑魚生成分岐でFlankAim関連ロジックではない)。いずれもコメント文言のみの修正でロジック変更は不要。
 
 ## WIP
+
+- [ ] (P2) move_speed/bomb_power強化アイテムの説明が「段N」表記で具体的な効果量を隠している | game-designer | 2026-10-10監査(game-designer)発見。`GameManager.cs:516-517`の`move_speed_2`/`move_speed_3`は`"移動・回避 段2"`/`"段3"`で実効果(`MoveSpeedMul=1+0.12*Lv`、`DodgeCooldown`/`DodgeDistance`、`GameManager.cs:778,844-845`)を一切見せない。`bomb_power_1`/`bomb_power_2`(`GameManager.cs:531-532`)も`"段1"`/`"段2"`のみで実効果`BombPowerMul=1+0.25*Lv`(`GameManager.cs:784`)を見せない。他の大半のノード(`shot_power_1`="+1"、`fire_rate_1`="×0.92"等)は具体数値を表示している中でこの2系統だけ不透明。`move_speed_2`→`"移動速度 ×1.24・回避CD 0.72s"`、`move_speed_3`→`"移動速度 ×1.36・回避CD 0.68s"`、`bomb_power_1`→`"ボム直撃ダメージ ×1.25"`、`bomb_power_2`→`"ボム直撃ダメージ ×1.50"`にDescを変更する（`contam_2`は非線形補償のため対象外、現状維持でよい）。数値ロジックは変更せずDescのみ修正。Shop.cs/TrainingRoot.csは`d.Desc`を直接描画するため両画面に自動反映される。
 
 ## BLOCKED
 
