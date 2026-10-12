@@ -79,7 +79,6 @@ public partial class ShopTutorialFlowQa : Node
             "(1) the shop tutorial starts in place, right after the reveal", $"mode={Mode(hub)}");
         CheckNoTransition("(2) up to the start of the tutorial");
 
-        // (3) 本文と立ち絵：ShopTutorialLines のまま（話者はハブの「ミナ」＝会話ログの種別も Mina）
         var dlg = Read<(string sp, string tx)[]>(hub, "_dlg");
         var faces = Read<string[]>(hub, "_dlgFaces");
         var data = Lines;
@@ -89,14 +88,16 @@ public partial class ShopTutorialFlowQa : Node
         for (int i = 0; same && i < data.Length; i++)
             same = dlg[i].tx == data[i].tx && dlg[i].sp == data[i].sp && faces[i] == data[i].face;
         Check(same, "(3) every line keeps its text, speaker and portrait path");
-        Check(Array.TrueForAll(dlg, l => LogKind(l.sp) == Hud.LineKind.Mina),
-            "(3) every line logs as ミナ (Hud.LineKind.Mina)");
-        var worried = (Texture2D?)Call(hub, "LineFace", 7);
-        Check(worried != null && worried.ResourcePath == "res://char/mina_worried.png",
-            "(3) line 8 shows the worried portrait", worried?.ResourcePath ?? "(null)");
-        var plain = (Texture2D?)Call(hub, "LineFace", 0);
-        Check(plain != null && plain.ResourcePath == "res://char/mina_face.png",
-            "(3) the other lines show the plain portrait", plain?.ResourcePath ?? "(null)");
+        Check(Array.Exists(dlg, l => l.sp == "あなた") && Array.Exists(dlg, l => l.sp == "ミナ"),
+            "(3) the protagonist guides Mina through the shop");
+        Check(Array.TrueForAll(dlg, l => l.sp == "あなた" ? LogKind(l.sp) == Hud.LineKind.Boy
+            : l.sp == "ミナ" && LogKind(l.sp) == Hud.LineKind.Mina), "(3) the backlog preserves both speakers");
+        for (int i = 0; i < dlg.Length; i++)
+        {
+            var portrait = (Texture2D?)Call(hub, "LineFace", i);
+            Check(dlg[i].sp == "あなた" ? portrait == null : portrait?.ResourcePath == "res://char/mina_face.png",
+                $"(3) line {i + 1} uses its speaker's portrait", portrait?.ResourcePath ?? "(null)");
+        }
         Check(Field(hub, "_dlgReturnMode") == "Home", "the tutorial returns to the phone home", Field(hub, "_dlgReturnMode"));
         await Shot("tutorial_in_place");   // ホーム（光った強化アイコン）の上に説明が出ている図
 

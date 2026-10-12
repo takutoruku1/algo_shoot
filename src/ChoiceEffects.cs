@@ -36,8 +36,3 @@ public static class ChoiceEffects
     public static bool Hesitated(GameManager? game, string id)
         => game != null && game.HasChoiceAt(id) && game.HesitationAt(id) > game.HesitationAt("p2");
 }
-
-// GameManager の追記ぶん（本体ファイルは別担当が編集中のため partial で分ける）。
-public partial class GameManager
-{
-}

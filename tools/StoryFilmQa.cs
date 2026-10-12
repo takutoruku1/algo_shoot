@@ -430,6 +430,7 @@ public partial class StoryFilmQa : Node
                     "world and game timers disabled during memory");
                 if (report) { await Frames(90); using var shot = await Shot("memory", grayscale: true); }
                 await AdvanceUntil(() => !IsInstanceValid(film));
+                await WaitUntil(() => !boss.Transforming, 360);
                 if (rei)
                     await AdvanceUntil(() => Read<bool>(stage, "_midStoryShown") && Read<int>(stage, "_step") == 12);
                 Check(!hud.CinematicMode && world.ProcessMode == ProcessModeEnum.Inherit
