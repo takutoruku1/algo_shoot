@@ -59,7 +59,6 @@ public static class UiKit
     //   と比べ相対的に大きく（＝エンディングだけ文字が大きく見えた）。本文を本編セリフの見え方へ寄せて縮小する。
     //   3画面まとめて同値にするため定数化（座標系ごとの改修は避け、サイズだけ揃える）。
     public const int CutBody    = 8;  // カットシーンのセリフ／ナレ本文（旧11。設計座標の本文に見た目を寄せる。384系では8が可読下限）
-    public const int CutSpeaker = 7;  // 話者名（旧9）
     public const int CutNote    = 6;  // 送りヒント・小注記（旧8）
     public const int CutClimax  = 11; // クライマックスの一行強調（END/stay./PW候補/頭文字 等・旧16。本文比を保ちつつ縮小）
 
@@ -75,19 +74,8 @@ public static class UiKit
         public float LineHeight => Font.GetHeight(Size) * Leading;
         public float ExtraLeading => Font.GetHeight(Size) * (Leading - 1f);
     }
-
-    // 役割別スタイル（docs/20260906/HUD整理_案.md §9 の表）。
-    public static TextStyle PanelValueLarge => new(Mono, 26, 0f, 1f);      // 数値（大）：SCORE / TIME の値
-    public static TextStyle PanelValueMid   => new(Mono, 18, 0f, 1f);      // 数値（中）：コンボ / 残バー / 浄化 %
     public static TextStyle PanelLabel      => new(ZenBold, 15, 0f, 1f);   // セクション見出し：LIFE / BOMB / SCORE / TIME / 浄化
-    public static TextStyle DialogBody      => new(Zen, FontBody, 0f, 1.55f);// 本文・セリフ・ナレ
-    // 戦闘中（盤面下の会話バー・ナレのテロップ）の本文。弾を避けながら読む枠なので一回り大きい
-    //   （2026-09-26 ユーザー「シューティング中の吹き出しの文字をもっと大きく」：17 → 22）。
-    public const int FontBattle = 22;
-    public static TextStyle BattleBody      => new(Zen, FontBattle, 0f, 1.5f);
-    public static TextStyle DialogSpeaker   => new(ZenBold, FontSpeaker, 0f, 1f); // 話者名
     public static TextStyle SmallLabel      => new(ZenBold, FontSmall, 0f, 1f);   // 小ラベル：キーバッジ・炎上の内訳
-    public static TextStyle SmallValue      => new(Mono, FontSmall, 0f, 1f);      // 小さい「値」：残バー数・リプ数（数値は Mono に残す）
 
     // ── 字間つき描画（Hud のローカル実装から公開ヘルパへ格上げ）──
     //   track を1文字ごとに足しながら1文字ずつ描く。track=0 なら普通の DrawString と同じなので素通しする。
@@ -121,10 +109,6 @@ public static class UiKit
     // 役割スタイルで1行（左寄せ・上端基準）。
     public static float Draw(CanvasItem ci, TextStyle st, Vector2 topLeft, string s, Color c)
         => Tracked(ci, st.Font, topLeft, s, st.Size, c, st.Tracking);
-
-    // 役割スタイルで1行（右寄せ・right が右端）。数値の桁が伸びても右端が動かない。
-    public static float DrawRight(CanvasItem ci, TextStyle st, float right, float top, string s, Color c)
-        => Tracked(ci, st.Font, new Vector2(right - TrackedW(st, s), top), s, st.Size, c, st.Tracking);
 
     // 役割スタイルでページ分割（MultiLeading と同じ折り返し結果になる）。
     public static System.Collections.Generic.List<string> Paginate(TextStyle st, string s, float width, int maxLines)

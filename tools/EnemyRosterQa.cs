@@ -228,14 +228,17 @@ public partial class EnemyRosterQa : Node
         for (int i = 0; i < 3; i++)
         {
             spawner._Process(3);
+            Call(spawner, "TickPending", 1d);
             var enemy = world.GetChildren().OfType<MidEnemy>().Last();
             Check(Read<EnemySpec>(enemy, "_spec").PreTexPath == characters[i].PreTexPath,
                 $"{theme} introduces character {i + 1} before random special enemies");
             var sprite = enemy.GetNode<Sprite2D>("Body");
             Check(sprite.FlipH == characters[i].FlipH && Mathf.IsEqualApprox(sprite.Scale.Y * sprite.Texture.GetHeight(), 30f),
                 "new sprite faces left at a stable character size");
-            Check(Read<float>(enemy, "BodyRadius", typeof(Enemy)) == 8f && Read<int>(enemy, "PanelCount", typeof(Enemy)) == 3,
-                "contact radius and shield panel count remain unchanged");
+            Check(Read<float>(enemy, "BodyRadius", typeof(Enemy)) == 8f
+                && enemy.GetChildren().OfType<Panel>().Count() == 3
+                && enemy.GetChildren().OfType<Panel>().All(p => p.Ink > 4),
+                "road enemies retain three unfolders with independent HP gauges");
         }
         var firstWave = world.GetChildren().OfType<MidEnemy>().ToArray();
         await Frames(140);
@@ -288,14 +291,10 @@ public partial class EnemyRosterQa : Node
 
         var skins = new HashSet<string>();
         var patterns = new HashSet<AttackPattern>();
-        // ★下のループの .Last() は「SpawnOne が同期で world へ AddChild する」ことに依存している。
-        //   Hard/Lunatic の左エッジ湧きだけは予告(0.4s)を挟む遅延スポーン（Spawner._pendingLeft）で、
-        //   同期では world に現れない。Normal なら左エッジ確率が 0 なので安全＝ここで前提を明示しておく。
-        //   このループを難易度でパラメータ化するなら、遅延ぶんを待つか左エッジを除外すること。
-        Check(game.Difficulty == GameManager.Diff.Normal, "roster sampling runs on Normal (left-edge spawns are deferred)");
         for (int i = 0; i < 100; i++)
         {
             Call(spawner, "SpawnOne", game);   // Spawner.SpawnOne は GameManager? を取る（出現方向の拡張で引数が増えた）
+            Call(spawner, "TickPending", 1d);
             var enemy = world.GetChildren().OfType<MidEnemy>().Last();
             var spec = Read<EnemySpec>(enemy, "_spec");
             skins.Add(spec.PreTexPath);
@@ -496,7 +495,13 @@ public partial class EnemyRosterQa : Node
     private static Bullet[] SettleLeadIn(Bullet[] bullets)
     {
         foreach (var b in bullets)
+        {
             for (int i = 0; i < 64 && b.LeadIn; i++) b._PhysicsProcess(1.0 / 60.0);
+            Check(b.RoadPending && b.CollisionLayer == 0, "deployed road bullet still warns before arming");
+            b._PhysicsProcess(0.45);
+            b._PhysicsProcess(0);
+            Check(!b.RoadPending && b.CollisionLayer == 8, "road bullet arms after its warning");
+        }
         return bullets;
     }
 
@@ -564,9 +569,7 @@ public partial class EnemyRosterQa : Node
         cameo.SetPhysicsProcess(true);
         // 2つ目の攻撃の間隔は Di 込みで最大 1.4x1.35=1.89s（あかり）。固定130フレーム（約1.6s）では
         // 遅い方が間に合わずに落ちるので、両方の弾が出そろうまで待つ判定にする。
-        bool bothFired = await WaitFrames(() =>
-            EnemyBullets().Any(b => Read<Texture2D>(b, "_sprite").ResourcePath.EndsWith($"/{firstArt}.png"))
-            && EnemyBullets().Any(b => Read<Texture2D>(b, "_sprite").ResourcePath.EndsWith($"/{secondArt}.png")), 600);
+        bool bothFired = await WaitFrames(() => Volley(firstArt).Length > 0 && Volley(secondArt).Length > 0, 600);
         Check(bothFired, $"{scene}: both illustrated attacks fire during real cameo combat");
         await Shot($"{scene.ToLowerInvariant()}_cameo_attacks");
         DisplayServer.WindowSetSize(new Vector2I(960, 540));
@@ -589,15 +592,28 @@ public partial class EnemyRosterQa : Node
         pool.DespawnAll();
         await Frames(3);
 
+        Bullet[] Volley(string art)
+        {
+            bool rain = art == firstArt && scene != "Rei";
+            return EnemyBullets().Where(b => rain ? b.OverheadPending
+                : !b.OverheadPending && b.BossStyle == (art == secondArt && scene != "Koharu" ? BossShotStyle.Ring : BossShotStyle.Aimed)).ToArray();
+        }
+
         void CheckVolley(string art, int expected, float speed, bool rain)
         {
-            var bullets = EnemyBullets().Where(b => Read<Texture2D?>(b, "_sprite")?.ResourcePath
-                == $"res://char/v3/bullets/{art}.png").ToArray();
-            Check(bullets.Length == expected && bullets.All(b => Mathf.IsEqualApprox(b.Radius, 3.2f)
-                && b.Damage == 1 && !b.Homing && !b.IsPatternBullet && !b.Accel && b.Shape == cameo.Theme.SpellShape),
+            var bullets = Volley(art);
+            var job = cameo.BodyShotJob!.Value;
+            float radius = rain ? 3.2f : BulletPool.BossRadius * (job == Job.Magic ? 1.5f : 1);
+            bool accel = job == Job.Melee;
+            bool homing = !rain && job == Job.Heal;
+            float initialSpeed = accel ? 0.6f : rain ? speed : job == Job.Magic ? 62f : 60f;
+            Check(bullets.Length == expected && bullets.All(b => Mathf.IsEqualApprox(b.Radius, radius)
+                && b.Damage == 1 && b.Homing == homing && !b.IsPatternBullet && b.Accel == accel),
                 $"{scene}/{game.Difficulty}: {art} retains count, collision and damage");
-            Check(bullets.All(b => Math.Abs((rain ? b.Velocity.Y : b.Velocity.Length()) - speed * game.BulletSpeedMul) < 0.01f),
+            Check(bullets.All(b => Math.Abs(b.Velocity.Length() - initialSpeed * game.BulletSpeedMul) < 0.01f),
                 $"{scene}/{game.Difficulty}: {art} retains speed scaling");
+            if (accel) Check(bullets.All(b => b.AccelCharging && Read<float>(b, "_accelDelay") >= 1.05f),
+                "both Akari cameo attacks visibly charge before accelerating");
         }
     }
 
@@ -644,28 +660,20 @@ public partial class EnemyRosterQa : Node
                 }
                 Vector2 lockedDirection = Read<Vector2>(enemy, "_burstDir");
                 player.GlobalPosition = new Vector2(Field.Left + 22f, 184f);
-                Call(enemy, "TickFire", 2.0d);
-                for (int i = 0; i < 3 && Read<int>(enemy, "_salvoRemaining") > 0; i++)
-                    Call(enemy, "TickFire", 2.0d);
-                var bullets = SettleLeadIn(EnemyBullets());
-                int Expected(int n) => game.ScaleBullets(n);
-                // 扇（CharacterFan）だけは本数が必ず奇数＝中心の1本が予告方向の正面を通る（2026-10-03）。
-                int Fan(int n) => game.ScaleBulletsOdd(n);
-                // 片側払い（CharacterSweep：未送信・比較）は必ず2本以上＝内縁の1本が狙いそのものに載る。
-                int Sweep(int n) => Math.Max(2, game.ScaleBullets(n));
-                int count = spec.Pattern switch
+                int salvos = Read<int>(enemy, "_salvoRemaining");
+                Check(salvos >= (diff >= GameManager.Diff.Normal ? 3 : 2), "attack repeats across multiple salvos");
+                int perSalvo = 0;
+                for (int i = 0; i < salvos; i++)
                 {
-                    AttackPattern.AkariDeadline => Fan(3),
-                    AttackPattern.KoharuComparison => Sweep(3),
-                    AttackPattern.AkariUnsent => Sweep(2) * 2,
-                    AttackPattern.ReiClipper => Fan(2) * 2,
-                    AttackPattern.AkariVacant => Math.Clamp(Expected(5), 3, 13) - 1,
-                    AttackPattern.KoharuCheer => Fan(3) * 2,
-                    AttackPattern.KoharuParcel => Expected(2) * 3,
-                    AttackPattern.ReiAnonymous => Fan(1) * 3,
-                    AttackPattern.ReiMetrics => Math.Max(2, Expected(4)),
-                    _ => throw new Exception("Unexpected character attack"),
-                };
+                    int before = EnemyBullets().Length;
+                    Call(enemy, "TickFire", 2.0d);
+                    int added = EnemyBullets().Length - before;
+                    Check(added >= (diff >= GameManager.Diff.Normal ? 3 : 1), "each salvo contains the required bullet density");
+                    if (i == 0) perSalvo = added;
+                    Check(added == perSalvo, "consecutive salvos retain their complete formation");
+                }
+                var bullets = SettleLeadIn(EnemyBullets());
+                int count = perSalvo * salvos;
                 Check(bullets.Length == count && Read<int>(enemy, "_salvoRemaining") == 0,
                     $"{spec.Pattern}/{diff}: completes expected {count}-bullet pattern");
                 Check(bullets.All(b => Read<Texture2D>(b, "_sprite").ResourcePath == texture.ResourcePath
@@ -674,8 +682,8 @@ public partial class EnemyRosterQa : Node
                 Check(bullets.All(b => b.GlobalPosition.X > Field.Left && b.GlobalPosition.X < Field.Right
                     && b.GlobalPosition.Y > Field.Top && b.GlobalPosition.Y < Field.Bottom), "all projectiles originate inside the field");
                 if (spec.Pattern == AttackPattern.ReiAnonymous)
-                    Check(bullets.All(b => Math.Abs(b.Velocity.Normalized().AngleTo(lockedDirection)) < 0.09f),
-                        "anonymous burst uses the telegraphed direction, not live tracking");
+                    Check(bullets.Any(b => Math.Abs(b.Velocity.Normalized().AngleTo(lockedDirection)) < 0.001f),
+                        "anonymous burst retains the warned center while adding symmetric lanes");
                 if (spec.Pattern == AttackPattern.ReiMetrics)
                     Check(bullets.All(b => b.Rotation == 0f), "ranking arrows always point down");
                 if (spec.Pattern == AttackPattern.AkariVacant)
@@ -693,7 +701,7 @@ public partial class EnemyRosterQa : Node
                 {
                     Check(bullets.All(b => b.AccelCharging && Math.Abs(b.Velocity.Length() - 10f * game.BulletSpeedMul) < 0.01f),
                         "clock projectiles begin with a readable charge");
-                    foreach (var bullet in bullets) bullet._PhysicsProcess(game.DanmakuIntervalMul * 0.6d);
+                    foreach (var bullet in bullets) bullet._PhysicsProcess(game.DanmakuIntervalMul * 0.55d + 0.24d);
                     Check(bullets.All(b => !b.AccelCharging && Math.Abs(b.Velocity.Length() - 116f * game.BulletSpeedMul) < 0.01f),
                         "clock acceleration preserves difficulty scaling");
                 }

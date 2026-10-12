@@ -49,6 +49,12 @@ public partial class PlayerJobQa : Node
                 await Finish();
                 return;
             }
+            if (Array.Exists(OS.GetCmdlineUserArgs(), arg => arg == "--lock-marker"))
+            {
+                await CheckLockMarkers(game);
+                await Finish();
+                return;
+            }
 
             var expected = new[] { (Job.Tank, "mina", "ミナ"), (Job.Melee, "akari", "あかり"),
                 (Job.Heal, "koharu", "こはる"), (Job.Magic, "rei", "レイ") };
@@ -251,9 +257,10 @@ public partial class PlayerJobQa : Node
             Check(76 + UiKit.TextW(UiKit.ZenBold, job.CharacterName, 19) + 15 <= Field.PanelW - 18
                 && 76 + UiKit.TextW(UiKit.Mono, handle, 10) <= Field.PanelW - 18,
                 "profile name and handle fit the single account header");
+            CheckMarker(root.Player, job.CharacterId);
             var marks = Read<Dictionary<Job, Texture2D>>(root.Hud, "_lifeMarks");
-            Check(marks[job.Id].ResourcePath == $"res://char/player/{job.CharacterId}/{job.CharacterId}_core_v1.png",
-                $"{job.CharacterId}: LIFE keeps its character emblem");
+            Check(marks[job.Id] == LifeEmblem.Texture(job.CharacterId),
+                $"{job.CharacterId}: LIFE uses its original ornament with the character gemstone");
             var bombMark = Read<Texture2D>(root.Hud, "_bombMark");
             Check(bombMark.ResourcePath == "res://char/ui/bomb_v2.png", "BOMB uses the generated bomb illustration");
             using (var bombImage = bombMark.GetImage())
@@ -304,6 +311,12 @@ public partial class PlayerJobQa : Node
                     overview.BlitRect(full, new Rect2I(0, 0, panelWidth, 720), new Vector2I(row * panelWidth, 0));
                 }
                 Check(Light(full, cap - 1, cap) > 0.025f, $"{job.CharacterId} {size}: LIFE marks contrast with the sidebar background");
+                var cell = Hud.ResourceMarkRect(0, cap);
+                var textureSize = marks[job.Id].GetSize();
+                float iconScale = cell.Size.X / Mathf.Max(textureSize.X, textureSize.Y);
+                var lifeCenter = (cell.GetCenter() - textureSize * iconScale / 2f
+                    + LifeEmblem.GemCenter(job.CharacterId) * iconScale) * scale;
+                CheckMarkerColor(full.GetPixel((int)lifeCenter.X, (int)lifeCenter.Y), job.CharacterId);
                 Write(root.Player, "_invincible", false);
                 root.Player.TakeHit();
                 Check(root.Player.Lives == cap - 1 && Read<int>(root.Hud, "_lives") == cap - 1,
@@ -397,6 +410,12 @@ public partial class PlayerJobQa : Node
             await ToSignal(RenderingServer.Singleton, RenderingServer.SignalName.FramePostDraw);
             using (var image = GetViewport().GetTexture().GetImage())
                 Check(image.SavePng($"{output}/{job.CharacterId}_all_powerups.png") == Error.Ok, "upgrades and lock status fit the compact header");
+            root.Hud.ShowRewardBanner(true, false);
+            await Frames(20);
+            await ToSignal(RenderingServer.Singleton, RenderingServer.SignalName.FramePostDraw);
+            using (var reward = GetViewport().GetTexture().GetImage())
+                Check(reward.SavePng($"{output}/{job.CharacterId}_life_reward.png") == Error.Ok, "life reward uses the same core motif");
+            Write(root.Hud, "_bannerTimer", 0d);
             if (job.Id == Job.Tank)
             {
                 root.Hud.ShowDialog(Hud.LineKind.Mina, "……いいねが、ひとつ。この方にも、投稿しようとして、\n送れなかった言葉があるようです。");
@@ -449,6 +468,93 @@ public partial class PlayerJobQa : Node
         }
     }
 
+    private async Task CheckLockMarkers(GameManager game)
+    {
+        string output = ProjectSettings.GlobalizePath("res://build/qa_story/lock_emblem");
+        DirAccess.MakeDirRecursiveAbsolute(output);
+        game.SetProcess(false);
+        foreach (var job in Jobs.All)
+        {
+            game.SelectedJob = job.Id;
+            game.TrainingSetAllUpgrades(false);
+            var root = GD.Load<PackedScene>("res://Akari.tscn").Instantiate<AkariRoot>();
+            GetTree().Root.AddChild(root);
+            GetTree().CurrentScene = root;
+            root.SetProcess(false);
+            root.Stage.SetProcess(false);
+            root.World.ProcessMode = ProcessModeEnum.Disabled;
+            root.Hud.HoldBubble = false;
+            root.Hud.HideBubble();
+            Hud.BubblePaused = false;
+            Write(root.Hud, "_bannerTimer", 0d);
+            Write(root.Player, "_invincible", false);
+            root.Player._PhysicsProcess(0);
+            Call(root.Player, "SetSpriteVisible", true);
+            Check(BulletArt.PlayerMark(job.Id) == Read<Dictionary<Job, Texture2D>>(root.Hud, "_lifeMarks")[job.Id],
+                $"{job.CharacterId}: lock uses the full LIFE ornament");
+            Check(BulletArt.PlayerMark(job.Id) != Read<Texture2D>(root.Player.GetNode<PlayerHitDot>("HitDot"), "_emblem"),
+                $"{job.CharacterId}: only the player hit point uses the compact translucent ornament");
+
+            foreach (bool hasHpBar in new[] { false, true })
+            {
+                Enemy target;
+                if (hasHpBar)
+                {
+                    target = new BossAkari();
+                    root.World.AddChild(target);
+                    typeof(Enemy).GetMethod("TickEntrance", Private)!.Invoke(target, new object[] { 0d });
+                    typeof(Enemy).GetMethod("TickEntrance", Private)!.Invoke(target, new object[] { 2d });
+                }
+                else
+                {
+                    var enemy = new MidEnemy();
+                    enemy.Configure(EnemyTable.For(StageTheme.Rei).Item1);
+                    enemy.SetEntry(new Vector2(270, 100));
+                    root.World.AddChild(enemy);
+                    target = enemy;
+                }
+                target.Position = new Vector2(270, 100);
+                Check(target.HasHpBar == hasHpBar, "both lock emblem placements are covered");
+                Write(root.Player, "_lockTarget", target);
+                Write(root.Player, "_lockArmed", true);
+                Write(root.Player, "_locked", true);
+                Check(root.Player.LockedOn, "preview uses a live locked enemy");
+                target.QueueRedraw();
+                foreach (var size in new[] { new Vector2I(1280, 720), new Vector2I(960, 540) })
+                {
+                    DisplayServer.WindowSetSize(size);
+                    await Frames(5);
+                    await ToSignal(RenderingServer.Singleton, RenderingServer.SignalName.FramePostDraw);
+                    using var frame = GetViewport().GetTexture().GetImage();
+                    string state = hasHpBar ? "boss" : "enemy";
+                    Check(frame.SavePng($"{output}/{job.CharacterId}_{state}_{size.X}.png") == Error.Ok,
+                        $"{job.CharacterId}: {state} lock at {size.X}");
+                    var sidebarCenter = new Vector2(30, 449) * (size.X / 1280f);
+                    CheckMarkerColor(frame.GetPixel((int)sidebarCenter.X, (int)sidebarCenter.Y), job.CharacterId);
+                    var markCenter = target.Position + (hasHpBar
+                        ? new Vector2(-target.GaugeWidth / 2 - 14f, target.GaugeTop - 4f)
+                        : new Vector2(0, -26.5f));
+                    markCenter *= size.X / 384f;
+                    CheckMarkerColor(frame.GetPixel((int)markCenter.X, (int)markCenter.Y), job.CharacterId);
+                    CheckMarker(root.Player, job.CharacterId);
+                }
+                Write(root.Player, "_locked", false);
+                Write(root.Player, "_lockTarget", null!);
+                target.QueueRedraw();
+                await Frames(4);
+                await ToSignal(RenderingServer.Singleton, RenderingServer.SignalName.FramePostDraw);
+                using (var frame = GetViewport().GetTexture().GetImage())
+                    Check(frame.SavePng($"{output}/{job.CharacterId}_{(hasHpBar ? "boss" : "enemy")}_waiting.png") == Error.Ok,
+                        "released target removes the emblem and restores waiting status");
+                target.QueueFree();
+                await Frames(3);
+            }
+            root.QueueFree();
+            await Frames(4);
+            GetNode<BulletPool>("/root/Pool").DespawnAll();
+        }
+    }
+
     private async Task CheckHitMarkers(GameManager game)
     {
         string output = ProjectSettings.GlobalizePath("res://build/qa_story/hit_marker");
@@ -493,6 +599,25 @@ public partial class PlayerJobQa : Node
             root.QueueFree();
             await Frames(3);
 
+            using (var original = GD.Load<Texture2D>($"res://char/player/{job.CharacterId}/{job.CharacterId}_core_v1.png").GetImage())
+            using (var ruby = LifeEmblem.Texture(job.CharacterId).GetImage())
+            {
+                bool preserved = true;
+                var center = LifeEmblem.GemCenter(job.CharacterId);
+                var radius = LifeEmblem.GemRadius(job.CharacterId);
+                for (int y = 0; y < original.GetHeight(); y++)
+                for (int x = 0; x < original.GetWidth(); x++)
+                {
+                    var offset = (new Vector2(x + 0.5f, y + 0.5f) - center) / radius;
+                    var before = original.GetPixel(x, y);
+                    if (offset.Length() < 1.1f || before.A < 0.99f) continue;
+                    var after = ruby.GetPixel(x, y);
+                    preserved &= Mathf.Abs(before.R - after.R) + Mathf.Abs(before.G - after.G)
+                        + Mathf.Abs(before.B - after.B) < 0.025f;
+                }
+                Check(preserved, $"{job.CharacterId}: original ornament pixels outside the gemstone are unchanged");
+            }
+
             game.TrainingSetUpgrade("n_hitbox", true);
             var player = new Player();
             AddChild(player);
@@ -505,41 +630,51 @@ public partial class PlayerJobQa : Node
 
             foreach (float radius in new[] { 1f, 2f })
             {
-                var viewport = new SubViewport { Size = new Vector2I(80, 80), TransparentBg = true, World2D = new World2D(),
+                var viewport = new SubViewport { Size = new Vector2I(200, 200), TransparentBg = true, World2D = new World2D(),
                     RenderTargetUpdateMode = SubViewport.UpdateMode.Always };
                 AddChild(viewport);
                 var parent = new Node2D();
                 viewport.AddChild(parent);
                 parent.AddChild(new PlayerHitDot { CharacterId = job.CharacterId, Radius = radius,
-                    Position = new Vector2(40, 40), Scale = Vector2.One * 10f });
+                    Position = new Vector2(100, 100), Scale = Vector2.One * 10f });
                 await Frames(3);
                 await ToSignal(RenderingServer.Singleton, RenderingServer.SignalName.FramePostDraw);
                 using var pixels = viewport.GetTexture().GetImage();
                 Check(pixels.SavePng($"{output}/{job.CharacterId}_icon_r{radius}.png") == Error.Ok,
                     "isolated marker captured");
-                var center = pixels.GetPixel(40, 40);
+                var center = pixels.GetPixel(100, 100);
                 Check(center.A > 0.98f, $"{job.CharacterId}: marker has a solid center, not a hole");
                 CheckMarkerColor(center, job.CharacterId);
-                bool compact = true, noYellow = true;
-                int filled = 0;
-                for (int y = 0; y < 80; y++)
-                for (int x = 0; x < 80; x++)
+                var expectedBounds = LifeEmblem.PlayerRect(job.CharacterId, radius);
+                expectedBounds.Position *= LifeEmblem.DecorationScale;
+                expectedBounds.Size *= LifeEmblem.DecorationScale;
+                expectedBounds = expectedBounds.Merge(new Rect2(Vector2.One * (-radius * 1.25f), Vector2.One * (radius * 2.5f)));
+                expectedBounds.Position = expectedBounds.Position * 10f + new Vector2(100, 100);
+                expectedBounds.Size *= 10f;
+                bool compact = true, translucent = true;
+                int filled = 0, ornamentPixels = 0;
+                for (int y = 0; y < 200; y++)
+                for (int x = 0; x < 200; x++)
                 {
                     var c = pixels.GetPixel(x, y);
                     if (c.A < 0.02f) continue;
                     filled++;
-                    compact &= Mathf.Abs(x + 0.5f - 40) <= (radius + 0.8f) * 10
-                        && Mathf.Abs(y + 0.5f - 40) <= (radius + 0.8f) * 10;
-                    noYellow &= !(c.R > 0.7f && c.G > 0.65f && c.B < 0.3f);
+                    compact &= expectedBounds.Grow(1f).HasPoint(new Vector2(x + 0.5f, y + 0.5f));
+                    if (new Vector2(x + 0.5f - 100, y + 0.5f - 100).Length() > radius * 1.3f * 10f + 1f)
+                    {
+                        ornamentPixels++;
+                        translucent &= c.A <= LifeEmblem.DecorationAlpha + 0.025f;
+                    }
                 }
                 Check(compact && filled > radius * radius * 100,
-                    $"{job.CharacterId}: radius {radius} stays compact without a halo ({pixels.GetUsedRect()}, {filled} pixels)");
-                Check(noYellow, $"{job.CharacterId}: no yellow pixels");
+                    $"{job.CharacterId}: radius {radius} scales the original ornament without a halo ({pixels.GetUsedRect()}, {filled} pixels)");
+                Check(translucent && ornamentPixels > 10,
+                    $"{job.CharacterId}: decorations are 28% opaque while the gemstone stays solid");
                 parent.Modulate = new Color(1f, 1f, 1f, 0.25f);
                 await Frames(2);
                 await ToSignal(RenderingServer.Singleton, RenderingServer.SignalName.FramePostDraw);
                 using var faded = viewport.GetTexture().GetImage();
-                Check(faded.GetPixel(40, 40).A > 0.2f && faded.GetPixel(40, 40).A < center.A * 0.7f,
+                Check(faded.GetPixel(100, 100).A > 0.2f && faded.GetPixel(100, 100).A < center.A * 0.7f,
                     $"{job.CharacterId}: damage blinking still affects the marker");
                 viewport.QueueFree();
                 await Frames(2);
@@ -549,10 +684,14 @@ public partial class PlayerJobQa : Node
 
     private static void CheckMarkerColor(Color color, string character)
     {
-        bool warm = character is "mina" or "rei";
-        Check(warm ? color.R > 0.65f && color.R > color.G + 0.2f && color.R > color.B + 0.2f
-            : color.G > 0.6f && color.G > color.R + 0.2f,
-            $"{character}: marker has a visible {(warm ? "coral" : "mint")} center");
+        bool visible = character switch
+        {
+            "akari" => color.B > 0.65f && color.B > color.R + 0.25f && color.B > color.G + 0.1f,
+            "koharu" => color.G > 0.6f && color.G > color.R + 0.25f && color.G > color.B + 0.1f,
+            "rei" => color.B > 0.65f && color.G > 0.65f && color.B > color.R + 0.15f,
+            _ => color.R > 0.65f && color.R > color.G + 0.2f && color.R > color.B + 0.15f,
+        };
+        Check(visible, $"{character}: gemstone contrasts with its character and ornament ({color})");
     }
 
     private static void CheckMarker(Player player, string character)
@@ -560,10 +699,18 @@ public partial class PlayerJobQa : Node
         var marker = player.GetNode<PlayerHitDot>("HitDot");
         var body = player.GetNode<Sprite2D>("Sprite");
         var collision = (CircleShape2D)player.GetNode<CollisionShape2D>("HitShape").Shape;
-        Check(marker.CharacterId == character, $"{character} uses its contrasting marker palette");
+        Check(marker.CharacterId == character && Read<Texture2D>(marker, "_emblem") == LifeEmblem.Texture(character, player: true),
+            $"{character} uses the compact translucent version of its LIFE ornament");
         Check(Mathf.IsEqualApprox(marker.Radius, collision.Radius) && marker.GlobalPosition.IsEqualApprox(player.GlobalPosition)
             && marker.Rotation == 0f && marker.Scale == Vector2.One && marker.ZIndex > body.ZIndex,
             $"{character} emblem stays above every pose at the unchanged collision center");
+        var rect = LifeEmblem.PlayerRect(character, marker.Radius);
+        var sourceSize = LifeEmblem.Texture(character).GetSize();
+        var scale = rect.Size / sourceSize;
+        var gemCenter = rect.Position + LifeEmblem.GemCenter(character) * scale;
+        var gemRadius = LifeEmblem.GemRadius(character) * scale;
+        Check(gemCenter.IsZeroApprox() && Mathf.IsEqualApprox(Mathf.Min(gemRadius.X, gemRadius.Y), collision.Radius),
+            $"{character}: only the opaque gemstone contains the unchanged damage circle");
     }
 
     private static readonly string[] Poses = { "idle_v2", "aim_v2_u", "aim_v2_ur", "aim_v2_r", "aim_v2_dr", "aim_v2_d",

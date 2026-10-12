@@ -152,8 +152,6 @@ public partial class BgLayers : Node2D
     private float _swapT, _swapDur;
     private bool _swapping;
 
-    // 全層に追加で掛かる色（Root から SetTint で差し替え可能）。既定は白＝素通し。
-    private Color _globalTint = Colors.White;
 
     public override void _Ready()
     {
@@ -302,13 +300,6 @@ public partial class BgLayers : Node2D
         ApplyTint();   // 層が1枚も読めず CrossfadeTo が空振りしても、係数だけは現行層へ効かせる
     }
 
-    // 全層に掛かる色を差し替える（浄化で世界が暖まる等、Root 側の演出から呼ぶ）。
-    public void SetTint(Color c)
-    {
-        _globalTint = c;
-        ApplyTint();
-    }
-
     public override void _Process(double delta)
     {
         float dt = (float)delta;
@@ -413,10 +404,10 @@ public partial class BgLayers : Node2D
             float rgbMul = l.Additive ? 1f : Mathf.Lerp(1f, dimTo, _dimK);
             float aMul = (!l.Additive || brighten) ? 1f : Mathf.Lerp(1f, 0f, _dimK);
             var c = new Color(
-                b.R * _globalTint.R * rgbMul,
-                b.G * _globalTint.G * rgbMul,
-                b.B * _globalTint.B * rgbMul,
-                b.A * _globalTint.A * aMul * l.Fade);
+                b.R * rgbMul,
+                b.G * rgbMul,
+                b.B * rgbMul,
+                b.A * aMul * l.Fade);
             foreach (var s in l.Tiles) s.Modulate = c;
         }
     }

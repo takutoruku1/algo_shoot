@@ -47,8 +47,6 @@ public partial class Hub : Node2D
     //   判定は IsClearedForDisplay 経由＝デバッグプレビュー（--hub-preview）でも解禁状態が表示と揃う
     //   （スクショで「名前は伏せているのにフッタだけ解禁済み」といった嘘が出ない）。
     private bool ShopUnlocked => IsClearedForDisplay(GameManager.FirstStageId);
-    //   フッタの脈打ち（存在に気づかせる合図）は「まだ一度も潜っていない」あいだだけ。一度でも潜れば静かになる。
-    private bool JobHintGlow => (_game?.TotalDives ?? 0) == 0 && (_game?.HeartsSaved ?? 0) == 0;
 
     // このステージのクリアで新しく開いたジョブ（無ければ null）。帰還トーストの見出しに使う。
     private static JobTuning? JobUnlockedBy(string stageId)

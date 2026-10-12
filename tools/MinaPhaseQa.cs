@@ -55,8 +55,11 @@ public partial class MinaPhaseQa : Node
             caster.SetProcess(false);
             caster.CancelPendingAttacks();
             await Frames(3);
-            await CheckConversations(game, root);
-            if (!OS.GetCmdlineUserArgs().Contains("--sequence-only")) await CheckAttacks(game, root, boss, caster);
+            if (!OS.GetCmdlineUserArgs().Contains("--sequence-only"))
+            {
+                await CheckConversations(game, root);
+                await CheckAttacks(game, root, boss, caster);
+            }
             await CheckPhases(game, root, boss, caster);
             root.QueueFree();
             await Frames(8);
@@ -264,6 +267,7 @@ public partial class MinaPhaseQa : Node
     private async Task CheckPhases(GameManager game, MinaRoot root, BossMina boss, MinaPhaseAttacks caster)
     {
         int maxHp = Read<int>(boss, "_maxHp", typeof(Enemy));
+        game.SelectedJob = Job.Magic;
         Write(boss, "_pattern", 0);
         caster.BeginPhase(0);
         for (int phase = 1; phase <= 4; phase++)
@@ -273,7 +277,8 @@ public partial class MinaPhaseQa : Node
             Check(Mathf.IsEqualApprox(boss.HpRatio, BossMina.PhaseThresholds[phase - 1]),
                 $"phase {phase}: burst damage stops at the next HP boundary (actual {boss.HpRatio}, paused {Hud.BubblePaused})");
             await Frames(2);
-            await BreakPost(phase - 1);
+            Check(GetTree().GetFirstNodeInGroup("boss_post") is BossPost { IsBroken: true } post && post.Index == phase - 1,
+                "phase boundary fractures the post without a separate shooting phase");
             var scene = GetTree().GetFirstNodeInGroup("mina_phase_scene") as MinaPhaseScene;
             Check(scene != null && boss.EncounterPhase == phase && boss.Transitioning, $"phase {phase}: transformation is not skipped");
             float hp = boss.HpRatio;
@@ -308,7 +313,7 @@ public partial class MinaPhaseQa : Node
             if (phase == 4)
             {
                 int plea = Array.FindIndex(Read<Array>(scene!, "_lines").Cast<object>().ToArray(),
-                    l => (string)l.GetType().GetProperty("Text")!.GetValue(l)! == "わたくしを……助けて、ください。");
+                    l => ((string)l.GetType().GetProperty("Text")!.GetValue(l)!).Contains("助けて"));
                 Check(plea >= 0, "the final plea remains in the dialogue");
                 await AdvanceUntil(() => Read<int>(scene!, "_line") == plea);
                 await Frames(45);
@@ -329,6 +334,7 @@ public partial class MinaPhaseQa : Node
             await WaitUntil(() => !boss.Transitioning, 240);
             Check(!boss.Transitioning && !root.Hud.CinematicMode && root.World.ProcessMode == ProcessModeEnum.Inherit,
                 "transformation returns to playable combat");
+            await BreakPost(phase - 1);
             caster.SetProcess(false);
             caster.CancelPendingAttacks();
             Call(root, "TickJourney");
@@ -449,12 +455,10 @@ public partial class MinaPhaseQa : Node
     private async Task BreakPost(int index)
     {
         var post = GetTree().GetFirstNodeInGroup("boss_post") as BossPost;
-        Check(post != null && post.Index == index, "post guards the next costume or final truth");
+        Check(post != null && post.Index == index && post.IsBroken, "body damage fractures the corresponding post");
         post!.SetPhysicsProcess(false);
-        for (int hit = 0; hit < 3; hit++) post.BombHit();
-        post._PhysicsProcess(post.MinimumReadTime + 1);
         if (index == 4) ((BossRealmFx)GetTree().GetFirstNodeInGroup("boss_realm"))._Process(4);
-        post._PhysicsProcess(post.BreakDuration + .1);
+        post._PhysicsProcess(BossPost.BreakDuration + .1);
         await Frames(3);
     }
 

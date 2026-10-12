@@ -29,8 +29,6 @@ public partial class StageAkari : Node
     //   軽口の行そのものは残す（緩急に要る）が、顔は平常のまま＝「面白いことを真顔で言う」機械に見せる。
     //   呼び出し側を全部書き換えると差分が広がるので、定数の**指し先**だけを平常顔へ倒している。
     private const string MFace = "res://char/mina_face.png";
-    private const string MSmile = MFace;   // ※あかり面では笑わない（笑う＝こはる面クリア後に獲得）
-    private const string MWorried = "res://char/mina_worried.png";
     // あかりの顔。平常＝akari_face／画面の光を浴びた＝akari_face_lit／泣き＝akari_face_cry。
     private const string AFace = "res://char/v3/akari_face.png";
     private const string AFaceLit = "res://char/v3/akari_face_lit.png";
@@ -728,8 +726,7 @@ public partial class StageAkari : Node
             Hud.HideBossBar();                                   // バー出っ放しにしない（後で本ボスが再表示）
             GetNodeOrNull<BulletPool>("/root/Pool")?.DespawnAll();
             if (IsInstanceValid(_cameo)) _cameo.QueueFree();
-            // 中ボス撃破フック：撃破記録（「中ボスから」入口の解放）。ショップ説明は最初の面のボス撃破後へ移した（2026-09-07）。
-            if (CheckpointFlow.OnMidBossCleared(this, "akari", false)) return;
+            GetNodeOrNull<GameManager>("/root/Game")?.MarkMidBossCleared("akari");
             Advance();
         }
     }

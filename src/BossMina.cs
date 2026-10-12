@@ -7,7 +7,7 @@ public partial class BossMina : Enemy
     public bool Finished { get; private set; }
     public bool MemoryPlayed => _memoryPlayed;
     public bool AoeGateActive => PostSequenceActive || Transitioning || _memoryPending || PhasePending || (_caster != null && _caster.Active);
-    public bool PostSequenceActive => _posts != null && (_posts.Active || _posts.Pending);
+    public bool PostSequenceActive => _posts != null && _posts.Active;
     public bool Transitioning { get; private set; }
     public int EncounterPhase => _pattern;
     public const int DragonPhase = 2;
@@ -27,11 +27,11 @@ public partial class BossMina : Enemy
     private CharacterStoryTalk? _recloseTalk;
 
     private readonly BossMover _mover = new BossMover();
-    private const float RoamSpeed = 38f;
 
     private double _fireT;
     private double _fireT2;   // フィナーレ用の第2タイマー（2スペル同時撃ち）
     private float _ringOff;
+    private float _spiralPhase;
     private int _pattern;
     private const int PatternCount = 5;
 
@@ -162,15 +162,6 @@ public partial class BossMina : Enemy
         (1, "……では、もう一度。いっしょに帰りたいです。", "res://char/mina_face.png"),
         (6, "ええ。立てる？　急がなくていいわ。", ""),
     };
-
-    // F3 の返し手は潜行キャラ本人（2026-09-27 作者報告「ミナ戦であかりを使ってクリアしたときにレイがでてくる」）。
-    //   段間の MinaPhaseScene は (Job, phase) で潜行キャラが答えるのに、撃破直後のここだけレイ固定だった
-    //   ＝あかり／こはるで潜ると、四段ずっと隣にいた子が消え、撃破の瞬間にレイの立ち絵と名前が出ていた。
-    //   結び手（Tank）とレイ（Magic）は上の Lines のまま。ミナの3行は共通で、返しの3行だけ本人の口調に置き換える。
-    //   who=6（Companion）＝話者名と縁色は Hud が潜行キャラから引く（MinaPhaseScene と同じ見え方）。
-    //   「そっくり」の行は、H1r で「誰かに似てる」と言いかけたのがあかり本人なので、あかりは自分の言葉を言い切る形にする。
-    private const string AkariFace = "res://char/v3/akari_face.png";
-    private const string KoharuFace = "res://char/v3/koharu_face.png";
     private static readonly (int who, string text, string face)[] AkariLines =
     {
         (1, "……今のは。業務報告では、ありません。", "res://char/mina_face.png"),
@@ -253,8 +244,8 @@ public partial class BossMina : Enemy
         _caster = new MinaPhaseAttacks();
         _caster.Configure(this, GetParent());
         AddChild(_caster);
-        _posts = BossPostSequence.Attach(this, "mina", _caster, _caster.CancelPendingAttacks,
-            () => { _fireT = _fireT2 = 0; }, new[] { .8f, .58f, .36f, .16f, .01f });
+        _posts = BossPostSequence.Attach(this, "mina", _caster.CancelPendingAttacks,
+            OnHpChanged, new[] { .8f, .58f, .36f, .16f, .01f });
     }
 
     protected override void UpdateMovement(double delta)
@@ -270,7 +261,7 @@ public partial class BossMina : Enemy
         }
         // 自機の位置を渡す＝鏡写しの追従（track_gain 1.0／縦も gain_y 0.85 で高さを合わせる）と、反転の判定に使う。
         if (GetTree().GetFirstNodeInGroup("player") is Node2D pl) _mover.SetPlayerPos(pl.GlobalPosition);
-        GlobalPosition = _mover.Step(GlobalPosition, delta, IsDragonForm ? 1.65f : 1f);
+        if (!BarrageHolding) GlobalPosition = _mover.Step(GlobalPosition, delta, IsDragonForm ? 1.65f : 1f);
         if (IsDragonForm) GlobalPosition = KeepDragonInField(GlobalPosition);
         ApplyBossMotion(_mover.VisualOffset, IsDragonForm ? 0 : _mover.Lean,
             IsDragonForm ? !_mover.FacingLeft : _mover.FacingLeft);
@@ -284,6 +275,7 @@ public partial class BossMina : Enemy
         if (pool == null) return;
         // 全画面AOEの予告〜着弾中は通常弾を止める（避け先＝安置へ集中させる／弾の過密回避）。
         if (AoeGateActive) return;
+        if (BarrageHolding) { _fireT = _fireT2 = 0; return; }
         if (_pattern == 4) { FireFinale(pool, delta); return; }
         _fireT += delta;
         switch (_pattern)
@@ -307,7 +299,9 @@ public partial class BossMina : Enemy
     //   当たり芯ドットは全形状共通描画＝大きくしても被弾点は埋もれない。
     private void Ring(BulletPool pool, int k, float spd)
     {
-        _ringOff += Mathf.DegToRad(8f);
+        BodyShotStyle = BossShotStyle.Ring;
+        k = BossDanmaku.RingCount(k, BulletPool.BossHitShape(Job.Tank, HasEvolved));
+        _ringOff = AimAtPlayer().Angle();
         for (int i = 0; i < k; i++)
         {
             float a = _ringOff + Mathf.Tau * i / k;
@@ -317,32 +311,40 @@ public partial class BossMina : Enemy
 
     private void Aimed(BulletPool pool)
     {
+        BodyShotStyle = BossShotStyle.Aimed;
         Vector2 d = AimAtPlayer();
         float baseA = Mathf.Atan2(d.Y, d.X);
-        for (int i = -_aimedWing; i <= _aimedWing; i++)
+        bool dense = GameManager.Instance!.Difficulty >= GameManager.Diff.Hard;
+        int wing = dense ? (GameManager.Instance.IsLunatic ? 8 : 7) : _aimedWing;
+        for (int i = -wing; i <= wing; i++)
         {
-            float a = baseA + i * Mathf.DegToRad(11f);
+            float a = baseA + i * Mathf.DegToRad(dense ? 13f : 11f);
             FireMemoryBullet(pool, GlobalPosition, new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * _aimedSpeed, 4.0f);
         }
     }
 
     private void Flower(BulletPool pool, int petals)
     {
-        _ringOff += Mathf.DegToRad(360f / petals / 2f);
+        BodyShotStyle = BossShotStyle.Ring;
+        petals = BossDanmaku.RingCount(petals, BulletPool.BossHitShape(Job.Tank, HasEvolved));
+        _ringOff = AimAtPlayer().Angle();
         for (int i = 0; i < petals; i++)
         {
             float a = _ringOff + Mathf.Tau * i / petals;
             FireMemoryBullet(pool, GlobalPosition, new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * 64f, 4.0f);
-            FireMemoryBullet(pool, GlobalPosition, new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * 100f, 2.6f);
         }
     }
 
     private void Spiral(BulletPool pool)
     {
-        _ringOff += Mathf.DegToRad(15f);
-        for (int s = 0; s < 3; s++)
+        BodyShotStyle = BossShotStyle.Ring;
+        bool dense = GameManager.Instance!.Difficulty >= GameManager.Diff.Hard;
+        if (dense) _spiralPhase = Mathf.PosMod(_spiralPhase + 0.12f, Mathf.Tau);
+        _ringOff = AimAtPlayer().Angle() + (dense ? _spiralPhase : 0);
+        int arms = dense ? (GameManager.Instance.IsLunatic ? 6 : 5) : 3;
+        for (int s = 0; s < arms; s++)
         {
-            float a = _ringOff + Mathf.Tau * s / 3f;
+            float a = _ringOff + Mathf.Tau * s / arms;
             FireMemoryBullet(pool, GlobalPosition, new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * _spiralSpeed, 2.6f);
         }
     }
@@ -376,7 +378,7 @@ public partial class BossMina : Enemy
 
     public override void Purify()
     {
-        if (_posts != null && _posts.BombHit()) return;
+        if (_posts != null && _posts.Active) return;
         base.Purify();
     }
 
@@ -500,7 +502,7 @@ public partial class BossMina : Enemy
             if (!GetHud()!.CinematicMode) CompletePhaseTransition();
             return;
         }
-        if (!IsPurified && !_seq && !_memoryPending && _posts.TryStart()) return;
+        if (!IsPurified && !_seq && !_memoryPending) _posts.UpdateDamage();
         if (!IsPurified && !_seq && !Hud.BubblePaused && PhasePending
             && (!_memoryPending || _pattern < 2))
         {

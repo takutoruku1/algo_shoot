@@ -87,6 +87,7 @@ public partial class OverheadCast : Node2D
     public override void _Draw()
     {
         if (!IsInstanceValid(_source) || _source.IsPurified) return;
+        if (!_released && !GameManager.ShowAttackTelegraphs) return;
         float charge = Mathf.Clamp(_time / Windup, 0f, 1f);
         float fade = _released ? Mathf.Clamp(1f - (_time - Windup) / Afterglow, 0f, 1f) : 1f;
         var origin = ToLocal(_source.ShotCenter);

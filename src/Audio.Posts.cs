@@ -8,7 +8,6 @@ public partial class Audio
     private int _postBus, _postDepthTarget;
     private float _postDepth;
     public int PostMusicDepth => _postDepthTarget;
-    public bool PostMusicActive => _postTheme != null;
 
     public void StartPostMusic(string id, int depth, float fade = 1f)
     {

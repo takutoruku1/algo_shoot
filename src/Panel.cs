@@ -155,6 +155,7 @@ public partial class Panel : Area2D
 
     private int InkCost(Bullet bullet)
     {
+        if (_owner is MidEnemy) return Mathf.Max(1, bullet.Damage);
         int cost = 1 + Mathf.Max(0, bullet.Damage - 1) / 2;
         if (!_owner.HasHpBar) return cost;
         // Keep charge tiers stronger without letting a high-power projectile erase a boss panel.
@@ -167,7 +168,7 @@ public partial class Panel : Area2D
 
     private void OnAreaEntered(Area2D area)
     {
-        if (_dead || Invulnerable) return; // 不可侵中は弾も受けない（消しもしない＝素通し）
+        if (_dead || Invulnerable || Hud.BubblePaused) return;
         if (area is Bullet b && !b.IsEnemy && b.Active)
         {
             if (!b.RegisterChargeHit(this)) return;
@@ -196,7 +197,12 @@ public partial class Panel : Area2D
     // やさしさの波紋で剥がす（MVPでは即砕く）。
     public void WeakenByRipple()
     {
-        if (_dead) return;
+        if (_dead || Invulnerable) return;
+        if (_owner is MidEnemy)
+        {
+            Ink = Mathf.Max(0, Ink - 6);
+            if (Ink > 0) { _hitFlashT = HitFlashDur; QueueRedraw(); return; }
+        }
         Shatter();
     }
 
@@ -251,7 +257,7 @@ public partial class Panel : Area2D
         if (Ink <= 0) return;
         float halfH = DisplayHeight * _displayScale * 0.5f;
         // High durability must not stretch the indicator across neighboring panels.
-        if (_maxInk > 4)
+        if (_owner is MidEnemy || _maxInk > 4)
         {
             float width = 12f * _displayScale;
             var track = new Rect2(-width * 0.5f, -halfH - 3f, width, 1.4f);

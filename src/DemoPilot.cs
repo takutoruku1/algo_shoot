@@ -19,6 +19,7 @@ public partial class DemoPilot : Node
                 case "--qa": qa = true; break;
                 case "--normal": difficulty = GameManager.Diff.Normal; break;
                 case "--hard": difficulty = GameManager.Diff.Hard; break;
+                case "--lunatic": difficulty = GameManager.Diff.Lunatic; break;
                 case "--easy": difficulty = GameManager.Diff.Easy; break;
                 case "--seconds":
                     if (i + 1 < args.Length && double.TryParse(args[i + 1], out var seconds)) _seconds = seconds;

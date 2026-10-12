@@ -12,7 +12,6 @@ public partial class BossKoharu : Enemy
     public bool Finished { get; private set; }
 
     private readonly BossMover _mover = new BossMover();
-    private const float RoamSpeed = 38f;
 
     private double _fireT;
     private double _fireT2;   // フィナーレ用の第2タイマー（2スペル同時撃ち）
@@ -20,6 +19,7 @@ public partial class BossKoharu : Enemy
     private bool _memoryPending;
     private bool _memoryPlayed;
     private float _ringOff;
+    private float _spiralPhase;
     private int _pattern;
     private int _beatsFired;
     private const int PatternCount = 4;
@@ -32,13 +32,11 @@ public partial class BossKoharu : Enemy
     // こはるの顔。学校の明るい顔＝koharu_face／蒼白＝koharu_face_pale／配信画面の光を浴びた＝koharu_face_lit。
     // 泣き顔差分は無く、蒼白が絶望を担う（仮台本 07 の但し書き）。
     private const string KFace = "res://char/v3/koharu_face.png";
-    private const string KPale = "res://char/v3/koharu_face_pale.png";
-    private const string MWorried = "res://char/mina_worried.png";
 
     // 予測攻撃キャスター（通常テレグラフ。「お残し禁止」中は Suppressed で一時停止する）。
     private AreaSpellCaster _caster = null!;
     private BossPostSequence _posts = null!;
-    public bool PostSequenceActive => _posts != null && (_posts.Active || _posts.Pending);
+    public bool PostSequenceActive => _posts != null && _posts.Active;
 
     // ── INI 外出しのバランス値（config/boss_stats.ini [koharu]。読めなければ現行既定値）──
     private double _ringInterval = 1.0, _fanInterval = 1.1, _aimedInterval = 0.7, _spiralInterval = 0.085;
@@ -89,6 +87,7 @@ public partial class BossKoharu : Enemy
     private bool _gotoFired;      // 発火ワンショット
     private int _gotoPhase;       // 0=なし / 1=宣告→第一十字待ち / 2=第二十字待ち / 3=着弾待ち（ゲート解除待ち）
     private double _gotoT;
+    private int _gotoWave;
     private Vector2 _gotoCenter;  // 第一十字の中心（宣告時でなく“出現時”の自機位置＝予兆と実位置のズレを作らない）
     private float _gotoHp = 0.26f;              // INI: goto_hp（第4スペル切替26%と同じ被弾＝終盤入りの合図。進行中は切替宣言を保留する）
     private const double GotoFirstDelay = 0.7;  // 宣告→第一十字の溜め（通常テレグラフの _fireDelay と同格）
@@ -282,13 +281,7 @@ public partial class BossKoharu : Enemy
         _caster = new AreaSpellCaster();
         _caster.Configure("koharu", GetParent());
         AddChild(_caster);
-        _posts = BossPostSequence.Attach(this, "koharu", _caster, _caster.CancelPendingAttacks, () =>
-        {
-            _fireT = _fireT2 = 0;
-            if (_posts.Count % 2 == 0) RallyShield();
-            ApplySpell();
-            OnHpChanged();
-        });
+        _posts = BossPostSequence.Attach(this, "koharu", _caster.CancelPendingAttacks, OnHpChanged);
 
         // 部品の演出層（char/v3/fx/koharu/*.png）を本体の子として1個ぶら下げる。当たり判定は持たない。
         // 引数は待機・攻撃の本体画像の幅（720px 基準）＝実測の基準点を中心基準へ読み替えるのに要る。
@@ -299,7 +292,7 @@ public partial class BossKoharu : Enemy
     {
         // 自機の位置を渡す＝自機狙いの追従（x と y の両方に寄る）と、反転の判定（40px 以上・0.6秒）に使う。
         if (GetTree().GetFirstNodeInGroup("player") is Node2D pl) _mover.SetPlayerPos(pl.GlobalPosition);
-        GlobalPosition = _mover.Step(GlobalPosition, delta, IsForm2 ? 1.65f : 1f);
+        if (!BarrageHolding) GlobalPosition = _mover.Step(GlobalPosition, delta, IsForm2 ? 1.65f : 1f);
         ApplyBossMotion(_mover.VisualOffset, _mover.Lean, IsForm2 ? !_mover.FacingLeft : _mover.FacingLeft);
         FxLayer.Instance?.EmitBossAura(FxLayer.BossAura.Koharu, GlobalPosition, (float)delta, 32f);
         TickMeal(delta);
@@ -315,6 +308,7 @@ public partial class BossKoharu : Enemy
         // 「お残し禁止」「五徳の十字火」進行中は通常弾を止める（食べる/避けるに集中させる。レイの安置リレーと同じ流儀）。
         if (_mealPhase != 0 || _gotoPhase != 0) return;
         if (TickForm2Technique(delta, _mover, _caster!)) return;
+        if (BarrageHolding) { _fireT = _fireT2 = 0; return; }
         if (_finale) { FireFinale(pool, delta); return; }
         _fireT += delta;
         switch (_pattern)
@@ -339,7 +333,9 @@ public partial class BossKoharu : Enemy
     //   当たり芯ドットは全形状共通描画＝大きくしても被弾点は埋もれない。
     private void Ring(BulletPool pool, int k, float spd)
     {
-        _ringOff += Mathf.DegToRad(8f);
+        BodyShotStyle = BossShotStyle.Ring;
+        k = BossDanmaku.RingCount(k, BulletPool.BossHitShape(Job.Heal, HasEvolved));
+        _ringOff = AimAtPlayer().Angle();
         for (int i = 0; i < k; i++)
         {
             float a = _ringOff + Mathf.Tau * i / k;
@@ -357,13 +353,15 @@ public partial class BossKoharu : Enemy
     //   DnOdd で必ず奇数＝正面の1本は必ず来る（あかりの扇と同じ直し）。受け止める的も中央に立つ。
     private void FanDown(BulletPool pool)
     {
-        int k = DnOdd(_fanCount);
+        BodyShotStyle = BossShotStyle.Aimed;
+        bool dense = GameManager.Instance!.Difficulty >= GameManager.Diff.Hard;
+        int k = dense ? (GameManager.Instance.IsLunatic ? 15 : 13) : Mathf.Min(7, DnOdd(_fanCount));
         var aim = AimAtPlayer();
         float baseA = Mathf.Atan2(aim.Y, aim.X);
         for (int i = 0; i < k; i++)
         {
             float t = k > 1 ? (float)i / (k - 1) - 0.5f : 0f;
-            float a = baseA + t * Mathf.DegToRad(78f);
+            float a = baseA + t * Mathf.DegToRad(dense ? (GameManager.Instance.IsLunatic ? 210f : 180f) : 78f);
             FireBullet(pool, GlobalPosition, new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * EnemyBulletSpeed, 3.6f);
         }
     }
@@ -498,6 +496,25 @@ public partial class BossKoharu : Enemy
         if (_gotoPhase == 0) return;
         _gotoT += delta;
         float wm = _caster?.WarnMul() ?? 1f;
+        if (GameManager.Instance!.Difficulty != GameManager.Diff.Easy)
+        {
+            foreach (var node in GetTree().GetNodesInGroup("aoe"))
+                if (!node.IsQueuedForDeletion()) return;
+            if (_gotoT < 0.2) return;
+            if (_gotoWave < 4)
+            {
+                _gotoCenter = ((Player)GetTree().GetFirstNodeInGroup("player")).GlobalPosition;
+                if (_gotoWave % 2 == 0) SpawnGotoAxisCross(1.2 * wm);
+                else SpawnGotoDiagCross(1.2 * wm);
+                _gotoWave++;
+                _gotoT = 0;
+                return;
+            }
+            _gotoPhase = 0;
+            if (_caster != null && _mealPhase == 0) _caster.Suppressed = false;
+            OnHpChanged();
+            return;
+        }
         switch (_gotoPhase)
         {
             case 1: // 宣告 → 第一十字（“出現時”の自機の現在地に置く）
@@ -558,21 +575,28 @@ public partial class BossKoharu : Enemy
 
     private void Aimed(BulletPool pool)
     {
+        BodyShotStyle = BossShotStyle.Aimed;
         Vector2 d = AimAtPlayer();
         float baseA = Mathf.Atan2(d.Y, d.X);
-        for (int i = -_aimedWing; i <= _aimedWing; i++)
+        bool dense = GameManager.Instance!.Difficulty >= GameManager.Diff.Hard;
+        int wing = dense ? (GameManager.Instance.IsLunatic ? 7 : 6) : _aimedWing;
+        for (int i = -wing; i <= wing; i++)
         {
-            float a = baseA + i * Mathf.DegToRad(13f);
+            float a = baseA + i * Mathf.DegToRad(dense ? 15f : 13f);
             FireBullet(pool, GlobalPosition, new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * _aimedSpeed, 4.0f);
         }
     }
 
     private void Spiral(BulletPool pool)
     {
-        _ringOff += Mathf.DegToRad(12f);
-        for (int s = 0; s < 2; s++)
+        BodyShotStyle = BossShotStyle.Ring;
+        bool dense = GameManager.Instance!.Difficulty >= GameManager.Diff.Hard;
+        if (dense) _spiralPhase = Mathf.PosMod(_spiralPhase + 0.14f, Mathf.Tau);
+        _ringOff = AimAtPlayer().Angle() + (dense ? _spiralPhase : 0);
+        int arms = dense ? (GameManager.Instance.IsLunatic ? 6 : 4) : 2;
+        for (int s = 0; s < arms; s++)
         {
-            float a = _ringOff + Mathf.Pi * s;
+            float a = _ringOff + Mathf.Tau * s / arms;
             FireBullet(pool, GlobalPosition, new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * _spiralSpeed, 2.6f);
         }
     }
@@ -675,7 +699,7 @@ public partial class BossKoharu : Enemy
 
     public override void Purify()
     {
-        if (_posts != null && _posts.BombHit()) return;
+        if (_posts != null && _posts.Active) return;
         base.Purify();
     }
 
@@ -765,7 +789,7 @@ public partial class BossKoharu : Enemy
                 () => KoharuStoryFilm.Play(GetHud()!, GetParent(), aftermath: false, completed: ResumeBattle));
             return;
         }
-        if (!_seq && !_memoryPending && _mealPhase == 0 && _gotoPhase == 0 && _posts.TryStart()) return;
+        if (!_seq && !_memoryPending && _mealPhase == 0 && _gotoPhase == 0) _posts.UpdateDamage();
         // 改心の会話送り：Z/Enter/ui_accept/Pad A に加えマウス左クリックでも送れる共通ヘルパ（マウス対応 P2）。
         bool z = Pad.AdvanceHeld();
         bool zEdge = z && !_zHeld;

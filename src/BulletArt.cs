@@ -4,27 +4,39 @@ using System.Collections.Generic;
 // BulletArt : 自機弾・敵弾のテクスチャ置き場（読み込みキャッシュ）。
 //
 // こはるの弾は推し活グッズ、あかりの弾は仕事の書類で飛んでくる。どちらも「その人が何に
-// しがみついているか」を弾そのもので言うための絵で、当たり判定・弾数・弾速には一切関与しない
-// （見た目だけ。判定は Bullet の円のまま）。
+// しがみついているか」を弾そのもので言うための絵。敵弾の判定は画像の不透明な輪郭に合わせる。
 //
 // ・敵弾素材は char/v3/bullets/*.png（透過PNG・アニメ塗り）。
-//   ゲーム内では Bullet.DrawSprite が「絵の最長辺＝当たり直径×1.35」に縮めて描くので、
-//   縦長（ペンライト・クリップ）でも横長（チケット・封筒）でも判定との食い違いが同じに収まる。
 // ・ResourceLoader は1回だけ走らせて static に持つ（弾は毎フレーム大量に出るのでロードは禁物）。
 // ・敵弾素材が欠けている（.import 未生成など）場合は null を返し、呼び出し側は従来の弾形へ落ちる
 //   ＝絵が無くてもゲームは成立する（生成前・生成失敗でも弾幕は壊れない）。
 public static class BulletArt
 {
-    public sealed record PlayerVisual(Texture2D Texture, Rect2 Region, Vector2 Pivot, Color Accent);
-    private static readonly Dictionary<Job, PlayerVisual> _playerShots = new();
-    private static readonly Dictionary<Job, Texture2D> _playerMarks = new();
-
-    public static Texture2D PlayerMark(Job job)
+    public sealed record PlayerVisual(Texture2D Texture, Rect2 Region, Vector2 Pivot, Color Accent)
     {
-        if (_playerMarks.TryGetValue(job, out var mark)) return mark;
-        string id = Jobs.Get(job).CharacterId;
-        return _playerMarks[job] = GD.Load<Texture2D>($"res://char/player/{id}/{id}_core_v1.png");
+        public Texture2D Cropped { get; } = new AtlasTexture { Atlas = Texture, Region = Region, FilterClip = true };
     }
+    private static readonly Dictionary<Job, PlayerVisual> _playerShots = new();
+    private static readonly Dictionary<(Job, int), PlayerVisual> _bossPatterns = new();
+
+    internal static PlayerVisual BossPattern(Job job, int pattern)
+    {
+        if (pattern == 0) return PlayerShot(job);
+        if (_bossPatterns.TryGetValue((job, pattern), out var art)) return art;
+        string name = job switch
+        {
+            Job.Melee => pattern == 1 ? "akari_envelope" : "akari_sticky",
+            Job.Heal => pattern == 1 ? "koharu_ticket" : "koharu_star_pin",
+            Job.Magic => pattern == 1 ? "rei_comment" : "rei_film",
+            _ => pattern == 1 ? "mina_unanswered" : "mina_butterfly",
+        };
+        var texture = Get(name)!;
+        using var image = texture.GetImage();
+        var region = image.GetUsedRect();
+        art = new PlayerVisual(texture, region, region.GetCenter(), PlayerColor(job));
+        return _bossPatterns[(job, pattern)] = art;
+    }
+    public static Texture2D PlayerMark(Job job) => LifeEmblem.Texture(Jobs.Get(job).CharacterId);
 
     public static PlayerVisual PlayerShot(Job job)
     {
@@ -115,12 +127,6 @@ public static class BulletArt
     public static Texture2D? KoharuTicket   => Get("koharu_ticket");   // チケットの半券（期待）
     public static Texture2D? KoharuPenlight => Get("koharu_penlight"); // 消灯したペンライト（我に返る）
     public static Texture2D? KoharuUchiwa   => Get("koharu_uchiwa");   // うちわ（溢れるグッズ）
-
-    // ── あかり（あふれるわたし）＝仕事の書類 ──
-    // 送別会の夜に三秒で取り消した一通。危険な弾ほど赤い付箋側＝彩度が上がる。
-    public static Texture2D? AkariSticky   => Get("akari_sticky");   // 赤い付箋（自機を向く＝こっち見て）
     public static Texture2D? AkariEnvelope => Get("akari_envelope"); // 封筒（未送信の一通）
-    public static Texture2D? AkariClip     => Get("akari_clip");     // クリップ（鎖のように連なる）
     public static Texture2D? AkariDocs     => Get("akari_docs");     // 赤い付箋つきA4書類の束
-    public static Texture2D? AkariStamp    => Get("akari_stamp");    // 承認印（離さない＝追尾）
 }

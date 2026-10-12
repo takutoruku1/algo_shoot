@@ -12,6 +12,8 @@ public partial class BossAnimalTechnique : Node2D
     private Vector2 _origin, _target, _aim, _side;
     private double _time, _warning;
     private int _wave, _count;
+    private bool _dense;
+    internal BossNormalBarrage? Sequence { get; private set; }
     public bool Finished { get; private set; }
     public string SpellName { get; private set; } = "";
     private const int Waves = 3;
@@ -31,8 +33,10 @@ public partial class BossAnimalTechnique : Node2D
         Material = new CanvasItemMaterial { LightMode = CanvasItemMaterial.LightModeEnum.Unshaded };
         _pool = GetNode<BulletPool>("/root/Pool");
         var game = GetNode<GameManager>("/root/Game");
-        _warning = game.Difficulty == GameManager.Diff.Easy ? 1.6 : 1.25;
+        _warning = 1.25;
         _count = game.ScaleBulletsOdd(_id == "rei" ? 11 : 5);
+        _dense = game.Difficulty >= GameManager.Diff.Hard;
+        if (_dense && _id != "rei") _count = game.IsLunatic ? 17 : 15;
         _origin = _boss.ShotCenter;
         _target = GetTree().GetFirstNodeInGroup("player") is Node2D player ? player.GlobalPosition : Field.PlayerStart;
         _aim = _origin.DirectionTo(_target);
@@ -48,6 +52,7 @@ public partial class BossAnimalTechnique : Node2D
         _color = new Color(tint);
         (GetTree().GetFirstNodeInGroup("hud") as Hud)?.AnnounceSpell(speaker, handle, name, _color);
         _boss.SetAnimalWindup(true);
+        if (game.Difficulty != GameManager.Diff.Easy) Sequence = BossNormalBarrage.BeginSignature(_boss);
     }
 
     private IEnumerable<(Vector2 Origin, Vector2 Direction)> Volley(int wave)
@@ -59,7 +64,7 @@ public partial class BossAnimalTechnique : Node2D
                 Vector2 origin = _origin + _side * side * (22 + wave * 4);
                 Vector2 aim = origin.DirectionTo(_target);
                 for (int i = -_count / 2; i <= _count / 2; i++)
-                    yield return (origin, aim.Rotated(Mathf.DegToRad(i * 10f)));
+                    yield return (origin, aim.Rotated(Mathf.DegToRad(i * FanStep(_count, 60, _dense ? 13f : 10f))));
             }
         }
         else if (_id == "rei" && wave != 1)
@@ -69,24 +74,37 @@ public partial class BossAnimalTechnique : Node2D
         }
         else
         {
-            int count = _id == "rei" ? 3 : _count;
+            int count = _id == "rei" ? (_dense ? 7 : 3) : _count;
             Vector2 origin = _origin + (_id == "akari" ? _side * (wave - 1) * 18f : Vector2.Zero);
             float sweep = _id == "akari" ? (wave - 1) * 24f : 0;
             for (int i = -count / 2; i <= count / 2; i++)
-                yield return (origin, _aim.Rotated(Mathf.DegToRad(sweep + i * 7f)));
+                yield return (origin, _aim.Rotated(Mathf.DegToRad(sweep + i * FanStep(count, _id == "rei" ? 60 : 42,
+                    _dense ? (_id == "rei" ? 30f : 13f) : 7f))));
         }
     }
+
+    private static float FanStep(int count, float halfSpan, float lunaticStep)
+        => GameManager.LunaticActive ? lunaticStep : halfSpan / Math.Max(1, count / 2);
 
     public override void _PhysicsProcess(double delta)
     {
         if (Finished) return;
         if (!IsInstanceValid(_boss) || _boss.IsQueuedForDeletion() || _boss.IsPurified || !_boss.IsVisibleInTree()
+            || _boss.Transforming || _boss.GaugeVulnerable || _boss.GaugeReforming
             || _caster.Suppressed || _caster.AoeActive)
         {
             Cancel();
             return;
         }
-        if (Hud.BubblePaused || _boss.GaugeVulnerable || _boss.GaugeReforming) { QueueRedraw(); return; }
+        if (Hud.BubblePaused) { QueueRedraw(); return; }
+        if (Sequence != null)
+        {
+            int wave = Sequence.Wave;
+            Sequence.Tick(GameManager.EnemyDelta(delta));
+            if (Sequence.Wave != wave) _boss.ShowAnimalAttack();
+            if (Sequence.Finished) Cancel();
+            return;
+        }
         _time += GameManager.EnemyDelta(delta);
         if (_wave < Waves && _time >= _warning + _wave * WaveInterval)
         {
@@ -106,6 +124,7 @@ public partial class BossAnimalTechnique : Node2D
     {
         if (Finished) return;
         Finished = true;
+        if (Sequence != null && IsInstanceValid(Sequence)) Sequence.Cancel();
         if (IsInstanceValid(_boss)) _boss.SetAnimalWindup(false);
         Hide();
         QueueFree();
@@ -118,7 +137,7 @@ public partial class BossAnimalTechnique : Node2D
 
     public override void _Draw()
     {
-        if (Finished || Hud.BubblePaused || _wave >= Waves) return;
+        if (Finished || Sequence != null || Hud.BubblePaused || _wave >= Waves || !GameManager.ShowAttackTelegraphs) return;
         var origins = new HashSet<Vector2>();
         for (int wave = _wave; wave < Waves; wave++)
             foreach (var shot in Volley(wave))

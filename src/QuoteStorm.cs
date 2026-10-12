@@ -107,10 +107,6 @@ public partial class QuoteStorm : Node2D
 
     private readonly RandomNumberGenerator _rng = new();
     private Hud? _hud;
-
-    // 全17枚。11 の「貼りつきの上限12枚」は、超えた分が古い引用の上に重なる＝画面上の枚数は増えるが
-    // 位置の抽選帯を狭めて重ねる（消さない＝剥がす枚数は必ず 17 に一致する）。
-    private const int TotalQuotes = 5 + 6 + 6;
     private const int StackCap = 12;
 
     // ピン留めカードの設計位置（プレイ領域＝Field の上部中央）。ガワ（ボスの姿）はまだ出ていないので、

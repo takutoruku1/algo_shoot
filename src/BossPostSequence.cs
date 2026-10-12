@@ -4,38 +4,32 @@ using System;
 public partial class BossPostSequence : Node
 {
     public int Count { get; private set; }
-    public bool Active => _post != null || _draft;
-    public float Floor => Count < _thresholds.Length ? _thresholds[Count] : 0;
-    public bool Pending => Count < _thresholds.Length
-        && _boss.HpRatio <= Mathf.RoundToInt(Floor * _boss.TotalBars * Enemy.BarHp)
-            / (float)(_boss.TotalBars * Enemy.BarHp) + 0.00001f;
+    public bool Active => _draft;
+    public float Floor => _thresholds.Length > 0 && !_finished ? _thresholds[^1] : 0;
+    public bool Pending => Count < _thresholds.Length && _boss.HpRatio <= Threshold(Count) + 0.00001f;
     private Enemy _boss = null!;
-    private Node _caster = null!;
     private BossPostStory _story = null!;
     private BossRealmFx _realm = null!;
     private float[] _thresholds = null!;
-    private Action _suspend = null!, _resume = null!;
+    private Action _suspend = null!, _changed = null!;
     private BossPost? _post;
-    private Vector2 _returnPosition;
-    private bool _monitoring, _draft;
-    private double _grace;
+    private bool _draft, _finished;
 
-    public static BossPostSequence Attach(Enemy boss, string id, Node caster, Action suspend,
-        Action resume, float[]? thresholds = null)
+    public static BossPostSequence Attach(Enemy boss, string id, Action suspend, Action changed, float[]? thresholds = null)
     {
         var sequence = new BossPostSequence
         {
-            Name = "PostSequence", _boss = boss, _caster = caster, _story = BossPostStory.Get(id),
-            _suspend = suspend, _resume = resume,
-            _thresholds = thresholds ?? new[] { .8f, .6f, .4f, .2f, .01f },
+            Name = "PostSequence", _boss = boss, _story = BossPostStory.Get(id),
+            _suspend = suspend, _changed = changed,
+            _thresholds = GameManager.LunaticActive ? Array.Empty<float>()
+                : thresholds ?? new[] { .8f, .6f, .4f, .2f, .01f },
         };
-        // ルナティック（2026-09-26）：投稿の割り込み（ボスが隠れて札を撃たせる読みの間＋最後の下書きの一枚絵 BossDraftScene）は
-        //   出さない＝ボス戦を止めない。しきい値を空にすると Pending／Floor が立たず、HP は素通しで 0 まで削れる
-        //   （StoryFilmQa が同じ止め方をしている）。あかりは別実装（BossAkari._postsBroken）で同じことをする。
-        if (GameManager.LunaticActive) sequence._thresholds = Array.Empty<float>();
         boss.AddChild(sequence);
         return sequence;
     }
+
+    private float Threshold(int index) => Mathf.RoundToInt(_thresholds[index] * _boss.TotalBars * Enemy.BarHp)
+        / (float)(_boss.TotalBars * Enemy.BarHp);
 
     public override void _Ready()
     {
@@ -44,88 +38,69 @@ public partial class BossPostSequence : Node
         ResumeMusic();
     }
 
-    // ボステーマを張り直す。深度＝割った札の数（0 でこもり、5 で開き切る）。
-    //   ルナティックはしきい値を空にして投稿の割り込みごと畳むので Count は永久に 0 のまま
-    //   ＝そのまま渡すとボス戦のあいだ曲が 2400Hz のローパス＋-4.5dB でこもりっぱなしになる
-    //   （こはる／レイ／ミナ戦。2026-09-29 修正）。札の段が存在しない＝開き切った状態で鳴らす。
-    public void ResumeMusic()
-        => Audio.Instance?.StartPostMusic(_story.Id, _thresholds.Length == 0 ? 5 : Count, 0.8f);
+    public void ResumeMusic() => Music(_thresholds.Length == 0 ? 5 : Count, 0.8f);
 
-    public bool BombHit()
+    private void Music(int depth, float fade)
     {
-        if (!Active && !Pending) return false;
-        _post?.BombHit();
-        return true;
+        if (_story.Id == "akari") Audio.Instance?.StartAkariMusic(depth, fade);
+        else Audio.Instance?.StartPostMusic(_story.Id, depth, fade);
     }
 
-    public bool TryStart()
+    public void UpdateDamage()
     {
-        if (!Pending || Active || _boss.IsPurified || Hud.BubblePaused || Pad.UiBlocked(this)) return false;
-        _returnPosition = _boss.GlobalPosition;
-        _monitoring = _boss.Monitoring;
-        _boss.GlobalPosition = new Vector2(Field.Right - 84, 104);
-        _boss.Visible = false;
-        _boss.Monitoring = false;
-        _suspend();
-        _boss.SetBodyContactEnabled(false);
-        _boss.SetPanelsInvulnerable(true);
-        _caster.SetProcess(false);
-        GetNode<BulletPool>("/root/Pool").DespawnAll();
-        foreach (Node hazard in GetTree().GetNodesInGroup("aoe"))
-            if (hazard is AreaStrike) hazard.QueueFree();
-        (GetTree().GetFirstNodeInGroup("hud") as Hud)?.HideSpellCard();
+        if (!Pending || Active || _post is { IsBroken: true } || _boss.IsPurified || Hud.BubblePaused || Pad.UiBlocked(this)) return;
+        EnsurePost();
+        Count++;
+        _post!.Shatter();
+        _changed();
+    }
+
+    private void EnsurePost()
+    {
+        if (_post != null) return;
         _post = new BossPost
         {
             Story = _story, Boss = _boss, Index = Count, Position = _boss.GlobalPosition,
-            Broken = BreakRealm, Completed = CompletePost,
+            Broken = (index, at) =>
+            {
+                _realm.BreakPost(index, at);
+                Music(index + 1, 0.2f);
+            },
+            Completed = CompletePost,
         };
         _boss.GetParent().AddChild(_post);
-        return true;
-    }
-
-    private void BreakRealm(int index, Vector2 at)
-    {
-        _realm.BreakPost(index, at);
-        Audio.Instance?.StartPostMusic(_story.Id, index + 1, 0.2f);
-        if (index == 4) (GetTree().GetFirstNodeInGroup("hud") as Hud)?.HideBossBar();
     }
 
     private void CompletePost()
     {
         _post = null;
-        Count++;
-        GetNode<BulletPool>("/root/Pool").DespawnAll();
-        if (Count == _thresholds.Length)
+        if (Count != _thresholds.Length || _boss.IsPurified) return;
+        _draft = true;
+        _suspend();
+        BossDraftScene.Play((Hud)GetTree().GetFirstNodeInGroup("hud"), _boss.GetParent(), _story, () =>
         {
-            _draft = true;
-            BossDraftScene.Play((Hud)GetTree().GetFirstNodeInGroup("hud"), _boss.GetParent(), _story, () =>
-            {
-                _draft = false;
-                Restore();
-                _boss.DealDirectDamage(Enemy.BarHp * _boss.TotalBars);
-            });
-        }
-        else
-        {
-            Restore();
-            _resume();
-        }
-    }
-
-    private void Restore()
-    {
-        _boss.GlobalPosition = _returnPosition;
-        _boss.Visible = true;
-        _boss.Monitoring = _monitoring;
-        _boss.SetPanelsInvulnerable(false);
-        _grace = 0.9;
-        _caster.SetProcess(true);
+            _draft = false;
+            _finished = true;
+            _boss.DealDirectDamage(Enemy.BarHp * _boss.TotalBars);
+        });
     }
 
     public override void _PhysicsProcess(double delta)
     {
-        if (Active || _grace <= 0 || _boss.IsPurified || Hud.BubblePaused || Pad.UiBlocked(this)) return;
-        _grace -= delta;
-        _boss.SetBodyContactEnabled(_grace <= 0);
+        if (Active || _boss.IsPurified || Hud.BubblePaused || Pad.UiBlocked(this) || Count >= _thresholds.Length) return;
+        if (_post is { IsBroken: true }) return;
+        float start = Count == 0 ? 1 : Threshold(Count - 1);
+        float progress = Mathf.Clamp((start - _boss.HpRatio) / (start - Threshold(Count)), 0, 1);
+        if (_boss.GaugeVulnerable || progress > 0)
+        {
+            EnsurePost();
+            _post!.SetDamageProgress(progress);
+        }
+    }
+
+    public override void _ExitTree()
+    {
+        if (IsInstanceValid(_post)) _post!.QueueFree();
+        if (IsInstanceValid(_realm)) _realm.QueueFree();
     }
 }

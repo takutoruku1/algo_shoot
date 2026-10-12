@@ -54,7 +54,7 @@ public partial class StageZero : Node
     private static readonly Rect2 SpotPurify = global::Hud.PurifyHudRect;
 
     // 自機の練習場での定位置（盤面の穏やかな中央）。
-    private const float CenterX = Field.CenterX, CenterY = 120f;
+    private const float CenterX = Field.CenterX;
 
     // ════════════════════ セリフ（案C T1：2行だけ）════════════════════
     // who: 0=あなた / 1=ミナ / 3=ナレ（Hud.LineKind）。face は char/ に実在確認済み。

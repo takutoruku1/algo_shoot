@@ -1,6 +1,8 @@
 using Godot;
 using System.Collections.Generic;
 
+public enum BossShotStyle { Ring, Aimed }
+
 // BulletPool : Autoload シングルトン (/root/Pool)。
 // _Ready で 512 発を事前生成しプール（非アクティブ）。
 // Spawn でプールから取り出して Activate、Despawn で Deactivate して返却。
@@ -8,6 +10,11 @@ using System.Collections.Generic;
 public partial class BulletPool : Node2D
 {
     private const int PreallocCount = 512;
+    public const float BossRadius = 2.2f;
+    public const float BossChargeRadius = 2.6f;
+    public const float BossLaneGap = Player.HitRadius * 2 + 4f;
+    internal static BulletFootprint BossHitShape(Job job, bool charged) => Bullet.BossFootprint(job,
+        (charged ? BossChargeRadius : BossRadius) * (job == Job.Magic ? 1.5f : 1), charged);
 
     // 非アクティブな弾のスタック（再利用用）
     private readonly Stack<Bullet> _free = new Stack<Bullet>();
@@ -58,16 +65,21 @@ public partial class BulletPool : Node2D
         return b;
     }
 
-    public Bullet SpawnBossShot(Vector2 position, Vector2 direction, Job character, bool charged)
+    public Bullet SpawnBossShot(Vector2 position, Vector2 direction, Job character, bool charged,
+        BossShotStyle style = BossShotStyle.Aimed)
     {
         var job = Jobs.Get(character);
-        float speed = charged ? job.ChargeSpeed : job.ShotSpeed;
-        float radius = charged ? job.ChargeRadius : job.ShotRadius;
+        float speed = character switch
+        {
+            Job.Melee => charged ? 100f : 88f,
+            Job.Heal => charged ? 72f : 60f,
+            Job.Magic => charged ? 72f : 62f,
+            _ => charged ? 100f : 82f,
+        };
+        float radius = (charged ? BossChargeRadius : BossRadius) * (character == Job.Magic ? 1.5f : 1);
         var velocity = direction.Normalized() * speed;
         var bullet = Spawn(position, velocity, true, radius, 1, job.ShotShape,
             homing: job.Mode == GameManager.ShotMode.Homing);
-        // 本体弾は自機の素の性能を共有し、敵弾用の速度倍率を重ねない。
-        bullet.Velocity = velocity;
         if (bullet.Homing) bullet.TurnRateOverride = job.HomingTurnRate;
         if (charged)
         {
@@ -75,9 +87,31 @@ public partial class BulletPool : Node2D
             if (bullet.Homing) bullet.TurnRateOverride = 240;
         }
         if (job.Mode == GameManager.ShotMode.Accel)
-            bullet.MakeAccel(charged ? 240f : 12f, speed, charged ? 0.12f : job.AccelDelay);
-        bullet.UseCharacterProjectile(character);
+        {
+            float mul = GameManager.Instance!.BulletSpeedMul;
+            bullet.MakeAccel(0.6f * mul, speed * mul, 0.25f, charged ? 2.4f : 2.1f);
+        }
+        if (character == Job.Magic) bullet.MakeReiSplit(2);
+        bullet.UseCharacterProjectile(character, style);
         return bullet;
+    }
+
+    internal void SpawnReiFragment(Bullet source, Vector2 direction, int splitsRemaining, float offset, Vector2? target = null)
+    {
+        float radius = source.Radius * (splitsRemaining > 0 ? 2f / 3f : 0.62f);
+        Vector2 destination = source.GlobalPosition + source.Velocity.Normalized().Rotated(Mathf.Pi / 2) * offset;
+        var velocity = direction * source.Velocity.Length() * 0.9f;
+        var fragment = Spawn(source.GlobalPosition, velocity, true, radius, source.Damage, source.Shape);
+        // The parent's velocity already includes difficulty and any graze slowdown.
+        fragment.Velocity = velocity;
+        if (source.Charged) fragment.MakeCharged(Job.Magic);
+        fragment.MakeReiSplit(splitsRemaining);
+        fragment.BossAimTarget = target;
+        fragment.BossBarrageWave = source.BossBarrageWave;
+        fragment.BossBarrageId = source.BossBarrageId;
+        fragment.UseCharacterProjectile(Job.Magic, source.BossStyle);
+        if (source.BossPattern >= 0) fragment.UseBossPatternVisual(Job.Magic, source.BossPattern);
+        fragment.DeployBossFormation(destination, edgeLaunch: true);
     }
 
     // 画面上の全弾を一括で非アクティブ化（リスタート時のクリア用）。

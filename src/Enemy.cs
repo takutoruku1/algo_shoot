@@ -162,7 +162,6 @@ public partial class Enemy : Area2D
     private const double BreakCueDur = 0.45;       // BREAK タメ＋合図
     private const double RecloseLineDur = 1.2;     // RECLOSE セリフ尺
     private const double RespawnGap = 0.15;        // RECLOSE 後パネル一括再生成までの間（弱気セリフ後の空白を詰めてテンポ維持）
-    private const double VulnWarnLead = 1.0;       // 窓終了この秒前から明滅を速める（終了予告）
     // ── 無防備窓の「密着ボーナス」(桜井: 引き撃ちだけが最適にならないよう、近いほど得) ──
     // 本体 GlobalPosition と自機の距離が PointBlankRange 以内なら密着クリティカル。
     // 当たり判定(_bodyShape/本体GlobalPosition/自機ヒット半径)は一切変えない＝ダメージ計算のみ。
@@ -181,7 +180,7 @@ public partial class Enemy : Area2D
     //   ★2026-09-13：定数をやめ、火力3段（#4 火力2倍 / #8 線+1 / #11 連射2倍）の所持数で
     //     180 + 35×n へ伸ばす＝火力に投資するほど1窓で通せる量が増え、「強くなったのに窓の中で
     //     手が空く」を作らない。値の定義元は GameManager.ExposedDamageCap（BodyHitCd は据え置き）。
-    private static int WindowCap => GameManager.Instance?.ExposedDamageCap ?? 180;
+    protected virtual int WindowCap => GameManager.Instance?.ExposedDamageCap ?? 180;
     private int _windowDamage;                      // 現在の無防備窓で本体へ通した累計ダメージ
     private bool _windowCapNotified;               // 「MAX」表示を窓ごとに一度だけ出すワンショット
     // ── 与ダメ数値のポップアップ（2026-09-17 ユーザー指示で非表示）──
@@ -318,12 +317,30 @@ public partial class Enemy : Area2D
 
     public bool IsPurified => _purified;
     private BossDanmaku? _danmaku;
+    protected bool BarrageHolding => _danmaku?.Holding ?? false;
+    internal bool CrossfireActive => _danmaku?.CrossfireActive ?? false;
+    internal bool DodgeWaveActive => _danmaku?.DodgeWaveActive ?? false;
+    protected BossShotStyle BodyShotStyle = BossShotStyle.Aimed;
     private bool _wasLockTarget = false;   // 前フレームのロック対象だったか（照準マーカーの消し忘れ防止。_PhysicsProcess で更新）
     protected bool IsShieldPhase => _phase == BossPhase.Shielded; // 派生ギミックが「今は殴れる時間か」を参照
 
     // 自機がこのボスへ有効打を入れた瞬間のフック（パネルのインク削り＝Panel 側／無防備窓の本体ヒット）。
     // 派生ボスの「攻めているか」駆動ギミック（レイの逃げ腰圧など）が上書きする。基底は何もしない。
     public virtual void OnPlayerDealtDamage() { }
+
+    internal void AnnounceTechnique(string name, double duration = 5.0)
+    {
+        if (BodyShotJob is not Job job) return;
+        var who = Jobs.Get(job).CharacterName;
+        string handle = job switch
+        {
+            Job.Melee => BossHandles.AkariSpell, Job.Heal => BossHandles.KoharuMain,
+            Job.Magic => BossHandles.ReiMain, _ => BossHandles.MinaBattle,
+        };
+        if (this is CameoBoss cameo) { who = cameo.Theme.DisplayName; handle = cameo.Theme.Handle; }
+        (GetTree().GetFirstNodeInGroup("hud") as Hud)?.AnnounceSpell(who, handle, name,
+            Bullet.BossColor(GameManager.Instance!.SelectedJob, BossShotStyle.Aimed), impact: false, duration: duration);
+    }
 
     // 本体に自機弾が刺さった瞬間のフック。fromDir＝弾から本体へ向かう単位ベクトル（＝のけぞる向き）。
     // 派生ボスが BossMover.OnHit(fromDir) へ流して「小さくのけぞって戻る」一拍を出す。基底は何もしない。
@@ -541,15 +558,18 @@ public partial class Enemy : Area2D
         : GlobalPosition;
 
     // 置き弾・落下弾はキャラクターの本体射撃へ変換せず、元のスペル素材と軌道を保つ。
-    protected Bullet FireBullet(BulletPool pool, Vector2 pos, Vector2 vel, float radius = 3.4f, int dmg = 1,
+    protected virtual Bullet FireBullet(BulletPool pool, Vector2 pos, Vector2 vel, float radius = 3.4f, int dmg = 1,
         bool fromCenter = true)
     {
         bool characterShot = fromCenter && BodyShotJob.HasValue;
         var b = characterShot
-            ? pool.SpawnBossShot(ShotCenter, vel, BodyShotJob!.Value, HasEvolved)
+            ? pool.SpawnBossShot(ShotCenter, vel, BodyShotJob!.Value, HasEvolved, BodyShotStyle)
             : pool.Spawn(fromCenter ? ShotCenter : pos, vel, isEnemy: true, radius, dmg,
                 CurShape, CurTintSet ? CurTint : (Color?)null);
         if (fromCenter) b.MakeLeadIn(pos);
+        if (characterShot && GetTree().GetFirstNodeInGroup("player") is Node2D player
+            && vel.Normalized().Dot(pos.DirectionTo(player.GlobalPosition)) > 0.99999f)
+            b.BossAimTarget = player.GlobalPosition;
         if (!characterShot && CurSprite != null) b.SetSprite(CurSprite, CurSpriteRot);
         // 改心後の遅延発射は表示・衝突させずに返す（撃破の瞬間に消した弾が後追いで湧かない）。
         //   BulletPool.Spawn の BubblePaused と同じ作法＝呼び元が b を触っても落ちない。
@@ -734,8 +754,10 @@ public partial class Enemy : Area2D
         if (!_form2) return false;
         if (AnimalTechniqueActive) return true;
         _animalTechniqueCooldown -= delta;
-        if (_animalTechniqueCooldown > 0 || caster.AoeActive || caster.EdgeAttackActive || caster.Suppressed) return false;
-        caster.CancelPendingAttacks();
+        if (CrossfireActive || DodgeWaveActive) return false;
+        if (_animalTechniqueCooldown > 0 || caster.AttackPending) return false;
+        foreach (var node in GetTree().GetNodesInGroup("aoe"))
+            if (!node.IsQueuedForDeletion()) return false;
         mover.DeclareAttack(BossMover.Attack.Spell);
         _animalTechnique = BossAnimalTechnique.Begin(this, AnimalId, caster);
         _animalTechniqueCooldown = Di(8.0);
@@ -1816,7 +1838,9 @@ public partial class Enemy : Area2D
     {
         float pulse = 0.5f + 0.5f * Mathf.Sin((float)Time.GetTicksMsec() * 0.0034f);
         float r = Mathf.Max(BodyHalfH, BodyRadius) + 9f + pulse;
-        var color = new Color(BulletArt.PlayerColor(job), 0.65f + pulse * 0.2f);
+        string character = Jobs.Get(job).CharacterId;
+        var lift = TintLift.Of(_worldTint, TintLift.PlayerCore);
+        var color = new Color(LifeEmblem.GemColor(character) * lift, 0.65f + pulse * 0.2f);
         for (int i = 0; i < 4; i++)
         {
             float angle = Mathf.Pi / 2 * i;
@@ -1842,15 +1866,12 @@ public partial class Enemy : Area2D
             }
         }
         var art = BulletArt.PlayerMark(job);
-        float size = job == Job.Magic ? 13f : 12f;
-        var markPosition = new Vector2(-size / 2, -r - size - 3);
-        if (HasHpBar)
-        {
-            DrawSetTransform(Vector2.Zero);
-            markPosition = new Vector2(-GaugeWidth / 2 - size - 8f, GaugeTop - 4f - size / 2);
-        }
-        DrawTextureRect(art, new Rect2(markPosition, new Vector2(size, size)), false,
-            new Color(Colors.White, 0.88f));
+        var markCenter = HasHpBar
+            ? new Vector2(-GaugeWidth / 2 - 14f, GaugeTop - 4f)
+            : new Vector2(0, -r - 9f);
+        var markRect = LifeEmblem.PlayerRect(character, 2.2f);
+        markRect.Position += markCenter;
+        DrawTextureRect(art, markRect, false, lift);
         if (panel != null)
         {
             DrawSetTransform(panel.Position);

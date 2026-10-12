@@ -26,9 +26,6 @@ public static class StageTutorial
     public const string SkillDodgeSeenKey = "once_skill_dodge";
     public const string SkillChargeSeenKey = "once_skill_charge";
     public const string SkillCharge2SeenKey = "once_skill_charge2";
-
-    private const string MFace = "res://char/mina_face.png";
-    private const string MWorried = "res://char/mina_worried.png";
     private static readonly (int who, string text, string face)[] None = System.Array.Empty<(int, string, string)>();
 
     private static readonly (int who, string text, string face)[] Route =

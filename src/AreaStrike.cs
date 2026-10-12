@@ -224,6 +224,7 @@ public partial class AreaStrike : Node2D, IAoeHazard
 
     public override void _Draw()
     {
+        if (!_struck && !GameManager.ShowAttackTelegraphs) return;
         float progress = Mathf.Clamp((float)(_t / _warn), 0f, 1f);
         float fade = _struck ? 1f - Mathf.Clamp((float)((_t - _warn) / StrikeFlash), 0f, 1f) : 1f;
         float snap = Mathf.SmoothStep(0f, 1f, Mathf.Clamp((progress - 0.82f) / 0.18f, 0f, 1f));

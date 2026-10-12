@@ -90,25 +90,12 @@ public static class Pad
     //   Equip   … C(KB) / Y(パッド＝△・装備/サブ操作)
     //   Bomb    … X(KB) / X(パッド＝□)
     public static string CancelToken => ShowKeyboard ? "X" : Face(JoyButton.B);
-    public static string EquipToken  => ShowKeyboard ? "C" : Face(JoyButton.Y);
-    public static string BombToken   => ShowKeyboard ? "X" : Face(JoyButton.X);
-    // Flip … F(KB) / RB(パッド＝R1)。射撃方向を右⇔左にトグルする向き反転ボタン。
-    public static string FlipToken   => ShowKeyboard ? "F" : Face(JoyButton.RightShoulder);
 
     // ───────── 永続化 ─────────
     // 旧キー padstyle(0=Xbox/1=PS) と新キー inputdisplay(0=KB/1=PS/2=Xbox)。
     // ★表記の Xbox 一本化（2026-09-13）で、どちらも「表記スタイル」としては意味を失った。
     //   読み込みで落ちないよう受け付けるだけにして、値は無視する（＝壊れない・書き戻しもしない）。
     public const string DisplayKey = "inputdisplay";    // 新：操作表示モード(0=KB/1=PS/2=Xbox)
-
-    // 操作表示モード ⇄ inputdisplay の整数の対応。
-    public static int DisplayToInt(DisplayMode m) => m switch
-    {
-        DisplayMode.Keyboard       => 0,
-        DisplayMode.PadPlayStation => 1,
-        DisplayMode.PadXbox        => 2,
-        _                          => -1, // Auto は保存しない（未選択）
-    };
     public static DisplayMode IntToDisplay(int i) => i switch
     {
         0 => DisplayMode.Keyboard,

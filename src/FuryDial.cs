@@ -66,13 +66,11 @@ public partial class FuryDial : Node2D
     private const float LineH = 9.5f;     // 行送り
     private const int LabelSize = 6;      // 「下書き」見出し
     private const int CalmLines = 3;      // 入力欄に収まる行数
-    private const int RageLines = 6;      // 激情で溢れる最大行数（4〜6 行目は入力欄の下へはみ出す）
     private const int MaxChars = 160;     // バッファ上限（激情の度合いで 48→160。超えた分は先頭から落とす＝入力欄がスクロールした体）
 
     // 色（既存トークン／既存部品の色のみ。新色を作らない）。
     private static readonly Color Ink = new Color(0.86f, 0.88f, 0.96f);         // 本文（第3稿の文字盤の線と同じ）
     private static readonly Color Frame = new Color(0.62f, 0.70f, 0.92f);       // 縁（QuoteStorm のピン留めカード）
-    private static readonly Color Paper = new Color(0.055f, 0.065f, 0.105f);    // 地（同上）
     private static readonly Color CaretCol = UiKit.Info;                        // カーソル（OpeningFilm の下書き画面）
     private static readonly Color Rage = UiKit.Burn;                            // 激情＝炎上赤
     private static readonly Color Numb = new Color("6f8ea6");                   // 無感情＝色の抜けた鈍青

@@ -1,7 +1,7 @@
 using Godot;
 
 // Spawner : ステージ本編の連続スポナー。
-// 右端から敵を一定間隔で湧かせ、経過時間とともに密度を上げる（押し引きの圧）。
+// 出現位置を予告し、単体と編隊を交えて経過時間とともに密度を上げる。
 // 浄化ゲージが目標到達(StageCleared)で自動停止。会話中(BubblePaused)は湧かせない。
 // 過密防止に同時出現数の上限を設ける。
 public partial class Spawner : Node
@@ -14,6 +14,7 @@ public partial class Spawner : Node
     public int SpawnLimit;
     public int SpawnedCount { get; private set; }
     private int _characterIndex;
+    private int _formationIndex;
 
     // 道中の“波ごとの圧”を変える起点。0=ふつうに緩く立ち上がる、1=最初から最大密度。
     // 道中を三部構成にして「後半ほど詰めてくる」緩急を作るため、後続の波で上げて渡す（§3 緩急）。
@@ -27,12 +28,15 @@ public partial class Spawner : Node
     //   Default の絵（アンチくん／うつむきさん）で出てしまう＝ミナの内側に他の面の敵が混ざる。
     //   true なら残響3種だけを順に繰り返す（作者指示「敵は残響のまま・新しい敵種は作らない」）。
     public bool CharactersOnly;
+    public float AttackDensity = 1f;
+    public float Intensity => Mathf.Clamp(StartIntensity + (float)_t / RampDur * 0.3f, 0f, 1f);
+    private double _attackCooldown;
 
     private const float SpawnX = Field.Right + 14f;   // 盤面の右外
-    private const float RampDur = 28f;    // この秒数で最大密度に（道中を“密度の変化”で見せる：60→28で立ち上がりを早く）
+    private const float RampDur = 60f;
     private const float IntervalStart = 2.0f;
-    private const float IntervalEnd = 0.8f;
-    private const int MaxAliveFallback = 12;
+    private const float IntervalEnd = 1.2f;
+    private const int MaxAliveFallback = 5;
 
     // ── 第4種：回り込みザコ「引用リプ」（FlankAim）の調整値（C-1）──
     // 右から出現→上下端を走行→盤面のやや左(x≈FlankCampX)に着座→右向き低速単発。
@@ -69,47 +73,98 @@ public partial class Spawner : Node
 
     public void Begin()
     {
+        DropPending();
         Active = true;
         SpawnedCount = 0;
         _characterIndex = 0;
+        _formationIndex = 0;
         // 後半の波は StartIntensity ぶんランプを前倒し＝最初からやや詰まった圧で始める。
         float si = Mathf.Clamp(StartIntensity, 0f, 1f);
-        _t = si * RampDur;
+        _t = 0;
+        _attackCooldown = 0;
         _cd = Mathf.Lerp(0.8f, 0.4f, si);
     }
 
-    public void Stop() { Active = false; DropPendingLeft(); }
+    public void Stop() { Active = false; DropPending(); }
 
     public override void _Process(double delta)
     {
-        if (Hud.BubblePaused) return; // 会話中は襲ってこない＝湧かせない（予告済みの左湧きもここで足踏みする）
-
-        // 予告済みの左湧きは Active が落ちた後（SpawnLimit 到達＝波の打ち止め）でも実体化させる。
-        // 予告を出したのに何も来ない、を作らない。Stop()/StageCleared の経路だけは DropPendingLeft で破棄する。
-        TickPendingLeft(delta);
-        if (!Active) return;
+        if (Hud.BubblePaused) return;
+        if (Pad.UiBlocked(this)) return;
+        _attackCooldown -= GameManager.EnemyDelta(delta);
 
         var game = GetNodeOrNull<GameManager>("/root/Game");
         if (game != null && game.StageCleared && !IgnoreStageCleared) { Stop(); return; }
+        // Reaching the reservation limit stops new waves, not their already-visible warnings.
+        TickPending(delta);
+        if (!Active) return;
 
         _t += delta;
         _cd -= delta;
         if (_cd > 0) return;
 
-        // 過密なら少し待つ（上限は難易度別＝Easy9 / Normal12 / Hard15 / Lunatic18）
         int maxAlive = game?.MaxAliveEnemies ?? MaxAliveFallback;
-        if (GetTree().GetNodesInGroup("enemies").Count >= maxAlive) { _cd = 0.3; return; }
+        int slots = maxAlive - GetTree().GetNodesInGroup("enemies").Count - _pending.Count;
+        if (SpawnLimit > 0) slots = Mathf.Min(slots, SpawnLimit - SpawnedCount - _pending.Count);
+        if (slots <= 0) { _cd = 0.3; return; }
 
-        SpawnOne(game);
+        bool pair = slots >= 2 && WantsPair(game);
+        if (pair) SpawnPair();
+        else SpawnOne(game);
+        _formationIndex++;
+        _cd = Mathf.Lerp(IntervalStart, IntervalEnd, Intensity) * (pair ? 1.25 : 1);
+    }
 
-        float ramp = Mathf.Clamp((float)_t / RampDur, 0f, 1f);
-        // 難易度別の間隔倍率（Easy1.04 / Normal0.8 / Hard0.62 / Lunatic0.50）。基準の 2.0→0.8 と
-        // 最大密度到達 28 秒は据え置きで、難しいほど同じランプを詰めて湧かす（2026-09-06）。
-        float interval = Mathf.Lerp(IntervalStart, IntervalEnd, ramp) * (game?.SpawnIntervalMul ?? 0.8f);
-        // 前のめり密度：自機が右へ寄る（攻める）ほど倍率が高い＝間隔を縮めて多く湧かす（除算）。
-        // 同時上限は上の maxAlive で難易度別に頭打ち（圧殺防止）。GameManager.PlayerNormX は各 Root の TickProgress が毎フレーム更新。
-        float spawnMul = game != null ? GameManager.SpawnRateMul(game.PlayerNormX) : 1f;
-        _cd = interval * _rng.RandfRange(0.8f, 1.2f) / spawnMul;
+    private bool WantsPair(GameManager? game) => Theme != StageTheme.Default && (game?.Difficulty switch
+    {
+        GameManager.Diff.Hard => Intensity < 0.55f ? _formationIndex % 2 == 1 : _formationIndex % 3 != 0,
+        GameManager.Diff.Lunatic => Intensity >= 0.55f || _formationIndex % 3 != 0,
+        GameManager.Diff.Normal => Intensity >= 0.3f && _formationIndex % 4 == 3,
+        _ => false,
+    });
+
+    private void SpawnPair()
+    {
+        var characters = EnemyTable.CharactersFor(Theme);
+        var spec = characters[_characterIndex++ % characters.Count];
+        float center = _rng.RandfRange(96f, 120f);
+        float campX = _rng.RandfRange(Field.Right - 96f, Field.Right - 64f);
+        for (int i = 0; i < 2; i++)
+        {
+            // Short three-enemy waves must still introduce every character before repeating a motif.
+            if (i > 0 && _characterIndex < characters.Count) spec = characters[_characterIndex++];
+            float y = center + (i == 0 ? -36f : 36f);
+            var enemy = new MidEnemy { RoadDirector = this };
+            enemy.Configure(spec);
+            enemy.SetEntry(new Vector2(campX, y));
+            QueueSpawn(enemy, new Vector2(SpawnX, y), Edge.Right);
+        }
+    }
+
+    internal bool TryBeginAttack(MidEnemy enemy)
+    {
+        if (_attackCooldown > 0) return false;
+        var game = GetNode<GameManager>("/root/Game");
+        int limit = game.Difficulty >= GameManager.Diff.Hard ? 2 : 1;
+        int active = 0;
+        foreach (Node node in GetTree().GetNodesInGroup("enemies"))
+            if (node is MidEnemy other && other != enemy && !other.IsPurified && other.SalvoActive && ++active >= limit)
+                return false;
+        int budget = game.Difficulty switch
+        {
+            GameManager.Diff.Easy => 18, GameManager.Diff.Hard => 104,
+            GameManager.Diff.Lunatic => 128, _ => 60,
+        };
+        // A volley stays whole; wait for the previous pattern to leave instead of clipping its bullets.
+        if (GetTree().GetNodesInGroup("enemy_bullets").Count >= budget * Mathf.Lerp(0.7f, 1f, Intensity) * AttackDensity) return false;
+        _attackCooldown = (game.Difficulty switch
+        {
+            GameManager.Diff.Hard => Mathf.Lerp(0.42f, 0.30f, Intensity),
+            GameManager.Diff.Lunatic => Mathf.Lerp(0.34f, 0.24f, Intensity),
+            GameManager.Diff.Normal => Mathf.Lerp(0.65f, 0.48f, Intensity),
+            _ => Mathf.Lerp(1.5f, 0.95f, Intensity) * game.DanmakuIntervalMul,
+        }) / AttackDensity;
+        return true;
     }
 
     private void SpawnOne(GameManager? game)
@@ -119,6 +174,7 @@ public partial class Spawner : Node
 
         Enemy e;
         Vector2 pos;
+        var edge = Edge.Right;
         if (Theme == StageTheme.Default)
         {
             // 既存挙動はそのまま（チュートリアル等の見た目・挙動を一切変えない）＝右から左進。
@@ -127,10 +183,10 @@ public partial class Spawner : Node
         }
         else
         {
-            var me = new MidEnemy();
+            var me = new MidEnemy { RoadDirector = this };
             var characters = EnemyTable.CharactersFor(Theme);
             bool introducing = _characterIndex < characters.Count;
-            float ramp = Mathf.Clamp((float)_t / RampDur, 0f, 1f);
+            float ramp = Intensity;
             // 第4種：回り込み「引用リプ」。ランプ後半のみ FlankRate で湧く（全テーマ共通・スキンは撃つ種を流用）。
             // 盤面のやや左に陣取って“読める形”で圧をかける＝左端の安置化を構造的に崩す。
             // 自機は着座Xより左へ回り込めるので、撃ち返して倒せる（2026-09-08 の FlankCampXK 変更）。
@@ -152,7 +208,7 @@ public partial class Spawner : Node
                 me.SetEntry(new Vector2(_rng.RandfRange(160f, 260f), y)); // 中列に居座って射線を塞ぐ
             }
             // 祈り運び：こはる面の道中のみ。ぶら下げた祈り弾ごと左へ横断（居座らない＝SetEntry不要）。
-            else if (!introducing && Theme == StageTheme.Koharu && _rng.Randf() < PrayerCarrierRate)
+            else if (!introducing && !CharactersOnly && Theme == StageTheme.Koharu && _rng.Randf() < PrayerCarrierRate)
             {
                 me.Configure(EnemyTable.PrayerCarrier());
                 // ぶら下げ弾（最大+37px＋振れ）が画面下端216pxを割らないYで横断させる。
@@ -165,7 +221,7 @@ public partial class Spawner : Node
                 me.Configure(character ? characters[_characterIndex++ % characters.Count] : drifter ? drift : shooter);
                 // 出現エッジを散らす（難易度別。PickEdge / 各 Spawn*Edge を参照）。
                 Vector2 camp;
-                var edge = PickEdge(game);
+                edge = PickEdge(game);
                 switch (edge)
                 {
                     case Edge.Top:    (pos, camp) = SpawnTopEdge(WideVertical(game));    break;
@@ -174,25 +230,12 @@ public partial class Spawner : Node
                     default:          (pos, camp) = SpawnRightEdge(y); break;
                 }
                 if (edge == Edge.Left)
-                {
-                    // 左＝自機の背後。ここだけは「予告→間→出現」の順にする（§4 予備動作／§7 理不尽の排除）。
-                    // 出現点でリングが弾けてから LeftWarnLead 秒おいて実体が現れる＝背後を取られる前に気づける。
-                    // 実体化は TickPendingLeft が行う（この個体はまだ AddChild しない）。
                     me.SetSilentEntry(camp);
-                    QueueLeftSpawn(me, pos);
-                    // 予約した時点で「1体湧かせた」と数える＝出現間隔・SpawnLimit の勘定は他エッジと同じ。
-                    SpawnedCount++;
-                    if (SpawnLimit > 0 && SpawnedCount >= SpawnLimit) Active = false;
-                    return;
-                }
-                me.SetEntry(camp);
+                else me.SetEntry(camp);
             }
             e = me;
         }
-        World.AddChild(e);
-        e.GlobalPosition = pos;
-        SpawnedCount++;
-        if (SpawnLimit > 0 && SpawnedCount >= SpawnLimit) Active = false;
+        QueueSpawn(e, pos, edge);
     }
 
     // ─── 出現エッジ（2026-09-17：難易度で「どの方角から来るか」を変える）───
@@ -286,7 +329,7 @@ public partial class Spawner : Node
     //       進入の出だしは発射ゲートの外。
     //       ★x=104 は HUD サイドパネル（Hud.DrawSidePanel：設計 0..373 ＝内部 0..111.9 が不透明、
     //         影帯を入れて 114.3 まで）の裏side なので、**敵も予告もここでは一切見えない**。
-    //         だから予告は出現点ではなく「敵が最初に見える列」に出す（LeftWarnX を参照）。
+    //         だから予告は出現点ではなく、盤面内側の境界に出す。
     //   (b) SetSilentEntry で「着座するまで一切撃たない」（MidEnemy._silentEntry）。
     //       X>120 を跨いでも撃たない＝背後から歩きながら撃たれる二重苦を構造的に潰す。
     //   (c) 着座Xを LeftCampMinX(=184) 以上＝Field.Left から 64px 以上右に置く。自機は Field.Left まで
@@ -306,64 +349,50 @@ public partial class Spawner : Node
                             Mathf.Clamp(sy + _rng.RandfRange(-24f, 24f), 40f, 176f)));
     }
 
-    // ─── 左湧きの「予告→間→出現」───
-    //   ★2026-09-17 修正（QA 指摘）：予告を出現点(x=104)に出していたが、そこは HUD サイドパネルの
-    //     裏側で、リング(R1=12)の右端 x=116 のうち見えるのは影帯の外 114.3..116 の 1.7px だけだった
-    //     ＝事実上「予告が無い」状態。Hud は CanvasLayer なので ZIndex では前に出せない。
-    //
-    //   採った方針：**予告は出現点ではなく「敵が最初に見える列」に出す**。
-    //     プレイヤーが読むべき情報は敵の正確な出現Xではなく「どの高さから入ってくるか」なので、
-    //     盤面の左端（敵が必ず横切る境界）にYを示すマーカーを置けば役目は足りる。
-    //     LeftSpawnX / カリング境界 / OnScreen ゲートの関係（QA が実測合格させた幾何）は一切動かさない。
-    private const float LeftWarnX = Field.Left + 6f;  // = 126。パネル影(114.3)より右＝確実に見える列
-    //   リードは 0.4s：AimFlash の Ttl(0.4s) と一致させる＝「リングが消える瞬間に敵が現れる」で
-    //   因果が途切れない（旧 0.55s はリング消滅後 0.15s の“無”を挟んでいた）。
-    //   実効の猶予はこれより長い：敵は x=104 から進入するので、盤面左端(120)へ届くまで更に時間が要る。
-    //   進入速度は MidEnemy の種別倍率（ApproachSpeedMin/Max）＋上限クランプ（SpeedCeil=58px/s）で
-    //   実効 28.5〜58px/s（2026-09-22 の「敵は自機より速くしない」リワーク後）＝可変。
-    //   旧値（55.8〜166.5px/s）より**必ず遅い**ので、予告点灯から敵が盤面左端へ届くまでの時間は
-    //   旧実測 0.533〜0.565s より長くなるだけ＝そのあいだに自機（NormalSpeed=75px/s）が動ける距離は
-    //   旧 32.7〜38.1px を必ず上回る。接触半径は自機2＋敵8＝10px なので、真横に逃げれば確実に抜けられる
-    //   （猶予は一方向にしか増えないので、この予告リードは据え置きで安全側）。
-    private const double LeftWarnLead = 0.4;
-    private readonly System.Collections.Generic.List<(Enemy enemy, Vector2 pos, double t)> _pendingLeft = new();
+    private readonly System.Collections.Generic.List<(Enemy enemy, Vector2 pos, EnemySpawnWarning warning, double t, double lead)> _pending = new();
 
-    private void QueueLeftSpawn(Enemy e, Vector2 pos)
+    private void QueueSpawn(Enemy enemy, Vector2 pos, Edge edge)
     {
-        _pendingLeft.Add((e, pos, LeftWarnLead));
-        // 予告そのもの。既存の予告表現（AimFlash＝白フラッシュ＋広がるリング）を流用する＝
-        // 新しい色語彙を作らず「これから何か来る」の意味が既に学習済みの記号で伝わる（§4／§13 一貫性）。
-        // 位置は出現点の Y を保ったまま X だけ盤面内へ寄せる＝「この高さの左端から来る」を示す。
-        FxLayer.Instance?.AimFlash(new Vector2(LeftWarnX, pos.Y), LeftWarnColor);
+        double lead = edge == Edge.Left ? 0.9 : 0.75;
+        var warning = new EnemySpawnWarning
+        {
+            Position = World.ToLocal(new Vector2(Mathf.Clamp(pos.X, Field.Left + 8, Field.Right - 8),
+                Mathf.Clamp(pos.Y, Field.Top + 8, Field.Bottom - 8))),
+            Rotation = edge switch { Edge.Right => Mathf.Pi, Edge.Top => Mathf.Pi / 2,
+                Edge.Bottom => -Mathf.Pi / 2, _ => 0 },
+        };
+        World.AddChild(warning);
+        _pending.Add((enemy, pos, warning, lead, lead));
+        if (SpawnLimit > 0 && SpawnedCount + _pending.Count >= SpawnLimit) Active = false;
     }
 
-    // 予告リングの色。ザコの既定穢れ色（Bullet.EnemyMid 系）と同系＝「敵が来る」の意味で一貫。
-    private static readonly Color LeftWarnColor = new Color(0.882f, 0.447f, 0.675f);
-
-    private void TickPendingLeft(double delta)
+    private void TickPending(double delta)
     {
-        for (int i = _pendingLeft.Count - 1; i >= 0; i--)
+        for (int i = _pending.Count - 1; i >= 0; i--)
         {
-            var (enemy, pos, t) = _pendingLeft[i];
+            var (enemy, pos, warning, t, lead) = _pending[i];
             t -= delta;
-            if (t > 0) { _pendingLeft[i] = (enemy, pos, t); continue; }
-            _pendingLeft.RemoveAt(i);
+            warning.SetProgress(1f - (float)(t / lead));
+            if (t > 0) { _pending[i] = (enemy, pos, warning, t, lead); continue; }
+            _pending.RemoveAt(i);
+            warning.QueueFree();
             if (!IsInstanceValid(enemy)) continue;
-            // ステージ遷移で World が消えている可能性がある（予約は最大 LeftWarnLead 秒だけ未来に生きる）。
             if (!IsInstanceValid(World)) { enemy.QueueFree(); continue; }
+            enemy.Position = World.ToLocal(pos);
             World.AddChild(enemy);
-            enemy.GlobalPosition = pos;
+            SpawnedCount++;
         }
     }
 
-    // ステージ側が Stop した時点で未実体化の予約が残っていると、会話や次の波に無言で1体だけ
-    // 湧いてしまう。予約は破棄する（＝予告だけ出て何も来ないが、これは無害な側）。
-    public override void _ExitTree() => DropPendingLeft();
+    public override void _ExitTree() => DropPending();
 
-    private void DropPendingLeft()
+    private void DropPending()
     {
-        foreach (var (enemy, _, _) in _pendingLeft)
+        foreach (var (enemy, _, warning, _, _) in _pending)
+        {
             if (IsInstanceValid(enemy)) enemy.QueueFree();
-        _pendingLeft.Clear();
+            if (IsInstanceValid(warning)) warning.QueueFree();
+        }
+        _pending.Clear();
     }
 }

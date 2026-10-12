@@ -13,6 +13,9 @@ public partial class EnemyProjectileQa : Node
     private static void Write(object o, string field, object value) => o.GetType().GetField(field, Private)!.SetValue(o, value);
     private static object? Call(object o, string method, params object[] args) => o.GetType().GetMethod(method, Private | BindingFlags.Public)!.Invoke(o, args);
     private Bullet[] Bullets() => Pool.GetChildren().OfType<Bullet>().Where(b => b.Active && b.IsEnemy).ToArray();
+    private static Shape2D[] EnabledShapes(Bullet bullet) => bullet.GetShapeOwners().Select(owner => (uint)owner)
+        .Where(owner => !bullet.IsShapeOwnerDisabled(owner))
+        .SelectMany(owner => Enumerable.Range(0, bullet.ShapeOwnerGetShapeCount(owner)).Select(i => bullet.ShapeOwnerGetShape(owner, i))).ToArray();
     private static void Check(bool ok, string message)
     {
         if (!ok) throw new Exception(message);
@@ -33,8 +36,11 @@ public partial class EnemyProjectileQa : Node
             await Frames(1);
             if (OS.GetCmdlineUserArgs().Contains("--overhead"))
                 await CheckOverhead(game);
+            else if (OS.GetCmdlineUserArgs().Contains("--colors"))
+                await CheckEnemyColors();
             else
             {
+                await CheckCollisionShapes();
                 foreach (string name in new[] { "rei_comment", "rei_subscriber", "rei_microphone", "rei_film",
                     "mina_eraser", "mina_memory", "mina_unanswered", "mina_butterfly", "koharu_star_pin", "akari_sticky" })
                 {
@@ -57,12 +63,14 @@ public partial class EnemyProjectileQa : Node
                     }
                     await CheckPixels(name, art);
                 }
-                await CheckSunsetColors();
+                await CheckEnemyColors();
                 if (!OS.GetCmdlineUserArgs().Contains("--appearance"))
                     foreach (var (theme, scene) in new[] { (StageTheme.Akari, "Akari"), (StageTheme.Koharu, "Koharu"),
                         (StageTheme.Rei, "Rei"), (StageTheme.Mina, "MinaBattle") })
                         await CheckStage(game, theme, scene);
                 CheckReuse();
+                await CheckCollisionLoad(false);
+                await CheckCollisionLoad(true);
             }
             Audio.Instance?.StopMusic(0);
             foreach (var node in GetNode<Audio>("/root/Audio").GetChildren())
@@ -181,6 +189,9 @@ public partial class EnemyProjectileQa : Node
                 var velocities = bullets.Select(b => b.Velocity).ToArray();
                 Check(bullets.Length == (cameo ? game.ScaleBullets(scene == "Akari" ? 7 : 8) : 1),
                     $"{label}/{diff}: original shot count");
+                if (cameo)
+                    Check(bullets.Any(b => Mathf.IsEqualApprox(b.GlobalPosition.X, player.GlobalPosition.X) && b.Velocity.X == 0),
+                        $"{label}/{diff}: falling rain contains a lane through the player");
                 Check(bullets.All(b => b.OverheadPending && !b.Visible && b.CollisionLayer == 0 && b.CollisionMask == 0),
                     $"{label}/{diff}: windup is invisible and harmless, not a new moving hitbox");
                 int lives = player.Lives, grazes = game.GrazeCount;
@@ -330,6 +341,7 @@ public partial class EnemyProjectileQa : Node
         root.GetNode<StageBackground>("StageBackground").EnterBoss();
         await Frames(160);
         boss.SetPhysicsProcess(false);
+        typeof(Enemy).GetField("_danmaku", Private)!.SetValue(boss, new BossDanmaku(boss));
         boss.GlobalPosition = new Vector2(Field.Right - 65f, 95f);
         Hud.BubblePaused = false;
         foreach (var diff in Enum.GetValues<GameManager.Diff>())
@@ -342,14 +354,17 @@ public partial class EnemyProjectileQa : Node
                 Call(boss, "ApplySpell");
                 Call(boss, "FirePattern", 3d);
                 CheckIllustrated($"{theme}/{diff}/phase{phase}");
+                Check(Bullets().Any(b => b.Velocity.Normalized().Dot(boss.GlobalPosition.DirectionTo(player.GlobalPosition)) > 0.99999f),
+                    $"{theme}/{diff}/phase{phase}: body attack includes a direct threat to the player");
                 if (theme == StageTheme.Akari && phase == 0)
                 {
                     var shots = Bullets();
                     // 扇は自機狙い＝本数は必ず奇数（ScaleBulletsOdd）。中心の1本が自機の正面を通る。
-                    Check(shots.Length == game.ScaleBulletsOdd(Read<int>(boss, "_fanCount"))
-                        && shots.All(b => b.Radius == Jobs.Get(Job.Melee).ShotRadius && b.AccelCharging
+                    Check(shots.Length == Mathf.Min(7, game.ScaleBulletsOdd(Read<int>(boss, "_fanCount")))
+                        && shots.All(b => b.Radius == BulletPool.BossRadius && b.AccelCharging && !b.Homing
+                            && Mathf.IsEqualApprox(b.Velocity.Length(), 2f * game.BulletSpeedMul)
                             && ReferenceEquals(Read<BulletArt.PlayerVisual>(b, "_playerVisual"), BulletArt.PlayerShot(Job.Melee))),
-                        $"Akari/{diff}: fan preserves count and uses Akari's acceleration shot");
+                        $"Akari/{diff}: fan preserves count with Akari's character shot performance");
                 }
                 if (theme == StageTheme.Rei)
                     Check(Bullets().All(b => ReferenceEquals(Read<BulletArt.PlayerVisual>(b, "_playerVisual"), BulletArt.PlayerShot(Job.Magic))),
@@ -580,7 +595,7 @@ public partial class EnemyProjectileQa : Node
             if (!leading[i]) continue;
             // 導入中の弾も当たる（無敵の弾を作らない）。
             Check(b.Active && b.Visible && b.Monitorable && b.Monitoring
-                && b.GetChildren().OfType<CollisionShape2D>().All(c => !c.Disabled),
+                && EnabledShapes(b).Length == b.Footprint!.Shapes.Length,
                 $"{label}: the shot can still be hit and can still hit while it leaves the body");
             // 瞬間移動でもフェードでもなく「飛んでいく」＝毎フレーム必ず発射点へ近づき、ずっと見えている。
             float travel = b.GlobalPosition.DistanceTo(targets[i]);
@@ -738,12 +753,12 @@ public partial class EnemyProjectileQa : Node
         Check(bullets.Length > 0 && bullets.All(b => Read<Texture2D?>(b, "_sprite") != null
             || Read<BulletArt.PlayerVisual?>(b, "_playerVisual") != null),
             $"{label}: all {bullets.Length} projectiles have illustrations");
-        Check(bullets.All(b => b.Radius > 0 && b.Damage == 1 &&
-            b.GetChildren().OfType<CollisionShape2D>().Any(c => c.Shape is CircleShape2D shape && shape.Radius == b.Radius)),
-            $"{label}: hit shapes and damage remain intact");
+        Check(bullets.All(b => b.Radius > 0 && b.Damage == 1 && b.Footprint is { Shapes.Length: > 0 } footprint
+            && footprint.Shapes.All(s => s is ConvexPolygonShape2D)),
+            $"{label}: illustrated silhouettes are the damage shapes");
     }
 
-    private async Task CheckSunsetColors()
+    private async Task CheckEnemyColors()
     {
         var root = GD.Load<PackedScene>("res://Koharu.tscn").Instantiate<KoharuRoot>();
         GetTree().Root.AddChild(root);
@@ -757,15 +772,15 @@ public partial class EnemyProjectileQa : Node
         bullet.SetPhysicsProcess(false);
         var material = bullet.Material;
         Check(background.IsSunset && material is ShaderMaterial && bullet.Tint == new Color("e072ac"),
-            "sunset changes rendering only; source color, shape and movement remain intact");
+            "enemy palette changes rendering only; source color, shape and movement remain intact");
         bullet.SetWord("QA", coreArt: BulletArt.KoharuBadge);
         Check(bullet.Material == null && Read<BulletWordCore>(bullet, "_wordCore").Material == material,
-            "sunset correction applies to the dangerous post core, not the text card");
+            "enemy palette applies to the dangerous post core, not the text card");
         Pool.DespawnAll();
 
         var viewport = new SubViewport
         {
-            Size = new Vector2I(96, 32), TransparentBg = true, World2D = new World2D(),
+            Size = new Vector2I(160, 32), TransparentBg = true, World2D = new World2D(),
             RenderTargetUpdateMode = SubViewport.UpdateMode.Always,
         };
         AddChild(viewport);
@@ -776,6 +791,8 @@ public partial class EnemyProjectileQa : Node
             canvas.DrawRect(new Rect2(4, 4, 24, 24), new Color("e072ac"));
             canvas.DrawRect(new Rect2(36, 4, 24, 24), new Color("429cdb"));
             canvas.DrawRect(new Rect2(68, 4, 24, 24), Colors.White);
+            canvas.DrawRect(new Rect2(100, 4, 24, 24), new Color("131722"));
+            canvas.DrawRect(new Rect2(132, 4, 24, 24), new Color("888888"));
         };
         await Frames(3);
         await ToSignal(RenderingServer.Singleton, RenderingServer.SignalName.FramePostDraw);
@@ -785,13 +802,19 @@ public partial class EnemyProjectileQa : Node
         await ToSignal(RenderingServer.Singleton, RenderingServer.SignalName.FramePostDraw);
         using var adjusted = viewport.GetTexture().GetImage();
         var pink = adjusted.GetPixel(16, 16);
-        Check(pink.G > pink.R + 0.2f && pink.G > pink.B, "pink becomes green against the pink sunset");
-        Check(adjusted.GetPixel(48, 16).IsEqualApprox(original.GetPixel(48, 16))
-            && adjusted.GetPixel(80, 16).IsEqualApprox(original.GetPixel(80, 16)),
-            "blue details and white highlights keep their original colors");
+        var blue = adjusted.GetPixel(48, 16);
+        var white = adjusted.GetPixel(80, 16);
+        Check(pink.R > 0.8f && pink.G > 0.6f && pink.G > pink.B + 0.15f
+            && blue.R > 0.8f && blue.G > 0.6f && blue.G > blue.B + 0.15f,
+            $"both pink and blue enemy art become readable gold: {pink}, {blue}");
+        Check(white.R > 0.8f && white.G > 0.8f && white.B > 0.8f,
+            "bright highlights remain distinct from the colored body");
+        Check(adjusted.GetPixel(112, 16).Luminance < 0.15f
+            && adjusted.GetPixel(144, 16).IsEqualApprox(original.GetPixel(144, 16)),
+            "dark outlines and neutral shading survive recoloring");
         bool sameAlpha = true;
         for (int y = 0; y < 32; y++)
-            for (int x = 0; x < 96; x++)
+            for (int x = 0; x < 160; x++)
                 sameAlpha &= adjusted.GetPixel(x, y).A == original.GetPixel(x, y).A;
         Check(sameAlpha, "color correction preserves every silhouette pixel");
         viewport.QueueFree();
@@ -808,17 +831,19 @@ public partial class EnemyProjectileQa : Node
                 shot.SetSprite(arts[i], 0);
                 shot.Rotation = 0;
                 shot.SetPhysicsProcess(false);
-                Check(sunset ? shot.Material == material : shot.Material == null,
-                    "background selects only the sunset color correction");
+                Check(shot.Material == material, "enemy contrast palette stays active on sunset and night backgrounds");
             }
             await Frames(3);
-            await Shot(sunset ? "sunset_original_shapes" : "room_original_colors");
+            await Shot(sunset ? "sunset_readable_shapes" : "night_readable_shapes");
             Pool.DespawnAll();
         }
         root.QueueFree();
         await Frames(3);
         var normal = Pool.Spawn(Vector2.One * 100, Vector2.Zero, true);
-        Check(normal.Material == null, "pooled shots do not carry sunset colors into other scenes");
+        Check(normal.Material == material, "pooled enemy shots retain the contrast palette across scenes");
+        Pool.DespawnAll();
+        var playerShot = Pool.Spawn(Vector2.One * 100, Vector2.Zero, false);
+        Check(playerShot.Material != material, "pool reuse never applies the enemy palette to player shots");
         Pool.DespawnAll();
     }
 
@@ -870,7 +895,7 @@ public partial class EnemyProjectileQa : Node
             sil.Rim.GetImage().SavePng($"{dump}/{name}_rim.png");
             sil.Glow.GetImage().SavePng($"{dump}/{name}_glow.png");
         }
-        Check(image.GetPixel(48, 48).A > 0.8f, $"{name}: illustrated hit center is visible");
+        Check(bullet.Footprint is { Shapes.Length: > 0 }, $"{name}: illustration has a nonempty silhouette collider");
 
         // 縁の規則（2026-09-26 蛍光縁）：絵の輪郭から外へ「明るいネオン線（不透明）→ 同じ色相の半透明の光 → 無」
         // の順に並ぶこと。線も光も絵の形に沿う（丸いグローではない）＝絵から pad+2px 離れた点は完全に透明。
@@ -926,6 +951,107 @@ public partial class EnemyProjectileQa : Node
     private async Task Frames(int n)
     {
         for (int i = 0; i < n; i++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+    }
+
+    private async Task CheckCollisionLoad(bool illustrated)
+    {
+        Pool.DespawnAll();
+        Hud.BubblePaused = false;
+        var target = new Area2D { CollisionLayer = 1, CollisionMask = 8 };
+        target.AddChild(new CollisionShape2D { Shape = new CircleShape2D { Radius = Player.HitRadius } });
+        AddChild(target);
+        int contacts = 0;
+        target.AreaEntered += _ => contacts++;
+        var bullets = new Bullet[512];
+        for (int i = 0; i < bullets.Length; i++)
+        {
+            var at = new Vector2(Field.Left + 10 + i % 32 * 9, Field.Top + 8 + i / 32 * 12);
+            var bullet = Pool.Spawn(at, Vector2.Right * 24, true, BulletPool.BossRadius);
+            if (illustrated) bullet.UseCharacterProjectile((Job)(i % 4));
+            bullets[i] = bullet;
+        }
+        var physicsMs = new List<double>();
+        for (int frame = 0; frame < 150; frame++)
+        {
+            target.Position = bullets[frame % bullets.Length].Position;
+            foreach (var bullet in bullets)
+                if (bullet.Position.X > Field.Right - 10)
+                    bullet.Position = new Vector2(Field.Left + 10, bullet.Position.Y);
+            await ToSignal(GetTree(), SceneTree.SignalName.PhysicsFrame);
+            if (frame >= 30) physicsMs.Add(Performance.GetMonitor(Performance.Monitor.TimePhysicsProcess) * 1000);
+        }
+        physicsMs.Sort();
+        Check(bullets.All(b => b.Active) && contacts > 0, $"512 moving {(illustrated ? "silhouette" : "baseline")} bullets participate in native player overlaps");
+        GD.Print($"[EnemyProjectileQA] LOAD illustrated={illustrated}: shapes={bullets.Sum(b => b.Footprint!.Shapes.Length)}, physics median={physicsMs[physicsMs.Count / 2]:F2}ms, p95={physicsMs[(int)(physicsMs.Count * 0.95)]:F2}ms");
+        Pool.DespawnAll();
+        target.QueueFree();
+        await Frames(2);
+    }
+
+    private async Task CheckCollisionShapes()
+    {
+        using var source = Image.CreateEmpty(48, 48, false, Image.Format.Rgba8);
+        source.FillRect(new Rect2I(4, 4, 40, 40), new Color("ec365c"));
+        source.FillRect(new Rect2I(12, 12, 24, 24), Colors.Transparent);
+        var texture = ImageTexture.CreateFromImage(source);
+        var viewport = new SubViewport { Size = new Vector2I(128, 128), TransparentBg = true,
+            World2D = new World2D(), RenderTargetUpdateMode = SubViewport.UpdateMode.Always };
+        AddChild(viewport);
+        var bullet = new Bullet();
+        viewport.AddChild(bullet);
+        var center = new Vector2(64, 64);
+        bullet.Activate(center, Vector2.Zero, true, 16, 1);
+        bullet.SetSprite(texture, 0);
+        bullet.Rotation = 0;
+        bullet.SetPhysicsProcess(false);
+        async Task Flush()
+        {
+            await ToSignal(GetTree(), SceneTree.SignalName.PhysicsFrame);
+            await ToSignal(GetTree(), SceneTree.SignalName.PhysicsFrame);
+            await Frames(2);
+        }
+        bool Hit(Vector2 local) => viewport.World2D.DirectSpaceState.IntersectPoint(new PhysicsPointQueryParameters2D
+            { Position = center + local, CollisionMask = 8, CollideWithAreas = true, CollideWithBodies = false }).Count > 0;
+        float pixelScale = bullet.Radius * 2 * Bullet.SpriteFit / source.GetWidth();
+        var opaquePoint = new Vector2(-16 * pixelScale, 0);
+        var paddingPoint = new Vector2(-23 * pixelScale, 0);
+        await Flush();
+        Check(Hit(opaquePoint) && !Hit(Vector2.Zero) && !Hit(paddingPoint),
+            "native collision follows opaque art, preserving transparent holes and outer padding");
+        await ToSignal(RenderingServer.Singleton, RenderingServer.SignalName.FramePostDraw);
+        using (var image = viewport.GetTexture().GetImage())
+            Check(image.GetPixel(64, 64).A < 0.6f, "no white damage dot or round backing fills an illustrated hole");
+        var first = bullet.Footprint;
+        bullet.SetWord("QA", coreArt: texture);
+        await Flush();
+        Check(ReferenceEquals(first, bullet.Footprint) && Hit(opaquePoint) && !Hit(Vector2.Zero)
+            && !Hit(new Vector2(35, 0)), "post icon shares the silhouette; text panel is harmless");
+
+        bullet.Activate(center, Vector2.Down * 40, true, 4, 1, BulletShape.Needle);
+        bullet.SetPhysicsProcess(false);
+        await Flush();
+        Check(Hit(new Vector2(0, 6)) && !Hit(new Vector2(6, 0)), "needle hit shape follows its vertical artwork");
+        bullet.Rotation = 0;
+        await Flush();
+        Check(Hit(new Vector2(6, 0)) && !Hit(new Vector2(0, 6)), "rotation turns both the body and collider together");
+        bullet.Activate(center, Vector2.Zero, true, 10, 1, BulletShape.Ring);
+        bullet.SetPhysicsProcess(false);
+        await Flush();
+        Check(!Hit(Vector2.Zero) && Hit(new Vector2(9, 0)), "hollow ring collides only along its visible band");
+
+        bullet.Deactivate();
+        bullet.Activate(center, Vector2.Zero, false, 2.6f, 1);
+        bullet.SetPhysicsProcess(false);
+        await Flush();
+        var enabled = EnabledShapes(bullet);
+        Check(!Hit(Vector2.Zero) && bullet.Footprint == null && enabled.Length == 1
+            && enabled[0] is CircleShape2D circle && Mathf.IsEqualApprox(circle.Radius, 2.6f),
+            "same-frame reuse restores the unchanged player circle and disables every enemy polygon");
+        bullet.Deactivate();
+        await Flush();
+        Check(EnabledShapes(bullet).Length == 0, "despawn disables every silhouette part");
+        viewport.QueueFree();
+        await Frames(2);
     }
 
     private async Task Shot(string name)

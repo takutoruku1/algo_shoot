@@ -94,10 +94,6 @@ public partial class Prologue : Node2D
 
     // 立ち絵パス（表情差分）。案Cの登場人物はミナだけ。
     private const string FMina = "res://char/v3/mina_conversation_v1.png";
-    // ユーザー承認済み: docs/20260914/ストーリー添削_2026-09-14.md 【3】
-    //   FMinaSmile はプロローグでは**使わない**（笑いはこはる面クリア後に獲得する）。
-    //   定数は消さずに残す＝「ここでは意図的に使っていない」ことを次に触る人へ示すため。
-    private const string FMinaSmile = "res://char/mina_smile.png";   // ※P0〜P4 では未使用（感情アークの解禁前）
     private const string FMinaWorried = "res://char/v3/mina_conversation_worried_v1.png"; // 聞いてしまった時
 
     // ════════════════════ 下書き選択（P2・P3・P4）════════════════════

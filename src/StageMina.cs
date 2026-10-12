@@ -31,7 +31,6 @@ public partial class StageMina : Node
         (6, "道を開けられるのは、あんたでしょう。そっちを頼むって言ってるの。", ""),
         (0, "……うん。必ず、二人を帰す。", ""),
     };
-    private const string MWorried = "res://char/mina_worried.png";
     // S3-7 の分岐受け（送った言葉を一度だけ観測で引用。断定はしない）。
     private static (int who, string text, string face)[] S37Quote(GameManager? game)
     {

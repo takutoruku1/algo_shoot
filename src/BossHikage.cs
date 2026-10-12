@@ -10,7 +10,6 @@ public partial class BossHikage : Enemy
     public bool Finished { get; private set; }
 
     private readonly BossMover _mover = new BossMover();
-    private const float RoamSpeed = 72f;
 
     // 幾何学弾幕（HPフェーズで変化）
     private double _fireT;

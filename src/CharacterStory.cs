@@ -103,16 +103,6 @@ public static class CharacterStory
         _ => -1,
     };
 
-    // ── face 定数（doc 第1部8節。すべて実在ファイル）──
-    private const string AFace = "res://char/v3/akari_face.png";        // あかり平常
-    private const string ACry = "res://char/v3/akari_face_cry.png";     // あかり泣き＝あふれるわたしの崩れ
-    private const string KFace = "res://char/v3/koharu_face.png";       // こはる平常＝明るい顔
-    private const string KPale = "res://char/v3/koharu_face_pale.png";  // こはる蒼白＝絶望の担当（泣き顔素材は無い）
-    private const string RFace = "res://char/v3/rei_face.png";          // レイ中の人・平常
-    private const string RSmile = "res://char/v3/rei_face_smile.png";   // レイ中の人・配信用の笑顔
-    private const string RCry = "res://char/v3/rei_face_cry.png";       // レイ中の人・泣き
-    private const string RGawa = CompanionDialogue.ReiAvatarPortrait; // ガワ。笑顔固定・泣き顔は存在しない
-
     // ═══════════════════════════════════════════════════════════════════
     // A. あかり（灯し手）——章ビート（面非依存）
     // ═══════════════════════════════════════════════════════════════════

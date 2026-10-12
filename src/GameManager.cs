@@ -132,17 +132,14 @@ public partial class GameManager : Node
     //   ♥取得時の補充（1573行）も上限 StartBombs を見ているので、この1行だけで全経路に届く。
     public static int BaseLivesFor(Diff d) => 3;
     public static int BaseBombsFor(Diff d) => 2;
-    public float BulletSpeedMul => Difficulty switch { Diff.Easy => 0.62f, Diff.Hard => 1.05f, Diff.Lunatic => 1.18f, _ => 0.85f };
+    public float BulletSpeedMul => Difficulty switch { Diff.Hard => 0.82f, Diff.Lunatic => 0.94f, _ => 0.65f };
     // 難易度は敵の体力ではなく「弾の数」で調整する（やさしいほど弾が少ない）。
-    public float BulletCountMul => Difficulty switch { Diff.Easy => 0.57f, Diff.Hard => 1.65f, Diff.Lunatic => 2.85f, _ => 1.05f };
-    public float DanmakuIntervalMul => Difficulty switch { Diff.Easy => 2.1f, Diff.Hard => 1.0f, Diff.Lunatic => 0.85f, _ => 1.35f };
-    // 道中ザコの出現間隔倍率（Spawner が基準間隔に掛ける。小さいほど速く湧く）。
-    // 上の Dn/Di/弾速はどれも「撃った後の弾」にしか効かず、道中の圧＝出現密度は全難易度で同じだった
-    // （Spawner に Difficulty の参照がゼロ）。難しいほど「敵が多い」を成立させる軸をここに足す（2026-09-06）。
-    public float SpawnIntervalMul => Difficulty switch { Diff.Easy => 1.04f, Diff.Hard => 0.62f, Diff.Lunatic => 0.50f, _ => 0.8f };
-    // 同時に画面へ出せるザコの上限（Spawner の過密ガード）。間隔だけ縮めても上限で頭打ちになるので対で動かす。
-    public int MaxAliveEnemies => Difficulty switch { Diff.Easy => 9, Diff.Hard => 15, Diff.Lunatic => 18, _ => 12 };
+    public float BulletCountMul => Difficulty switch { Diff.Hard => 1.65f, Diff.Lunatic => 2.85f, _ => 1.05f };
+    public float DanmakuIntervalMul => Difficulty switch { Diff.Hard => 1.0f, Diff.Lunatic => 0.85f, _ => 1.35f };
+    public int MaxAliveEnemies => 5;
     public string DiffName => Difficulty switch { Diff.Easy => "EASY", Diff.Hard => "HARD", Diff.Lunatic => "LUNATIC", _ => "NORMAL" };
+    public bool DebugAttackGuides { get; private set; }
+    public static bool ShowAttackTelegraphs => Instance?.DebugAttackGuides == true || Instance?.Difficulty != Diff.Hard;
     // ルナティック（難易度選択の「底まで」）＝物語ギミックを全部切った、止まらない純粋シューティング（2026-09-26 作者指示）。
     //   回想フィルム・撃破後のアフター・下書き選択・戦闘を止める会話（HoldBubble）・ボス投稿の割り込み・
     //   フィナーレの段間カットシーン・エンディング（Final/Epilogue）を出さず、道中→中ボス→道中→ボス→クリアを切れ目なく繋ぐ。
@@ -169,7 +166,7 @@ public partial class GameManager : Node
     // ボスHPバー本数（言葉のシールド＋無防備窓リワーク）。1本=BarHp(=100)で、総HP=本数×BarHp。
     // 難易度で本数が増える＝堅くなる（弾数調整とは別軸の「殴る回数」調整）。
     public int DiffBarBonus(bool finalBoss) =>
-        (Difficulty switch { Diff.Easy => 2, Diff.Hard => 5, Diff.Lunatic => 6, _ => 4 }) + (finalBoss ? 2 : 0);
+        (Difficulty switch { Diff.Hard => 5, Diff.Lunatic => 6, _ => 4 }) + (finalBoss ? 2 : 0);
 
     // ルナティック解禁条件（①-9）：フォロワーが一定 or 一本道 #5「火力 2倍」を持っている。
     public const int LunaticFollowerReq = 200;
@@ -249,7 +246,6 @@ public partial class GameManager : Node
 
     // 中ボス(cameo)撃破フラグ（ステージID集合・永続＝save_N.json）。「中ボスから」解放の判定に使う。
     private readonly HashSet<string> _midBossCleared = new();
-    public bool IsMidBossCleared(string id) => _midBossCleared.Contains(id);
     // 中ボス撃破を記録。戻り値 firstEver＝「全ゲーム通して初めて中ボスを倒した」か（初回ショップ導線の判定用）。
     public bool MarkMidBossCleared(string id)
     {
@@ -318,8 +314,6 @@ public partial class GameManager : Node
     public float CurrentPosFactor => PosFactor(PlayerNormX);
     // 前のめり係数：右へ寄る（攻める）ほど進行が速い。式は設計確定値。
     public static float PosFactor(float nx) => 0.55f + 1.05f * Mathf.Clamp(nx, 0f, 1f);
-    // スポーン密度倍率：右へ寄るほど敵が多い（＝リスク）。左端0.60 / 中央1.05 / 右端1.50。
-    public static float SpawnRateMul(float nx) => 0.60f + 0.90f * Mathf.Clamp(nx, 0f, 1f);
 
     // 毎フレーム、自機Xと dt を受けて時間アキュムレータを進める（各ステージ Root の _Process から1本呼ぶ）。
     // 撃破カウンタ(PurifiedCount)には一切触れない＝撃破ゲート/StageCleared は不変。
@@ -503,8 +497,6 @@ public partial class GameManager : Node
             return false;
         }
     }
-    // マクロ目標（表ゴール＝控えめHUD用）：救うべき心の総数と、浄化済みの数。
-    public int HeartGoal => Stages.Length;
     public int HeartsSaved { get { int n = 0; foreach (var s in Stages) if (_cleared.Contains(s.Id)) n++; return n; } }
     public bool AllStoryCleared
     {
@@ -686,14 +678,6 @@ public partial class GameManager : Node
 
     // 能力を覚える段（Shop が一回り大きく描く）。数値ではなく「できることが増える」段。
     public static bool IsAbilityNode(string id) => id == "n_dodge" || id == "n_slow" || id == "n_charge";
-
-    // 一本道で「次に買える1段」＝先頭から数えて最初の未所持。全部買い切っていれば null。
-    public string? NextColumnNode()
-    {
-        foreach (var d in Upgrades)
-            if (GetUpgradeLevel(d.Id) < 1) return d.Id;
-        return null;
-    }
 
     // 所持判定のショートハンド（効果アクセサがこれ1本で読む＝ChainLevel の段数計算は要らなくなった）。
     public bool Has(string id) => GetUpgradeLevel(id) >= 1;
@@ -988,10 +972,6 @@ public partial class GameManager : Node
     public float AccelChargeDelay => Jobs.Get(Job.Melee).AccelDelay;
     public float AccelLaunchSpeed => Jobs.Get(Job.Melee).ShotSpeed;
     public float BombPowerMul => 1.25f;        // 旧 bomb_power_1
-    public int BackfireDamage => 3;            // 旧 bf_power_2（ダメージ 1+2）
-    public float BackfireInterval => 0.7f;     // 旧 bf_rate_1
-    public int BackfireShots => 2;             // 旧 bf_track_1
-    public float BackfireTurnRate => 90f;      // 旧 bf_track_1
 
     // 汚染耐性（旧 contam）は買えなくなった＝素の上昇率のまま。
     public float ContaminationGainMul => 1f;
@@ -1487,6 +1467,7 @@ public partial class GameManager : Node
             if (a == "--boss") { DebugAlwaysBoss = true; SelectedEntry = StageEntry.Boss; }
             if (a == "--choice") DebugChoiceNow = true;
             if (a == "--input-field") DebugInputField = true;
+            if (a == "--debug-guides") DebugAttackGuides = true;
         }
 
         // [一時/デバッグ] --fury / --fury-rate : 【激情】メーターの初期値と上昇速度を直に指定する
@@ -1530,6 +1511,19 @@ public partial class GameManager : Node
     {
         base._Notification(what);
         if (what == NotificationDisabled || what == NotificationEnabled) _comboWasFrozen = true;
+    }
+
+    public override void _UnhandledKeyInput(InputEvent @event)
+    {
+        if (@event is not InputEventKey { Pressed: true, Echo: false } key
+            || (key.Keycode != Key.G && key.PhysicalKeycode != Key.G)
+            || key.CtrlPressed || key.AltPressed || key.MetaPressed
+            || GetTree().Paused || Hud.BubblePaused || Pad.UiBlocked(this)
+            || GetTree().GetFirstNodeInGroup("player") == null
+            || GetViewport().GuiGetFocusOwner() is LineEdit or TextEdit) return;
+        DebugAttackGuides = !DebugAttackGuides;
+        GD.Print($"[DEBUG] attack guides: {(DebugAttackGuides ? "ON" : "OFF")}");
+        GetViewport().SetInputAsHandled();
     }
 
     public override void _Process(double delta)
@@ -1714,7 +1708,6 @@ public partial class GameManager : Node
     //     という最適化を潰すため（設計書の明示要求）。AddLife が false を返した＝増えなかった場合も
     //     同じ扱いにすると「上限で捨てた1回」を数えたことになるので、先に満タン判定で弾く。
     private int _purifyDrain;
-    public int PurifyDrainCount => _purifyDrain;   // HUD/デバッグ表示用（現在の貯まり）
     private void TickPurifyDrain()
     {
         int need = JobDef.DrainPerLife;
@@ -1784,25 +1777,6 @@ public partial class GameManager : Node
         Score += 15;
     }
 
-    // 病みポスト（層2 の投稿チップ）を撃って「届けた」。
-    //   正典: wiki/08_仮台本/10_病みポストを見つける_設計案.md（ユーザー承認済み・2026-09-05）の案A・経済の表。
-    //   スコア +40／インプレ基礎 3（倍率は GainImpression 内）。
-    //   撃ち漏らしには罰を置かない（汚染加算なし＝見逃しを数値で責めない）。
-    public void AddPostDelivered()
-    {
-        Score += 40;
-        GainImpression(3);              // ショップ通貨（RunImpression）に載る
-        PostsDelivered++;
-    }
-    // 今ランで届けた病みポストの数（クリアバナー／帰還会話の集計語彙用。セーブしない）。
-    public int PostsDelivered { get; private set; }
-
-    // 祈りの帳（veil_light）の光輪が弾を受け止めた時の加点。ボム消し（Score+5）と同格。
-    public void AddVeilCleared()
-    {
-        Score += 5;
-    }
-
     // ボムを使う。残があれば消費して true。
     // チュートリアル練習モード中は残数を減らさず発動成功を返す（詰み防止＝何度でも練習できる）。
     public bool UseBomb()
@@ -1838,7 +1812,6 @@ public partial class GameManager : Node
         RunImpression = 0;
         _focusModeT = 0f;     // 集中モードの持続/CD もラン単位（前の面の残りを持ち込まない）
         _focusModeCd = 0f;
-        PostsDelivered = 0;   // 届けた病みポストの数もラン単位
         RedemptionActive = false;
         BossReached = false;  // ボス到達もラン単位（「ボスから」で再読込した直後は Step_BossSpawn が立て直す）
     }

@@ -1,4 +1,3 @@
-using Godot;
 using System.Collections.Generic;
 
 // ChoiceEffects : 下書き選択の共通処理と、選択が下流の場面へ効く「効果」の窓口。
@@ -10,16 +9,11 @@ using System.Collections.Generic;
 //
 // 効果の読み出し（下流の場面が参照する）:
 //   Hub（返信の一語差し込み）                 … SentWordAt
-//   Final（F4 の悲鳴に必ず混ざる語）           … PriorityScattered
 //   Epilogue（E4 の一行）                       … ChosenAt("s3_5c") を直に読む
 // いずれも GameManager の台帳（_chosenById / _scatterById）から引くだけで、新しい状態は持たない
 //   ＝セーブは RecordChoice の既存キーで足りる（新しい id を足すだけで後方互換）。
 public static class ChoiceEffects
 {
-
-
-
-
     public static bool Record(GameManager? game, string id, string[] choices, int sel, float hesitationSec)
     {
         bool sent = choices[sel] != "（送らない）";
@@ -32,12 +26,6 @@ public static class ChoiceEffects
 
     // その id で送った言葉（（送らない）／未通過なら空文字）。
     public static string SentWordAt(GameManager? game, string id) => game?.ChosenAt(id) ?? "";
-
-    // ── S2-4「送れない」の場面で散った言葉は、FINAL の頂点（F4）の悲鳴に**必ず**混ざる（枠の先頭）──
-    //   悲鳴に混ざる散った言葉には枠の上限があるので、Final はこの並びを先に積んでから
-    //   残りを ScatteredWords の出た順で埋める。
-    public static IEnumerable<string> PriorityScattered(GameManager? game)
-        => game?.ScatteredAt("s2_4") ?? System.Array.Empty<string>();
 
 
     // ── 迷い秒ゲート（docs/20260926/主人公の存在_診断と本文 §4）──

@@ -35,10 +35,6 @@ public partial class StageKoharu : Node
     //   道中はまだ笑わない（MSmile は平常顔を指す）。獲得の一拍だけ MSmileUnlocked を明示的に使う
     //   ＝画面上で「初めて笑った」が一度だけ立つ。
     private const string MFace = "res://char/mina_face.png";
-    private const string MSmile = MFace;   // ※道中はまだ笑わない（獲得はこの面のクリア）
-    private const string MSmileUnlocked = "res://char/mina_smile.png";   // 獲得の瞬間（Clear）だけ
-    private const string MWorried = "res://char/mina_worried.png";
-    private const string MDoubt = "res://char/mina_doubt.png";
 
     // 道中ザコ戦（Spawner）。三部構成で「後半ほど圧が上がる」緩急を作る。こはるは型崩し（S2）で
     //   前半A（緩い導入）→ チラ見せ → 後半B（やや詰める）→ 終盤C（最大密度）→ 本ボス（HP半分でミッドシナリオ割込み）。
@@ -83,8 +79,6 @@ public partial class StageKoharu : Node
     //   本人の合間に入るミナの観測行はオーバーレイに乗らない。中ボスの直前に開くこの step が受け皿になる
     //   （step 構成は変えない前提での置き場所。あかり面と同じ流儀）。
     private const string KFace = "res://char/v3/koharu_face.png";       // 学校の明るい顔
-    private const string KPale = "res://char/v3/koharu_face_pale.png";  // 途中でこぼれる蒼白
-    private const string KLit = "res://char/v3/koharu_face_lit.png";    // 配信画面の光を浴びた顔
     private static readonly (int who, string text, string face)[] BossTalk =
     {
         (1, "画面の中の人は、星逢レイさん。笑顔が、ずっとこちらを向いています。", "res://char/mina_face.png"),
@@ -888,8 +882,7 @@ public partial class StageKoharu : Node
                 Hud.HideBubble();
                 GetNodeOrNull<GameManager>("/root/Game")?.AddScoreShard(500);
             }
-            // 中ボス撃破フック：撃破記録（「中ボスから」入口の解放）。ショップ説明は最初の面のボス撃破後へ移した（2026-09-07）。
-            if (CheckpointFlow.OnMidBossCleared(this, "koharu", false)) return;
+            GetNodeOrNull<GameManager>("/root/Game")?.MarkMidBossCleared("koharu");
             Advance();
         }
     }

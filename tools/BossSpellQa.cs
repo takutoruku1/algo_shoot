@@ -40,7 +40,9 @@ public partial class BossSpellQa : Node
                 GetTree().Quit();
                 return;
             }
-            if (OS.GetCmdlineUserArgs().Contains("--koharu-body"))
+            if (OS.GetCmdlineUserArgs().Contains("--posts"))
+                await CheckTechniquePosts(game);
+            else if (OS.GetCmdlineUserArgs().Contains("--koharu-body"))
                 await CheckKoharuBody(game);
             else if (OS.GetCmdlineUserArgs().Contains("--break") || OS.GetCmdlineUserArgs().Contains("--shields")
                 || OS.GetCmdlineUserArgs().Contains("--unfolders"))
@@ -132,6 +134,58 @@ public partial class BossSpellQa : Node
         }
     }
 
+    private async Task CheckTechniquePosts(GameManager game)
+    {
+        game.Difficulty = GameManager.Diff.Normal;
+        foreach (string scene in new[] { "Akari", "Koharu", "Rei", "MinaBattle" })
+        {
+            var root = GD.Load<PackedScene>($"res://{scene}.tscn").Instantiate<Node2D>();
+            GetTree().Root.AddChild(root);
+            GetTree().CurrentScene = root;
+            root.SetProcess(false);
+            ((Node)root.GetType().GetProperty("Stage")!.GetValue(root)!).SetProcess(false);
+            var world = root.GetNode<Node2D>("World");
+            world.ProcessMode = ProcessModeEnum.Inherit;
+            var player = world.GetNode<Player>("Player");
+            player.SetPhysicsProcess(false);
+            player.Position = new Vector2(Field.Left + 45, 130);
+            var hud = root.GetNode<Hud>("Hud");
+            hud.HoldBubble = false;
+            hud.HideBubble();
+            Enemy boss = scene switch { "Akari" => new BossAkari(), "Koharu" => new BossKoharu(), "Rei" => new BossRei(), _ => new BossMina() };
+            boss.ProcessMode = ProcessModeEnum.Disabled;
+            world.AddChild(boss);
+            boss.Position = new Vector2(Field.BossCenterX, 100);
+            typeof(Enemy).GetMethod("TickEntrance", Private)!.Invoke(boss, new object[] { 0d });
+            typeof(Enemy).GetMethod("TickEntrance", Private)!.Invoke(boss, new object[] { 100d });
+            boss.FinishFormReveal();
+            root.GetNode<StageBackground>("StageBackground").EnterBoss();
+            await Frames(3);
+            hud.HideBubble();
+            hud.HideSpellCard();
+            var attack = BossCrossfire.Begin(boss);
+            Check(Read<double>(hud, "_spellTimer") > 0 && Read<string>(hud, "_spellName").Length > 0,
+                scene + ": actual technique declares its POST");
+            Check(hud.Bubbles != null && hud.Bubbles.ZIndex < player.ZIndex,
+                scene + ": POST stays behind the player and bullets");
+            foreach (var size in new[] { new Vector2I(1280, 720), new Vector2I(960, 540) })
+            {
+                DisplayServer.WindowSetSize(size);
+                boss.AnnounceTechnique(Read<string>(hud, "_spellName"));
+                await Frames(35);
+                await ToSignal(RenderingServer.Singleton, RenderingServer.SignalName.FramePostDraw);
+                using var image = GetViewport().GetTexture().GetImage();
+                string folder = "res://build/qa_story/technique_posts_2_063";
+                DirAccess.MakeDirRecursiveAbsolute(folder);
+                Check(image.SavePng($"{folder}/{scene}_{size.X}.png") == Error.Ok, scene + ": centered POST screenshot");
+            }
+            attack.Cancel();
+            root.QueueFree();
+            Pool.DespawnAll();
+            await Frames(5);
+        }
+    }
+
     private async Task CheckEdgeVolleys(GameManager game, string scene, Enemy boss, Hud hud, Node2D world, Player player)
     {
         string key = scene == "MinaBattle" ? "mina" : scene.ToLowerInvariant();
@@ -186,7 +240,9 @@ public partial class BossSpellQa : Node
                 }
                 volley._PhysicsProcess(warning * 0.5 + 0.01);
                 var first = Bullets();
-                Check(first.Length == gates.Length && first.All(b => Read<Texture2D?>(b, "_sprite") != null),
+                Check(first.Length == gates.Length && first.All(b => key == "akari"
+                    ? b.Accel && Read<BulletArt.PlayerVisual?>(b, "_playerVisual") != null
+                    : Read<Texture2D?>(b, "_sprite") != null),
                     "first row uses character projectile art");
                 Check(first.All(b => gates.Any(g => g.IsEqualApprox(b.GlobalPosition)) && b.Velocity.Normalized().IsEqualApprox(direction)),
                     "projectiles originate at the warning and move in the announced direction");

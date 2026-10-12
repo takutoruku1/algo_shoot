@@ -133,7 +133,7 @@ public partial class BossPacingQa : Node
         var phaseLengths = new List<string>();
         double phaseLength = 0;
         float phaseHp = boss.HpRatio;
-        int breaks = 0, posts = 0, finalBreaks = 0;
+        int breaks = 0, posts = 0;
         string previousPhase = "";
         for (int frame = 0; frame < 90000 && !boss.IsPurified; frame++)
         {
@@ -146,17 +146,14 @@ public partial class BossPacingQa : Node
                 Read<Action>(scene, "_completed", type)();
                 scene.QueueFree();
             }
-            if (GetTree().GetFirstNodeInGroup("boss_post") is BossPost post && !post.IsQueuedForDeletion())
+            if (GetTree().GetFirstNodeInGroup("boss_post") is BossPost { IsBroken: true } post && !post.IsQueuedForDeletion())
             {
                 float hp = boss.HpRatio;
-                Call(post, "Damage", null, 24);
-                post._PhysicsProcess(post.MinimumReadTime + post.BreakDuration + 1);
-                post._PhysicsProcess(post.BreakDuration + 1);
-                posts++;
-                if (posts < 5 && boss is not BossMina)
+                post._PhysicsProcess(BossPost.BreakDuration + 1);
+                if (post.IsQueuedForDeletion()) posts++;
+                if (post.IsQueuedForDeletion() && posts < 5 && boss is not BossMina)
                 {
-                    Check(boss.HpRatio == hp, "rally adds no health");
-                    if (posts % 2 == 0) Check(!boss.GaugeVulnerable, "two post depths share one shield break");
+                    Check(boss.HpRatio == hp, "post effect adds no health");
                     if (posts == 4) Check(Read<bool>(boss, "_finale"), "final attack begins before the original draft");
                 }
             }
@@ -179,7 +176,6 @@ public partial class BossPacingQa : Node
                 if (phase == "Break" && previousPhase != phase)
                 {
                     breaks++;
-                    if (inFinale) finalBreaks++;
                 }
                 previousPhase = phase;
                 if (inFinale) finale += 1d / 60;
@@ -214,7 +210,7 @@ public partial class BossPacingQa : Node
         GD.Print($"[BossPacingQA] CYCLES {id}/{game.SelectedJob} {string.Join(" | ", phaseLengths)}");
         Check(boss.IsPurified, $"{id}/{powered}: encounter completes");
         Check(posts == (GameManager.LunaticActive ? 0 : 5), $"{id}/{powered}: correct post count");
-        Check(finalBreaks >= 1, $"{id}/{powered}: final attack includes a shield break and counterattack");
+        Check(breaks >= 1, $"{id}/{powered}: body damage requires a shield break without forcing an extra final break");
         hud.HoldBubble = false;
         hud.HideBubble();
         root.QueueFree();
@@ -288,14 +284,19 @@ public partial class BossPacingQa : Node
     }
     private async Task AuditPressure(GameManager game)
     {
-        bool shots = OS.GetCmdlineUserArgs().Contains("--pressure-shots");
+        var args = OS.GetCmdlineUserArgs();
+        bool shots = args.Contains("--pressure-shots");
+        bool stock = args.Contains("--stock");
+        var difficulty = args.Contains("--hard") ? GameManager.Diff.Hard : args.Contains("--lunatic") ? GameManager.Diff.Lunatic
+            : args.Contains("--easy") ? GameManager.Diff.Easy : GameManager.Diff.Normal;
         foreach (string id in new[] { "Akari", "Koharu", "Rei", "MinaBattle" })
             foreach (string mode in shots ? new[] { "evolved" } : new[] { "route", "boss", "evolved" })
             {
-                game.Difficulty = GameManager.Diff.Normal;
-                game.SelectedJob = Job.Magic;
-                game.TrainingSetAllUpgrades(true);
-                typeof(GameManager).GetProperty("Followers")!.SetValue(game, 2000);
+                if (mode == "route" && args.Contains("--boss-only")) continue;
+                game.Difficulty = difficulty;
+                game.SelectedJob = stock && id != "MinaBattle" ? Job.Tank : Job.Magic;
+                game.TrainingSetAllUpgrades(!stock);
+                typeof(GameManager).GetProperty("Followers")!.SetValue(game, stock ? 0 : 2000);
                 var root = GD.Load<PackedScene>($"res://{id}.tscn").Instantiate<Node2D>();
                 GetTree().Root.AddChild(root);
                 GetTree().CurrentScene = root;
@@ -333,10 +334,10 @@ public partial class BossPacingQa : Node
                     {
                         if (boss is BossMina)
                         {
-                            Write(boss, "_pattern", 1);
+                            Write(boss, "_pattern", BossMina.DragonPhase - 1);
                             game.Difficulty = GameManager.Diff.Lunatic;
                             Call(boss, "BeginPhaseTransition");
-                            game.Difficulty = GameManager.Diff.Normal;
+                            game.Difficulty = difficulty;
                             Call(boss, "CompletePhaseTransition");
                             for (int frame = 0; frame < 360 && boss.Transforming; frame++) await Frames(1);
                         }
@@ -351,12 +352,14 @@ public partial class BossPacingQa : Node
                 hud.HideBubble();
                 await Frames(3);
                 double fire = 0, sum = 0, empty = 0, longestEmpty = 0, currentEmpty = 0, aoe = 0;
-                int samples = 0, peak = 0;
+                int samples = 0, peak = 0, contacts = 0;
+                bool touching = false;
                 double ambient = 0;
                 int word = 0;
                 var emitted = new HashSet<(ulong, ulong)>();
                 var charged = new HashSet<(ulong, ulong)>();
                 var areas = new HashSet<ulong>();
+                var techniques = new HashSet<ulong>();
                 for (int frame = 0; frame < (shots ? 1200 : 3600); frame++)
                 {
                     double time = frame / 60d;
@@ -409,7 +412,11 @@ public partial class BossPacingQa : Node
                     }
                     var hazards = GetTree().GetNodesInGroup("aoe").OfType<Node>().ToArray();
                     foreach (var area in hazards) areas.Add(area.GetInstanceId());
+                    foreach (var technique in GetTree().GetNodesInGroup("boss_animal_techniques")) techniques.Add(technique.GetInstanceId());
                     sum += bullets.Length;
+                    bool nextTouch = bullets.Any(b => BossCharacterShotQa.HitsPlayer(b, player.Position));
+                    if (nextTouch && !touching) contacts++;
+                    touching = nextTouch;
                     peak = Math.Max(peak, bullets.Length);
                     if (hazards.Length > 0) aoe += 1d / 60;
                     if (bullets.Length == 0 && hazards.Length == 0)
@@ -417,7 +424,12 @@ public partial class BossPacingQa : Node
                     else currentEmpty = 0;
                     samples++;
                 }
-                GD.Print($"[BossPacingQA] PRESSURE {id}/{mode} mean={sum / samples:F1} peak={peak} unique={emitted.Count} charged={charged.Count} aoe={areas.Count}/{aoe:F1}s empty={empty:F1}s longest={longestEmpty:F1}s samples={samples}");
+                GD.Print($"[BossPacingQA] PRESSURE {id}/{mode}/{difficulty}/stock={stock} mean={sum / samples:F1} peak={peak} unique={emitted.Count} charged={charged.Count} aoe={areas.Count}/{aoe:F1}s techniques={techniques.Count} empty={empty:F1}s longest={longestEmpty:F1}s contacts={contacts} samples={samples}");
+                if (mode != "route" && difficulty >= GameManager.Diff.Hard && !shots)
+                    Check(samples >= 1200 && longestEmpty < 2.5 && emitted.Count >= 350 && contacts >= 8,
+                        $"{id}/{mode}: the live boss keeps pressure and punishes simple one-axis movement");
+                if (mode == "evolved" && boss is not BossMina && !shots)
+                    Check(areas.Count > 0 && techniques.Count > 0, id + ": evolved techniques and area spells both appear in the real rotation");
                 root.QueueFree();
                 await Frames(5);
                 Pool.DespawnAll();

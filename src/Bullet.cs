@@ -20,7 +20,6 @@ public partial class Bullet : Area2D
 
     // 画面外判定の余白（盤面の矩形は Field が定義元）
     public const float DefaultBoundsMargin = 16f;
-    private const float Margin = DefaultBoundsMargin;
     // 画面外判定の余白を弾ごとに広げられる（既定は Margin）。引用の嵐のチップは幅が本文長で決まり、中心を
     //   右端+12px に置くと左半分が盤面内へ突然現れる。飛行中だけ広い余白で右端の外から入れ、貼りついたら
     //   既定へ戻す（流れ弾化しない）。Activate で必ず既定にリセットする（2026-09-23）。
@@ -56,6 +55,7 @@ public partial class Bullet : Area2D
         ChargeStage = Mathf.Max(ChargeTier.First, stage);
         Pierce = Jobs.Get(job).ChargePierce;
         Material = null; // 溜め弾は通常ブレンドのまま（ChargeShotFx の見た目を変えない）
+        if (IsEnemy && _playerVisual != null) RefreshFootprint();
         QueueRedraw();
     }
 
@@ -89,20 +89,17 @@ public partial class Bullet : Area2D
 
     // ─── テクスチャ弾（こはる＝推し活グッズ／あかり＝仕事の書類）───
     // 「弾を物として読ませる」ための絵つき敵弾。SetSprite で付与し、Activate が毎回リセットする。
-    //   ・当たり判定は円のまま一切変えない（P9）。絵は「最長辺が当たり直径 ×SpriteFit に収まる」倍率で
-    //     描くので、どれだけ回しても絵が判定円から食み出さない＝回転と判定が食い違わない。
+    //   ・判定は画像の不透明な輪郭から作り、ノードと一緒に回転させる。
     //   ・回転はゆっくり（既定 40〜70deg/s 程度）＋僅かな横揺れ。読みを妨げない範囲に留める（P2）。
     //   ・暗背景から浮かせるため、絵の裏に輪郭へ沿ったぼかし光とネオン線（SilhouetteOf）を敷いてから絵を描く（P1）。
     private Texture2D? _sprite;
     private float _spriteRotSpeed;  // rad/s（符号で回転方向）
     private float _spriteSway;      // 初期角のばらつき（rad）。同時発射で絵が揃って見える硬さを消す
-    // 絵の最長辺を当たり直径の何倍に収めるか。1.0 で「絵が判定円にちょうど内接」。
-    // 1.35＝弾として読める大きさを確保しつつ、絵の角が判定より僅かに出るだけに留める妥協点
-    // （グッズ・書類は中身が余白を含むので、内接だと実効サイズが小さく見えすぎる）。
-    internal const float SpriteFit = 1.35f; // EnemyProjectileQa が縁の位置の検算に使う
+    // 素材内の余白を含めた表示倍率。敵弾の判定も同じ倍率で輪郭に追従する。
+    internal const float SpriteFit = 1f;
 
     // テクスチャ弾にする（Spawn 後に呼ぶ）。rotSpeed は deg/s（0＝回さない）。
-    // 当たり半径・ダメージ・速度には一切触れない（見た目だけ）。
+    // ダメージ・速度は維持し、画像の輪郭へ判定を更新する。
     public void SetSprite(Texture2D? tex, float rotSpeedDeg = 55f)
     {
         _sprite = tex;
@@ -111,23 +108,180 @@ public partial class Bullet : Area2D
         // 弾ごとに初期角をばらす（同時発射でも「同じ絵が同じ向きで並ぶ」硬さが消える）。
         _spriteSway = GD.Randf() * Mathf.Tau;
         Rotation = _spriteSway; // 1フレーム目から傾いた状態で出す（無回転で出て次フレームに飛ぶのを防ぐ）
+        RefreshFootprint();
         QueueRedraw();
     }
     // M2バランス：×0.75 は自機狙い弾をほぼ無力化していた（かすった時点で回避が確定する）ため ×0.85 に緩和。
     // “読める”手応えは残しつつ、グレイズ＝安全化ではなくす。
     public const float GrazeSoftenMul = 0.85f;
 
-    // 加速球（自機ショットの“タメ→ロケット発進”モード）。発射直後は自機のすぐ近くでほぼ静止して「タメ」を作り、
-    //   _accelDelay 秒経過した瞬間にロケットのように急加速して発進する（徐々にではなく瞬間的・方向は不変）。
-    //   経過時間は _age で計る（会話停止中は進めない＝弾停止と整合）。付与は MakeAccel（Spawn 直後）。
-    //   ★発進方向は _accelDir に保持する：タメ中の速度はほぼ 0 なので、Velocity から向きを復元すると
-    //     正規化が破綻する（len≈0）。MakeAccel で確定した向きを別に持ち、発進時に _accelDir×_fastSpeed で撃つ。
+    // Keep the direction separately because the initial velocity can be almost zero.
     public bool Accel;
     private float _accelDelay;   // タメ時間＝加速までの遅延秒（既定0.8秒）
     private float _fastSpeed;    // 加速後（発進）の速さ（px/s）
+    private float _accelStartSpeed;
+    internal float AccelRampSeconds { get; private set; }
     private Vector2 _accelDir;   // 発進方向（単位ベクトル・MakeAccel で確定）。タメ中の微速もこの向き。
     private bool _accelDone;     // 既に発進へ切り替えたか（毎フレーム上書きしない＝1回だけ切替）
     private float _age;          // このアクティブ化からの経過秒（加速判定用。会話停止中は進めない）
+    private int _reiSplitsRemaining;
+    private float _reiSplitTravel;
+    private float ReiSplitDistance => _reiSplitsRemaining == 2 ? 42f : 32f;
+    private bool _bossDeploying;
+    private bool _bossEdgeLaunch;
+    private MidEnemy? _roadOwner;
+    private float _roadWarning;
+    internal bool RoadPending => _roadOwner != null;
+    private const float RoadWarningDuration = 0.45f;
+
+    internal void PrepareRoadShot(MidEnemy owner)
+    {
+        _roadOwner = owner;
+        _roadWarning = RoadWarningDuration;
+        CollisionLayer = CollisionMask = 0;
+        QueueRedraw();
+    }
+
+    private bool TickRoadWarning(float delta)
+    {
+        if (!IsInstanceValid(_roadOwner) || _roadOwner!.IsPurified)
+        {
+            GetNode<BulletPool>("/root/Pool").Despawn(this);
+            return true;
+        }
+        QueueRedraw();
+        if (_roadWarning > 0)
+        {
+            _roadWarning = Mathf.Max(0, _roadWarning - delta);
+            return true;
+        }
+        // A warned bullet can depart under the player, but becomes harmful only after separating.
+        if (GetTree().GetFirstNodeInGroup("player") is Player player
+            && GlobalPosition.DistanceTo(player.GlobalPosition) <= CollisionRadius + Player.HitRadius + 4f)
+            return false;
+        _roadOwner = null;
+        CollisionLayer = LayerEnemyBullet;
+        CollisionMask = MaskEnemyBullet;
+        return false;
+    }
+
+    private void DrawRoadWarning()
+    {
+        if (!GameManager.ShowAttackTelegraphs) return;
+        var ink = new Color("17121b");
+        var light = new Color("ffd394");
+        float progress = 1 - _roadWarning / RoadWarningDuration;
+        float r = CollisionRadius + 3 + (1 - progress) * 4;
+        DrawSetTransform(Vector2.Zero, -Rotation);
+        for (int side = 0; side < 4; side++)
+        {
+            float angle = side * Mathf.Pi / 2;
+            var a = Vector2.FromAngle(angle - 0.25f) * r;
+            var b = Vector2.FromAngle(angle + 0.25f) * r;
+            DrawLine(a, b, ink, 2.2f, true);
+            DrawLine(a, b, light, 0.8f, true);
+        }
+        Vector2 direction = Velocity.Normalized();
+        DrawLine(direction * (r + 2), direction * (r + 7 + progress * 4), ink, 2.2f, true);
+        DrawLine(direction * (r + 2), direction * (r + 7 + progress * 4), light, 0.8f, true);
+        DrawSetTransform(Vector2.Zero);
+    }
+    internal BossShotStyle BossStyle { get; private set; }
+    internal Vector2? BossAimTarget { get; set; }
+    internal Vector2 FormationHomingOffset { get; set; }
+    internal Vector2? FormationHomingAnchor { get; set; }
+    internal int BossPattern { get; private set; } = -1;
+    internal int BossBarrageWave { get; set; } = -1;
+    internal ulong BossBarrageId { get; set; }
+    private bool _bossWarnedLaunch;
+
+    internal void DeployBossFormation(Vector2 destination, bool edgeLaunch = false, bool warnedLaunch = false)
+    {
+        _leadFrom = GlobalPosition;
+        _leadTo = destination;
+        _leadElapsed = 0;
+        _leadDur = Mathf.Clamp(GlobalPosition.DistanceTo(destination) / LeadSpeed, 0.12f, 0.32f);
+        _bossDeploying = true;
+        _bossEdgeLaunch = edgeLaunch;
+        _bossWarnedLaunch = warnedLaunch;
+        CollisionLayer = CollisionMask = 0;
+        Modulate = new Color(1, 1, 1, Accel ? 0.20f : 0.42f);
+    }
+
+    private void FinishBossDeployment()
+    {
+        _bossDeploying = false;
+        var player = GetTree().GetFirstNodeInGroup("player") as Node2D;
+        if (!(_bossEdgeLaunch ? Field.Rect.Grow(24) : Field.Rect).HasPoint(GlobalPosition)
+            || (!_bossWarnedLaunch && player != null && GlobalPosition.DistanceTo(player.GlobalPosition) < 18f))
+        {
+            GetNode<BulletPool>("/root/Pool").Despawn(this);
+            return;
+        }
+        CollisionLayer = LayerEnemyBullet;
+        CollisionMask = MaskEnemyBullet;
+        Modulate = Colors.White;
+        QueueRedraw();
+    }
+
+    internal void MakeReiSplit(int remaining)
+    {
+        _reiSplitsRemaining = remaining;
+        _reiSplitTravel = 0;
+        QueueRedraw();
+    }
+
+    private void TickReiSplit(float delta)
+    {
+        if (_reiSplitsRemaining == 0) return;
+        _reiSplitTravel += Velocity.Length() * delta;
+        QueueRedraw();
+        if (_reiSplitTravel < ReiSplitDistance) return;
+        var player = GetTree().GetFirstNodeInGroup("player") as Node2D;
+        bool formation = BossBarrageId != 0 && GameManager.Instance!.Difficulty != GameManager.Diff.Easy;
+        float clearance = _reiSplitsRemaining == 2 ? (formation ? 112f : 64f) : 80f;
+        // A committed lane needs room for both splits; a half-finished split leaves a stationary slit.
+        if (!Field.Rect.HasPoint(GlobalPosition)
+            || (player != null && GlobalPosition.DistanceTo(player.GlobalPosition) < clearance)
+            || (formation && BossAimTarget is Vector2 lockedTarget && GlobalPosition.DistanceTo(lockedTarget) < clearance))
+        {
+            // Cancel permanently instead of surprising the player with a delayed point-blank split.
+            _reiSplitsRemaining = 0;
+            return;
+        }
+        var pool = GetNode<BulletPool>("/root/Pool");
+        const int count = 3;
+        float spread = BossPattern >= 0 ? 0 : Mathf.DegToRad(_reiSplitsRemaining == 2 ? 24f : 8f);
+        var direction = Velocity.Normalized();
+        for (int i = 0; i < count; i++)
+        {
+            float t = (float)i / (count - 1);
+            Vector2? target = i == 1 ? BossAimTarget : null;
+            float angle = Mathf.Lerp(-spread, spread, t);
+            float offset = (i - 1) * (BossPattern >= 0 ? (_reiSplitsRemaining == 2 ? 12f : 6f) : (_reiSplitsRemaining == 2 ? 32f : 14f));
+            pool.SpawnReiFragment(this, direction.Rotated(angle), _reiSplitsRemaining - 1, offset, target);
+        }
+        // Keep the source out of the free pool until every child has inherited its properties.
+        pool.Despawn(this);
+    }
+
+    private void DrawReiSplitCue()
+    {
+        if (_reiSplitsRemaining == 0 || !GameManager.ShowAttackTelegraphs) return;
+        float warningDistance = Velocity.Length() * 0.3f;
+        float progress = Mathf.Clamp(1f - (ReiSplitDistance - _reiSplitTravel) / warningDistance, 0f, 1f);
+        if (progress <= 0) return;
+        var color = new Color(1f, 0.92f, 0.74f, progress * 0.85f);
+        const int count = 3;
+        float spread = BossPattern >= 0 ? 0 : Mathf.DegToRad(_reiSplitsRemaining == 2 ? 24f : 8f);
+        for (int i = 0; i < count; i++)
+        {
+            var direction = Vector2.FromAngle(Mathf.Lerp(-spread, spread, (float)i / (count - 1)));
+            Vector2 offset = BossPattern >= 0 ? Vector2.Down * ((i - 1) * (_reiSplitsRemaining == 2 ? 12 : 6)) : Vector2.Zero;
+            DrawLine(direction * (Radius + 2), direction * (Radius + 5 + progress * 7) + offset, color, 0.8f, true);
+        }
+        DrawArc(Vector2.Zero, Radius + 2 + progress * 2, -Mathf.Pi * 0.7f, Mathf.Pi * 0.7f, 20, color, 0.7f, true);
+    }
     private OverheadCast? _overheadCast;
     private uint _overheadLayer, _overheadMask;
     public bool OverheadPending => _overheadCast != null;
@@ -153,7 +307,7 @@ public partial class Bullet : Area2D
         Visible = true;
     }
     // タメ中か（Accel かつ未発進）の外部参照用。Player 側の同時タメ弾数カウント（上限化）に使う。
-    public bool AccelCharging => Accel && !_accelDone;
+    public bool AccelCharging => Accel && _age < _accelDelay;
 
     // ─── 導入区間（敵弾の“出どころ”を見せる・2026-09-28）───
     //   作者報告「敵のたまが、アンチャーから少し離れた位置から予兆なくわいて攻撃している」への対処。
@@ -199,6 +353,7 @@ public partial class Bullet : Area2D
         if (!LeadIn) return;
         GlobalPosition = _leadTo;
         _leadElapsed = _leadDur;
+        if (_bossDeploying) FinishBossDeployment();
     }
 
     // ホーミング（自機ショットの誘導モード・設計書 §3-2③）。進行方向側の穢れ標的へ最大旋回角つきで曲射。
@@ -208,6 +363,7 @@ public partial class Bullet : Area2D
     public bool BackwardHoming;
     // 旋回角の上書き（0=既定 HomingTurnRate を使う）。誘導速射・後方追尾で個別に旋回を上げる。
     public int TurnRateOverride;
+    private bool _enemyHomingFinished;
     private Node2D? _homeTarget;
     private Panel? _homeUnfolder;
     private Node2D? _launchTarget;
@@ -222,46 +378,74 @@ public partial class Bullet : Area2D
         _launchTargetVelocity = Vector2.Zero;
     }
 
-    public void UseCharacterProjectile(Job character)
+    public void UseCharacterProjectile(Job character, BossShotStyle style = BossShotStyle.Aimed)
     {
         _playerVisual = BulletArt.PlayerShot(character);
         _sprite = null;
         _spriteRotSpeed = 0;
         TextureFilter = TextureFilterEnum.LinearWithMipmaps;
-        Material = Charged ? BossChargeMaterial : BossShotMaterial;
+        BossStyle = style;
+        Material = BossMaterial(GameManager.Instance!.SelectedJob, style);
         Rotation = Velocity.Angle();
+        RefreshFootprint();
+        QueueRedraw();
+    }
+
+    internal void UseBossPatternVisual(Job character, int pattern)
+    {
+        BossPattern = pattern;
+        _playerVisual = BulletArt.BossPattern(character, pattern);
+        RefreshFootprint();
         QueueRedraw();
     }
 
     private const string BossShotShader = @"
+shader_type canvas_item;
+render_mode unshaded;
+uniform vec4 ink : source_color;
 void fragment() {
     vec3 c = COLOR.rgb;
-    float hi = max(c.r, max(c.g, c.b));
-    float lo = min(c.r, min(c.g, c.b));
-    COLOR.rgb = vec3(hi + lo) - c;
+    float light = max(c.r, max(c.g, c.b));
+    vec3 color = mix(vec3(0.02, 0.018, 0.025), ink.rgb, smoothstep(0.035, 0.30, light));
+    COLOR.rgb = mix(color, vec3(1.0), smoothstep(0.72, 0.98, light) * 0.85);
 }";
-    private static ShaderMaterial? _bossShotMaterial, _bossChargeMaterial;
-    private static ShaderMaterial BossShotMaterial => _bossShotMaterial ??= new ShaderMaterial
+    private static readonly Dictionary<(Job, BossShotStyle), ShaderMaterial> BossMaterials = new();
+    internal static Color BossColor(Job player, BossShotStyle style) => style switch
     {
-        Shader = new Shader { Code = "shader_type canvas_item; render_mode blend_add;" + BossShotShader },
+        BossShotStyle.Ring => new Color("ff5275"),
+        _ => new Color(player == Job.Melee ? "62ff49" : "ffd34d"),
     };
-    private static ShaderMaterial BossChargeMaterial => _bossChargeMaterial ??= new ShaderMaterial
+    private static ShaderMaterial BossMaterial(Job player, BossShotStyle style)
     {
-        Shader = new Shader { Code = "shader_type canvas_item;" + BossShotShader },
-    };
+        var key = (player, style);
+        if (BossMaterials.TryGetValue(key, out var material)) return material;
+        material = new ShaderMaterial { Shader = new Shader { Code = BossShotShader } };
+        material.SetShaderParameter("ink", BossColor(player, style));
+        return BossMaterials[key] = material;
+    }
 
-    private Material? EnemyMaterial => GetTree().CurrentScene?.GetNodeOrNull<StageBackground>("StageBackground")?.IsSunset == true
-        ? SunsetShotMaterial : null;
-    private static ShaderMaterial? _sunsetShotMaterial;
-    private static ShaderMaterial SunsetShotMaterial => _sunsetShotMaterial ??= new ShaderMaterial
-    {
-        Shader = new Shader { Code = @"shader_type canvas_item;
+    private const string EnemyShotShader = @"
+shader_type canvas_item;
+render_mode unshaded;
+uniform vec4 ink : source_color;
 void fragment() {
     vec3 c = COLOR.rgb;
-    float warm = smoothstep(0.03, 0.12, c.r - c.g) * smoothstep(-0.08, 0.03, c.r - c.b);
-    COLOR.rgb = mix(c, c.grb, warm);
-}" },
-    };
+    float light = max(c.r, max(c.g, c.b));
+    float chroma = light - min(c.r, min(c.g, c.b));
+    COLOR.rgb = mix(vec3(light), ink.rgb * light, smoothstep(0.04, 0.40, chroma));
+}";
+    private static readonly Dictionary<Job, ShaderMaterial> EnemyMaterials = new();
+    private ShaderMaterial EnemyMaterial
+    {
+        get
+        {
+            var job = GameManager.Instance!.SelectedJob;
+            if (EnemyMaterials.TryGetValue(job, out var material)) return material;
+            material = new ShaderMaterial { Shader = new Shader { Code = EnemyShotShader } };
+            material.SetShaderParameter("ink", BossColor(job, BossShotStyle.Aimed));
+            return EnemyMaterials[job] = material;
+        }
+    }
     private const float HomingTurnRate = 150f; // deg/s（“曲がって当たる”手応え側へ。漂う弾は HomingLife で始末する）
     private float _retargetT;                  // 標的の再探索クールダウン（RetargetInterval ごとに乗り換え判定）
     private const float RetargetInterval = 0.25f; // 全探索は 0.25s に1回だけ＝毎フレーム探索より軽い
@@ -269,6 +453,9 @@ void fragment() {
     // 自機ホーミング弾の寿命（秒）。旋回強化で敵周囲に自機弾の雲ができ、敵弾（言葉弾）が読めなくなるのを防ぐ。
     // 2.5s＝画面幅1.3回分＝当てる弾は必ず決着する長さ。画面外 Despawn と同じ経路で消す。
     private const float HomingLife = 2.5f;
+    private const float EnemyHomingLife = 8f;
+    private const float EnemyHomingDuration = 0.6f;
+    private const float EnemyHomingTurnRate = 60f;
 
     // 言葉弾の文字フォント（全弾で共有。初回だけロード）。
     private static FontFile? _wordFont;
@@ -333,6 +520,10 @@ void fragment() {
         _wordCore.PunchCol = ChipBg();
         _wordCore.Neon = NeonOf(_wordAccent, GameManager.Instance!.SelectedJob); // 芯の縁も通常弾と同じ蛍光の規則
         _wordCore.Art = coreArt ?? BulletArt.Get("enemy_rei_anonymous");
+        _sprite = null;
+        _playerVisual = null;
+        Rotation = 0;
+        RefreshFootprint();
         _wordCore.Visible = true;
         _wordCore.QueueRedraw();
         QueueRedraw();
@@ -364,6 +555,8 @@ void fragment() {
     }
 
     public float Radius { get; private set; } = 3f;
+    public float CollisionRadius => _footprint?.Radius ?? Radius;
+    internal BulletFootprint? Footprint => _footprint;
 
     // RefrainScripts_tama / Refrain HUD A.dc.html の弾デザイン。
     // ドット絵ではなく「白ハイライト→中間色→暗エッジのグラデ＋外周グロー」の滑らかな弾。
@@ -372,20 +565,6 @@ void fragment() {
     private static readonly Color KegareWord = new(0.96f, 0.56f, 0.78f);
     private BulletArt.PlayerVisual? _playerVisual;
 
-    // ─── 敵弾／自機弾の見分け（2026-09-26 作者指摘「どれが敵の弾か自機の弾か分かりにくい」）───
-    // シューティングの定石に揃える：敵弾＝「蛍光の縁取り＋白い芯」で必ず高コントラスト、
-    //   自機弾＝「縁取りなしの光の筋」。形が似ていてもこの規則だけで見分けがつく。
-    //   ・縁取りは絵の外周に回る**ネオン線＋その外側のぼかし光**（DrawSprite／各弾形）。色はスペルの tint を
-    //     蛍光へ上げたもの（NeonOf）。白い芯（DrawEnemyCore）は全敵弾で統一＝ボス・道中・カメオ・投稿チップの芯
-    //     まで同じ。これが「敵弾のサイン」。絵はボスごとの個性なので触らない。
-    //     （同日いったん「暗い縁取り」にしたが、暗い縁は紺の背景に沈む＝作者「敵弾の視認性が悪い」で蛍光縁へ）
-    //   ・自機弾は加算ブレンド（PlayerGlow）で描く。キャラの結晶絵（char/player/*_shot_v1）は暗い輪郭線を
-    //     持つが、加算では暗色がほぼ消えて明部だけが発光して残る＝縁取りの無い光条になる。
-    //     敵弾の発光は**加算を使わない**（通常ブレンドの明るい半透明）＝弾が重なっても白飛びして形が消えない。
-    //     溜め弾（ChargeShotFx）は従来どおり通常ブレンド（MakeCharged が外す＝見た目を変えない）。
-    //   ・当たり判定（Radius）には一切触れない。見た目だけ。
-    internal static readonly Color EnemyCoreRing = new(0.05f, 0.03f, 0.06f, 0.95f); // 白い芯の下の暗い輪（絵の上でも白が沈まない）
-    private static readonly Color EnemyCoreWhite = new(1f, 1f, 1f, 0.95f);
     private const float EdgeW = 0.9f; // 弾形（絵が無い時の保険）のネオン線の太さ（world px）
     private const float GlowW = 2.2f; // 弾形のぼかし光の張り出し（world px）。絵つき弾は GlowFrac（絵の大きさ比）
     private static readonly CanvasItemMaterial PlayerGlow = new() { BlendMode = CanvasItemMaterial.BlendModeEnum.Add };
@@ -540,15 +719,63 @@ void fragment() {
         return t;
     }
 
-    private CollisionShape2D _shape = null!;
     private CircleShape2D _circle = null!;
+    private uint _shapeOwner;
+    private BulletFootprint? _footprint;
+    private BulletFootprint? _appliedFootprint;
+    private bool _collisionQueued;
+
+    internal static float BossArtSize(float radius, bool charged) => (charged ? 10f : 8f)
+        * radius / (charged ? BulletPool.BossChargeRadius : BulletPool.BossRadius);
+
+    internal static BulletFootprint BossFootprint(Job job, float radius, bool charged)
+    {
+        var art = BulletArt.PlayerShot(job);
+        return BulletFootprint.Texture(art.Cropped, art.Pivot - art.Region.Position, BossArtSize(radius, charged));
+    }
+
+    private void RefreshFootprint()
+    {
+        if (!IsEnemy) _footprint = null;
+        else if (Word.Length > 0 && _wordCore?.Art is Texture2D icon)
+            _footprint = BulletFootprint.Texture(icon, icon.GetSize() / 2, Radius * 2 * SpriteFit);
+        else if (_playerVisual is { } art)
+            _footprint = BulletFootprint.Texture(art.Cropped, art.Pivot - art.Region.Position, BossArtSize(Radius, Charged));
+        else if (_sprite is { } sprite)
+            _footprint = BulletFootprint.Texture(sprite, sprite.GetSize() / 2, Radius * 2 * SpriteFit);
+        else _footprint = BulletFootprint.Primitive(Shape, Radius);
+        QueueCollisionUpdate();
+    }
+
+    private void QueueCollisionUpdate()
+    {
+        if (_collisionQueued) return;
+        _collisionQueued = true;
+        Callable.From(ApplyCollision).CallDeferred();
+    }
+
+    private void ApplyCollision()
+    {
+        _collisionQueued = false;
+        ShapeOwnerSetDisabled(_shapeOwner, !Active);
+        if (!Active) return;
+        if (_footprint == null) _circle.Radius = Radius;
+        if (!ReferenceEquals(_footprint, _appliedFootprint))
+        {
+            ShapeOwnerClearShapes(_shapeOwner);
+            if (_footprint == null) ShapeOwnerAddShape(_shapeOwner, _circle);
+            else foreach (var shape in _footprint.Shapes) ShapeOwnerAddShape(_shapeOwner, shape);
+            _appliedFootprint = _footprint;
+        }
+    }
 
     public override void _Ready()
     {
-        // 子に CollisionShape2D(CircleShape2D) を追加
         _circle = new CircleShape2D { Radius = Radius };
-        _shape = new CollisionShape2D { Shape = _circle };
-        AddChild(_shape);
+        // One owner avoids propagating every movement through a node per convex part.
+        _shapeOwner = CreateShapeOwner(this);
+        ShapeOwnerAddShape(_shapeOwner, _circle);
+        ShapeOwnerSetDisabled(_shapeOwner, true);
 
         // 初期状態は非アクティブ
         Deactivate();
@@ -569,6 +796,8 @@ void fragment() {
         Radius = radius;
         Active = true;
         _overheadCast = null;
+        _roadOwner = null;
+        _roadWarning = 0;
         Grazed = false;
         Pierce = 0; // 貫通数も再利用時に持ち越さない（付与は各 Fire 側）
         Charged = false;
@@ -593,6 +822,7 @@ void fragment() {
         Homing = homing;
         BackwardHoming = backwardHoming; // 再利用時に持ち越さない（既定 false）
         TurnRateOverride = 0;            // 旋回上書きも再利用時にリセット（付与は Spawn 後に設定）
+        _enemyHomingFinished = false;
         _homeTarget = null;
         _homeUnfolder = null;
         _launchTarget = null;
@@ -601,6 +831,11 @@ void fragment() {
         _retargetT = 0f;                 // 再探索タイマーも持ち越さない（次フレームで即1回探索）
         // 加速球フラグ群も再利用時に必ずリセット（プール再利用で持ち越すと別の弾が誤加速する）。
         Accel = false; _accelDone = false; _accelDelay = 0f; _fastSpeed = 0f; _accelDir = Vector2.Zero; _age = 0f;
+        _reiSplitsRemaining = 0; _reiSplitTravel = 0;
+        BossBarrageId = 0;
+        _bossWarnedLaunch = false;
+        BossBarrageWave = -1;
+        _bossDeploying = false; _bossEdgeLaunch = false; BossStyle = default; BossPattern = -1; BossAimTarget = null; FormationHomingOffset = Vector2.Zero; FormationHomingAnchor = null; Modulate = Colors.White; _accelStartSpeed = 0; AccelRampSeconds = 0;
         // 減速弾のフラグ群も同様にリセット（持ち越すと別の弾が勝手に失速する）。
         Decel = false; _decelDelay = 0f; _slowSpeed = 0f; _fromSpeed = 0f; _decelDir = Vector2.Zero;
         // 導入区間（中心→発射点）も再利用時に必ず落とす（持ち越すと別の弾が前の発射点へ吸い寄せられる）。
@@ -617,16 +852,14 @@ void fragment() {
         _wordTime = "";
         if (_wordCore != null) _wordCore.Visible = false;
 
-        Rotation = !isEnemy && vel.LengthSquared() > 0.01f ? vel.Angle() : 0f;
+        Rotation = (!isEnemy || Shape is BulletShape.Needle or BulletShape.Rice) && vel.LengthSquared() > 0.01f ? vel.Angle() : 0f;
 
         GlobalPosition = pos;
 
         // グループ登録（ボムの一括消去・グレイズ判定用）
         AddToGroup(isEnemy ? "enemy_bullets" : "player_bullets");
 
-        // 当たり半径を反映
-        if (_circle != null)
-            _circle.Radius = radius;
+        RefreshFootprint();
 
         // レイヤー/マスク設定（isEnemy に応じて）
         if (isEnemy)
@@ -646,8 +879,6 @@ void fragment() {
         SetPhysicsProcess(true);
         SetDeferred(Area2D.PropertyName.Monitoring, true);
         SetDeferred(Area2D.PropertyName.Monitorable, true);
-        if (_shape != null)
-            _shape.SetDeferred(CollisionShape2D.PropertyName.Disabled, false);
 
         QueueRedraw();
     }
@@ -657,6 +888,7 @@ void fragment() {
     {
         Active = false;
         _overheadCast = null;
+        _roadOwner = null;
         Velocity = Vector2.Zero;
 
         // グループから外す（プール返却時）
@@ -671,15 +903,13 @@ void fragment() {
         // 消費側（Player/Panel）が Active を見ている限り遅延中の1フレームも安全。
         SetDeferred(Area2D.PropertyName.Monitoring, false);
         SetDeferred(Area2D.PropertyName.Monitorable, false);
-        if (_shape != null)
-            _shape.SetDeferred(CollisionShape2D.PropertyName.Disabled, true);
+        QueueCollisionUpdate();
     }
 
     // 貼りついた引用（S3-5b 引用の嵐・仮台本 11）を「当たらない」状態にする。
     //   11 の規則＝核（当たり判定）は貼りつく前の飛行中だけ持ち、貼りついたあとは当たらない。
     //   自機の被弾判定は Player 側の AreaEntered（自機 mask に敵弾 layer=8 が入っている）で起きるので、
     //   こちら側の mask を切るだけでは足りない＝敵弾 layer を降ろして自機の Area から見えなくする。
-    //   芯の赤ドットも消す（＝「これはもう危険ではない」を絵でも言う）。
     public void MakeHarmless()
     {
         CollisionLayer &= ~LayerEnemyBullet;   // 自機（および祈りの帳など）から敵弾として見えなくする
@@ -688,15 +918,14 @@ void fragment() {
         QueueRedraw();
     }
 
-    // 加速球にする（Spawn 直後に呼ぶ）。発射直後は自機のすぐ近くで chargeSpeed のほぼ静止でタメ、
-    //   delaySec 秒後に fastSpeed へロケット発進する。発進方向は Spawn 時の vel の向きで確定して保持する
-    //   （chargeSpeed を極小にしても向きが失われない＝タメ中の Velocity から向きを復元しない）。
-    public void MakeAccel(float chargeSpeed, float fastSpeed, float delaySec)
+    public void MakeAccel(float chargeSpeed, float fastSpeed, float delaySec, float rampSeconds = 0.22f)
     {
         Accel = true;
         _accelDone = false;
         _accelDelay = delaySec;
         _fastSpeed = fastSpeed;
+        _accelStartSpeed = chargeSpeed;
+        AccelRampSeconds = IsEnemy ? rampSeconds : 0;
         float len = Velocity.Length();
         _accelDir = len > 0.01f ? Velocity / len : Vector2.Right; // 発進方向を確定（vel が空なら右へ）
         Velocity = _accelDir * chargeSpeed;                        // タメ中はこの向きへごく僅かに進む（ほぼ静止）
@@ -794,8 +1023,7 @@ void fragment() {
 
         // ─── 導入区間：敵の中心 →「本来の発射点」へ、弾自身が飛んで入る ───
         // 体から離れた空中に湧かせない（＝「予兆なくわいて攻撃している」の原因を断つ）。
-        // 位置だけを置き換える＝当たり判定は生きたまま。Velocity には触らないので、
-        // 到達後はパターンが指定したとおりの速度・軌道がそのまま始まる。
+        // 道中弾とボスの展開弾は予告が終わるまで無害。到着までは攻撃の経過時間を進めない。
         if (LeadIn)
         {
             // 経過を _leadDur で頭打ちにして進める＝最後のフレームで必ず x==1 に届き、
@@ -808,15 +1036,16 @@ void fragment() {
             // 絵の自転だけは導入中も進める（_age は止めるので _leadElapsed で足す＝到達時に角度が飛ばない）。
             if (_sprite != null && _spriteRotSpeed != 0f)
                 Rotation = (_age + _leadElapsed) * _spriteRotSpeed + _spriteSway;
+            if (!LeadIn && _bossDeploying) FinishBossDeployment();
             return;
         }
+
+        if (RoadPending && TickRoadWarning((float)edelta)) return;
 
         // 経過時間を進める（会話停止中は上で return 済み＝弾停止と整合）。
         _age += (float)edelta;
         if (Charged) QueueRedraw();
 
-        // 加速球：_accelDelay 秒（タメ）経過した瞬間に、確定済みの発進方向へロケット発進（1回だけ・瞬間切替）。
-        //   タメ中の Velocity はほぼ 0 なので向き復元は使わず、MakeAccel で保持した _accelDir を使う（len≈0破綻回避）。
         if (Accel && !_accelDone)
         {
             if (!IsEnemy && IsInstanceValid(_launchTarget) && !_launchTarget!.IsQueuedForDeletion()
@@ -835,10 +1064,11 @@ void fragment() {
             }
             if (_age >= _accelDelay)
             {
-                _accelDone = true;
-                Velocity = _accelDir * _fastSpeed;
+                float ramp = AccelRampSeconds > 0 ? Mathf.Clamp((_age - _accelDelay) / AccelRampSeconds, 0, 1) : 1f;
+                _accelDone = ramp >= 1;
+                Velocity = _accelDir * Mathf.Lerp(_accelStartSpeed, _fastSpeed, ramp * ramp);
             }
-            QueueRedraw(); // タメ中は充填リングを毎フレーム脈動（発進の瞬間は尾へ切替）
+            QueueRedraw();
         }
 
         // 減速弾：_decelDelay 秒かけて _fromSpeed → _slowSpeed へ落ちる（向きは不変）。
@@ -853,8 +1083,7 @@ void fragment() {
 
         // テクスチャ弾（グッズ／書類）の回転と横揺れ。描き直しゼロで動かすため、
         // 回転はノード Rotation、横揺れは Position のオフセットではなく Rotation と同じ変換で済ませる
-        // （揺れは回転に含めず、ここでは回転のみ＝当たり判定は中心円のままで一切動かない）。
-        // 同心円で描く当たり芯・祈り弾のハロは回しても見た目が変わらないので、絵だけが回って見える。
+        // 判定も同じノードの変換へ追従する。
         if (_sprite != null && _spriteRotSpeed != 0f)
             Rotation = (_age + _leadElapsed) * _spriteRotSpeed + _spriteSway;
 
@@ -865,11 +1094,16 @@ void fragment() {
         }
         // 旋回は変換行列だけを更新し、画像の描画コマンドを毎フレーム作り直さない。
         if (_playerVisual != null && Velocity.LengthSquared() > 0.01f) Rotation = Velocity.Angle();
+        else if (_sprite == null && Word.Length == 0 && Shape is BulletShape.Needle or BulletShape.Rice
+            && Velocity.LengthSquared() > 0.01f) Rotation = Velocity.Angle();
 
         GlobalPosition += Velocity * (float)edelta;
 
         // 自機のホーミング弾は 2.5 秒で寿命切れ（画面内を漂う“自機弾の雲”を作らない）。
-        if (Homing && _age >= HomingLife)
+        float homingLife = IsEnemy ? EnemyHomingLife : HomingLife;
+        if (Homing && IsEnemy && BossPattern >= 0)
+            homingLife = Mathf.Max(homingLife, (Field.Width + 32) / Velocity.Length());
+        if (Homing && _age >= homingLife)
         {
             var hp = GetNodeOrNull<BulletPool>("/root/Pool");
             if (hp != null) hp.Despawn(this); else Deactivate();
@@ -878,7 +1112,7 @@ void fragment() {
 
         // 盤面の外(余白16px)に出たら Despawn。パネル側へ抜けた弾もここで消える。
         var p = GlobalPosition;
-        float m = BoundsMargin;
+        float m = _bossEdgeLaunch ? 24f : BoundsMargin;
         if (p.X < Field.Left - m || p.X > Field.Right + m ||
             p.Y < Field.Top - m || p.Y > Field.Bottom + m)
         {
@@ -887,7 +1121,9 @@ void fragment() {
                 pool.Despawn(this);
             else
                 Deactivate();
+            return;
         }
+        TickReiSplit((float)edelta);
     }
 
     // 標的をロックしつつ、0.25 秒ごとに再探索して「明らかに近い別の敵」へ乗り換える。
@@ -895,6 +1131,13 @@ void fragment() {
     // 全探索は RetargetInterval に1回だけ＝毎フレーム探索ではないので負荷は旧実装以下。
     private void SteerToTarget(float delta)
     {
+        if (IsEnemy)
+        {
+            if (_enemyHomingFinished) return;
+            delta = Mathf.Min(delta, Mathf.Max(0, EnemyHomingDuration - (_age - delta)));
+            if (_age >= EnemyHomingDuration) _enemyHomingFinished = true;
+            if (delta <= 0) return;
+        }
         var player = GetTree().GetFirstNodeInGroup("player") as Player;
         var locked = IsEnemy || BackwardHoming ? null : player?.LockTarget as Enemy;
         var tgt = _homeTarget;
@@ -926,7 +1169,7 @@ void fragment() {
         float spd = Velocity.Length();
         if (spd < 0.01f) return;
         float cur = Velocity.Angle();
-        Vector2 aim = tgt.GlobalPosition;
+        Vector2 aim = (IsEnemy ? FormationHomingAnchor ?? tgt.GlobalPosition : tgt.GlobalPosition) + (IsEnemy ? FormationHomingOffset : Vector2.Zero);
         if (tgt is Enemy enemy)
         {
             var preferred = player?.LockTarget == enemy ? player.LockedUnfolder : _homeUnfolder;
@@ -934,7 +1177,14 @@ void fragment() {
             if (_homeUnfolder != null) aim = _homeUnfolder.GlobalPosition;
         }
         float want = (aim - GlobalPosition).Angle();
+        // Enemy seekers leave after a pass instead of circling back through the barrage.
+        if (IsEnemy && Velocity.Dot(aim - GlobalPosition) <= 0)
+        {
+            _enemyHomingFinished = true;
+            return;
+        }
         float turn = TurnRateOverride > 0 ? TurnRateOverride : HomingTurnRate; // 誘導速射・後方追尾で旋回を上げる
+        if (IsEnemy) turn = Mathf.Min(turn, EnemyHomingTurnRate);
         float maxStep = Mathf.DegToRad(turn) * delta;
         float na = cur + Mathf.Clamp(Mathf.AngleDifference(cur, want), -maxStep, maxStep);
         Velocity = new Vector2(Mathf.Cos(na), Mathf.Sin(na)) * spd;
@@ -970,6 +1220,12 @@ void fragment() {
     {
         if (!Active)
             return;
+
+        if (RoadPending)
+        {
+            DrawRoadWarning();
+            return;
+        }
 
         float r = Radius;
 
@@ -1061,7 +1317,9 @@ void fragment() {
 
         if (_playerVisual != null)
         {
-            DrawPlayerProjectile(r);
+            DrawReiSplitCue();
+            if (IsEnemy) DrawBossProjectile(r);
+            else DrawPlayerProjectile(r);
             return;
         }
 
@@ -1086,10 +1344,6 @@ void fragment() {
             default:                  DrawOrb(r, c, neon);     break; // 円弾＝蛍光の縁＋スペル色の本体
         }
 
-        // 白い芯（敵弾のサイン／#16 当たり芯の見える化）：弾中心の暗い輪＋白いドット＝「刺さるのはこの点」。
-        // 絵つき弾にも同じ芯を打つ＝絵が何であれ「蛍光の縁取り＋白い芯」なら敵弾、と一目で読める。
-        DrawEnemyCore(r);
-
     }
 
     // 認証バッジの白✓。極小サイズではフォント✓が潰れるので2線分のチェック記号で描く。
@@ -1113,13 +1367,27 @@ void fragment() {
         }, col);
     }
 
-    // 敵弾の白い芯：暗い輪（EnemyCoreRing）の上に白いドット。絵つき弾でも弾形でも同じ大きさ・同じ色＝共通のサイン。
-    //   絵（封筒・チケットなど白っぽい絵）の上でも白が沈まないよう、必ず暗い輪を挟む。2コールだけ。
-    //   （2026-09-26 まで敵弾は 5 段の同心円グロー＝丸い光は自機弾の語彙なので撤去。敵弾の光は絵の輪郭に沿う）
-    private void DrawEnemyCore(float r)
+    private void DrawBossProjectile(float r)
     {
-        DrawCircle(Vector2.Zero, Mathf.Max(1.4f, r * 0.44f), EnemyCoreRing, true, -1f, true);
-        DrawCircle(Vector2.Zero, Mathf.Max(0.85f, r * 0.27f), EnemyCoreWhite, true, -1f, true);
+        var art = _playerVisual!;
+        if (AccelCharging)
+        {
+            float p = Mathf.Clamp(_age / _accelDelay, 0, 1);
+            float ring = r + 4 - p * 2;
+            DrawArc(Vector2.Zero, ring, -Mathf.Pi * 0.7f, Mathf.Pi * 0.7f, 24,
+                new Color(1, 0.88f, 0.65f, 0.35f + p * 0.4f), 0.8f, true);
+        }
+        else if (Accel)
+        {
+            float flash = 1f - Mathf.Clamp((_age - _accelDelay) / 0.22f, 0, 1);
+            if (flash > 0) DrawArc(Vector2.Zero, r + 2 + flash * 3, 0, Mathf.Tau, 24, new Color(1, 1, 1, flash), 0.8f, true);
+        }
+        float size = BossArtSize(r, Charged);
+        float scale = size / Mathf.Max(art.Region.Size.X, art.Region.Size.Y);
+        var rect = new Rect2((art.Region.Position - art.Pivot) * scale, art.Region.Size * scale);
+        var silhouette = SilhouetteOf(art.Cropped);
+        DrawTextureRect(silhouette.Rim, rect.Grow(silhouette.PadFrac * size), false, new Color(0.025f, 0.025f, 0.025f));
+        DrawTextureRectRegion(art.Texture, rect, art.Region);
     }
 
     private void DrawPlayerProjectile(float r)
@@ -1157,8 +1425,6 @@ void fragment() {
     }
 
     // テクスチャ弾（こはる＝推し活グッズ／あかり＝仕事の書類）。
-    //   倍率は「絵の最長辺 ＝ 当たり直径 × SpriteFit」で決める＝縦長（ペンライト・クリップ）でも
-    //   横長（チケット・封筒）でも、回した時に判定円から食み出す量が同じになる（回転と判定が食い違わない）。
     //   回転は _age 基準の緩やかな等速＋僅かな横揺れ。会話停止中は _age が進まない＝弾停止と整合。
     private void DrawSprite(float r, Color neon)
     {
@@ -1191,7 +1457,7 @@ void fragment() {
 
     // ── 弾形（絵が無い時の保険。現行の敵弾はすべて絵つき）──
     // どれも「ぼかし光（GlowOf・GlowW ぶん大きい同形・半透明）→ ネオン線（RimOf・EdgeW ぶん大きい同形）
-    // → スペル色の本体」の3層＝絵つき弾と同じ規則。白い芯は呼び元の DrawEnemyCore。
+    // → スペル色の本体」の3層＝絵つき弾と同じ規則。
     // 同心円5段のグローは自機弾の語彙＝丸い発光なので使わない（2026-09-26）。光は必ず弾の形に沿う。
 
     // 円弾：光円＋線円＋本体円。
@@ -1243,8 +1509,7 @@ void fragment() {
     // 針：進行方向へ伸びる細いカプセル。光・線・本体とも一回りずつ大きい同形（各1コール）。
     private void DrawNeedle(float r, Color c, Color neon)
     {
-        float ang = Velocity.LengthSquared() > 0.01f ? Velocity.Angle() : Mathf.Pi / 2f;
-        DrawSetTransform(Vector2.Zero, ang, Vector2.One);
+        DrawSetTransform(Vector2.Zero, 0, Vector2.One);
         float len = r * 2.8f, w = r * 0.78f;
         DrawCapsule(len + (EdgeW + GlowW) * 2f, w + (EdgeW + GlowW) * 2f, GlowOf(neon));
         DrawCapsule(len + EdgeW * 2f, w + EdgeW * 2f, RimOf(neon));
@@ -1269,8 +1534,7 @@ void fragment() {
     // 粒弾：進行方向へ細長い楕円。光・線は同じ潰し変換の中で一回り大きい円（短径側は薄めになるが保険用途）。
     private void DrawRice(float r, Color c, Color neon)
     {
-        float ang = Velocity.LengthSquared() > 0.01f ? Velocity.Angle() : Mathf.Pi / 2f;
-        DrawSetTransform(Vector2.Zero, ang, new Vector2(1.15f, 0.5f));
+        DrawSetTransform(Vector2.Zero, 0, new Vector2(1.15f, 0.5f));
         DrawCircle(Vector2.Zero, r + (EdgeW + GlowW) * 1.4f, GlowOf(neon), true, -1f, true);
         DrawCircle(Vector2.Zero, r + EdgeW * 1.4f, RimOf(neon), true, -1f, true);
         DrawCircle(Vector2.Zero, r, c, true, -1f, true);
@@ -1298,14 +1562,10 @@ public partial class BulletWordCore : Node2D
         size *= CoreR * 2f * 1.35f / longSide;
         var rect = new Rect2(-size / 2f, size);
         DrawRect(rect.Grow(2f), new Color(PunchCol, 0.9f));
-        // 縁取りは通常弾と同じ「輪郭に沿ったぼかし光＋ネオン線」、芯の白ドットも同じ大きさ
-        // ＝投稿チップの芯も「敵弾のサイン」を共有する。
         var sil = Bullet.SilhouetteOf(Art);
         var big = rect.Grow(sil.PadFrac * Mathf.Max(size.X, size.Y));
         DrawTextureRect(sil.Glow, big, false, Bullet.GlowOf(Neon));
         DrawTextureRect(sil.Rim, big, false, Bullet.RimOf(Neon));
         DrawTextureRect(Art, rect, false);
-        DrawCircle(Vector2.Zero, Mathf.Max(1.4f, CoreR * 0.44f), Bullet.EnemyCoreRing, true, -1f, true);
-        DrawCircle(Vector2.Zero, Mathf.Max(0.85f, CoreR * 0.27f), new Color(1f, 1f, 1f, 0.95f), true, -1f, true);
     }
 }

@@ -11,7 +11,6 @@ public partial class Audio
     private bool _akariLayered;
     private readonly AudioStreamWav?[] _akariBreakSounds = new AudioStreamWav?[5];
     public int AkariMusicDepth => _akariDepthTarget;
-    public bool AkariLayersPlaying => _akariLayered;
 
     public void StartAkariMusic(int depth, float fade = 1f)
     {

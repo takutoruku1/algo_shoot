@@ -36,8 +36,12 @@ public partial class AreaSpellCaster : Node2D
 
     private double _castT, _fireT;
     private bool _pending;
+    private int _areaWaves;
+    private readonly System.Collections.Generic.List<AreaStrike> _areaStrikes = new();
     private BossEdgeVolley? _edgeVolley;
     private int _edgeSequence;
+    private int _spellSequence;
+    private Vector2 _castTarget, _learnedSafe;
     private bool _nextEdge = true;
     public bool EdgeAttackActive => _edgeVolley != null && IsInstanceValid(_edgeVolley)
         && !_edgeVolley.Finished && !_edgeVolley.IsQueuedForDeletion();
@@ -54,6 +58,10 @@ public partial class AreaSpellCaster : Node2D
         _owner?.CancelAnimalTechnique();
         CancelEdgeAttack();
         _pending = _aoePending = false;
+        _areaWaves = 0;
+        foreach (var strike in _areaStrikes)
+            if (IsInstanceValid(strike)) strike.QueueFree();
+        _areaStrikes.Clear();
         _pendArt = AreaStrike.Art.None;
         _chainRemain = 0;
         _castT = _fireT = _aoeFireT = 0;
@@ -77,10 +85,8 @@ public partial class AreaSpellCaster : Node2D
     private const float AoeSafeR = 30f;  // 安置(セーフゾーン)半径（28-32px帯）
     // フィナーレ級の「絶域」用の狭い安置半径。全面（安置なし＝回避不能）は廃し、
     // 「狭いが必ず在る安置」に置き換える（§7 理不尽回避：全ての攻撃に回避手段を実在させる）。
-    // 難易度で広さを変える＝Easy は明確に広い安置、ルナは針の穴。
     private float AoeTightSafeR() => (GetNodeOrNull<GameManager>("/root/Game")?.Difficulty ?? GameManager.Diff.Normal) switch
     {
-        GameManager.Diff.Easy => 30f,
         GameManager.Diff.Hard => 20f,
         GameManager.Diff.Lunatic => 17f,
         _ => 24f,
@@ -89,6 +95,7 @@ public partial class AreaSpellCaster : Node2D
     // 宣告〜着弾までの間 true（ボスが通常弾を止めるゲート）。安置リレー中はホップ間の
     // 「生存確認の間」も含めて最終ホップの着弾終了まで true を保つ（被弾でスキップさせない）。
     public bool AoeActive => _aoePending || _chainRemain > 0 || (_aoeStrike != null && IsInstanceValid(_aoeStrike));
+    internal bool AttackPending => _pending || AoeActive || EdgeAttackActive || Suppressed;
 
     // ボス側の専用ギミック（こはる「お残し禁止」等）の間、通常ランダム枠の宣告/発火を一時停止する
     // 外部ゲート。予約済み(_pending)の発火・タイマーも保留し、解除後にそのまま再開する（破棄はしない）。
@@ -105,6 +112,9 @@ public partial class AreaSpellCaster : Node2D
     //   のランダム方向（ジグザグ保証つき）。安置半径は r=30 固定＝公平性は予兆尺（WarnMul）側で担保する。
     private int _chainRemain;            // 未出現のホップ数（>0 の間はリレー進行中＝AoeActive を保つ）
     private int _chainTotal;             // リレーの全ホップ数（宣告ラベルの何次/最終の判定に使う）
+    private bool _chainSingle;
+    private bool Training => GameManager.Instance!.Difficulty == GameManager.Diff.Easy;
+    private float RelayRadius => Training ? AoeSafeR : GameManager.LunaticActive ? 8 : GameManager.Instance!.Difficulty == GameManager.Diff.Hard ? 10 : 14;
     private Vector2 _chainPrevSafe;      // 直前ホップの安置中心（次ホップの起点）
     private Vector2 _chainPrevDir;       // 直前ホップの進行方向（内積<0.5 になるまで採り直し＝ジグザグ保証）
     private float _chainHopMin, _chainHopMax; // ホップ距離帯（難易度別にボス側が渡す）
@@ -125,22 +135,27 @@ public partial class AreaSpellCaster : Node2D
         _aoeTight = !wide;
         _aoePending = true;
         _aoeFireT = AoeFireDelay;
+        _chainSingle = true;
+        if (!Training) _chainTotal = _chainRemain = 4;
+        _learnedSafe = LearnedSafePoint(BossPos() ?? new Vector2(Field.BossCenterX, Field.CenterY), -1);
         string name = wide ? "この重さは、わたくしが" : "あなたまで、穢したくない";
         (GetTree().GetFirstNodeInGroup("hud") as Hud)?.AnnounceSpell(_disp, _handle, name, _tint);
     }
 
     // ボス側から安置リレーを1回予約する（レイ HP26%／ミナ HP42%）。hops=連結数、[hopMin,hopMax]=ホップ距離帯。
-    // 距離帯の上限は「予兆尺×自機速度＋安置半径」の到達限界（ルナ約158px＋帯調整）を超えないようボス側が選ぶ。
+    // 各ホップの予兆尺は、現在位置から安置までの距離と装備中の最低移動速度で決める。
     public void CastFullscreenChain(int hops, float hopMin, float hopMax)
     {
         if (AoeActive) return; // 多重予約しない
         CancelEdgeAttack();
-        _chainTotal = _chainRemain = Mathf.Max(1, hops);
+        _chainSingle = false;
+        _chainTotal = _chainRemain = Mathf.Max(Training ? 1 : 4, hops);
         _chainHopMin = hopMin; _chainHopMax = hopMax;
         _chainPrevDir = Vector2.Zero;
         _aoeTight = false; // リレーは r=30 固定（直前の「絶域」設定を引きずらない）
         _aoePending = true;
         _aoeFireT = AoeFireDelay;
+        _learnedSafe = LearnedSafePoint(BossPos() ?? new Vector2(Field.BossCenterX, Field.CenterY), 0);
         string name = _key == "rei" ? "最後まで見てて" : "まだ、抱えられます";
         (GetTree().GetFirstNodeInGroup("hud") as Hud)?.AnnounceSpell(_disp, _handle, name, _tint);
     }
@@ -166,36 +181,36 @@ public partial class AreaSpellCaster : Node2D
         // 単発：安置位置は自機の現在地を避けて配置（即死事故防止）。画面端に寄せすぎない。
         // 「絶域」は安置を狭くする代わりに予兆を伸ばす＝狭い的でも必ず到達できる。
         float r = _aoeTight ? AoeTightSafeR() : AoeSafeR;
-        Vector2 safe = PickSafeNearPlayer(r + 14f);
+        Vector2 safe = GameManager.LunaticActive ? PickSafeNearPlayer(r + 14f) : _learnedSafe;
         SpawnFullscreenStrike(safe, r, _aoeTight ? TightWarnBoost : 1f);
     }
 
-    // 安置候補を12点引き、「自機から70px以上・ボス本体から60px以上」のうち最も自機に近い点を採用する。
-    // 70pxの下限＝自機の真上に安置が湧いて棒立ちで済む事故の防止。上限を設けない代わりに
-    // 最近傍を選ぶことで、難易度によらず「予兆内に到達できる」ことを担保する：
-    //   予兆尺 = AoeWarn(1.6s) × WarnMul（易1.3 / 普1.0 / 難0.85 / ルナ0.72）＝最短1.15s(ルナ)。
-    //   反応0.3sを引いた移動猶予 0.85s × 自機速度150px/s ≈ 128px ＋ 安置半径30px
-    //   ＝ 安置中心まで約158pxなら間に合う。盤面(384×216)で一様12候補の「70px以上の最近傍」は
-    //   ほぼ確実に70〜130px帯に収まるため、ルナティックでも到達可能。
-    //   （旧実装は「70px以上を見つけ次第採用」で上限がなく、最悪381px先＝到達不能な安置が出得た）
-    //   ボス60pxの除外＝安置がボスの居場所に湧き（2026-09-08 現在の徘徊圏は X∈[149,371]・Y∈[51,148]。
-    //   縦が 42..98 の 56px から 97px へ広がったぶん、素の候補と重なる確率も上がっている）、
-    //   「安置円の中なのにボス本体接触で被弾」する理不尽の防止（QA 2026-07 週次）。
-    private const float BossClear = 60f; // 安置候補とボス現在位置の最低距離（ボスは徘徊42px/s＝予兆中の踏み込みは限定的）
+    // Keep both the destination and its approach clear of the boss body.
+    private const float BossClear = 60f;
+    internal static Vector2 LearnedSafePoint(Vector2 boss, int hop) => new(
+        boss.X >= Field.CenterX ? Field.Left + 64 : Field.Right - 64,
+        hop < 0 ? Field.CenterY : hop % 2 == 0 ? Field.Top + 54 : Field.Bottom - 54);
     private Vector2 PickSafeNearPlayer(float margin)
     {
         Vector2 player = PlayerPos();
-        Vector2? boss = BossPos();
-        Vector2 safe = new Vector2(Field.CenterX, Field.CenterY); // 全候補が条件を満たさない時のフォールバック＝盤面中央（12候補全棄却はほぼ起きない）
+        Vector2 safe = player;
         float bestD = float.MaxValue;
-        for (int i = 0; i < 12; i++)
+        for (int row = 0; row < 5; row++)
+        for (int column = 0; column < 9; column++)
         {
-            var cand = new Vector2(_rng.RandfRange(L + margin, R - margin), _rng.RandfRange(T + margin, B - margin));
-            if (boss.HasValue && cand.DistanceTo(boss.Value) < BossClear) continue; // ボスの居場所＝安置にしない
+            var cand = new Vector2(Mathf.Lerp(L + margin, R - margin, column / 8f), Mathf.Lerp(T + margin, B - margin, row / 4f));
+            if (!ClearOfBoss(player, cand)) continue;
             float d = cand.DistanceTo(player);
             if (d >= 70f && d < bestD) { bestD = d; safe = cand; }
         }
         return safe;
+    }
+
+    private bool ClearOfBoss(Vector2 from, Vector2 to)
+    {
+        if (BossPos() is not Vector2 boss) return true;
+        return to.DistanceTo(boss) >= BossClear
+            && Geometry2D.GetClosestPointToSegment(boss, from, to).DistanceTo(boss) >= Mathf.Min(32, from.DistanceTo(boss)) - 0.01f;
     }
 
     // 自機の現在地（いなければ画面中央＝旧フォールバックを踏襲）。
@@ -214,7 +229,11 @@ public partial class AreaSpellCaster : Node2D
         _chainRemain--;
         float margin = AoeSafeR + 14f;
         Vector2 safe;
-        if (hopIdx == 0)
+        if (!GameManager.LunaticActive)
+        {
+            safe = new Vector2(_learnedSafe.X, _chainSingle && hopIdx == 0 ? Field.CenterY : hopIdx % 2 == 0 ? T + 54 : B - 54);
+        }
+        else if (hopIdx == 0)
         {
             safe = PickSafeNearPlayer(margin);
             _chainPrevDir = Vector2.Zero;
@@ -222,7 +241,6 @@ public partial class AreaSpellCaster : Node2D
         else
         {
             safe = _chainPrevSafe;
-            Vector2? boss = BossPos();
             for (int i = 0; i < 24; i++)
             {
                 float a = _rng.RandfRange(0f, Mathf.Tau);
@@ -232,19 +250,12 @@ public partial class AreaSpellCaster : Node2D
                 cand.X = Mathf.Clamp(cand.X, L + margin, R - margin);
                 cand.Y = Mathf.Clamp(cand.Y, T + margin, B - margin);
                 if (cand.DistanceTo(_chainPrevSafe) < _chainHopMin * 0.9f) continue; // 端クランプで潰れた＝採り直し（0.9: 縦216pxで垂直系候補が潰れやすく、棄却→再抽選で横方向が創発的に優先される。sakurai査定 2026-07-05）
-                if (boss.HasValue && cand.DistanceTo(boss.Value) < BossClear) continue; // ボスの上に安置＝採り直し（安置内接触の理不尽防止）
+                if (!ClearOfBoss(PlayerPos(), cand)) continue;
                 safe = cand;
                 break;
             }
-            // 全採り直し失敗（角に追い詰められた等）の保険：中央方向へ hopMin ぶん逃がす
-            //（この保険だけはボス距離より画面内保証を優先＝24回の抽選が全滅する極端な状況の脱出弁）。
             if (safe == _chainPrevSafe)
-            {
-                var dir = (new Vector2(Field.CenterX, Field.CenterY) - _chainPrevSafe).Normalized();
-                safe = _chainPrevSafe + dir * _chainHopMin;
-                safe.X = Mathf.Clamp(safe.X, L + margin, R - margin);
-                safe.Y = Mathf.Clamp(safe.Y, T + margin, B - margin);
-            }
+                safe = PickSafeNearPlayer(margin);
             _chainPrevDir = (safe - _chainPrevSafe).Normalized();
         }
         _chainPrevSafe = safe;
@@ -257,8 +268,8 @@ public partial class AreaSpellCaster : Node2D
             (GetTree().GetFirstNodeInGroup("hud") as Hud)?.AnnounceSpell(_disp, _handle, label, _tint);
         }
 
-        SpawnFullscreenStrike(safe, AoeSafeR); // 安置 r=30 固定（難易度で縮めない）
-        _restT = ChainRestDur; // 次ホップまでの生存確認の間（着弾フラッシュが消えてから計時される）
+        SpawnFullscreenStrike(safe, RelayRadius);
+        _restT = Training ? ChainRestDur : 0.05;
     }
 
     private AreaStrike.Motif MotifFor(AreaStrike.Shape shape)
@@ -277,8 +288,15 @@ public partial class AreaSpellCaster : Node2D
     // 全画面予兆を1枚出す（単発／リレー共用）。warnBoost>1 で予兆尺を伸ばす（狭い安置の「絶域」用）。
     private void SpawnFullscreenStrike(Vector2 safe, float r, float warnBoost = 1f)
     {
+        double warning = AoeWarn * WarnMul() * warnBoost;
+        if (GetTree().GetFirstNodeInGroup("player") is Player player)
+        {
+            float detour = !GameManager.LunaticActive && !ClearOfBoss(player.GlobalPosition, safe) ? 64 : 0;
+            warning = System.Math.Max(warning,
+                Mathf.Max(0, player.GlobalPosition.DistanceTo(safe) + detour - r + Player.HitRadius + 4) / player.SlowestMoveSpeed + 0.35);
+        }
         var z = new AreaStrike();
-        z.ConfigureFullscreen(safe, r, AoeWarn * WarnMul() * warnBoost, _tint, _hot, MotifFor(AreaStrike.Shape.Fullscreen));
+        z.ConfigureFullscreen(safe, r, warning, _tint, _hot, MotifFor(AreaStrike.Shape.Fullscreen));
         if (_owner != null) z.SetOwner(_owner); // 着弾前にボス浄化されたら予兆ごと消える
         _world.AddChild(z);
         z.GlobalPosition = Vector2.Zero; // 画面座標基準（Fullscreen は内部で安置座標を画面系で扱う）
@@ -347,6 +365,12 @@ public partial class AreaSpellCaster : Node2D
 
         if (Hud.BubblePaused) return; // 会話中は出さない
         if (Suppressed || (_owner?.AnimalTechniqueActive ?? false)) return;
+        if ((_owner?.CrossfireActive ?? false) || (_owner?.DodgeWaveActive ?? false))
+        {
+            // Charge the next spell during a barrage, but never interrupt its committed lanes.
+            if (!_pending && !AoeActive && !EdgeAttackActive) _castT += GameManager.EnemyDelta(delta);
+            return;
+        }
 
         // ★集中モード（#10）：宣告→出現の待ち時間も敵側の時計で進める（AreaStrike の _t と同じ倍率）。
         delta = GameManager.EnemyDelta(delta);
@@ -357,8 +381,17 @@ public partial class AreaSpellCaster : Node2D
 
         if (_pending)
         {
+            _areaStrikes.RemoveAll(s => !IsInstanceValid(s) || s.IsQueuedForDeletion());
+            if (_areaStrikes.Count > 0) return;
+            if (_areaWaves == 0) { _pending = false; return; }
             _fireT -= delta;
-            if (_fireT <= 0) { SpawnTelegraphs(); _pending = false; }
+            if (_fireT <= 0)
+            {
+                if (!Training) _castTarget = PlayerPos();
+                SpawnTelegraphs();
+                _areaWaves--;
+                _fireT = Training ? 0 : 0.05;
+            }
             return;
         }
         _castT += delta;
@@ -381,12 +414,15 @@ public partial class AreaSpellCaster : Node2D
     // 技名を宣告（Xツイート風スペルカード）→ 溜めて予兆を出す。
     private void Cast()
     {
-        var sp = _spells[_rng.RandiRange(0, _spells.Length - 1)];
+        _castTarget = PlayerPos();
+        var sp = _spells[_spellSequence++ % _spells.Length];
         Color tint = sp.shape == AreaStrike.Shape.BeamSeg ? ReadLineTint : _tint;
         (GetTree().GetFirstNodeInGroup("hud") as Hud)?.AnnounceSpell(_disp, _handle, sp.name, tint);
         _pendShape = sp.shape;
         _pendArt = _key == "rei" && sp.name == "切り抜きの線" ? AreaStrike.Art.ClipLine : AreaStrike.Art.None;
-        _pending = true; _fireT = _fireDelay;
+        _pending = true;
+        _areaWaves = Training ? 1 : 4;
+        _fireT = Training ? _fireDelay : 0.2;
     }
 
     // 難易度で同時に出る数が増える（弾幕に上乗せするため控えめ：弱1/中2/強3/ルナ5）。
@@ -401,7 +437,6 @@ public partial class AreaSpellCaster : Node2D
     // public: ボス側の自前テレグラフギミック（こはる「五徳の十字火」等）も同じ補正で予兆尺を組む。
     public float WarnMul() => (GetNodeOrNull<GameManager>("/root/Game")?.Difficulty ?? GameManager.Diff.Normal) switch
     {
-        GameManager.Diff.Easy => 1.3f,
         GameManager.Diff.Hard => 0.85f,
         GameManager.Diff.Lunatic => 0.72f,
         _ => 1f,
@@ -413,6 +448,11 @@ public partial class AreaSpellCaster : Node2D
     private void SpawnTelegraphs()
     {
         _placed.Clear();
+        if (!GameManager.LunaticActive)
+        {
+            SpawnLearnedTelegraphs();
+            return;
+        }
         int n = DiffCount();
         float wm = WarnMul();
         for (int i = 0; i < n; i++)
@@ -452,6 +492,30 @@ public partial class AreaSpellCaster : Node2D
         }
     }
 
+    private void SpawnLearnedTelegraphs()
+    {
+        var shape = _pendShape ?? _shapes[(_spellSequence - 1 + _shapes.Length) % _shapes.Length];
+        var anchor = AnchorGeo(shape, _castTarget);
+        float gap = Training ? 18 : GameManager.Instance!.Difficulty == GameManager.Diff.Hard ? 8 : 10;
+        for (int i = 0; i < 3; i++)
+        {
+            int lane = i == 0 ? 0 : i == 1 ? -1 : 1;
+            double warn = 1.2 * WarnMul() + i * 0.2;
+            if (shape == AreaStrike.Shape.BeamSeg)
+            {
+                Vector2 side = Vector2.FromAngle(Mathf.DegToRad(-ReadLineDeg)).Orthogonal();
+                SpawnReadLine(_castTarget + side * (lane * (ReadLineHalfThick * 2 + gap)), -ReadLineDeg, warn);
+            }
+            else
+            {
+                Vector2 offset = shape == AreaStrike.Shape.BeamH
+                    ? Vector2.Down * (lane * (anchor.hh * 2 + gap))
+                    : Vector2.Right * (lane * (anchor.hw * 2 + gap));
+                AddStrike(shape, anchor.c + offset, anchor.hw, anchor.hh, warn);
+            }
+        }
+    }
+
     // 軸形状の AreaStrike を1枚生成して World へ置く（重なり判定用の _placed にも記録）。
     private void AddStrike(AreaStrike.Shape shape, Vector2 c, float hw, float hh, double warn)
     {
@@ -469,6 +533,7 @@ public partial class AreaSpellCaster : Node2D
         if (_owner != null) z.SetOwner(_owner);
         _world.AddChild(z);
         z.GlobalPosition = c;
+        _areaStrikes.Add(z);
         _placed.Add((shape, c, hw, hh));
     }
 
@@ -502,6 +567,7 @@ public partial class AreaSpellCaster : Node2D
         if (_owner != null) z.SetOwner(_owner);
         _world.AddChild(z);
         z.GlobalPosition = through - dir * (ReadLineLen * 0.5f);
+        _areaStrikes.Add(z);
     }
 
     // 形状ごとの候補配置（自機の起点＝左側はやや空け、中央〜右に寄せる＝フェアな逃げ場）。

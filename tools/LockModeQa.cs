@@ -70,6 +70,10 @@ public partial class LockModeQa : Node
         var e1 = Spawn(world, spec, new Vector2(Field.Left + 140, 108));
         var e2 = Spawn(world, spec, new Vector2(Field.Left + 220, 108));
         await Frames(4);
+        // Initial resource loading can batch physics ticks before the first rendered input frame.
+        if (DisplayServer.GetName() != "headless")
+            await ToSignal(RenderingServer.Singleton, RenderingServer.SignalName.FramePostDraw);
+        await Frames(2);
         if (!IsInstanceValid(e1) || !IsInstanceValid(e2)) { GD.Print("[LM] NG enemy despawned"); _fail++; return; }
 
         Check("最初は OFF（モードなし）", !player.LockArmed && !player.LockedOn);

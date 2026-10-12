@@ -77,9 +77,6 @@ public partial class StageBackground : Node2D
     // 現行の層をすべて消す（FINAL の巡回の終点。背後のミナ自身の背景だけが残る）。
     public void FadeOutLayers(float dur = 1.0f) => _layers?.FadeOutAll(dur);
 
-    // 層モードが生きているか（FINAL は層が読めなければ生成グラデの1枚絵経路に落ちる）。
-    public bool HasLayers => _layers != null;
-
     // ───── tunable（控えめに） ─────
     public float MidScrollSpeed = 13f;     // px/s。道中背景が左へ流れる速さ＝前進感。控えめ（弾の視認を妨げない／画面酔い対策で半減）
     public float BossDriftSpeed = 4f;      // px/s。ボス背景の横ドリフト（ゆっくり／半減）

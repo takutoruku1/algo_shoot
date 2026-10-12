@@ -11,9 +11,6 @@ public partial class BossRei : Enemy
     public System.Action<System.Action>? MemoryFollowUp { get; set; }
 
     private readonly BossMover _mover = new BossMover();
-    // 旧・徘徊速度。移動は BossMover の cruise_speed（ini [rei]）が握るので、これは
-    // ini に cruise_speed も roam_speed も無いときの最終フォールバックとして残してある。
-    private const float RoamSpeed = 42f;
 
     private double _fireT;
     private double _fireT2;   // フィナーレ用の第2タイマー（2スペル同時撃ち）
@@ -22,6 +19,7 @@ public partial class BossRei : Enemy
     private bool _memoryPending;
     private bool _memoryPlayed;
     private float _ringOff;
+    private float _spiralPhase;
     private int _pattern;
     private int _beatsFired;
     private const int PatternCount = 4;
@@ -34,7 +32,7 @@ public partial class BossRei : Enemy
     // 予測攻撃キャスター（通常テレグラフ＋安置リレー「最終選考」の発火に使う）。
     private AreaSpellCaster _caster = null!;
     private BossPostSequence _posts = null!;
-    public bool PostSequenceActive => _posts != null && (_posts.Active || _posts.Pending);
+    public bool PostSequenceActive => _posts != null && _posts.Active;
     // 安置リレー/全画面AOEの宣告〜最終着弾中か。StageRei が投稿弾（言葉弾）の湧きを止めるゲートに参照する
     //（安置円の中に言葉弾が刺さって「安置なのに被弾」になる理不尽を断つ）。
     public bool AoeGateActive => _caster != null && (_caster.AoeActive || _caster.EdgeAttackActive);
@@ -103,8 +101,6 @@ public partial class BossRei : Enemy
         GetHud()?.SetBossBarTint(s.tint); // HPバーもスペル色へ（#26 フェーズ移行の可視化）
         GetHud()?.AnnounceSpell("レイ", BossHandles.ReiMain, s.name, s.tint);
     }
-
-    private const string RCry = "res://char/v3/rei_face_cry.png";
     private static readonly (int who, string text, string face)[] Lines =
     {
         (2, "初見さん、大歓迎。コメント、全部読むから。……ぜんぶ、読んだから。", "res://char/v3/rei_gawa_face_v1.png"),
@@ -168,7 +164,7 @@ public partial class BossRei : Enemy
         _ring2Speed = BossTuning.F("rei", "ring2_speed", 76f);
         _aimedInterval = BossTuning.F("rei", "aimed_interval", 0.7f);
         _aimedSpeed = BossTuning.F("rei", "aimed_speed", 98f);
-        _spiralInterval = BossTuning.F("rei", "spiral_interval", 0.085f);
+        _spiralInterval = BossTuning.F("rei", "spiral_interval", 0.24f);
         _spiralSpeed = BossTuning.F("rei", "spiral_speed", 90f);
         _pressureMax = BossTuning.I("rei", "pressure_max", 2);
         _pressureDelay = BossTuning.F("rei", "pressure_delay", 6.0f);
@@ -246,13 +242,7 @@ public partial class BossRei : Enemy
         _caster = new AreaSpellCaster();
         _caster.Configure("rei", GetParent());
         AddChild(_caster);
-        _posts = BossPostSequence.Attach(this, "rei", _caster, _caster.CancelPendingAttacks, () =>
-        {
-            _fireT = _fireT2 = 0;
-            if (_posts.Count % 2 == 0) RallyShield();
-            ApplySpell();
-            OnHpChanged();
-        });
+        _posts = BossPostSequence.Attach(this, "rei", _caster.CancelPendingAttacks, OnHpChanged);
 
         // 部品の演出層（char/v3/fx/rei/*.png）を本体の子として1個ぶら下げる。当たり判定は持たない。
         // 引数は待機・攻撃の本体画像の幅（720px 基準）＝実測の基準点を中心基準へ読み替えるのに要る。
@@ -263,7 +253,7 @@ public partial class BossRei : Enemy
     {
         // 自機の位置は毎フレーム渡す（自機狙いの追従＝x と y の両方、向きの反転判定に要る）。
         if (GetTree().GetFirstNodeInGroup("player") is Node2D pl) _mover.SetPlayerPos(pl.GlobalPosition);
-        GlobalPosition = _mover.Step(GlobalPosition, delta, IsForm2 ? 1.65f : 1f);
+        if (!BarrageHolding) GlobalPosition = _mover.Step(GlobalPosition, delta, IsForm2 ? 1.65f : 1f);
         ApplyBossMotion(_mover.VisualOffset, _mover.Lean, IsForm2 ? !_mover.FacingLeft : _mover.FacingLeft, _mover.SquashScale);
         FxLayer.Instance?.EmitBossAura(FxLayer.BossAura.Rei, GlobalPosition, (float)delta, 32f);
         TickRelayWatch();
@@ -332,6 +322,7 @@ public partial class BossRei : Enemy
         // このあいだは「宣告付きの大技」の立ち位置＝中央の高めに据わって動かない（見せ場を固定する）。
         if (_caster != null && (_caster.AoeActive || _caster.EdgeAttackActive)) { _mover.SetNextAttack(BossMover.Attack.Spell); return; }
         if (TickForm2Technique(delta, _mover, _caster!)) return;
+        if (BarrageHolding) { _fireT = _fireT2 = 0; return; }
         if (_finale) { FireFinale(pool, delta); return; }
         _fireT += delta;
         // 「また逃げる」圧：リング系は弾数+_pressure、自機狙いは扇の枚数が増える（Aimed 内）。
@@ -351,7 +342,7 @@ public partial class BossRei : Enemy
         // 2スペル同時展開＝どちらか一方の立ち位置に寄せると常に取り合いになるので、
         // 遅い方（リング）の一拍だけ拾って中央に据わらせる（螺旋は毎フレーム級で撃つため一拍にしない）。
         if (_fireT >= Di(0.9)) { _fireT = 0; _mover.DeclareAttack(BossMover.Attack.Ring); SetSpellVisual(Spells[2].shape, Spells[2].tint, BulletArt.Get(Spells[2].art), Spells[2].rotation); Ring(pool, Dn(14) + _pressure, 72f); }
-        if (_fireT2 >= Di(0.085)) { _fireT2 = 0; SetSpellVisual(Spells[3].shape, Spells[3].tint, BulletArt.Get(Spells[3].art), Spells[3].rotation); Spiral(pool); }
+        if (_fireT2 >= Di(_spiralInterval)) { _fireT2 = 0; SetSpellVisual(Spells[3].shape, Spells[3].tint, BulletArt.Get(Spells[3].art), Spells[3].rotation); Spiral(pool); }
     }
 
     // 弾サイズ階層（#攻撃種ごとのサイズ差）：密集バラマキ(Ring/扇)=小(隙間を編む読み)／
@@ -359,7 +350,10 @@ public partial class BossRei : Enemy
     //   当たり芯ドットは Bullet._Draw が全形状共通で描くので、大きくしても被弾点は埋もれない。
     private void Ring(BulletPool pool, int k, float spd)
     {
-        _ringOff += Mathf.DegToRad(9f);
+        BodyShotStyle = BossShotStyle.Ring;
+        k = Mathf.Clamp((k + 2) / 3, GameManager.Instance!.Difficulty >= GameManager.Diff.Hard ? 8 : 3,
+            GameManager.Instance.IsLunatic ? 10 : 8);
+        _ringOff = AimAtPlayer().Angle();
         for (int i = 0; i < k; i++)
         {
             float a = _ringOff + Mathf.Tau * i / k;
@@ -369,22 +363,28 @@ public partial class BossRei : Enemy
 
     private void Aimed(BulletPool pool)
     {
+        BodyShotStyle = BossShotStyle.Aimed;
         Vector2 d = AimAtPlayer();
         float baseA = Mathf.Atan2(d.Y, d.X);
-        int wing = 1 + _pressure; // 「また逃げる」圧：3way→5way→7way（角度は不変＝扇が広がる）
+        bool dense = GameManager.Instance!.Difficulty >= GameManager.Diff.Hard;
+        int wing = dense ? (GameManager.Instance.IsLunatic ? 4 : 3) : 1 + _pressure;
         for (int i = -wing; i <= wing; i++)
         {
-            float a = baseA + i * Mathf.DegToRad(13f);
+            float a = baseA + i * Mathf.DegToRad(dense ? 30f : 13f);
             FireBullet(pool, GlobalPosition, new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * _aimedSpeed, 4.0f);
         }
     }
 
     private void Spiral(BulletPool pool)
     {
-        _ringOff += Mathf.DegToRad(13f);
-        for (int s = 0; s < 2; s++)
+        BodyShotStyle = BossShotStyle.Ring;
+        bool dense = GameManager.Instance!.Difficulty >= GameManager.Diff.Hard;
+        if (dense) _spiralPhase = Mathf.PosMod(_spiralPhase + 0.18f, Mathf.Tau);
+        _ringOff = AimAtPlayer().Angle() + (dense ? _spiralPhase : 0);
+        int arms = dense ? (GameManager.Instance.IsLunatic ? 5 : 4) : 2;
+        for (int s = 0; s < arms; s++)
         {
-            float a = _ringOff + Mathf.Pi * s;
+            float a = _ringOff + Mathf.Tau * s / arms;
             FireBullet(pool, GlobalPosition, new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * _spiralSpeed, 2.6f);
         }
     }
@@ -439,7 +439,6 @@ public partial class BossRei : Enemy
             var diff = GetNodeOrNull<GameManager>("/root/Game")?.Difficulty ?? GameManager.Diff.Normal;
             var (hops, hopMin, hopMax) = diff switch
             {
-                GameManager.Diff.Easy => (2, 140f, 190f),
                 GameManager.Diff.Hard => (3, 130f, 165f),
                 GameManager.Diff.Lunatic => (4, 110f, 145f),
                 _ => (3, 140f, 190f),
@@ -463,7 +462,7 @@ public partial class BossRei : Enemy
 
     public override void Purify()
     {
-        if (_posts != null && _posts.BombHit()) return;
+        if (_posts != null && _posts.Active) return;
         base.Purify();
     }
 
@@ -557,11 +556,7 @@ public partial class BossRei : Enemy
                 }));
             return;
         }
-        if (!_seq && !_memoryPending && _posts.TryStart())
-        {
-            _relayWatching = false;
-            return;
-        }
+        if (!_seq && !_memoryPending) _posts.UpdateDamage();
         // 改心の会話送り：Z/Enter/ui_accept/Pad A に加えマウス左クリックでも送れる共通ヘルパ（マウス対応 P2）。
         bool z = Pad.AdvanceHeld();
         bool zEdge = z && !_zHeld;

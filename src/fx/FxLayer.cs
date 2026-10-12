@@ -13,7 +13,6 @@ public partial class FxLayer : Node2D
     // ---- 配色（fx.js の PAL を移植） ----
     public static readonly Color White   = new Color("ffffff");
     public static readonly Color Cyan    = new Color("9fe9ff");
-    public static readonly Color PlayerEdge = new Color("52c4f2");
     public static readonly Color EnemyInk = new Color("0e0a16");
     public static readonly Color Edge1   = new Color("ff4d63");
     public static readonly Color Edge2   = new Color("ff5fb0");
@@ -378,14 +377,6 @@ public partial class FxLayer : Node2D
         // 回収の見せ場（2026-09-22）。ボスは「全部拾い切った瞬間の締め」まで出す。中ボスは戦闘が
         // 続くので段階演出だけに抑える＝画面を覆う締めのフラッシュ／大リングは出さない。
         if (boss) ScoreDrops.BeginHarvest(tier == PurifyTier.Boss);
-    }
-
-    // 弾→花びら（ボム/受け止め）。消えた弾の位置に残る花びらは、まだ飛んでいる他の弾を隠しうるので
-    // 浄化バーストと同じく弾より奥へ沈める（芯の小グローだけ手前＝「消えた」の合図は残す）。
-    public void BulletToPetal(Vector2 pos)
-    {
-        Add0(new P { Type = T.Petal, X = pos.X, Y = pos.Y, Vx = R(-20, 20), Vy = R(-50, -15), Size = R(2.4f, 4f), Rot = R(0, Mathf.Tau), Spin = R(-6, 6), Grav = 65, Drag = 0.7f, Ttl = R(0.7f, 1.1f), Col = _rng.Randf() < 0.5f ? PetalA : PetalB, Deep = true });
-        Add0(new P { Type = T.Glow, X = pos.X, Y = pos.Y, Size = 4, Ttl = 0.2f, Col = Mote, Add = true });
     }
 
     public void ScorePickup(Vector2 pos, Color color)

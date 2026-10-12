@@ -153,8 +153,11 @@ public partial class BossRetryQa : Node
                 Check(_game.BossReached == reached, $"FINAL entry {entry}: BossReached={reached} through the real stage step");
                 Check(reached ? step >= BossStepOf("MinaBattle") : step == 1,
                     $"FINAL entry {entry}: starts at {(reached ? "the boss" : "the intro")} (step {step})");
+                if (reached)
+                    for (int frame = 0; frame < 240 && root.GetNode<Node2D>("World").GetNodeOrNull<BossMina>("BossMina") == null; frame++)
+                        await Frames(1);
                 Check((root.GetNode<Node2D>("World").GetNodeOrNull<BossMina>("BossMina") != null) == reached,
-                    $"FINAL entry {entry}: Mina herself is {(reached ? "already on the field" : "still absent")}");
+                    $"FINAL entry {entry}: Mina herself is {(reached ? "on the field after her entrance" : "still absent")}");
                 Check(root.GetNode<Hud>("Hud").EpicBannerActive != reached,
                     $"FINAL entry {entry}: the FINAL title card {(reached ? "is skipped on a boss retry" : "plays on a fresh dive")}");
                 Freeze(root);

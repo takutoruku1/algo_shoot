@@ -59,7 +59,6 @@ public partial class CameoBoss : Enemy
     private static readonly Vector2 ZoneCenter = new Vector2(Field.CenterX + 18f, 72f);
     private const float ZoneHalfW = Field.Width * (80f / 384f);
     private const float ZoneHalfH = 26f;
-    private const float RoamSpeed = 40f;
 
     // 捨て台詞の一行オーバーレイ1行あたりの表示秒（旧 CameoHit.PostLineDur を踏襲）。
     private const double DefeatLineDur = 2.4;
@@ -91,6 +90,12 @@ public partial class CameoBoss : Enemy
     private void Declare(BossMover.Attack a)
     {
         _stance = a;
+        AnnounceTechnique(Theme.Fire switch
+        {
+            CameoFireTheme.AkariGrief => a == BossMover.Attack.Wall ? "止まらない締切" : "溜め込んだため息",
+            CameoFireTheme.ReiAggressive => a == BossMover.Attack.Aimed ? "引用の連鎖" : "反響の花冠",
+            _ => a == BossMover.Attack.Wall ? "降り積もる祈り" : "あなたを見つける",
+        });
         _mover.SetNextAttack(a);
         _mover.OnAttack(a);
     }
@@ -105,7 +110,6 @@ public partial class CameoBoss : Enemy
         CameoFireTheme.AkariGrief    => "cameo_akari",
         _                            => "cameo_koharu",
     };
-    private readonly RandomNumberGenerator _rng = new RandomNumberGenerator();
 
     // 撃破後の捨て台詞ドライバ（Enemy.Redeem→OnCryStart で起動）。
 
@@ -210,7 +214,6 @@ public partial class CameoBoss : Enemy
 
     public override void _Ready()
     {
-        _rng.Randomize();
         base._Ready();
         if (Audio.Instance != null && Theme.Bgm != null) Audio.Instance.Music(Theme.Bgm);
         // 移動：状態機械＋立ち位置つき（本戦ボスと同じ作法）。速度・立ち位置は ini の
@@ -316,7 +319,8 @@ public partial class CameoBoss : Enemy
     // ── 弾幕プリミティブ ──
     private void Ring(BulletPool pool, int k, float spd)
     {
-        _ringOff += Mathf.DegToRad(9f);
+        BodyShotStyle = BossShotStyle.Ring;
+        _ringOff = AimAtPlayer().Angle();
         for (int i = 0; i < k; i++)
         {
             float a = _ringOff + Mathf.Tau * i / Mathf.Max(1, k);
@@ -326,6 +330,7 @@ public partial class CameoBoss : Enemy
 
     private void Aimed(BulletPool pool, int fan, float stepDeg, float spd)
     {
+        BodyShotStyle = BossShotStyle.Aimed;
         Vector2 d = AimAtPlayer();
         float baseA = Mathf.Atan2(d.Y, d.X);
         int half = fan / 2;
@@ -339,11 +344,20 @@ public partial class CameoBoss : Enemy
     private void RainDown(BulletPool pool, int k, float spd)
     {
         var bullets = new Bullet[k];
+        float targetX = (GetTree().GetFirstNodeInGroup("player") as Node2D)?.GlobalPosition.X ?? Field.PlayerStartX;
+        float pitch = Mathf.Max(6.4f + BulletPool.BossLaneGap, Field.Width / Mathf.Max(1, k));
+        int center = Mathf.Clamp(Mathf.RoundToInt((targetX - Field.Left) / pitch), 0, k - 1);
         for (int i = 0; i < k; i++)
         {
-            float x = 20f + 344f * (i + 0.5f) / Mathf.Max(1, k);
-            bullets[i] = FireBullet(pool, new Vector2(x, -6f), new Vector2(_rng.RandfRange(-8f, 8f), spd), 3.2f, 1,
+            float x = targetX + (i - center) * pitch;
+            bullets[i] = FireBullet(pool, new Vector2(x, -6f), new Vector2(0, spd), 3.2f, 1,
                 fromCenter: false);
+            if (Theme.Fire == CameoFireTheme.AkariGrief)
+            {
+                float mul = GameManager.Instance!.BulletSpeedMul;
+                bullets[i].MakeAccel(0.6f * mul, spd * mul, 1.05f);
+                bullets[i].UseCharacterProjectile(Job.Melee);
+            }
         }
         OverheadCast.Begin(this, bullets, CurSprite, CurTint);
     }
@@ -354,6 +368,7 @@ public partial class CameoBoss : Enemy
     //   自機の正面を通る。1本のときは t=0 を使う（旧式だと単発が -spread/2 へ逸れて必ず外した）。
     private void FanDown(BulletPool pool, int fan, float spreadDeg, float spd)
     {
+        BodyShotStyle = BossShotStyle.Aimed;
         var aim = AimAtPlayer();
         float baseA = Mathf.Atan2(aim.Y, aim.X);
         for (int i = 0; i < fan; i++)

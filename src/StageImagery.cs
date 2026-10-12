@@ -21,13 +21,8 @@ public partial class StageImagery : Node2D
     private const float W = 384f, H = 216f;
     private FontFile _font = null!;
     private double _t;
-    // Akari の記憶フラッシュ（>0 の間だけ描画）。焚き口 TriggerMemoryFlash は 2026-09-28 に撤去した
-    //   （案C の改心は回想ではないので 2026-09-06 に BossAkari 側の呼び出しが外れ、以後ずっと呼び手が無かった）。
-    //   交差点の画（DrawAkari の分岐）ごと消すかは、差し替えの背景演出を決めてから判断する＝いまは 0 のまま出ない。
-    private double _flashT;
     private float _bulletDamp = 1f; // 弾密度が高いほど背景を引く係数（致命情報を最前面の明るさに＝§3 視認性）
     private double _revT = -1;      // S3 画の反転：<0=未発火。TriggerReversal() から 0 で進行を始める
-    private const float RevDur = 12f; // 反転の全尺（改心直後の会話〜帰還ビートの背景でゆっくり満ちる）
 
     public override void _Ready()
     {
@@ -42,7 +37,7 @@ public partial class StageImagery : Node2D
     //   背景で“ゆっくり”反転していく。ズームもフラッシュも鳴らさない＝プレイヤーが自分で気づく余白を残す。
     public void TriggerReversal() { if (_revT < 0) _revT = 0; }
 
-    // 反転の局所進行：全尺 RevDur のうち t0..t1 秒の区間を 0..1 に正規化して smoothstep（ゆっくり入りゆっくり止まる）。
+    // 反転の局所進行：t0..t1 秒の区間を 0..1 に正規化して smoothstep（ゆっくり入りゆっくり止まる）。
     private float RevPhase(float t0, float t1)
     {
         if (_revT < 0) return 0f;
@@ -53,7 +48,6 @@ public partial class StageImagery : Node2D
     public override void _Process(double delta)
     {
         _t += delta;
-        if (_flashT > 0) _flashT -= delta;
         if (_revT >= 0) _revT += delta; // S3 画の反転の進行（改心成立後）
         // 敵弾が増えるほど背景の声カードを一段引く（20発まで等倍→80発で0.45倍）。なめらかに追従。
         int bullets = GetTree().GetNodesInGroup("enemy_bullets").Count;
@@ -123,14 +117,6 @@ public partial class StageImagery : Node2D
         return t;
     }
 
-    // 相対時刻「· 2時間」等。決定論で 分/時間 を散らす（中黒「·」で区切る）。
-    private string RelTime(int i)
-    {
-        float r = Frac(Mathf.Sin(i * 73.9f) * 4129.7f);
-        if (r < 0.45f) return $"· {1 + (int)(r * 130f)}分";
-        return $"· {1 + (int)((r - 0.45f) * 40f)}時間";
-    }
-
     // 認証バッジを付けるか（時々だけ＝決定論）。
     private bool Verified(int i) => Frac(Mathf.Sin(i * 113.3f) * 2671.7f) > 0.72f;
 
@@ -145,7 +131,6 @@ public partial class StageImagery : Node2D
     }
 
     private const float BodyTrack = 0f;
-    private const float BodyAlphaMax = 0.50f;  // 本文 α の上限（旧 0.62）
     private const float DraftAlpha = 0.38f;    // 下書きの基準 α（旧 0.46）
 
     // 字間を含めた文字列幅（DrawTracked が実際に進む横幅と一致させる）。
@@ -434,19 +419,6 @@ public partial class StageImagery : Node2D
             }
         }
 
-        // 記憶フラッシュ（雨の交差点。言いかけた唇。クラクション）。
-        if (_flashT > 0)
-        {
-            float f = Mathf.Clamp((float)_flashT / 2.4f, 0f, 1f);
-            float pulse = 0.35f + 0.25f * Mathf.Sin((float)_t * 18f);
-            DrawRect(new Rect2(0, 0, W, H), new Color(1f, 1f, 1f, (0.30f + pulse * 0.2f) * f));
-            // 交差点（十字の道）
-            var road = new Color(0.6f, 0.62f, 0.7f, 0.5f * f);
-            DrawRect(new Rect2(0, H / 2f - 16f, W, 32f), road);
-            DrawRect(new Rect2(W / 2f - 16f, 0, 32f, H), road);
-            _font.DrawString(GetCanvasItem(), new Vector2(W / 2f - 70f, H / 2f - 26f),
-                "あのね、あたし——", HorizontalAlignment.Left, -1, 12, new Color(0.2f, 0.2f, 0.25f, 0.8f * f));
-        }
     }
 
     // ---- STAGE2 こはる：電気を消した部屋の静かな投稿（暗背景・α一段低め）----

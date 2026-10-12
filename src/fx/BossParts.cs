@@ -714,16 +714,6 @@ public partial class BossParts : Node2D
     // 減速のイージング（1-(1-x)^2）。cry の「力が抜けていく」動きに使う。
     private static float EaseOut(float x) => 1f - (1f - x) * (1f - x);
 
-    // 部品が全部消えているか（改心の順番を守るための問い合わせ）。
-    public bool AllGone
-    {
-        get
-        {
-            foreach (var p in _parts) if (!p.Gone) return false;
-            return true;
-        }
-    }
-
     // ───── 進行 ─────
 
     public override void _Process(double delta)

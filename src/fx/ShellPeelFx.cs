@@ -50,8 +50,6 @@ public partial class ShellPeelFx : Node2D
 
     // ガワの二枚が消え切る時刻＝この後は中の人だけが残る。
     public const float ShellGoneAt = 1.80f;
-    // 部品（枠・吹き出し・星）も消え切って全部が静止する時刻。ここから静止保持が始まる。
-    public const float SettleAt = 2.20f;
 
     public bool Finished => _done;
     public float Time => _t;

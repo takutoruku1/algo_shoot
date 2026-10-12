@@ -56,15 +56,10 @@ public partial class StageRei : Node
 
     // ミナの表情（案C では語り手はミナ一人＝行ごとに顔を差し替える）。こはる面と同じ流儀。
     private const string MFace = "res://char/mina_face.png";
-    private const string MSmile = "res://char/mina_smile.png";
-    private const string MWorried = "res://char/mina_worried.png";
-    private const string MDoubt = "res://char/mina_doubt.png";
 
     // レイの顔（中の人 / 配信用の笑顔 / ガワ＝笑顔で固定 / 中の人の泣き顔）。
     //   中ボス＝中の人（RFace/RSmile）、ボス＝ガワ（RGawa）と、姿が違うこと自体が仕込み。
     private const string RFace = "res://char/v3/rei_face.png";
-    private const string RSmile = "res://char/v3/rei_face_smile.png";
-    private const string RGawa = CompanionDialogue.ReiAvatarPortrait;
 
     // S3-1 配信枠・導入（仮台本 07）。HUD バッジ `炎上中`＝H2 の炎上で弱体化した状態から始まる。
     //   狭い部屋の壁一面が配信画面。右上の同接カウンター「11」。画面の中央にガワの星逢レイが
@@ -128,16 +123,6 @@ public partial class StageRei : Node
     private static readonly (int who, string text, string face)[] CameoPost =
     {
         (2, "逃げたら……承知しないんだから。", "res://char/v3/rei_face.png"),
-    };
-
-
-    // S3-4 のミナの観測（仮台本 07）。CameoBoss は who=2（本人）の行だけを一行オーバーレイで流すので、
-    //   本人の合間に入るミナの行はオーバーレイに乗らない。中ボスの直前／直後に開く step が受け皿になる
-    //   （step 構成は変えない前提での置き場所。こはる面と同じ流儀）。
-    private static readonly (int who, string text, string face)[] CameoAfter =
-    {
-        (1, "……急に、配信の声になりました。さっきの声を、まだ聞きたかったのに。", "res://char/mina_face.png"),
-        (0, "画面の中に隠れたみたいだ。追おう。ここからは引用が道を塞いでいる。", ""),
     };
 
     // ───────── S3-5a 道中B ＋ S3-5b 引用の嵐の接続（ミッドシナリオ枠。仮台本 07）─────────
@@ -684,6 +669,7 @@ public partial class StageRei : Node
             World.AddChild(_storm);
             // 通常の道中弾は薄く続ける（11：密度は道中Bの六割）。StartIntensity を下げた Spawner を回す。
             StartMidwaveSpawner(0.35f);
+            _spawner.AttackDensity = 0.6f;
         }
         if (_storm == null || !IsInstanceValid(_storm) || _storm.Finished)
         {
@@ -781,8 +767,7 @@ public partial class StageRei : Node
             Hud.HideBossBar();                                   // バー出っ放しにしない（後で本ボスが再表示）
             GetNodeOrNull<BulletPool>("/root/Pool")?.DespawnAll();
             if (IsInstanceValid(_cameo)) _cameo.QueueFree();
-            // 中ボス撃破フック：撃破記録（「中ボスから」入口の解放）。ショップ説明は最初の面のボス撃破後へ移した（2026-09-07）。
-            if (CheckpointFlow.OnMidBossCleared(this, "rei", false)) return;
+            GetNodeOrNull<GameManager>("/root/Game")?.MarkMidBossCleared("rei");
             Advance();
         }
     }

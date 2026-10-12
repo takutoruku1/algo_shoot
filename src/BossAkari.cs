@@ -18,16 +18,14 @@ public partial class BossAkari : Enemy
     private bool _finale;     // HP2割以下＝2スペル同時展開
     private bool _memoryPending;
     private bool _memoryPlayed;
-    private static readonly float[] PostThresholds = { 0.80f, 0.60f, 0.40f, 0.20f, 0.01f };
-    private int _postsBroken;
-    private bool _postPending, _revealingDraft;
-    private BossPost? _post;
-    private BossRealmFx _realm = null!;
-    private Vector2 _postReturnPosition;
-    private bool _postMonitoring;
-    private double _postReturnGrace;
-    public bool PostSequenceActive => _postPending || _post != null || _revealingDraft;
+    private int _shieldBreaks;
+    protected override int WindowCap => GameManager.Instance?.Difficulty is GameManager.Diff.Easy or GameManager.Diff.Normal
+        ? Mathf.Min(base.WindowCap, TotalBars * BarHp / 5) : base.WindowCap;
+    protected override void OnShieldBroken() => _shieldBreaks++;
+    private BossPostSequence _posts = null!;
+    public bool PostSequenceActive => _posts != null && _posts.Active;
     private float _ringOff;
+    private float _spiralPhase;
     private int _pattern;       // 現在の攻撃パターン（セリフを挟むたびに変化）
     private int _beatsFired;    // 流した独白の数
     private const int PatternCount = 4;
@@ -77,7 +75,6 @@ public partial class BossAkari : Enemy
     private int _line;
     private double _lineT;
     private bool _zHeld;
-    private const string ACry = "res://char/v3/akari_face_cry.png";
     private static readonly (int who, string text, string face)[] MemoryLeadIn =
     {
         (2, "……待って。まだ、言えてないのに。", "res://char/v3/akari_face.png"),
@@ -190,19 +187,6 @@ public partial class BossAkari : Enemy
             _lines = CharacterStory.Redemption(game!.SelectedJob, "akari");
             _storySilenceAt = CharacterStory.RedemptionSilenceAt(game.SelectedJob, "akari");
         }
-        // ルナティック（2026-09-26）：投稿の割り込み（ボスが隠れて札を撃たせる読みの間＋下書きの一枚絵）は出さない
-        //   ＝ボス戦を止めない。全部「割った後」にしておくと _postPending が立たず LimitBodyDamage も素通し
-        //   （BossPostSequence のしきい値空と同じ止め方）。回想と改心会話は _Process／OnCryStart 側で畳む。
-        if (GameManager.LunaticActive) _postsBroken = PostThresholds.Length;
-        // ボス登場＝道中BGMからあかり固有テーマへクロスフェード（フレーズが途中で切れる＝未完）。
-        //   深度は「割った札の数」＝_postsBroken（通常は 0 から始まり、札を割るたび開いていく）。
-        //   ここを 0 決め打ちにすると、**ルナティックでは札を1枚も割らない**（しきい値を空にして
-        //   投稿の割り込みごと畳んでいる）ため深度が 0 のまま固定され、あかり戦のあいだ曲が
-        //   1800Hz のローパス＋-5dB でこもりっぱなしになる（2026-09-29 修正）。
-        //   ルナティックは上で _postsBroken を満数にしてあるので、そのまま渡せば開き切った状態で鳴る。
-        Audio.Instance?.StartAkariMusic(_postsBroken);
-        _realm = new BossRealmFx { Name = "BossRealmFx", Story = BossPostStory.Get("akari") };
-        GetParent().GetParent().AddChild(_realm);
         // 移動：スペルごとの立ち位置＋状態機械（待機→構え→攻撃→余韻）。数値は INI（[akari] の
         // cruise_speed / accel_time / stance_*）。あかりは「座ったまま滑る」＝重く（accel_time 大）、
         // 上下に揺れない（hover_amp 0）。
@@ -216,6 +200,7 @@ public partial class BossAkari : Enemy
         _caster = new AreaSpellCaster();
         _caster.Configure("akari", GetParent());
         AddChild(_caster);
+        _posts = BossPostSequence.Attach(this, "akari", _caster.CancelPendingAttacks, OnHpChanged);
 
         // 部品の演出層（char/v3/fx/akari/*.png）を本体の子として1個ぶら下げる。当たり判定は持たない。
         // GetBodyFrame normalizes the new outfit to the existing 720px effect reference frame.
@@ -226,7 +211,7 @@ public partial class BossAkari : Enemy
     {
         // 自機の位置を渡す＝自機狙いの追従（x と y の両方に寄る）と、反転の判定（40px 以上・0.6秒）に使う。
         if (GetTree().GetFirstNodeInGroup("player") is Node2D pl) _mover.SetPlayerPos(pl.GlobalPosition);
-        GlobalPosition = _mover.Step(GlobalPosition, delta, IsForm2 ? 1.65f : 1f);
+        if (!BarrageHolding) GlobalPosition = _mover.Step(GlobalPosition, delta, IsForm2 ? 1.65f : 1f);
         ApplyBossMotion(_mover.VisualOffset, _mover.Lean, IsForm2 ? !_mover.FacingLeft : _mover.FacingLeft, _mover.SquashScale);
         FxLayer.Instance?.EmitBossAura(FxLayer.BossAura.Akari, GlobalPosition, (float)delta, 32f);
         FirePattern(delta);
@@ -234,89 +219,23 @@ public partial class BossAkari : Enemy
 
     public override void _PhysicsProcess(double delta)
     {
-        if (_post != null || _revealingDraft || _memoryTalk is { Active: true }) return;
+        if (PostSequenceActive || _memoryTalk is { Active: true }) return;
         base._PhysicsProcess(delta);
-        if (_postReturnGrace > 0 && !IsPurified && !Hud.BubblePaused)
-        {
-            _postReturnGrace -= delta;
-            SetBodyContactEnabled(_postReturnGrace <= 0);
-        }
     }
 
     protected override int LimitBodyDamage(int damage)
     {
-        if (_post != null || _revealingDraft) return 0;
-        return _postsBroken < PostThresholds.Length
-            ? DamageToHpFloor(damage, PostThresholds[_postsBroken]) : damage;
+        if (_posts is { Active: true }) return 0;
+        float floor = _posts?.Floor ?? 0;
+        if ((GameManager.Instance?.Difficulty is GameManager.Diff.Easy or GameManager.Diff.Normal) && !HasEvolved && _shieldBreaks < 3)
+            floor = Mathf.Max(floor, 0.54f);
+        return DamageToHpFloor(damage, floor);
     }
 
     public override void Purify()
     {
-        if (_post != null) { _post.BombHit(); return; }
-        if (_postPending || _revealingDraft) return;
+        if (PostSequenceActive) return;
         base.Purify();
-    }
-
-    private void StartPost()
-    {
-        _postPending = false;
-        _postReturnPosition = GlobalPosition;
-        _postMonitoring = Monitoring;
-        // The boss remains the lock-on/homing anchor while its post is the shootable surface.
-        GlobalPosition = new Vector2(Field.Right - 84, 104);
-        Visible = false;
-        Monitoring = false;
-        SetBodyContactEnabled(false);
-        SetPanelsInvulnerable(true);
-        _caster.CancelPendingAttacks();
-        _caster.SetProcess(false);
-        GetNode<BulletPool>("/root/Pool").DespawnAll();
-        foreach (Node hazard in GetTree().GetNodesInGroup("aoe"))
-            if (hazard is AreaStrike) hazard.QueueFree();
-        GetHud()?.HideSpellCard();
-        _post = new BossPost { Story = BossPostStory.Get("akari"), Boss = this, Index = _postsBroken,
-            Position = GlobalPosition, Broken = BreakPostRealm, Completed = CompletePost };
-        GetParent().AddChild(_post);
-    }
-
-    public void BreakPostRealm(int index, Vector2 position)
-    {
-        _realm.BreakPost(index, position);
-        Audio.Instance?.StartAkariMusic(index + 1, 0.2f);
-        if (index == 4) GetHud()?.HideBossBar();
-    }
-
-    private void CompletePost()
-    {
-        _post = null;
-        _postsBroken++;
-        GetNode<BulletPool>("/root/Pool").DespawnAll();
-        if (_postsBroken == PostThresholds.Length)
-        {
-            _revealingDraft = true;
-            BossDraftScene.Play(GetHud()!, GetParent(), BossPostStory.Get("akari"), () =>
-            {
-                _revealingDraft = false;
-                RestoreAfterPost();
-                DealDirectDamage(BarHp * TotalBars);
-            });
-            return;
-        }
-        RestoreAfterPost();
-        if (_postsBroken % 2 == 0) RallyShield();
-        ApplySpell();
-        OnHpChanged();
-    }
-
-    private void RestoreAfterPost()
-    {
-        GlobalPosition = _postReturnPosition;
-        Visible = true;
-        Monitoring = _postMonitoring;
-        SetPanelsInvulnerable(false);
-        _postReturnGrace = 0.9;
-        _fireT = _fireT2 = 0;
-        _caster.SetProcess(true);
     }
 
     // 攻撃パターン（セリフを挟むたびに _pattern が変わる）。
@@ -326,6 +245,7 @@ public partial class BossAkari : Enemy
         var pool = GetNodeOrNull<BulletPool>("/root/Pool");
         if (pool == null) return;
         if (TickForm2Technique(delta, _mover, _caster!)) return;
+        if (BarrageHolding) { _fireT = _fireT2 = 0; return; }
         if (_finale) { FireFinale(pool, delta); return; }
         _fireT += delta;
         switch (_pattern)
@@ -354,21 +274,24 @@ public partial class BossAkari : Enemy
     //   t=0（＝自機の正面）になる i が存在せず、中心に安全車線ができていた。DnOdd で必ず奇数にする。
     private void FanDown(BulletPool pool)
     {
-        int k = DnOdd(_fanCount);
+        BodyShotStyle = BossShotStyle.Aimed;
+        bool dense = GameManager.Instance!.Difficulty >= GameManager.Diff.Hard;
+        int k = dense ? (GameManager.Instance.IsLunatic ? 17 : 15) : Mathf.Min(7, DnOdd(_fanCount));
         var aim = AimAtPlayer();
         float baseA = Mathf.Atan2(aim.Y, aim.X);
         for (int i = 0; i < k; i++)
         {
             float t = k > 1 ? (float)i / (k - 1) - 0.5f : 0f;
-            float a = baseA + t * Mathf.DegToRad(80f);
+            float a = baseA + t * Mathf.DegToRad(dense ? (GameManager.Instance.IsLunatic ? 210f : 180f) : 80f);
             FireBullet(pool, GlobalPosition, new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * EnemyBulletSpeed, 3.0f);
         }
     }
 
     private void Ring(BulletPool pool)
     {
-        int k = Dn(_ringCount);
-        _ringOff += Mathf.DegToRad(11f);
+        BodyShotStyle = BossShotStyle.Ring;
+        int k = BossDanmaku.RingCount(Dn(_ringCount), BulletPool.BossHitShape(Job.Melee, HasEvolved));
+        _ringOff = AimAtPlayer().Angle();
         for (int i = 0; i < k; i++)
         {
             float a = _ringOff + Mathf.Tau * i / k;
@@ -378,20 +301,28 @@ public partial class BossAkari : Enemy
 
     private void AimedSpread(BulletPool pool)
     {
+        BodyShotStyle = BossShotStyle.Aimed;
         float baseA = Mathf.Atan2(AimAtPlayer().Y, AimAtPlayer().X);
-        for (int i = -_aimedWing; i <= _aimedWing; i++)
+        bool dense = GameManager.Instance!.Difficulty >= GameManager.Diff.Hard;
+        int count = dense ? (GameManager.Instance.IsLunatic ? 15 : 13) : Mathf.Min(5, DnOdd(_aimedWing * 2 + 1));
+        for (int i = 0; i < count; i++)
         {
-            float a = baseA + i * Mathf.DegToRad(14f);
+            float spread = count > 1 ? (float)i / (count - 1) * 2f - 1f : 0f;
+            float a = baseA + spread * Mathf.DegToRad(dense ? (GameManager.Instance.IsLunatic ? 91f : 78f) : _aimedWing * 14f);
             FireBullet(pool, GlobalPosition, new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * _aimedSpeed, 4.0f);
         }
     }
 
     private void Spiral(BulletPool pool)
     {
-        _ringOff += Mathf.DegToRad(13f);
-        for (int s = 0; s < 2; s++)
+        BodyShotStyle = BossShotStyle.Ring;
+        bool dense = GameManager.Instance!.Difficulty >= GameManager.Diff.Hard;
+        if (dense) _spiralPhase = Mathf.PosMod(_spiralPhase + 0.16f, Mathf.Tau);
+        _ringOff = AimAtPlayer().Angle() + (dense ? _spiralPhase : 0);
+        int arms = dense ? (GameManager.Instance.IsLunatic ? 7 : 5) : Mathf.Max(2, Dn(2));
+        for (int s = 0; s < arms; s++)
         {
-            float a = _ringOff + Mathf.Pi * s;
+            float a = _ringOff + Mathf.Tau * s / arms;
             FireBullet(pool, GlobalPosition, new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * _spiralSpeed, 2.6f);
         }
     }
@@ -414,8 +345,6 @@ public partial class BossAkari : Enemy
     protected override void OnHpChanged()
     {
         GetHud()?.UpdateBossBar(CurrentBarIndex, TotalBars, CurrentBarFrac);
-        if (_postsBroken < PostThresholds.Length && HpRatio <= PostThresholds[_postsBroken] + 0.00001f)
-            _postPending = true;
         if (_memoryPending) return;
         // HPが閾値を割るたびに攻撃パターンを変える。
         if (_beatsFired < PatternThresholds.Length && HpRatio <= PatternThresholds[_beatsFired])
@@ -431,7 +360,7 @@ public partial class BossAkari : Enemy
                 return;
             }
         }
-        if (!_finale && HpRatio <= 0.20f && _postsBroken >= 4)
+        if (!_finale && HpRatio <= 0.20f && (GameManager.LunaticActive || _posts.Count >= 4))
         {
             _finale = true;
             _fireT = _fireT2 = 0;
@@ -487,7 +416,7 @@ public partial class BossAkari : Enemy
 
     public override void _Process(double delta)
     {
-        if (_post != null || _revealingDraft) return;
+        if (PostSequenceActive) return;
         if (_memoryTalk is { Active: true }) { _memoryTalk.Update(delta); return; }
         // Start outside collision dispatch so suspending the world cannot interrupt a hit callback.
         if (_memoryPending && !_seq && !IsPurified && !Hud.BubblePaused)
@@ -508,7 +437,7 @@ public partial class BossAkari : Enemy
             {
                 _zHeld = Pad.AdvanceHeld();
                 _fireT = _fireT2 = 0;
-                Audio.Instance?.StartAkariMusic(_postsBroken, 0.8f);
+                _posts.ResumeMusic();
                 AdvanceForm2();
                 ApplySpell();
                 OnHpChanged();
@@ -532,11 +461,7 @@ public partial class BossAkari : Enemy
             }
             return;
         }
-        if (_postPending && !_seq && !IsPurified && !Hud.BubblePaused)
-        {
-            StartPost();
-            return;
-        }
+        if (!_seq && !IsPurified) _posts.UpdateDamage();
         // 改心の会話送り：Z/Enter/ui_accept/Pad A に加えマウス左クリックでも送れる共通ヘルパ（マウス対応 P2）。
         bool z = Pad.AdvanceHeld();
         bool zEdge = z && !_zHeld;

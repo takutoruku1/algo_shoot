@@ -104,6 +104,7 @@ public partial class Hud : CanvasLayer
     private string _spellHandle = "";
     private Color _spellCol = Colors.White;
     private double _spellTimer;
+    private double _spellDuration = SpellShowDur;
     private const double SpellShowDur = 5.0;   // 保持を延ばし「必殺技が来た」を見落とさせない（旧3.8）
     private const double SpellPopDur = 0.30;   // ポップイン（アンティシペーション→オーバーシュート着地）
     private const double SpellFadeDur = 0.80;  // フォロースルー（フェード＋わずかにスケールダウン）
@@ -257,7 +258,6 @@ public partial class Hud : CanvasLayer
     // 操作子トークン（操作表示モードで KB / パッドを出し分け。パッド表記は Pad.Face の Xbox 基準に一本化）。
     // 単体チップ（BOMB残数横・モード切替・スキル）用＝代表1表記。
     private static string TokBomb  => Pad.UsingPad ? Pad.Face(JoyButton.X)            : "X";
-    private static string TokCharge => Pad.UsingPad ? Pad.Face(JoyButton.Y)           : "Z"; // 溜め打ち（長押し。2026-09-26 C→Z）
     // ロックオン：Shift 長押し / パッド RB / マウス左クリック（Player.TickLockOn の判定と一致させる）。
     private static string TokLock   => Pad.UsingPad ? Pad.Face(JoyButton.RightShoulder)
                                      : Pad.UsingMouse ? "左クリック" : "Shift";
@@ -297,7 +297,7 @@ public partial class Hud : CanvasLayer
         _game = GetNodeOrNull<GameManager>("/root/Game")!;
         foreach (var job in Jobs.All)
         {
-            _lifeMarks[job.Id] = GD.Load<Texture2D>($"res://char/player/{job.CharacterId}/{job.CharacterId}_core_v1.png");
+            _lifeMarks[job.Id] = LifeEmblem.Texture(job.CharacterId);
             _accountFaces[job.Id] = GD.Load<Texture2D>(CompanionDialogue.AccountPortrait(job.Id));
         }
         _bombMark = GD.Load<Texture2D>("res://char/ui/bomb_v2.png");
@@ -709,11 +709,12 @@ public partial class Hud : CanvasLayer
     }
 
     // スペル発動を X のスペル宣言ツイート風に告知（弾幕パターン切替時に各ボスから呼ぶ）。
-    public void AnnounceSpell(string who, string handle, string spellName, Color col)
+    public void AnnounceSpell(string who, string handle, string spellName, Color col, bool impact = true, double duration = SpellShowDur)
     {
         _spellWho = who; _spellHandle = handle; _spellName = spellName;
-        _spellCol = col; _spellTimer = SpellShowDur;
+        _spellCol = col; _spellTimer = _spellDuration = duration;
         _spellGlow = 1.0; // 発動の瞬間に立つ加算グロー（宣言まわりだけ・短命）。弾の視認は侵さない。
+        if (!impact) return;
         Audio.Instance?.PlaySpell(); // ⑩弾幕変化を耳で予告（Alert・被弾の下/グレイズの上）
         // 「溜め→放つ」を体で：ごく短いヒットストップ＋軽い振動（被弾0.09/5.5 より弱く控えめ）。
         GameCamera.Instance?.Hitstop(0.05);
@@ -1013,7 +1014,8 @@ public partial class Hud : CanvasLayer
         bool low = _lives <= 2 && _lives < maxLives;
 
         float x = PostX, y = RowLifeBomb, w = PostInnerW;
-        Color lifeColor = low ? SideRose : SideInk;
+        Color coreColor = LifeEmblem.GemColor(_game!.JobDef.CharacterId);
+        Color lifeColor = low ? SideRose : coreColor.Lightened(0.12f);
         if (low) ci.DrawRect(new Rect2(0, y + 8, 3f, 80f), SideRose);
         UiKit.Text(ci, UiKit.ZenBold, new Vector2(x, y + 13), "ライフ", 14, low ? SideRose : SideMuted);
         string capacity = $" / {maxLives}";
@@ -1021,13 +1023,27 @@ public partial class Hud : CanvasLayer
         UiKit.Text(ci, UiKit.Mono, new Vector2(x, y + 16), capacity, 14, SideMuted, HorizontalAlignment.Right, w);
         UiKit.Text(ci, UiKit.Mono, new Vector2(x, y + 2), _lives.ToString("D2"), 30, lifeColor,
             HorizontalAlignment.Right, w - capacityW - 4f);
-        DrawResourceMarks(ci, _lifeMarks[_game!.SelectedJob], _lives, maxLives, false);
+        DrawLifeMarks(ci, _lives, maxLives);
         UiKit.Text(ci, UiKit.ZenBold, new Vector2(x, RowBomb + 13), "ボム", 14, SideMuted);
         float capW = UiKit.KeyCapW(TokBomb, SideCapH);
         UiKit.KeyCap(ci, new Vector2(x + w - capW, RowBomb + 13f), TokBomb, SideCapH, alpha: SideCapAlpha);
         UiKit.Text(ci, UiKit.Mono, new Vector2(x, RowBomb + 2f), bombs.ToString("D2"), 30, bombs > 0 ? SideGold : SideMuted,
             HorizontalAlignment.Right, w - capW - 8f);
         DrawResourceMarks(ci, _bombMark, bombs, maxBombs, true);
+    }
+
+    private void DrawLifeMarks(CanvasItem ci, int value, int count)
+    {
+        for (int i = 0; i < count; i++)
+            DrawLifeMark(ci, ResourceMarkRect(i, count), i < value ? 1f : 0.22f);
+    }
+
+    private void DrawLifeMark(CanvasItem ci, Rect2 cell, float alpha)
+    {
+        var texture = _lifeMarks[_game.SelectedJob];
+        var size = texture.GetSize() * (cell.Size.X / Mathf.Max(texture.GetWidth(), texture.GetHeight()));
+        var rect = new Rect2(cell.GetCenter() - size / 2, size);
+        ci.DrawTextureRect(texture, rect, false, new Color(1, 1, 1, alpha));
     }
 
     private static void DrawResourceMarks(CanvasItem ci, Texture2D texture, int value, int count, bool bomb)
@@ -1081,7 +1097,7 @@ public partial class Hud : CanvasLayer
         float t = 1f - (float)(_lifeShatterT / LifeShatterDur);   // 0→1
         float fly = 1f - Mathf.Pow(1f - t, 3f);                   // out-cubic＝はじけて減速
         float a = (1f - t) * (1f - t);                            // 早めに減衰＝派手にしない
-        Color col = SideRose.Lerp(Colors.White, 0.35f);
+        Color col = LifeEmblem.GemColor(_game.JobDef.CharacterId).Lerp(Colors.White, 0.35f);
         // 割れた瞬間の芯グロー（一拍で消える）。
         if (t < 0.35f)
         {
@@ -1159,15 +1175,16 @@ public partial class Hud : CanvasLayer
 
     // ロックオンモードの行（2026-09-26 作者指示「画面から敵が消えてもロックオン解除しないで、
     //   ステータス欄でロックオンモードかを分かるように」）。Player.LockArmed（狙う意思）と LockedOn（今掴んでいる）を分けて出す。
-    //   OFF ＝ 灰 ／ 待機（モードは立っているが画面に敵が居ない）＝ 青緑でゆっくり明滅 ／ 追尾中 ＝ ジョブ色。
+    //   OFF ＝ 灰 ／ 待機（モードは立っているが画面に敵が居ない）＝ 青緑でゆっくり明滅 ／ 追尾中 ＝ LIFEの宝石色。
     //   待機は盤面に照準マーカーが出ないので、ここが唯一の手がかり。
     private void DrawLockOn(HudCanvas ci)
     {
         var player = GetTree().GetFirstNodeInGroup("player") as Player;
         bool armed = player?.LockArmed ?? false;
         bool on = player?.LockedOn ?? false;
+        string character = _game!.JobDef.CharacterId;
         float x = PostX, y = RowLock, w = PostInnerW;
-        Color accent = on ? AccountAccent : armed ? SideTeal : SideMuted;
+        Color accent = on ? LifeEmblem.GemColor(character) : armed ? SideTeal : SideMuted;
         ci.DrawRect(new Rect2(0, y, Field.PanelW - 1f, 66f), new Color(accent, armed ? 0.09f : 0.025f));
         if (armed) ci.DrawRect(new Rect2(0, y + 12f, 2f, 42f), accent);
         UiKit.Text(ci, UiKit.Zen, new Vector2(x + 36f, y + 10f), "ロックオン", 13, SideMuted);
@@ -1177,13 +1194,18 @@ public partial class Hud : CanvasLayer
         string status = on ? "追尾中" : armed ? "待機中" : "オフ";
         float a = armed && !on ? 0.7f + 0.3f * (0.5f + 0.5f * Mathf.Sin((float)_t * 4f)) : 1f;
         var center = new Vector2(x + 12f, y + 33f);
-        float radius = on ? 9f : 12f;
+        float radius = on ? 17f : 12f;
         for (int i = 0; i < 4; i++)
         {
             float angle = i * Mathf.Pi / 2f + Mathf.Pi / 4f;
             ci.DrawArc(center, radius, angle - 0.3f, angle + 0.3f, 6, new Color(accent, a), 1.5f, true);
         }
-        if (on) ci.DrawCircle(center, 3f, accent);
+        if (on)
+        {
+            var rect = LifeEmblem.PlayerRect(character, 3.5f);
+            rect.Position += center;
+            ci.DrawTextureRect(BulletArt.PlayerMark(_game.SelectedJob), rect, false);
+        }
         UiKit.Text(ci, UiKit.ZenBold, new Vector2(x + 36f, y + 32f), status, 16, new Color(accent, a));
     }
 
@@ -1201,10 +1223,10 @@ public partial class Hud : CanvasLayer
         DrawMeter(ci, new Rect2(x, y + 35f, w, 3f), comboRatio, SideRose);
     }
 
-    // スペル宣言オーバーレイ（X のスペル発動ツイート＋通知）。ボスカードの直下に出る。
+    // 弾より奥の中央に表示する技名POST。
     private void DrawSpellCard(CanvasItem ci)   // CanvasItem＝HudCanvas（保険）と BubbleLayer（通常）の両方から描ける
     {
-        double age = SpellShowDur - _spellTimer;
+        double age = _spellDuration - _spellTimer;
 
         // ── 三段のリズム：ポップイン（アンティシペーション→オーバーシュート）→ ホールド → フォロースルー ──
         float a;        // 不透明度
@@ -1231,12 +1253,11 @@ public partial class Hud : CanvasLayer
         float glow = (float)_spellGlow;                          // 発動の瞬間に立つ加算成分（短命）
 
         string title = "『" + _spellName + "』";
-        float titleW = UiKit.TextW(UiKit.ZenBold, title, 17);
-        float headW = UiKit.TextW(UiKit.ZenBold, _spellWho, 15) + UiKit.TextW(UiKit.Mono, _spellHandle, 13) + 96f;
-        // 幅の上限は盤面幅（880px）に収める＝サイドパネルへはみ出さない。
-        float w = Mathf.Clamp(Mathf.Max(titleW, headW) + 84f, 380f, Mathf.Min(780f, Field.DWidth - 40f));
-        float h = 60f;
-        float x = Field.DCenterX - w / 2f, y = 82f + slide;   // ボスバー(y=24,h=44)の直下（2026-09-16 バーの下げに連動）
+        float w = Mathf.Min(820f, Field.DWidth - 64f);
+        int titleSize = 30;
+        while (titleSize > 16 && UiKit.TextW(UiKit.ZenBold, title, titleSize) > w - 60) titleSize--;
+        float h = 128f;
+        float y = 360f - h / 2f + slide;
         Vector2 center = new(Field.DCenterX, y + h / 2f);
 
         Color col = _spellCol;
@@ -1250,21 +1271,21 @@ public partial class Hud : CanvasLayer
 
         // カード本体（中心ローカル座標）。背景を少し濃く・縁を太く＝背景タイムラインに埋もれない。
         Rect2 box = new(-w / 2f, -h / 2f, w, h);
-        UiKit.Box(ci, box, new Color(0.043f, 0.031f, 0.065f, 0.90f * a), 13f,
-            new Color(col, (0.55f + 0.45f * glow) * a), 1.4f + 0.8f * glow);
+        UiKit.Box(ci, box, new Color(0.035f, 0.04f, 0.055f, 0.68f * a), 6f,
+            new Color(col, (0.55f + 0.45f * glow) * a), 1.2f + 0.6f * glow);
 
         float left = -w / 2f, top = -h / 2f;
         // アバター＋認証
-        Vector2 ac = new(left + 30, 0f);
+        Vector2 ac = new(left + 30, top + 27);
         UiKit.RadialGlow(ci, ac, 17f, col, (0.45f + 0.4f * glow) * a);
         ci.DrawCircle(ac, 14f, new Color(col.R * 0.45f, col.G * 0.45f, col.B * 0.45f, a));
         ci.DrawCircle(ac + new Vector2(9, 9), 5.8f, new Color(col, a));
         UiKit.Text(ci, UiKit.ZenBold, new Vector2(ac.X + 6, ac.Y + 4), "✓", 8, new Color(1, 1, 1, a));
         // 名前＋ハンドル
         float tx = left + 56;
-        UiKit.Text(ci, UiKit.ZenBold, new Vector2(tx, top + 9), _spellWho, 15, new Color(1, 1, 1, a));
-        float nw = UiKit.TextW(UiKit.ZenBold, _spellWho, 15);
-        UiKit.Text(ci, UiKit.Mono, new Vector2(tx + nw + 8, top + 11), _spellHandle, 13, new Color(UiKit.Text3, a));
+        UiKit.Text(ci, UiKit.ZenBold, new Vector2(tx, top + 12), _spellWho, 19, new Color(1, 1, 1, a));
+        float nw = UiKit.TextW(UiKit.ZenBold, _spellWho, 19);
+        UiKit.Text(ci, UiKit.Mono, new Vector2(tx + nw + 10, top + 16), _spellHandle, 14, new Color(UiKit.Text3, a));
         // 右肩「● スペル発動」（発動直後は明滅で“今来た”を主張）
         string tag = "スペル発動";
         float tagW = UiKit.TrackedW(UiKit.SmallLabel, tag) + 14;
@@ -1272,7 +1293,8 @@ public partial class Hud : CanvasLayer
         ci.DrawCircle(new Vector2(-w / 2f + w - tagW - 8, top + 15), 3.4f, new Color(col, a * tagPulse));
         UiKit.Draw(ci, UiKit.SmallLabel, new Vector2(-w / 2f + w - tagW, top + 8), tag, new Color(col, a * tagPulse));
         // スペル名（少し大きく・明るく＝視認のピーク）
-        UiKit.Text(ci, UiKit.ZenBold, new Vector2(tx, top + 31), title, 17,
+        ci.DrawLine(new Vector2(left + 26, top + 49), new Vector2(w / 2 - 26, top + 49), new Color(col, 0.3f * a), 1f);
+        UiKit.Text(ci, UiKit.ZenBold, new Vector2(left + 30, top + 65), title, titleSize,
             new Color(0.96f + 0.04f * glow, 0.92f, 0.97f, a));
 
         // 設計スケールへ戻す（後続描画に影響させない）。
@@ -1421,6 +1443,14 @@ public partial class Hud : CanvasLayer
         UiKit.VerifiedBadge(ci, new Vector2(76f + UiKit.TextW(UiKit.ZenBold, job.CharacterName, 19) + 10f, 30f),
             5f, SideBlue);
         UiKit.Text(ci, UiKit.Mono, new Vector2(76f, 45f), AccountHandle, 10, SideMuted);
+        Color difficultyColor = _game.Difficulty switch
+        {
+            GameManager.Diff.Easy => SideTeal, GameManager.Diff.Hard => SideGold,
+            GameManager.Diff.Lunatic => SideRose, _ => SideInk,
+        };
+        UiKit.Text(ci, UiKit.Mono, new Vector2(PanelX, 84f), _game.DiffName, 14, difficultyColor);
+        if (_game.DebugAttackGuides)
+            UiKit.Text(ci, UiKit.Mono, new Vector2(PanelX, 69f), "DEBUG: GUIDE", 9, SideTeal);
         string status = _gameOverTitle.Length > 0 ? "終了" : BubblePaused ? "対話中" : "ダイブ中";
         Color statusColor = BubblePaused ? SideMuted : SideTeal;
         float statusWidth = UiKit.TextW(UiKit.Zen, status, 11);
@@ -1982,8 +2012,7 @@ public partial class Hud : CanvasLayer
         for (int i = 0; i < count; i++)
         {
             bool life = _bannerRewardLife && i == 0;
-            var tex = life ? _lifeMarks[_game.SelectedJob] : _bombMark;
-            var accent = life ? SideRose : SideTeal;
+            var accent = life ? LifeEmblem.GemColor(_game.JobDef.CharacterId) : SideTeal;
             float localT = Mathf.Max(0f, t - i * 0.08f);
             float enter = Ease(localT / 0.24f);
             float a = enter * (1f - leave);
@@ -1998,9 +2027,17 @@ public partial class Hud : CanvasLayer
             ci.DrawLine(new Vector2(0, 92), new Vector2((Width - 12) * enter, 92), new Color(accent, a * 0.9f), 2f, true);
             UiKit.Text(ci, UiKit.Mono, new Vector2(22, 8), life ? "LIFE UP" : "BOMB UP", 13, new Color(accent, a));
 
-            var size = tex.GetSize();
-            size *= Icon * (1f + pop * 0.12f) / Mathf.Max(size.X, size.Y);
-            ci.DrawTextureRect(tex, new Rect2(new Vector2(46, 58) - size / 2f, size), false, new Color(1, 1, 1, a));
+            if (life)
+            {
+                var size = Vector2.One * Icon * (1f + pop * 0.12f);
+                DrawLifeMark(ci, new Rect2(new Vector2(46, 58) - size / 2, size), a);
+            }
+            else
+            {
+                var size = _bombMark.GetSize();
+                size *= Icon * (1f + pop * 0.12f) / Mathf.Max(size.X, size.Y);
+                ci.DrawTextureRect(_bombMark, new Rect2(new Vector2(46, 58) - size / 2f, size), false, new Color(1, 1, 1, a));
+            }
 
             float scale = UiKit.Scale * (1f + pop * 0.1f);
             ci.DrawSetTransformMatrix(new Transform2D(new Vector2(scale, 0), new Vector2(-0.12f * scale, scale),

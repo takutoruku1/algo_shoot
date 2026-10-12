@@ -23,7 +23,7 @@ public partial class Player : Area2D
     private float _fireCooldown = 0f;
 
     // 当たり半径（極小）
-    private const float HitRadius = 2f;
+    public const float HitRadius = 2f;
     // グレイズ半径（かすり判定の広さ）
     private const float GrazeRadius = 11f;
 
@@ -115,9 +115,6 @@ public partial class Player : Area2D
         FxLayer.Instance?.PurifyBurst(nf.GlobalPosition);
         _followers.Add(nf);
     }
-
-    // フォロワーが満員（MaxFollowers到達済み）か。
-    public bool FollowersFull => _followers.Count >= MaxFollowers;
 
     // 人を救うたびに呼ばれる（Enemy.Redeem）。一定人数ごとにフォロワーが1体増える。
     // 救った本人がフォロワー化したら true（呼び出し元の Enemy はその本体を退場させずフォロワーに引き継ぐ）。
@@ -1409,50 +1406,6 @@ public partial class Player : Area2D
         }
     }
 
-    // バックファイア：後方＝射撃方向の反対側（-ShotDir）へ軽ホーミング弾を撃つ。撃ったら true。
-    //   ★向き反転（_facing）に追従する：左向きにすると「後方」は右になる＝メインと同じ方向へ二重に
-    //     撃つことはない（常にメインの真逆＝火力バランスは向きに依らず不変）。
-    //   ・後方最寄りの未浄化の敵がいればそちらへ狙いを付け、いなくても真後ろへ撃つ
-    //     （旧仕様は「後方に敵が居なければ撃たない」＝道中は敵が右から来るので後方弾がほぼ一度も出ず、
-    //       「後方の光を買ったのに後ろに弾が出ない」とプレイヤーに読まれていた。撃つ＝機能が見える）。
-    //   ・数値は GameManager（bf_* ノードの ChainLevel）から：ダメージ 1→2/3/4・同時発数・旋回。弾速180。
-    //   ・弾は後方追尾フラグ（backwardHoming）付きで Spawn＝Bullet.AcquireTarget が X<self を探す（前方弾と別探索）。
-    //   ・見た目は Diamond 形＋穢れ寄りの tint で前方弾（水色円）と区別し、後方マズルフラッシュを出す。
-    private bool FireBackfire()
-    {
-        if (_pool == null || _game == null) return false;
-
-        // 後方最寄りの敵を探す（射撃方向の反対側）。居なければ真後ろへ撃つ。
-        Vector2 back = -ShotDir;
-        Node2D? nearest = null;
-        float bestD = float.MaxValue;
-        foreach (Node node in GetTree().GetNodesInGroup("enemies"))
-        {
-            if (node is Enemy e && !e.IsPurified && (e.GlobalPosition.X - GlobalPosition.X) * back.X > 4f)
-            {
-                float d = e.GlobalPosition.DistanceSquaredTo(GlobalPosition);
-                if (d < bestD) { bestD = d; nearest = e; }
-            }
-        }
-
-        Vector2 muzzle = GlobalPosition + back * 16f; // 後方の銃口（射撃方向の反対）
-        Vector2 baseDir = nearest != null ? (nearest.GlobalPosition - muzzle).Normalized() : back;
-        int dmg = Mathf.Max(1, Mathf.RoundToInt(_game.BackfireDamage * _game.FollowerPowerMul));
-        int shots = _game.BackfireShots;
-        int turn = Mathf.RoundToInt(_game.BackfireTurnRate); // bf_track で 60→90（未適用だと既定95に化けていた）
-        var tint = new Color(0.98f, 0.86f, 0.55f); // 淡い金（Bullet.DrawPlayerDiamond の BackMid と揃える。敵弾の穢れ桃と混同しない色）
-        for (int i = 0; i < shots; i++)
-        {
-            // 2発目はわずかに角度を散らす（同時2発の見栄え）。
-            float ang = baseDir.Angle() + (shots == 1 ? 0f : (i - (shots - 1) * 0.5f) * Mathf.DegToRad(24f));
-            Vector2 dir = new Vector2(Mathf.Cos(ang), Mathf.Sin(ang));
-            var bb = _pool.Spawn(muzzle, dir * 180f, isEnemy: false, 2.8f, dmg, BulletShape.Diamond, tint, homing: true, backwardHoming: true);
-            bb.TurnRateOverride = turn;
-        }
-        FxLayer.Instance?.Muzzle(muzzle); // 後方マズルフラッシュ（シンプル版）
-        return true;
-    }
-
     // ───────── 回避（ドッジ）アクション ─────────
     // 入力方向があればその方向へ短い無敵ダッシュ、無ければその場回避（変位ゼロ＝スピン＆無敵のみ）。
     // クールダウン中・会話中・ゲームオーバー中は不可。
@@ -1631,7 +1584,7 @@ public partial class Player : Area2D
 
         // b.Active を必須にする。プールへ返却済み（=非アクティブ）の弾が
         // 当たり判定だけ残っていても被弾しないようにする。
-        if (area is Bullet b && b.IsEnemy && b.Active && !b.OverheadPending)
+        if (area is Bullet b && b.IsEnemy && b.Active && !b.OverheadPending && !b.RoadPending)
         {
             TakeHit();
         }
@@ -1640,7 +1593,7 @@ public partial class Player : Area2D
     // グレイズ（敵弾のかすり）検出 → 加点。
     private void OnGrazeAreaEntered(Area2D area)
     {
-        if (area is Bullet b && b.IsEnemy && b.Active && !b.OverheadPending && !b.Grazed)
+        if (area is Bullet b && b.IsEnemy && b.Active && !b.OverheadPending && !b.RoadPending && !b.Grazed)
         {
             b.Grazed = true; // どちらの分岐でも立てて二重取りを防ぐ
             // あかりの「キミ弾」：かすった弾だけ減速×0.75＋淡色化（フラグ弾のみ・判定不変）。
@@ -1970,28 +1923,16 @@ public partial class PlayerHitDot : Node2D
     public float Radius = 2f;
     public string CharacterId = "mina";
     private CanvasModulate? _worldTint;
+    private Texture2D _emblem = null!;
 
     public override void _Ready()
     {
         _worldTint = TintLift.Find(this);
         SelfModulate = TintLift.Of(_worldTint, TintLift.PlayerCore);
+        _emblem = LifeEmblem.Texture(CharacterId, player: true);
     }
 
-    public override void _Draw()
-    {
-        Color marker = CharacterId is "akari" or "koharu" ? new Color("53d9bf") : new Color("f57568");
-        float edge = Radius + 0.55f;
-        Vector2[] outline = { Vector2.Up * edge, Vector2.Right * edge,
-            Vector2.Down * edge, Vector2.Left * edge };
-        DrawColoredPolygon(outline, new Color("202127"));
-        var top = Vector2.Up * Radius;
-        var right = Vector2.Right * Radius;
-        var bottom = Vector2.Down * Radius;
-        var left = Vector2.Left * Radius;
-        DrawColoredPolygon(new[] { top, right, bottom, left }, marker);
-        DrawColoredPolygon(new[] { top, Vector2.Zero, left }, marker.Lightened(0.28f));
-        DrawColoredPolygon(new[] { right, bottom, Vector2.Zero }, marker.Darkened(0.16f));
-    }
+    public override void _Draw() => DrawTextureRect(_emblem, LifeEmblem.PlayerRect(CharacterId, Radius), false);
 
     public override void _Process(double delta)
     {
