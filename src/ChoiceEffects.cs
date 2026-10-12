@@ -40,8 +40,4 @@ public static class ChoiceEffects
 // GameManager の追記ぶん（本体ファイルは別担当が編集中のため partial で分ける）。
 public partial class GameManager
 {
-
-    // その選択 id で散った言葉（出た順）。F4 の枠の先頭に入れる語をここから引く。
-    public IReadOnlyList<string> ScatteredAt(string id)
-        => _scatterById.TryGetValue(id, out var v) ? v : (IReadOnlyList<string>)System.Array.Empty<string>();
 }

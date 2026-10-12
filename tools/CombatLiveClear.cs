@@ -53,7 +53,7 @@ public partial class CombatRevisionQa
             if (_liveVictoryTime > 3) { EndLiveClear(""); return; }
         }
         if (_liveFrame % 300 == 0)
-            GD.Print($"[LiveClear] t={_liveTime:F1} hp={_liveBoss?.HpRatio:F3} lives={_livePlayer.Lives} hits={_game.RunHitCount} wall_dodges={_liveWallDodges} p={_livePlayer.Position}");
+            GD.Print($"[LiveClear] t={_liveTime:F1} hp={_liveBoss?.HpRatio:F3} lives={_livePlayer.Lives} hits={_game.RunHitCount} wall_dodges={_liveWallDodges} p={_livePlayer.Position} speed={_livePlayer.MoveSpeed:F2} mouse={Pad.UsingMouse}");
 
         SetLiveKey(Key.Space, false, ref _liveDodge);
         if (Hud.BubblePaused)
@@ -133,11 +133,11 @@ public partial class CombatRevisionQa
         Input.FlushBufferedEvents();
     }
 
-    private static void SetLiveKey(Key key, bool down, ref bool held)
+    private void SetLiveKey(Key key, bool down, ref bool held)
     {
         if (held == down) return;
         held = down;
-        Input.ParseInputEvent(new InputEventKey { Keycode = key, Pressed = down });
+        Input.ParseInputEvent(new InputEventKey { Keycode = key, Pressed = down, ShiftPressed = key == Key.Shift ? down : _liveShift });
     }
 
     private async void EndLiveClear(string failure)
