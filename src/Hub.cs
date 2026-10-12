@@ -1181,11 +1181,7 @@ public partial class Hub : Node2D
     private static readonly Vector4 PhotoFull = new(0, 0, 1, 1);
     private static Vector4 StoryRegion(int shot, int rows) => new((shot % 2) / 2f, (shot / 2) / (float)rows, 0.5f, 1f / rows);
     private static string[] K(params string[] keys) => keys;
-    // 他ジョブ潜行の回想／アフターの解禁キー。6枚の絵は**キャラ単位**（cg_{id}_playable_{kind}_v1.png）で
-    //   面別ではないので、「そのキャラで潜って回想／アフターを一度見た」で開く（どの面でもよい）。
-    //   旧キー（{id}_playable_ch{n}_{kind}＝CharacterStoryFilm の FilmId）は**もう誰も立てない**――回想／アフターは
-    //   2026-09-23 に一枚絵をやめて吹き出しだけになった（CharacterStory.Memory / Aftermath）ので、
-    //   そちらが立てる CharacterStory.SeenKey へ付け替える（放置すると14枚中6枚が永久に開かない）。
+    // 写真はキャラ単位なので、どの面でもそのキャラの回想／アフターを一度見れば解禁する。
     private static string[] PlayableKeys(string id, bool aftermath) => new[]
     {
         $"charstory_{id}_{(aftermath ? "aftermath" : "memory")}",

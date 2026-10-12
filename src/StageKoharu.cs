@@ -308,8 +308,6 @@ public partial class StageKoharu : Node
     // ── 他ジョブ潜行（2026-09-15）──
     //   結び手以外で潜ったとき true。ミナの行（who=1/3）・下書き選択・入力欄（S2-4）を
     //   すべて抑止し、ビート枠（出撃／道中3節目／ボス前／帰還）を CharacterStory のテーブルへ全面置換する。
-    //   回想（memory）と撃破後のアフターのフィルムは操作キャラに依らず**この面のボス＝こはる**のもの
-    //   （2026-09-23 ユーザー報告。以前は操作キャラ×章の CharacterStoryFilm を流していた＝あかりで潜るとあかりの話になった）。
     //   改心相当シーン（山場）は BossKoharu 側が CharacterStory.Redemption で差し替える。
     //   ビート対応：step1=Sortie / 2=Mid1 / 7=Mid2 / 8=Mid3 / 12=PreBoss（ボス出現後の口上枠）/ 14=Return。
     //   step4（中ボスの受け）と step10（S2-5 我に返る一拍）はミナ観測のみの場面なので空でスキップ。

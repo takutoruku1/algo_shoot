@@ -507,6 +507,7 @@ public partial class StoryFilmQa : Node
             }
             Check(GetTree().CurrentScene != root, "clear transition leaves the stage");
             Check(extraFilms == 0, "no second (playable) film between the aftermath and the transition");
+            await WaitUntil(() => !LoadingScreen.IsActive && GetTree().CurrentScene != null, 1800);
             Check(GetTree().CurrentScene.SceneFilePath == "res://Hub.tscn"
                   && game.IsStageCleared(stageId), "clear transition completes after the aftermath");
             if (job != Job.Tank)

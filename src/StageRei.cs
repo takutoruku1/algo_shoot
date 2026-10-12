@@ -281,8 +281,6 @@ public partial class StageRei : Node
     // ── 他ジョブ潜行（2026-09-15）──
     //   結び手以外で潜ったとき true。ミナの行（who=1/3）・下書き選択・S3-7 割り込みを
     //   すべて抑止し、ビート枠（出撃／道中3節目／ボス前／帰還）を CharacterStory のテーブルへ全面置換する。
-    //   回想（memory）と撃破後のアフターのフィルムは操作キャラに依らず**この面のボス＝レイ**のもの
-    //   （2026-09-23 ユーザー報告。以前は操作キャラ×章の CharacterStoryFilm を流していた＝あかりで潜るとあかりの話になった）。
     //   改心相当シーン（山場）は BossRei 側が CharacterStory.Redemption で差し替える。
     //   ビート対応：step1=Sortie / 2=Mid1 / 4=Mid2 / 7=Mid3（嵐の導入枠）/ 9=PreBoss / 13=Return。
     //   step11（ボスの口上＝who=2）と引用の嵐そのもの（step18）はどちらのモードでも流す。

@@ -210,10 +210,6 @@ public partial class BossRei : Enemy
     public override void _Ready()
     {
         base._Ready();
-        // ミナ以外の潜行は、改心のかけあい（ミナ前提）だけを操作キャラ版（CharacterStory.Redemption）へ差し替える。
-        //   戦闘中の回想（memory）と撃破後のアフターは、操作キャラに依らず**この面のボス＝レイ**のフィルムで固定
-        //   （2026-09-23 ユーザー報告「こはるの話であかりの回想／アフターが入っている」：以前は他ジョブ潜行で
-        //   CharacterStoryFilm＝操作キャラ×章のフィルムを流していたため、あかりで潜ると面を問わずあかりの話になっていた）。
         var game = GetNodeOrNull<GameManager>("/root/Game");
         _charStory = CharacterStory.DiveActive(game);
         if (_charStory)

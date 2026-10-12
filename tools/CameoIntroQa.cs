@@ -131,8 +131,8 @@ public partial class CameoIntroQa : Node
         var lines = Read<(int who, string text, string face)[]>(intro, "_lines");
         Check(lines.Length == 3 && lines[0].who == 2 && lines[2].who == 2 && lines[1].who != 2,
             "exactly three barks: enemy, player, enemy");
-        Check(lines.All(line => line.text.Length <= 30 && UiKit.WrapLines(UiKit.Zen, line.text, 24, 928).Count == 1),
-            "each bark fits a single short line");
+        Check(lines.All(line => DialogueBox.Paginate(line.text, DialogueBox.WrapWidth(DialogueBox.Board)).Count == 1),
+            "each bark fits one dialogue page with phrase-aware wrapping");
         Check(lines.Where(line => line.who != 2).All(line => line.who == (job == Job.Tank ? 1 : 6)),
             "only selected character responds; Mina does not leak into other routes");
         Check(lines.All(line => ResourceLoader.Exists(line.face)), "all dialogue portraits exist");

@@ -1027,8 +1027,6 @@ public partial class Player : Area2D
             _fireCooldown = FireInterval * (_game?.FireIntervalMul ?? 1f) * modeMul;
         }
 
-        // バックファイア（後方弾・淡い金の菱形）：2026-09-15 ユーザー指示で廃止（発射のみ停止、FireBackfire は復活可能なまま残置）。
-
         // ボム（X）: 押した瞬間だけ発動
         // ボム＝X / Xボタン（□）
         bool bombKey = Input.IsKeyPressed(Key.X) || Pad.Pressed(JoyButton.X)
