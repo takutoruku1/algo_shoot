@@ -238,8 +238,10 @@ public partial class MouseHintQa : Node
         Tick(settings, sBack.GetCenter(), false);
         Check(IsInTree(settings), "hovering the Settings もどる does not leave the screen");
         Tick(settings, sBack.GetCenter(), true);
-        await Frames(6);
-        Check(!IsInTree(settings), "clicking the Settings もどる leaves the screen");
+        Check(LoadingScreen.IsActive, "clicking the Settings もどる starts the transition");
+        await QaSceneTransition.Wait(this);
+        Check(!IsInTree(settings) && GetTree().CurrentScene.SceneFilePath == "res://TitleMenu.tscn",
+            "clicking the Settings もどる returns to the title");
 
         // 難易度選択：もどる＝ハブへ。潜る（ティア行）と取り違えていないことも見る。
         await SwapScene("res://DiffSelect.tscn");
@@ -250,8 +252,10 @@ public partial class MouseHintQa : Node
         Tick(diff, new Vector2(60f, UiKit.DesignH - 56f), true);
         Check(IsInTree(diff), "clicking the DiffSelect ↑↓ hint does not leave the screen");
         Tick(diff, dBack.GetCenter(), true);
-        await Frames(6);
-        Check(!IsInTree(diff), "clicking the DiffSelect もどる leaves the screen");
+        Check(LoadingScreen.IsActive, "clicking the DiffSelect もどる starts the transition");
+        await QaSceneTransition.Wait(this);
+        Check(!IsInTree(diff) && GetTree().CurrentScene.SceneFilePath == "res://Hub.tscn",
+            "clicking the DiffSelect もどる returns to the hub");
         await Frames(2);
     }
 

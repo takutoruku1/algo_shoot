@@ -250,12 +250,6 @@ public partial class Prologue : Node2D
         return r;
     }
 
-    // P4 の導入（タイムライン→『たすけて』・選択の直前まで）。
-    //   2026-09-07 ユーザー指示で作り直し：
-    //   ①タイムラインの3投稿は会話バーに文字を流すのをやめ、画面中央に Ｙ の通知カードを出す（PostToast）。
-    //   ②『たすけて』は説明せず、絵で見せる——中央のカードの本文が「たすけて」と打たれては消える、を
-    //     三度くり返し、最後に「元気です。」が打たれて送信される。ミナは声の聞こえた投稿を指すだけ。
-    //   演出行（WhoFx）は会話バーに何も出さず、済んだら自動で次へ進む（Z を待たない）。
     private List<DLine> P4Intro() => new()
     {
             L(WhoFx, FxPost1, ""),
@@ -263,12 +257,12 @@ public partial class Prologue : Node2D
             L(1, "世界は、にぎやかですね。読むだけでも追いつきません。", FMina),
             L(0, "このSNSは「Y」。僕はずっと、ここから観測していた。", ""),
             L(WhoFx, FxPost3, ""),
-            L(1, "三つめの方。……最初に書いた下書きと違う内容で投稿したようです。", FMina),
+            L(1, "あかりさん。……この投稿の下に、消された下書きが残っています。", FMinaWorried),
             L(0, "君にも分かるんだね。消された言葉が、まだ残っている。", ""),
             L(1, "わたくしに見えている画面を、重ねます。", FMina),
             L(WhoFx, FxErase, ""),
             L(1, "……本音を隠してしまったのですね。", FMina),
-            L(0, "うん。僕には、元気な投稿だけ見て通り過ぎることができなかった。", ""),
+            L(0, "うん。言えなかった言葉があると知ったら、そのまま通り過ぎることができなかった。", ""),
             L(0, "消された下書きには、その人が言えなかった本音が残る。僕は、それを観測できる。", ""),
             L(1, "文字を消しても、伝えたかった気持ちは残っているのですね。", FMina),
             L(0, "でも、見えるだけじゃ助けられなかった。どこで苦しんでいるか分かっても、僕ひとりじゃ届かなかったんだ。", ""),
@@ -289,9 +283,8 @@ public partial class Prologue : Node2D
             L(0, "君の力を貸してくれないか。SNSに囚われている心の声を、本人がもう一度話せるようにしたい。", ""),
             L(1, "承知しました。……あの方に、何と声をかければよいでしょう。", FMina),
             L(0, "そこは会って、一緒に考えたい。世界の仕組みは説明できる。でも、どんな言葉ならうれしいかは、本人に聞かなきゃ。", ""),
-            L(WhoFx, FxFirstStage, ""),
-            L(1, "……こちらにも、声が。", FMina),
-            L(0, "あかりさんだ。まず、この人の投稿を開こう。", ""),
+            L(1, "あかりさんが、本当は何を伝えたかったのか。……直接、聞きたいです。", FMina),
+            L(0, "うん。今見たあかりさんの投稿を開こう。僕が道を探す。", ""),
         });
         return r;
     }
@@ -304,29 +297,20 @@ public partial class Prologue : Node2D
     // ════════════════════ P4 の演出（中央の Ｙ 通知カード）════════════════════
     // 演出行（WhoFx）の Text がそのままトリガ名。DriveFx がこれで分岐する。
     private const string FxPost1 = "fx:post1", FxPost2 = "fx:post2", FxPost3 = "fx:post3", FxErase = "fx:erase";
-    private const string FxFirstStage = "fx:first_stage";
-
-    // 通知カードの中身。アカウントは SnsVoices の表から引く（背景・ハブに並ぶ「他人」と同じ名前と顔）。
-    //   1件目=残業のひと（社会人）／2件目=家賃のひと／3件目=「げんきです」のひと＝この後の『たすけて』の主。
-    //   本文の鉤括弧は外す（カードそのものが投稿の器なので、引用符は二重になる）。
-    private const int V1 = 1, V2 = 5, V3 = 15;   // SnsVoices.All の添字（k_tanaka ／ __nao__ ／ さとみ＊低浮上＊）
+    private const int V1 = 1, V2 = 5;
 
     private PostToast? _toast;      // いま出ている通知カード（1枚だけ）
     private int _fxStep;            // 演出の中の何手目か
     private double _fxT;            // その手に入ってからの経過（待ちに使う）
 
-    private const string CryText = "たすけて";
-    private const string FineText = "今日もげんきで～す。";
     private static readonly (string Text, double Hold, bool Send)[] EraseBeats =
     {
         ("", 1.8, false),
-        (CryText, 1.2, false),
+        ("……好きって、言えばよかった。", 1.2, false),
         ("", 1.5, false),
-        ("生きるのがつらい", 1.6, false),
+        ("あたしのせいだ", 1.6, false),
         ("", 1.6, false),
-        ("いっそ……", 1.8, false),
-        ("", 1.4, false),
-        (FineText, 2.2, true),
+        (GameManager.Stages[0].Tweet, 2.2, true),
     };
 
     public override void _Process(double delta)
@@ -487,9 +471,8 @@ public partial class Prologue : Node2D
         {
             case FxPost1: DriveShowPost(V1, "· 22分", "今日も残業🥺。でも上司に褒められた！😊", 3, 1, 24, 1800); break;
             case FxPost2: DriveShowPost(V2, "· 1時間", "今日もちゃんと生きれてえらい！　誰も言ってくれないので自分に言う（定期）", 1, 0, 12, 940); break;
-            case FxPost3: DriveShowPost(V3, "· 3分", "今日もげんきで～す。", 0, 0, 2, 61); break;
             case FxErase: DriveErase(); break;
-            case FxFirstStage:
+            case FxPost3:
                 if (_toast == null && _fxStep == 0)
                 {
                     var stage = GameManager.Stages[0];
@@ -524,8 +507,10 @@ public partial class Prologue : Node2D
     {
         if (_toast == null)
         {
-            var v = SnsVoices.At(V3);   // 「げんきです」の投稿と同じ人＝あの一行の裏側を見せている
-            _toast = PostToast.ShowComposing(this, v.Name, Handles.Mob(v.Handle), "· いま", icon: v.Icon);
+            var stage = GameManager.Stages[0];
+            var job = System.Array.Find(Jobs.All, candidate => candidate.CharacterId == stage.Id)!;
+            var portrait = GD.Load<Texture2D>(CompanionDialogue.AccountIcon(stage.Id));
+            _toast = PostToast.ShowComposing(this, job.CharacterName, stage.Handle, "· 下書き", verified: true, portrait: portrait);
             _fxStep = 0; _fxT = 0;
             return;
         }
@@ -924,7 +909,7 @@ public partial class Prologue : Node2D
         var (label, edge) = SpeakerOf(d);
         UiKit.BeginDesign(this);
         var box = DialogueBox.FullScreen;
-        DialogueBox.DrawFrame(this, box, label, edge);
+        DialogueBox.DrawFrame(this, box, label, edge, draft: d.Who == WhoYou);
         DialogueBox.DrawBody(this, box, CurPage, _reveal,
             ink: d.Who == WhoSys ? Code : DialogueBox.Ink,
             speed: _game?.MsgCharsPerSec ?? DialogueBox.DefaultCharsPerSec, pacing: CurPacing);

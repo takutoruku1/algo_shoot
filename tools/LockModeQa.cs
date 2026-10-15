@@ -44,6 +44,9 @@ public partial class LockModeQa : Node
 
     private async Task Run()
     {
+        bool isolated = OS.GetUserDataDir().Replace('\\', '/').Contains("/build/qa_story/");
+        Check("セーブが隔離されている（APPDATA=build/qa_story/...）", isolated);
+        if (!isolated) return;
         var game = GetNode<GameManager>("/root/Game");
         game.ResetPersistent(); game.AutoSaveEnabled = false;
 
@@ -77,12 +80,16 @@ public partial class LockModeQa : Node
         if (!IsInstanceValid(e1) || !IsInstanceValid(e2)) { GD.Print("[LM] NG enemy despawned"); _fail++; return; }
 
         Check("最初は OFF（モードなし）", !player.LockArmed && !player.LockedOn);
+        Check("OFF では照準補足を表示しない", LockDetail(player) == "");
+        foreach (string detail in new[] { "対象を探しています", "シールドを照準", "シールド破壊", "本体に攻撃", "シールド再形成中", "対象を追尾しています" })
+            Check($"照準補足が行内に収まる：{detail}", UiKit.TrackedW(UiKit.CombatState, detail) <= Field.PanelW - 36f);
         float normalMoveSpeed = player.MoveSpeed;
         await Tap(Key.S);
         Check("S で追尾（掴む＋モード）", player.LockedOn && player.LockArmed);
         Check("ロック中は通常の80%の移動速度", Mathf.IsEqualApprox(player.MoveSpeed, normalMoveSpeed * 0.8f));
         Check("予兆の計算も同じロック速度を使う", Mathf.IsEqualApprox(player.SlowestMoveSpeed, player.MoveSpeed));
         Check("追尾先は最寄り e1", ReferenceEquals(player.LockTarget, e1));
+        Check("追尾先の盾を照準していることを案内する", player.LockedUnfolder != null && LockDetail(player) == "シールドを照準");
         await Shot("lock_tracking");
 
         // 対象も他の敵も画面外へ → 掴みは外れるがモードは残る（待機）
@@ -92,21 +99,25 @@ public partial class LockModeQa : Node
         Check("全員が画面外：掴みは外れる", !player.LockedOn);
         Check("対象がない待機中は通常の移動速度", Mathf.IsEqualApprox(player.MoveSpeed, normalMoveSpeed));
         Check("全員が画面外：モードは残る（待機）", player.LockArmed);
+        Check("待機中は対象を探していることを案内する", LockDetail(player) == "対象を探しています");
         await Shot("lock_waiting");
 
         // 新しい敵が現れる → 自動で付く
         var e3 = Spawn(world, spec, new Vector2(Field.Left + 180, 120));
         await Frames(4);
         Check("待機中に現れた敵へ自動で付く", player.LockedOn && ReferenceEquals(player.LockTarget, e3));
+        Check("新しい対象を得ると盾の照準案内に戻る", LockDetail(player) == "シールドを照準");
 
         // 倒される（QueueFree）→ 待機に戻る
         e3.QueueFree();
         await Frames(4);
         Check("対象が消えても待機を保つ", !player.LockedOn && player.LockArmed);
+        Check("対象が消えたら照準案内を待機へ戻す", LockDetail(player) == "対象を探しています");
 
         // 待機中の解除入力（Shift 押し離し）→ モードごと OFF
         await Tap(Key.Shift);
         Check("待機中に Shift を離すとモードも切れる", !player.LockArmed && !player.LockedOn);
+        Check("解除後は待機の案内を残さない", LockDetail(player) == "");
         await Shot("lock_off");
 
         // OFF のまま敵が現れても勝手には付かない
@@ -261,6 +272,10 @@ public partial class LockModeQa : Node
         if (!ok) _fail++;
         GD.Print($"[LM] {(ok ? "OK " : "NG ")} {name}");
     }
+
+    private static string LockDetail(Player player)
+        => (string)typeof(Hud).GetMethod("LockStatusDetail", BindingFlags.Static | BindingFlags.NonPublic)!
+            .Invoke(null, new object[] { player })!;
 
     private async Task Tap(Key k) => await Hold(k, 4);
 

@@ -1,11 +1,13 @@
 using Godot;
+using System;
 using System.Collections.Generic;
+using System.Threading.Tasks;
 
 // Shot : スクリーンショット用オートロード (/root/Shot)。
 //
 // 起動コマンドのユーザ引数（`--` の後ろ）に "--shot" が含まれているときだけ有効化し、
 // 指定時刻にルートビューポートを PNG 保存して、全部撮り終えたら Quit() する。
-// ゲーム本体・他オートロード（DemoPilot/QaPilot）には一切干渉しない（--shot 無効時は即停止）。
+// --shot 無効時は即停止。
 //
 //   有効化:        res://...tscn -- --shot
 //   撮影時刻(秒):  -- --shot --shot-at 1.0,6.0,12.0   （省略時 1.0）
@@ -60,6 +62,7 @@ public partial class Shot : Node
 
         // 最後の撮影は描画完了後に拾いたいので、プロセスの末尾で動かす
         ProcessPriority = 1000;
+        ProcessMode = ProcessModeEnum.Always;
 
         GD.Print($"[Shot] active. name={_name} out={_outDir} at=[{string.Join(",", _times)}]");
     }
@@ -75,15 +78,36 @@ public partial class Shot : Node
         if (_next >= _times.Count)
         {
             GD.Print("[Shot] done.");
-            GetTree().Quit();
+            SetProcess(false);
+            Finish();
         }
+    }
+
+    private async void Finish()
+    {
+        GetNode<Node>("/root/DemoPilot").ProcessMode = ProcessModeEnum.Disabled;
+        GetNode<Node>("/root/QaPilot").ProcessMode = ProcessModeEnum.Disabled;
+        GetTree().Paused = false;
+        Hud.BubblePaused = false;
+        GetNode<BulletPool>("/root/Pool").DespawnAll();
+        GetTree().CurrentScene?.QueueFree();
+        for (int frame = 0; frame < 5; frame++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+        Audio.Instance.StopMusicOnce(0);
+        foreach (var child in Audio.Instance.GetChildren())
+            if (child is AudioStreamPlayer player) { player.Stop(); player.Stream = null; }
+        // 再生スレッドが音源参照を解放してから終了する。
+        await Task.Delay(250);
+        GC.Collect();
+        GC.WaitForPendingFinalizers();
+        for (int frame = 0; frame < 5; frame++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+        GetTree().Quit();
     }
 
     private void Capture(int idx)
     {
         var vp = GetViewport();
         var tex = vp?.GetTexture();
-        var img = tex?.GetImage();
+        using var img = tex?.GetImage();
         if (img == null)
         {
             GD.PushWarning("[Shot] viewport image unavailable");

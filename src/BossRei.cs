@@ -12,14 +12,10 @@ public partial class BossRei : Enemy
 
     private readonly BossMover _mover = new BossMover();
 
-    private double _fireT;
-    private double _fireT2;   // フィナーレ用の第2タイマー（2スペル同時撃ち）
-    private bool _finale;     // HP2割以下＝2スペル同時展開
+    private bool _rallied;
     private bool _accelerated; // HP2割以下で戦闘BGMを一度だけ加速させた（多重発火防止）
     private bool _memoryPending;
     private bool _memoryPlayed;
-    private float _ringOff;
-    private float _spiralPhase;
     private int _pattern;
     private int _beatsFired;
     private const int PatternCount = 4;
@@ -29,39 +25,24 @@ public partial class BossRei : Enemy
     private double _lineT;
     private bool _zHeld;
 
-    // 予測攻撃キャスター（通常テレグラフ＋安置リレー「最終選考」の発火に使う）。
     private AreaSpellCaster _caster = null!;
     private BossPostSequence _posts = null!;
     public bool PostSequenceActive => _posts != null && _posts.Active;
-    // 安置リレー/全画面AOEの宣告〜最終着弾中か。StageRei が投稿弾（言葉弾）の湧きを止めるゲートに参照する
-    //（安置円の中に言葉弾が刺さって「安置なのに被弾」になる理不尽を断つ）。
     public bool AoeGateActive => _caster != null && (_caster.AoeActive || _caster.EdgeAttackActive);
-    // ── 安置リレー「最終選考」（HP26%ワンショット）──
-    //   全画面AOEの安置を2〜4回連結し、緑リングを頼りに走り継がせる終盤の山場。
-    //   完走判定＝開始/終了時の Player.Lives 比較（被弾してもリレー自体は止まらない）。
-    //   無被弾完走の報酬＝レイの動的セリフ＋最終安置に回復ハート1個（AddLife。♥上限ならスコアで返す）。
-    private bool _relayFired;      // 発火ワンショット
-    private bool _relayWatching;   // リレー進行中（完走判定待ち）
+    private bool _relayFired;
+    private bool _relayWatching;
     private int _relayStartLives;
 
     private static readonly float[] PatternThresholds = { 0.78f, 0.50f, 0.26f };
 
-    // ── 「また逃げる」ギミック（#12 機構側）：攻めない時間が続くと弾密度が漸増する圧 ──
-    //   パネル/本体への与ダメがゼロのまま 6秒 で+1、以降 4秒 ごとに+1（上限+2）。リング系の弾数と
-    //   自機狙いの扇の枚数に乗る。1ヒットごとに1段階即緩む＝「攻めれば密度が下がる」。
-    //   タイマーは SHIELDED（殴れる時間）だけ進める＝BREAK/RECLOSE や会話中の理不尽な加圧を防ぐ。
     private double _noDmgT;
-    private int _pressure;
-    private int _pressureMax = 2;        // INI: pressure_max
-    private double _pressureDelay = 6.0; // INI: pressure_delay（最初の加圧までの与ダメゼロ許容時間）
-    private double _pressureStep = 4.0;  // INI: pressure_step（2段階目までの追加時間）
-    private double _tauntCd;             // 挑発字幕の連発防止
+    private int _tauntStage;
+    private int _tauntLimit = 2;
+    private double _tauntDelay = 6.0;
+    private double _tauntStep = 4.0;
+    private double _tauntCd;
     private int _tauntIdx;
 
-    // ── INI 外出しのバランス値（config/boss_stats.ini [rei]。読めなければ現行既定値）──
-    private double _ringInterval = 1.0, _ring2Interval = 1.1, _aimedInterval = 0.7, _spiralInterval = 0.085;
-    private int _ringCount = 14, _ring2Count = 18;
-    private float _ringSpeed = 70f, _ring2Speed = 76f, _aimedSpeed = 98f, _spiralSpeed = 90f;
     private float _relayHp = 0.26f;
     // ボス戦のレイが被っている配信のガワ（笑顔固定）。中の人（rei_face 系）とは目と輪郭だけが同じ別の姿で、
     // 姿が違うこと自体が仕込み＝道中の中ボスは中の人、ボスはガワ。
@@ -71,21 +52,13 @@ public partial class BossRei : Enemy
     private static readonly string[] TauntLines =
     { "初見さん、いらっしゃい!", "戦ってよ。わたしを、ちゃんと見てよ。", "……ミナ、手が止まってる。わたしの話、つまらなかった？" };
 
-    // スペルカード（仮台本 07 の S3-6。弾形・色は v3 の銀菫金ティールのまま、名前だけ案C へ）。
-    // index は _pattern と一致。切替時に弾形・色を変え、X風スペル宣言を出す。
-    // 宣告名（AreaSpellCaster の "rei" プロファイル）もこの圏内へ揃えてある＝台本の弾幕名と齟齬を出さない。
-    private static readonly (string name, BulletShape shape, Color tint, string art, float rotation)[] Spells =
+    private static readonly (BulletShape shape, Color tint, string art, float rotation)[] PhaseVisuals =
     {
-        ("初見さんいらっしゃい", BulletShape.Orb,     new Color("b9c2d0"), "rei_comment", 18f),
-        ("登録者２０００",       BulletShape.Diamond, new Color("9a72d9"), "rei_subscriber", -22f),
-        ("同接８",               BulletShape.Star,    new Color("e8c45a"), "rei_microphone", 28f),
-        ("切り抜かれない",       BulletShape.Ring,    new Color("5fb8c0"), "rei_film", -32f),
+        (BulletShape.Orb,     new Color("b9c2d0"), "rei_comment", 18f),
+        (BulletShape.Diamond, new Color("9a72d9"), "rei_subscriber", -22f),
+        (BulletShape.Star,    new Color("e8c45a"), "rei_microphone", 28f),
+        (BulletShape.Ring,    new Color("5fb8c0"), "rei_film", -32f),
     };
-    // 攻撃パターン→立ち位置の対応（あかり・こはる・ミナと同じ作法）。スペルが変わるたび BossMover に
-    // 「次に何をするか」を伝え、攻撃の合間にその立ち位置へ移らせる。
-    //   0/1 リング   ＝ 中央に据わって撒く（全方位なので真ん中が一番読みやすい）
-    //   2   自機狙い ＝ 自機の x を追って横に滑る（ただしレイは track_gain 0.25＝枠の中で気配だけ）
-    //   3   スパイラル＝ 端へ寄って糸を引く
     private static BossMover.Attack StanceOf(int pattern) => (pattern % PatternCount) switch
     {
         2 => BossMover.Attack.Aimed,
@@ -93,13 +66,12 @@ public partial class BossRei : Enemy
         _ => BossMover.Attack.Ring,
     };
 
-    private void ApplySpell()
+    private void ApplyPhaseVisual()
     {
-        var s = Spells[_pattern % Spells.Length];
+        var s = PhaseVisuals[_pattern % PhaseVisuals.Length];
         SetSpellVisual(s.shape, s.tint, BulletArt.Get(s.art), s.rotation);
         _mover.SetNextAttack(StanceOf(_pattern));
         GetHud()?.SetBossBarTint(s.tint); // HPバーもスペル色へ（#26 フェーズ移行の可視化）
-        GetHud()?.AnnounceSpell("レイ", BossHandles.ReiMain, s.name, s.tint);
     }
     private static readonly (int who, string text, string face)[] Lines =
     {
@@ -155,20 +127,9 @@ public partial class BossRei : Enemy
         int bars = BossTuning.I("rei", "hp_bars", 0);
         BarCount = bars > 0 ? bars : DiffBars(finalBoss: false) + 1;
 
-        // 弾幕・ギミックの外出し値（INIに無ければフィールド初期値＝現行値のまま）。
-        _ringInterval = BossTuning.F("rei", "ring_interval", 1.0f);
-        _ringCount = BossTuning.I("rei", "ring_count", 14);
-        _ringSpeed = BossTuning.F("rei", "ring_speed", 70f);
-        _ring2Interval = BossTuning.F("rei", "ring2_interval", 1.1f);
-        _ring2Count = BossTuning.I("rei", "ring2_count", 18);
-        _ring2Speed = BossTuning.F("rei", "ring2_speed", 76f);
-        _aimedInterval = BossTuning.F("rei", "aimed_interval", 0.7f);
-        _aimedSpeed = BossTuning.F("rei", "aimed_speed", 98f);
-        _spiralInterval = BossTuning.F("rei", "spiral_interval", 0.24f);
-        _spiralSpeed = BossTuning.F("rei", "spiral_speed", 90f);
-        _pressureMax = BossTuning.I("rei", "pressure_max", 2);
-        _pressureDelay = BossTuning.F("rei", "pressure_delay", 6.0f);
-        _pressureStep = BossTuning.F("rei", "pressure_step", 4.0f);
+        _tauntLimit = BossTuning.I("rei", "pressure_max", 2);
+        _tauntDelay = BossTuning.F("rei", "pressure_delay", 6.0f);
+        _tauntStep = BossTuning.F("rei", "pressure_step", 4.0f);
         _relayHp = BossTuning.F("rei", "relay_hp", 0.26f);
 
         // v3 の本体＝ガワ（エフェクト無し・720px）。飾り枠・吹き出し・光の帯は BossParts が重ねる。
@@ -232,9 +193,8 @@ public partial class BossRei : Enemy
         GetHud()?.UpdateBossBar(CurrentBarIndex, TotalBars, CurrentBarFrac);
         // 【激情】メーター開始。初期値は道中（s3_5c）の選択から決まる（FuryMeter.cs）。
         GetNodeOrNull<GameManager>("/root/Game")?.BeginFury("rei");
-        ApplySpell();
+        ApplyPhaseVisual();
 
-        // 予測攻撃（テレグラフ）キャスター：技名宣告→予測線/予測エリア。数は難易度でスケール。
         _caster = new AreaSpellCaster();
         _caster.Configure("rei", GetParent());
         AddChild(_caster);
@@ -253,21 +213,20 @@ public partial class BossRei : Enemy
         ApplyBossMotion(_mover.VisualOffset, _mover.Lean, IsForm2 ? !_mover.FacingLeft : _mover.FacingLeft, _mover.SquashScale);
         FxLayer.Instance?.EmitBossAura(FxLayer.BossAura.Rei, GlobalPosition, (float)delta, 32f);
         TickRelayWatch();
-        TickPressure(delta);
-        FirePattern(delta);
+        TickTaunt(delta);
+        if (_caster.AoeActive || _caster.EdgeAttackActive) _mover.SetNextAttack(BossMover.Attack.Spell);
+        else TickForm2Technique(delta, _mover, _caster);
     }
 
-    // 安置リレーの完走判定：AoeActive が落ちた瞬間（最終ホップの着弾終了）に残機を開始時と比較する。
-    // 無被弾完走→レイが初めて認める一言＋最終安置に回復ハート1個（既存 Player.AddLife 経由。
-    // 専用ドロップ機構は無いので即時付与＋その場にフィードバック表示。♥上限時はスコアボーナスで返す）。
+    // 中断は完走に含めず、開始時の残機を保った場合だけ既存の回復報酬を渡す。
     private void TickRelayWatch()
     {
         if (!_relayWatching || _caster == null || _caster.AoeActive) return;
         _relayWatching = false;
         if (GetTree().GetFirstNodeInGroup("player") is not Player pl) return;
-        if (_relayStartLives < 0 || pl.Lives < _relayStartLives) return; // 被弾あり＝報酬なし（リレー自体は完走済み）
+        if (_relayStartLives < 0 || pl.Lives < _relayStartLives || !_caster.FinaleCompleted) return;
         GetHud()?.ShowBossLine("レイ", "……初見さん、じゃなかったのね。", UiKit.Kegare, 2.4); // 無被弾報酬の一言（仮台本 07 の S3-6。「合格。なんて」は捨てた）
-        Vector2 at = _caster.LastChainSafe; // 最終安置＝報酬の出現位置
+        Vector2 at = _caster.LastChainSafe;
         if (pl.AddLife(1))
         {
             FxLayer.Instance?.DamageNumber(at, "♥+1", FxLayer.Heart, 13);
@@ -281,18 +240,17 @@ public partial class BossRei : Enemy
         }
     }
 
-    // 「また逃げる」圧の進行。UpdateMovement 経由＝会話中(BubblePaused)・登場演出中は自然に止まる。
-    private void TickPressure(double delta)
+    private void TickTaunt(double delta)
     {
         if (_tauntCd > 0) _tauntCd -= delta;
         if (_caster != null && (_caster.AoeActive || _caster.EdgeAttackActive)) return; // 回避に集中する時間は逃げ腰を咎めない
         if (!IsShieldPhase) return; // 殴れない時間（合図/窓/セリフ）は与ダメゼロを咎めない
         _noDmgT += delta;
-        int want = _noDmgT < _pressureDelay ? 0
-                 : Mathf.Min(_pressureMax, 1 + (int)((_noDmgT - _pressureDelay) / _pressureStep));
-        if (want > _pressure)
+        int want = _noDmgT < _tauntDelay ? 0
+                 : Mathf.Min(_tauntLimit, 1 + (int)((_noDmgT - _tauntDelay) / _tauntStep));
+        if (want > _tauntStage)
         {
-            _pressure = want;
+            _tauntStage = want;
             if (_tauntCd <= 0)
             {
                 _tauntCd = 8.0;
@@ -302,98 +260,10 @@ public partial class BossRei : Enemy
         }
     }
 
-    // 有効打（パネルのインク削り／無防備窓の本体ヒット）のたびに圧が1段階すぐ緩む。
     public override void OnPlayerDealtDamage()
     {
         _noDmgT = 0;
-        if (_pressure > 0) _pressure--;
-    }
-
-    // 攻撃パターン（セリフを挟むたびに変化）。
-    private void FirePattern(double delta)
-    {
-        var pool = GetNodeOrNull<BulletPool>("/root/Pool");
-        if (pool == null) return;
-        // 安置リレー（最終選考）の宣告〜最終着弾中は通常弾を止める（避け先＝安置へ集中させる）。
-        // このあいだは「宣告付きの大技」の立ち位置＝中央の高めに据わって動かない（見せ場を固定する）。
-        if (_caster != null && (_caster.AoeActive || _caster.EdgeAttackActive)) { _mover.SetNextAttack(BossMover.Attack.Spell); return; }
-        if (TickForm2Technique(delta, _mover, _caster!)) return;
-        if (BarrageHolding) { _fireT = _fireT2 = 0; return; }
-        if (_finale) { FireFinale(pool, delta); return; }
-        _fireT += delta;
-        // 「また逃げる」圧：リング系は弾数+_pressure、自機狙いは扇の枚数が増える（Aimed 内）。
-        switch (_pattern)
-        {
-            case 0: if (_fireT >= Di(_ringInterval)) { _fireT = 0; _mover.DeclareAttack(BossMover.Attack.Ring); TriggerAttackPose(); Ring(pool, Dn(_ringCount) + _pressure, _ringSpeed); } break;
-            case 1: if (_fireT >= Di(_ring2Interval)) { _fireT = 0; _mover.DeclareAttack(BossMover.Attack.Ring); TriggerAttackPose(); Ring(pool, Dn(_ring2Count) + _pressure, _ring2Speed); } break;
-            case 2: if (_fireT >= Di(_aimedInterval)) { _fireT = 0; _mover.DeclareAttack(BossMover.Attack.Aimed); TriggerAttackPose(); Aimed(pool); } break;
-            default: if (_fireT >= Di(_spiralInterval)) { _fireT = 0; _mover.DeclareAttack(BossMover.Attack.Wall); TriggerAttackPose(); Spiral(pool); } break;
-        }
-    }
-
-    // フィナーレ（HP2割以下）：「私を見て」(星金リング)＋「届かない」(ティールのリング螺旋)を同時展開。
-    private void FireFinale(BulletPool pool, double delta)
-    {
-        _fireT += delta; _fireT2 += delta;
-        // 2スペル同時展開＝どちらか一方の立ち位置に寄せると常に取り合いになるので、
-        // 遅い方（リング）の一拍だけ拾って中央に据わらせる（螺旋は毎フレーム級で撃つため一拍にしない）。
-        if (_fireT >= Di(0.9)) { _fireT = 0; _mover.DeclareAttack(BossMover.Attack.Ring); SetSpellVisual(Spells[2].shape, Spells[2].tint, BulletArt.Get(Spells[2].art), Spells[2].rotation); Ring(pool, Dn(14) + _pressure, 72f); }
-        if (_fireT2 >= Di(_spiralInterval)) { _fireT2 = 0; SetSpellVisual(Spells[3].shape, Spells[3].tint, BulletArt.Get(Spells[3].art), Spells[3].rotation); Spiral(pool); }
-    }
-
-    // 弾サイズ階層（#攻撃種ごとのサイズ差）：密集バラマキ(Ring/扇)=小(隙間を編む読み)／
-    //   連続糸(Spiral)=極小／自機狙いの精密弾(Aimed)=大（数が少ないぶん一発の重さで語る）。
-    //   当たり芯ドットは Bullet._Draw が全形状共通で描くので、大きくしても被弾点は埋もれない。
-    private void Ring(BulletPool pool, int k, float spd)
-    {
-        BodyShotStyle = BossShotStyle.Ring;
-        k = Mathf.Clamp((k + 2) / 3, GameManager.Instance!.Difficulty >= GameManager.Diff.Hard ? 8 : 3,
-            GameManager.Instance.IsLunatic ? 10 : 8);
-        _ringOff = AimAtPlayer().Angle();
-        for (int i = 0; i < k; i++)
-        {
-            float a = _ringOff + Mathf.Tau * i / k;
-            FireBullet(pool, GlobalPosition, new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * spd, 3.0f);
-        }
-    }
-
-    private void Aimed(BulletPool pool)
-    {
-        BodyShotStyle = BossShotStyle.Aimed;
-        Vector2 d = AimAtPlayer();
-        float baseA = Mathf.Atan2(d.Y, d.X);
-        bool dense = GameManager.Instance!.Difficulty >= GameManager.Diff.Hard;
-        int wing = dense ? (GameManager.Instance.IsLunatic ? 4 : 3) : 1 + _pressure;
-        for (int i = -wing; i <= wing; i++)
-        {
-            float a = baseA + i * Mathf.DegToRad(dense ? 30f : 13f);
-            FireBullet(pool, GlobalPosition, new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * _aimedSpeed, 4.0f);
-        }
-    }
-
-    private void Spiral(BulletPool pool)
-    {
-        BodyShotStyle = BossShotStyle.Ring;
-        bool dense = GameManager.Instance!.Difficulty >= GameManager.Diff.Hard;
-        if (dense) _spiralPhase = Mathf.PosMod(_spiralPhase + 0.18f, Mathf.Tau);
-        _ringOff = AimAtPlayer().Angle() + (dense ? _spiralPhase : 0);
-        int arms = dense ? (GameManager.Instance.IsLunatic ? 5 : 4) : 2;
-        for (int s = 0; s < arms; s++)
-        {
-            float a = _ringOff + Mathf.Tau * s / arms;
-            FireBullet(pool, GlobalPosition, new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * _spiralSpeed, 2.6f);
-        }
-    }
-
-    private Vector2 AimAtPlayer()
-    {
-        var players = GetTree().GetNodesInGroup("player");
-        if (players.Count > 0 && players[0] is Node2D pl)
-        {
-            var d = pl.GlobalPosition - GlobalPosition;
-            if (d.LengthSquared() > 0.01f) return d.Normalized();
-        }
-        return new Vector2(-1, 0);
+        _tauntStage = 0;
     }
 
     // 本体に弾が刺さった一拍を移動側へ渡す（小さくのけぞって戻る）。当たり判定の中心は
@@ -413,7 +283,7 @@ public partial class BossRei : Enemy
         {
             _pattern = (_pattern + 1) % PatternCount;
             _beatsFired++;
-            ApplySpell();
+            ApplyPhaseVisual();
             // 第二形態は既存の閾値の中盤（PatternThresholds[1]=0.50）に乗せる＝新しい閾値を足さない。
             // ガワにひびが入る一拍。割るのは改心の決定打（ShellPeelFx）なのでここでは割らない。
             if (_beatsFired == 2) AdvanceForm2();
@@ -426,30 +296,18 @@ public partial class BossRei : Enemy
             _accelerated = true;
             Audio.Instance?.SetMusicSpeed(1.15f);
         }
-        // 安置リレー「最終選考」：HP26%（INI: relay_hp）を割った瞬間に一度だけ（パターン最終切替と同じ節目＝終盤の山）。
-        // ホップ数と距離帯は難易度別。距離上限は到達限界（(予兆1.6s×WarnMul−反応0.3s)×150px/s＋安置r30）内：
-        //   Easy 297px / Normal 225px / Hard 189px / Lunatic 158px ≧ 各帯の上限。
         if (!_relayFired && HpRatio <= _relayHp)
         {
             _relayFired = true;
-            var diff = GetNodeOrNull<GameManager>("/root/Game")?.Difficulty ?? GameManager.Diff.Normal;
-            var (hops, hopMin, hopMax) = diff switch
-            {
-                GameManager.Diff.Hard => (3, 130f, 165f),
-                GameManager.Diff.Lunatic => (4, 110f, 145f),
-                _ => (3, 140f, 190f),
-            };
-            _caster?.CastFullscreenChain(hops, hopMin, hopMax);
+            _caster?.RequestFinale();
             _relayWatching = true;
             _relayStartLives = (GetTree().GetFirstNodeInGroup("player") as Player)?.Lives ?? -1;
         }
-        if (!_finale && HpRatio <= 0.20f && (GameManager.LunaticActive || _posts.Count >= 4))
+        if (!_rallied && HpRatio <= 0.20f && (GameManager.LunaticActive || _posts.Count >= 4))
         {
-            _finale = true;
-            _fireT = _fireT2 = 0;
+            _rallied = true;
             RallyShield();
-            GetHud()?.SetBossBarTint(Spells[2].tint); // フィナーレ色（#26）
-            GetHud()?.AnnounceSpell("レイ", BossHandles.ReiMain, Spells[2].name + "＋" + Spells[3].name, Spells[2].tint);
+            GetHud()?.SetBossBarTint(PhaseVisuals[2].tint); // フィナーレ色（#26）
         }
     }
 
@@ -530,7 +388,6 @@ public partial class BossRei : Enemy
             void ResumeBattle()
             {
                 _zHeld = Pad.AdvanceHeld();
-                _fireT = _fireT2 = 0;
                 _posts.ResumeMusic();
                 OnHpChanged();
             }
@@ -555,7 +412,7 @@ public partial class BossRei : Enemy
         if (!_seq && !_memoryPending) _posts.UpdateDamage();
         // 改心の会話送り：Z/Enter/ui_accept/Pad A に加えマウス左クリックでも送れる共通ヘルパ（マウス対応 P2）。
         bool z = Pad.AdvanceHeld();
-        bool zEdge = z && !_zHeld;
+        bool zEdge = z && !_zHeld && !Pad.UiBlocked(this);
         _zHeld = z;
         _lineT += delta;
 

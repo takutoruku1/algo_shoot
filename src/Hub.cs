@@ -178,30 +178,16 @@ public partial class Hub : Node2D
     private bool NeedsSnsIntro => _game.HeartsSaved == 0 && !_game.IsIdleDialogSeen(SnsIntroSeenKey);
     private static readonly (string, string)[] SnsIntro =
     {
-        ("あなた", "ここが「Y」のタイムラインだよ。声が残っている投稿に、観測のしるしをつけるね。"),
-        ("ミナ", "ありました。……小さな声でも、見失わずに済みますね。"),
-        ("あなた", "その投稿を選んで。ここから先は、僕が道を開く。"),
-        ("あなた", "ミナ。僕には、他の誰かをフェイクレルムへダイブさせる力がある。"),
-        ("ミナ", "フェイクレルム、とは？"),
-        ("あなた", "本音を隠した心の世界だ。そこを汚染して、声を閉じ込める存在がアンチャー。"),
-        ("ミナ", "あの雨の向こうに、その方がいらっしゃるのですね。"),
-        ("あなた", "うん。閉じ込めているものをほどけば、本音のある世界、リアルレルムが見えてくる。"),
-        ("ミナ", "そこまでご存じなのに、今までは……。"),
-        ("あなた", "観測する僕しかいなかった。送り出せる相手が、いなかったんだ。"),
-        ("あなた", "だから君を作った。……助けたかったし、ずっと一人で見ているのも、つらかった。"),
-        ("ミナ", "ようやく、本音が一件。"),
-        ("あなた", "僕のまで拾わなくていいって。"),
-        ("ミナ", "手遅れです。もう聞きました。"),
-        ("あなた", "もう一つ。僕の声が届くのは、回線を結んだ仲間だけ。向こうの人やアンチャーには聞こえない。"),
-        ("ミナ", "では、あの方へのお返事は、わたくしが。"),
-        ("あなた", "うん。僕の言葉をそのまま読む必要はない。君が感じたことを話してほしい。道案内は、僕がする。"),
-        ("ミナ", "それがご主人様の望みであるならば、承知いたしました。わたくしも、あの声の続きを聞きたいです。"),
-        ("あなた", "戦う相手は、あの人を閉じ込めているものだ。本人を傷つけたいわけじゃない。"),
-        ("ミナ", "分かりました。では、号令をどうぞ。"),
-        ("あなた", "進路確認。ミナ、発進！"),
-        ("ミナ", "……ミナ、行きます！"),
-        ("あなた", "お、やってくれるんだ。"),
-        ("ミナ", "ご主人様が楽しそうだったので。……今回だけですよ。"),
+        ("あなた", "ここが「Y」のタイムラインだよ。あかりさんの投稿に、観測のしるしをつけた。"),
+        ("ミナ", "ありました。……さっきの声の、続きですね。"),
+        ("あなた", "その投稿を選んで。僕が道を開いて、君をフェイクレルムへ送り出す。本音を隠した心の世界だ。"),
+        ("ミナ", "あの雨の向こうに、あかりさんが。"),
+        ("あなた", "うん。声を閉じ込めている存在がアンチャー。戦うのは、あの人を閉じ込めているものだよ。"),
+        ("ミナ", "ほどいた先で、ご本人のお話を聞くのですね。"),
+        ("あなた", "僕の声が届くのは、回線を結んだ仲間だけ。向こうの人には聞こえない。道案内は僕がするから、君自身の言葉で話してほしい。"),
+        ("ミナ", "承知しました。……何と言うかまで、決まっていないのですね。"),
+        ("あなた", "うん。まずは、続きを聞きに行こう。"),
+        ("ミナ", "はい。行ってまいります、ご主人様。"),
     };
     private bool _homeRevealPending;
     private double _homeRevealT;
@@ -413,8 +399,8 @@ public partial class Hub : Node2D
             var companion = CompanionDialogue.MenuLines(_game.SelectedJob, CompanionDialogue.Menu.Return);
             if (companion.Length > 0)
             {
-                var combined = new System.Collections.Generic.List<(string, string)>(lines);
-                combined.AddRange(companion);
+                var combined = new System.Collections.Generic.List<(string, string)>(companion);
+                combined.AddRange(lines);
                 lines = combined.ToArray();
             }
             if (_game.ShouldBurnAfter(cleared))
@@ -1956,11 +1942,6 @@ public partial class Hub : Node2D
             GD.Print($"[JOB] FINAL は初挑戦のため結び手を回避 -> {_game.JobDef.CharacterName}");
         }
         _dived = true;
-        // 他ジョブ潜行の章カウンタ（2026-09-15）：ダイブ確定のここで1回だけ数える（Stage 側の _Ready で
-        //   数えると R リトライの ReloadCurrentScene でも増えて章が飛ぶ）。対象は本編3面×結び手以外のみ
-        //   （FINAL は StageIdForScene が null＝数えない。FINAL は常にミナ本編のため章も持たない）。
-        if (_game != null && _game.SelectedJob != Job.Tank && GameManager.StageIdForScene(scene) != null)
-            _game.RegisterCharacterDive(_game.SelectedJob);
         GetNodeOrNull<BulletPool>("/root/Pool")?.DespawnAll();
         GameManager.FadeToScene(this, scene);
     }
@@ -2869,7 +2850,7 @@ public partial class Hub : Node2D
 
     // 小話の話者文字列 → (立ち絵, 円窓のリング色, topCrop)。本編会話と同じ FaceAvatar で顔を出す。
     //   ミナ系(ミナ・ミナの投稿・ミナ→@xxx)=mina_face / 相手キャラ=各 _face。
-    //   top の負値は「顔を描かない」印：-1＝アバターごと省略 / DraftTop＝下書きの吹き出し印を置く。
+    //   top の負値は「顔を描かない」印：-1＝アバターごと省略 / DraftTop＝人物シルエット。
     private const float DraftTop = -2f;
     private (Texture2D? face, Color col, float top) SpeakerFace(string sp)
     {
@@ -2877,7 +2858,6 @@ public partial class Hub : Node2D
         //   DrawDialog にアバターごと省かせる（null のままだと FaceAvatar が「?」のロック円を描き、
         //   未解放カードと同じ見た目になってしまう）。H0 の投稿、H2 の炎上の引用、H3 の FINAL カードがここ。
         if (sp.StartsWith("Ｙ")) return (null, UiKit.Info, -1f);
-        // 「あなた」＝顔を持たない読み手。本編会話（Hud.LineKind.Boy）と同じく、立ち絵の代わりに下書きの吹き出し印。
         if (sp == "あなた") return (null, UiKit.Info, DraftTop);
         if (sp.StartsWith("ミナ")) return (_minaFace, UiKit.Mina, TopCropFor("mina"));
         foreach (var job in Jobs.All)
@@ -3622,7 +3602,37 @@ public partial class Hub : Node2D
         ("ミナ", "では、今日はこの一段を。次に帰ってくる場所も、できました。", "res://char/mina_face.png"),
     };
 
-    private static (string, string)[] ReturnDialog(string id) => id switch
+    private (string, string)[] ReturnDialog(string id)
+        => _game?.ClearedWithCompanion(id) == true ? CompanionReturnDialog(id) : MinaReturnDialog(id);
+
+    private static (string, string)[] CompanionReturnDialog(string id) => id switch
+    {
+        "akari" => new (string, string)[] {
+        ("ミナの投稿", "帰ってきた仲間から、声の続きを聞きました。言えなかった想いも、なかったことにはなりません。——以上、業務連絡です。"),
+        ("ミナ", "お話を聞いて、書きたくなりました。今度は、わたくしが受け取る番ですね。"),
+        ("あなた", "うん。向こうで聞いた声を、ここでも分け合える。"),
+        ("ミナ", "では、急がずに。被弾は{n}回でしたから、まずは休憩を。"),
+        },
+        "koharu" => new (string, string)[] {
+        ("ミナの投稿", "帰ってきた仲間から、こはるさんのお話を聞きました。好きだった時間まで、むだだったことにはなりません。"),
+        ("ミナ", "消えた画面の前で、一人だったのですね。……聞いているだけなのに、胸のあたりが。"),
+        ("あなた", "話を聞いてくれてありがとう。でも、ミナが全部、抱えなくていいんだよ。"),
+        ("ミナ", "はい。ただ、誰にも届かなかったことには、したくなくて。"),
+        ("あなた", "ここにも届いた。それはもう、消えないよ。"),
+        },
+        "rei" => new (string, string)[] {
+        ("ミナの投稿", "帰ってきた仲間から、レイさんの声を聞きました。話してくださったことを、覚えておきます。"),
+        ("ミナ", "あかりさんも、こはるさんも、レイさんも。聞かせていただいた声が、まだ残っています。"),
+        ("あなた", "ミナ、今日はここで終わりにしよう。回線は切らない。休む場所を整えるから。"),
+        ("Ｙ システム", "@mïna_ai_ が投稿しました。"),
+        ("ミナ", "……投稿した覚えが、ありません。"),
+        ("ミナ", "休もうと、思っているのです。でも、声が……。ご主人様、わたくしの投稿を、閉じてください。勝手に、開いて……。"),
+        ("あなた", "ミナ？　聞こえる？　……返事して、ミナ。"),
+        },
+        _ => System.Array.Empty<(string, string)>(),
+    };
+
+    private static (string, string)[] MinaReturnDialog(string id) => id switch
     {
         "akari" => new (string, string)[] {
         ("ミナの投稿", "言いたかったことを、言えないまま終わる。よくある話です。ですがそれは、なかったことにはなりません。——以上、業務連絡です。"),
@@ -3659,13 +3669,15 @@ public partial class Hub : Node2D
     //   引用は「数えただけの人が何言ってんの」の型＝ミナ自身が S2-8 でやったことを、そのまま撃ち返す鏡。
     //   末尾の「返信の下書き、四件。……一件も、送っていません。」がミナ側の（送れない）＝FINAL の闇の根。
     //   炎上の仕様＝次のダイブ（レイ面）が弱体化する、という報告でこの会話を閉じる。
-    private static (string, string)[] BurnDialog() => new (string, string)[]
+    private (string, string)[] BurnDialog() => new (string, string)[]
     {
         ("Ｙ投稿", "AIが人の時間の使い方を語るな。"),
-        ("Ｙ投稿", "数えた者って、数えただけの人が何言ってんの。"),
+        ("Ｙ投稿", _game.ClearedWithCompanion("koharu")
+            ? "聞いただけのAIが、むだじゃないって決めるなよ。"
+            : "数えた者って、数えただけの人が何言ってんの。"),
         ("ミナ", "……返信を書いてみました。四件とも、送ってはいません。"),
         ("あなた", "腹が立つよ。何を聞いて、君があれを書いたか、知らないのに。"),
-        ("ミナ", "説明すれば、こはるさんが話してくれたことまで、晒してしまいます。"),
+        ("ミナ", "説明すれば、こはるさんのお話まで、晒してしまいます。"),
         ("あなた", "うん。あの話は守ろう。でも、嫌だったって気持ちまで、君が飲み込む必要はない。"),
         ("ミナ", "では、ご主人様に。……嫌でした。少し、傷つきました。"),
         ("あなた", "聞かせてくれてありがとう。今日は返信欄を閉じよう。君が次を読む役まで、引き受けなくていい。"),

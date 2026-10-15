@@ -419,7 +419,7 @@ public partial class BossTransformation : Node2D
         {
             float flash = 1 - Unit((t - ImpactTime) / .13f);
             // One restrained exposure flash, never a repeated full-screen strobe.
-            _front.DrawRect(Field.Rect, new Color(_color.Lerp(Colors.White, .8f), flash * .2f));
+            _front.DrawRect(Field.Rect, new Color(_color.Lerp(Colors.White, .8f), flash * .2f * Settings.FlashScale));
             for (int i = 0; i < 16; i++)
             {
                 float a = i * 2.399963f;

@@ -6,9 +6,8 @@ public static class DialogueBox
     public static readonly Rect2 FullScreen = new(72, 504, 1136, 196);
     public static Rect2 Board => new(Field.DLeft + 20, FullScreen.Position.Y, Field.DWidth - 40, FullScreen.Size.Y);
     public static readonly Color Surface = new("101820"), Border = new("53616d"), Ink = new("eef3f5");
-    public static UiKit.TextStyle Body => new(UiKit.ZenBold, 24, 0, 1.2f);
+    public static UiKit.TextStyle Body => new(UiKit.Zen, 24, 0, 1.25f);
     public const float Padding = 24, HeaderHeight = 54;
-    private static Texture2D? _draft;
     private const double CharacterFade = 0.09;
     private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<CanvasItem, BodyLayout> Layouts = new();
 
@@ -210,14 +209,29 @@ public static class DialogueBox
         if (portrait != null)
             UiKit.FaceAvatar(ci, center, 17, portrait, accent, false, faceTop, alpha);
         else if (draft)
-        {
-            _draft ??= GD.Load<Texture2D>("res://char/ui/dialogue_you_v1.png");
-            var size = _draft.GetSize() * (32f / Mathf.Max(_draft.GetWidth(), _draft.GetHeight()));
-            ci.DrawTextureRect(_draft, new Rect2(center - size / 2, size), false, new Color(Colors.White, alpha));
-        }
+            DrawReader(ci, center, accent, alpha);
         else
             ci.DrawCircle(center, 3, new Color(accent, alpha));
         UiKit.Text(ci, UiKit.ZenBold, box.Position + new Vector2(70, 14), speaker, 18, new Color(accent, alpha));
+    }
+
+    private static void DrawReader(CanvasItem ci, Vector2 center, Color accent, float alpha)
+    {
+        ci.DrawCircle(center, 17, new Color(Surface.Lerp(accent, 0.16f), alpha), true, -1, true);
+        ci.DrawArc(center, 16.5f, 0, Mathf.Tau, 48, new Color(accent, 0.8f * alpha), 1, true);
+        var ink = new Color(accent.Lerp(Ink, 0.35f), alpha);
+        ci.DrawCircle(center + new Vector2(0, -5.5f), 5.5f, ink, true, -1, true);
+        ci.DrawRect(new Rect2(center + new Vector2(-2, -1), new Vector2(4, 6)), ink);
+        var shoulders = new Vector2[26];
+        float edgeAngle = Mathf.Asin(8f / 14f);
+        for (int i = 0; i <= 12; i++)
+        {
+            float top = Mathf.Pi + Mathf.Pi * i / 12f;
+            shoulders[i] = center + new Vector2(11.5f * Mathf.Cos(top), 8f + 6f * Mathf.Sin(top));
+            float bottom = Mathf.Lerp(edgeAngle, Mathf.Pi - edgeAngle, i / 12f);
+            shoulders[13 + i] = center + Vector2.FromAngle(bottom) * 14f;
+        }
+        ci.DrawColoredPolygon(shoulders, ink);
     }
 
     // ends[i] = i 文字目までを出し終える時刻。shown（小数）をページ先頭からの経過秒に戻して返す。

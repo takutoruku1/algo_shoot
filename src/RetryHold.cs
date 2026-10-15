@@ -11,6 +11,7 @@ public class RetryHold
 
     private double _t;      // 押しっぱなしの経過秒
     private bool _held;     // instant 用のエッジ検出
+    private ulong _lastFrame;
 
     // 押下中の充填率 0..1（0=非表示。HUD のチップ表示用）。
     public float Progress => Mathf.Clamp((float)(_t / HoldTime), 0f, 1f);
@@ -18,6 +19,10 @@ public class RetryHold
     // 毎フレーム呼ぶ。発動したフレームだけ true（呼び元がシーンを再読込する）。
     public bool Update(double delta, bool pressed, bool instant = false)
     {
+        ulong frame = Engine.GetProcessFrames();
+        // ポーズ中の解放を観測できないため、中断前の長押し時間を引き継がない。
+        if (_lastFrame != 0 && frame - _lastFrame > 1) _t = 0;
+        _lastFrame = frame;
         bool edge = pressed && !_held; _held = pressed;
         if (instant) { _t = 0; return edge; }
         if (!pressed) { _t = 0; return false; }

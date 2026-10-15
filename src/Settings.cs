@@ -1,16 +1,17 @@
 using Godot;
 using System.Collections.Generic;
 
-// Settings : 設定画面。RefrainHTML/Refrain Settings.dc.html を忠実移植（非ピクセル・滑らかUI）。
-//   左カテゴリ（6）→右コントロール。←→ で値変更・↑↓ 項目・Q/E カテゴリ・X/Esc でタイトルへ。
-//   値は user://settings.json に永続。スライダー/トグル/セグメントは変更のたびApply()経由でエンジンへ即時反映
-//   （音量バス各種・会話速度・オート送り・自動セーブ・操作表示モード等）。画面モードのみ_initializingガードで
-//   初回表示時（_ReadyのApplyAll）は反映をスキップし、ユーザーが明示的に操作したときだけ実ウィンドウへ反映する。
 public partial class Settings : Node2D
 {
     private const float W = UiKit.DesignW, H = UiKit.DesignH;
+    public static float ShakeStrength { get; private set; } = 1f;
+    public static float HitFlashStrength { get; private set; } = 1f;
+    public static bool ReduceFlashes { get; private set; }
+    public static bool PauseWhenUnfocused { get; private set; } = true;
+    public static float FlashScale => ReduceFlashes ? 0.15f : 1f;
+    private Texture2D _background = null!;
 
-    private enum SType { Slider, Toggle, Segment, Select, KeyBind }
+    private enum SType { Slider, Toggle, Segment, KeyBind }
 
     private sealed class Def
     {
@@ -18,7 +19,7 @@ public partial class Settings : Node2D
         public SType Type;
         public string[] Options = System.Array.Empty<string>();
         public string[] Keys = System.Array.Empty<string>();
-        public float F; public bool B; public int I; public string S = "";
+        public float F; public bool B; public int I;
     }
     private sealed class Cat { public string Key = "", Name = "", Sub = ""; public List<Def> Items = new(); }
 
@@ -35,6 +36,7 @@ public partial class Settings : Node2D
 
     public override void _Ready()
     {
+        _background = GD.Load<Texture2D>("res://char/ui/settings_room_v1.png");
         foreach (var a in OS.GetCmdlineUserArgs())
             if (a == "--demo" || a == "--qa") { _autoplay = true; break; }
         // 設定は**親画面（タイトル）の曲を継続する**（2026-09-14 の設計方針「独立した画面は固有曲／
@@ -68,16 +70,10 @@ public partial class Settings : Node2D
         Def Slider(string k, string l, float v, string sub = "") => new() { Key = k, Label = l, Type = SType.Slider, F = v, Sub = sub };
         Def Toggle(string k, string l, bool v, string sub = "") => new() { Key = k, Label = l, Type = SType.Toggle, B = v, Sub = sub };
         Def Seg(string k, string l, string[] o, int v, string sub = "") => new() { Key = k, Label = l, Type = SType.Segment, Options = o, I = v, Sub = sub };
-        Def Sel(string k, string l, string v) => new() { Key = k, Label = l, Type = SType.Select, S = v };
         Def Keys(string k, string l, string[] keys, string sub = "") => new() { Key = k, Label = l, Type = SType.KeyBind, Keys = keys, Sub = sub };
 
         var disp = C("display", "表示", "Display");
         disp.Items.Add(Seg("mode", "画面モード", new[] { "ウィンドウ", "フルスクリーン" }, 1));
-        disp.Items.Add(Sel("res", "解像度", "1920 × 1080"));
-        disp.Items.Add(Seg("fps", "リフレッシュレート", new[] { "60", "120", "144" }, 0));
-        disp.Items.Add(Slider("scan", "スキャンライン", 40, "レトロな走査線の濃さ"));
-        disp.Items.Add(Slider("bloom", "ブルーム", 65, "光のにじみ"));
-        disp.Items.Add(Toggle("pixel", "ピクセルパーフェクト", true, "内部384×216を整数倍で表示"));
 
         var audio = C("audio", "サウンド", "Audio");
         audio.Items.Add(Slider("master", "マスター音量", 80));
@@ -87,13 +83,10 @@ public partial class Settings : Node2D
         audio.Items.Add(Slider("amb", "環境音", 55, "心象世界のノイズ"));
 
         var gp = C("game", "ゲームプレイ", "Gameplay");
-        gp.Items.Add(Toggle("bright", "弾を明るく表示", true, "視認性を上げる"));
-        gp.Items.Add(Toggle("hitbox", "当たり判定を常時表示", false));
-        gp.Items.Add(Slider("shake", "画面振動", 30));
-        gp.Items.Add(Slider("flash", "被弾フラッシュ", 60, "赤い明滅の強さ"));
         gp.Items.Add(Seg("msg", "メッセージ速度", new[] { "遅", "中", "速" }, 1));
         gp.Items.Add(Toggle("auto", "オート会話送り", false));
         gp.Items.Add(Toggle("autosave", "オートセーブ", true, "クリア・帰還時に自動保存"));
+        gp.Items.Add(Toggle("pauseunfocused", "画面を離れたら一時停止", true, "戦闘・物語中に他のウィンドウへ切り替えたとき"));
 
         var ctrl = C("controls", "操作", "Controls");
         // 操作表示モード：起動直後（まだ何も触っていない状態）にどちらの表記でヒントを出すかの初期値。
@@ -116,18 +109,9 @@ public partial class Settings : Node2D
         ctrl.Items.Add(Keys("pause", "メニュー", new[] { "M", "Esc" }, "メニュー内の Esc は一段もどる（スマホの画面の Esc はもどる）"));
 
         var a11y = C("a11y", "アクセシビリティ", "Accessibility");
-        a11y.Items.Add(Toggle("reduceflash", "明滅を抑える", true, "フラッシュ表現を軽減"));
-        a11y.Items.Add(Seg("cvd", "色覚サポート", new[] { "OFF", "1型", "2型", "3型" }, 0));
-        a11y.Items.Add(Seg("textsize", "文字サイズ", new[] { "小", "中", "大" }, 1));
-        a11y.Items.Add(Toggle("softhit", "被弾演出を控えめに", false));
-        a11y.Items.Add(Toggle("contrast", "高コントラストUI", false));
-
-        var x = C("x", "Y連携", "Y Integration");
-        x.Items.Add(Toggle("share", "浄化の結果をYに投稿", true));
-        x.Items.Add(Toggle("showid", "スコアカードに@IDを表示", true));
-        x.Items.Add(Toggle("realposts", "「降ってくる言葉」を実投稿から生成", false, "体験版では固定フレーズ"));
-        x.Items.Add(Slider("notif", "リプ通知演出", 50));
-        x.Items.Add(Toggle("filter", "センシティブ表現フィルタ", true));
+        a11y.Items.Add(Slider("shake", "画面振動", 100, "0で停止、100で通常の強さ"));
+        a11y.Items.Add(Slider("flash", "被弾フラッシュ", 100, "赤い明滅の強さ（0で非表示）"));
+        a11y.Items.Add(Toggle("reduceflash", "明滅を抑える", false, "戦闘中の画面全体のフラッシュを軽減"));
     }
 
     private List<Def> Cur => _cats[_cat].Items;
@@ -361,6 +345,10 @@ public partial class Settings : Node2D
     {
         switch (d.Key)
         {
+            case "shake": ShakeStrength = d.F / 100f; break;
+            case "flash": HitFlashStrength = d.F / 100f; break;
+            case "reduceflash": ReduceFlashes = d.B; break;
+            case "pauseunfocused": PauseWhenUnfocused = d.B; break;
             // 音量（バスは default_bus_layout.tres で定義）。
             // Alert（被弾等の最優先音）は Master のみに従属させ、ここでは下げない。
             case "master": SetBusDb("Master", d.F); break;
@@ -407,7 +395,7 @@ public partial class Settings : Node2D
         {
             if (d.Type == SType.Slider) data[d.Key] = d.F;
             else if (d.Type == SType.Toggle) data[d.Key] = d.B;
-            else if (d.Type == SType.Segment) data[d.Key] = d.I;
+            else if (d.Type == SType.Segment) data[d.Key] = d.Key == "inputdisplay" && d.I > 0 ? 2 : d.I;
         }
         using var f = FileAccess.Open(SettingsPath, FileAccess.ModeFlags.Write);
         f?.StoreString(Json.Stringify(data));
@@ -424,9 +412,12 @@ public partial class Settings : Node2D
         foreach (var c in _cats) foreach (var d in c.Items)
         {
             if (!data.ContainsKey(d.Key)) continue;
-            if (d.Type == SType.Slider) d.F = (float)data[d.Key].AsDouble();
-            else if (d.Type == SType.Toggle) d.B = data[d.Key].AsBool();
-            else if (d.Type == SType.Segment) d.I = data[d.Key].AsInt32();
+            var value = data[d.Key];
+            if (d.Type == SType.Slider && value.VariantType is Variant.Type.Int or Variant.Type.Float)
+                d.F = Mathf.Clamp(value.AsSingle(), 0f, 100f);
+            else if (d.Type == SType.Toggle && value.VariantType == Variant.Type.Bool) d.B = value.AsBool();
+            else if (d.Type == SType.Segment && value.VariantType is Variant.Type.Int or Variant.Type.Float)
+                d.I = Mathf.Clamp(value.AsInt32(), 0, d.Options.Length - 1);
         }
         // 操作表示モードのセグメントは 0=キーボード / 1=コントローラー の2値。
         //   ・未保存（旧データ）なら起動時に復元済みの Pad.Display から初期値を決める。
@@ -436,7 +427,28 @@ public partial class Settings : Node2D
             if (d.Key == "inputdisplay")
                 d.I = data.ContainsKey("inputdisplay")
                     ? (d.I <= 0 ? 0 : 1)
-                    : (Pad.Display == Pad.DisplayMode.Keyboard ? 0 : 1);
+                    : (Pad.ShowKeyboard ? 0 : 1);
+    }
+
+    public static void ApplySaved(GameManager game)
+    {
+        var data = AudioConfig.Read();
+        bool Flag(string key, bool fallback) => data.TryGetValue(key, out var v) && v.VariantType == Variant.Type.Bool ? v.AsBool() : fallback;
+        float Number(string key, float fallback) => data.TryGetValue(key, out var v) && v.VariantType is Variant.Type.Int or Variant.Type.Float ? v.AsSingle() : fallback;
+        game.MsgCharsPerSec = DialogueBox.Speed(Mathf.Clamp((int)Number("msg", 1), 0, 2));
+        game.AutoAdvanceDialog = Flag("auto", false);
+        game.AutoSaveEnabled = Flag("autosave", true);
+        ShakeStrength = Mathf.Clamp(Number("shake", 100), 0, 100) / 100f;
+        HitFlashStrength = Mathf.Clamp(Number("flash", 100), 0, 100) / 100f;
+        ReduceFlashes = Flag("reduceflash", false);
+        PauseWhenUnfocused = Flag("pauseunfocused", true);
+        var args = OS.GetCmdlineArgs();
+        // 起動オプションで指定した表示モードは保存値より優先する。
+        if (data.ContainsKey("mode") && DisplayServer.GetName() != "headless"
+            && System.Array.IndexOf(args, "--windowed") < 0 && System.Array.IndexOf(args, "-w") < 0
+            && System.Array.IndexOf(args, "--fullscreen") < 0 && System.Array.IndexOf(args, "-f") < 0
+            && System.Array.IndexOf(args, "--maximized") < 0 && System.Array.IndexOf(args, "-m") < 0)
+            DisplayServer.WindowSetMode(Number("mode", 0) == 1 ? DisplayServer.WindowMode.Fullscreen : DisplayServer.WindowMode.Windowed);
     }
 
     // ───────── 描画（設計座標 1280×720）─────────
@@ -444,11 +456,9 @@ public partial class Settings : Node2D
     {
         UiKit.BeginDesign(this);
 
-        // 背景：放射紫グロウ＋縦グラデ＋スキャンライン＋ビネット
+        DrawTextureRect(_background, new Rect2(0, 0, W, H), false);
         UiKit.VGradient(this, new Rect2(0, 0, W, H),
-            new[] { new Color("0d0b1c"), new Color("0a0916"), new Color("070611") }, new[] { 0f, 0.55f, 1f });
-        UiKit.RadialGlow(this, new Vector2(W * 0.80f, 0), 460f, UiKit.Mina, 0.16f);
-        for (float y = 0; y < H; y += 6f) DrawRect(new Rect2(0, y, W, 1f), new Color(0, 0, 0, 0.06f));
+            new[] { new Color(0.025f, 0.035f, 0.06f, 0.3f), new Color(0.025f, 0.035f, 0.06f, 0.15f), new Color(0.025f, 0.035f, 0.06f, 0.7f) }, new[] { 0f, 0.6f, 1f });
 
         float padX = 40f;
         // ── ヘッダ ──
@@ -535,7 +545,6 @@ public partial class Settings : Node2D
             case SType.Slider: DrawSlider(d, right, cy); break;
             case SType.Toggle: DrawToggle(d, right, cy); break;
             case SType.Segment: DrawSegment(d, right, cy); break;
-            case SType.Select: DrawSelect(d, right, cy); break;
             case SType.KeyBind: DrawKeys(d, right, cy); break;
         }
     }
@@ -579,16 +588,6 @@ public partial class Settings : Node2D
             UiKit.Text(this, UiKit.ZenBold, new Vector2(ox, textTop), d.Options[i], UiKit.FontLabel, on ? UiKit.BgDeep : UiKit.Text2, HorizontalAlignment.Center, ws[i]);
             ox += ws[i] + 4f;
         }
-    }
-
-    private void DrawSelect(Def d, float right, float cy)
-    {
-        float tw = UiKit.TextW(UiKit.Mono, d.S, UiKit.FontLabel);
-        float boxW = tw + 44f, h = 34f;
-        float bx = right - boxW;
-        UiKit.Box(this, new Rect2(bx, cy - h / 2f, boxW, h), new Color(0, 0, 0, 0.28f), 9f, new Color(1, 1, 1, 0.1f), 1f);
-        UiKit.Text(this, UiKit.Mono, new Vector2(bx + 16, cy - 9), d.S, UiKit.FontLabel, UiKit.PurifyHi);
-        UiKit.Text(this, UiKit.Zen, new Vector2(bx + boxW - 18, cy - 9), "▾", UiKit.FontSmall, new Color(138 / 255f, 131 / 255f, 152 / 255f));
     }
 
     private void DrawKeys(Def d, float right, float cy)

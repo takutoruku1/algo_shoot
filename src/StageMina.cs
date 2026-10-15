@@ -14,8 +14,6 @@ public partial class StageMina : Node
     private BossMina _boss = null!;
     private Spawner _echoSpawner = null!;   // いま走っている波のスポナー（波ごとに作り直す）
     private bool _bossActive;
-    private double _rainT;
-    private readonly RandomNumberGenerator _rng = new RandomNumberGenerator();
     private bool _zHeld, _zEdge, _startBannerShown;
     private bool _titleThump; private double _titleThumpT; // タイトルカードの拍（タグが合わさる瞬間の一突き）
 
@@ -115,7 +113,6 @@ public partial class StageMina : Node
 
     public override void _Ready()
     {
-        _rng.Randomize();
         _step = 1;
         World.ProcessMode = ProcessModeEnum.Disabled;
         var game = GetNodeOrNull<GameManager>("/root/Game");
@@ -170,7 +167,7 @@ public partial class StageMina : Node
         if (!_clearing && !Hud.BubblePaused) { _stageElapsed += delta; Hud.SetElapsed((float)_stageElapsed); }
         // 会話送り：Z/Enter/ui_accept/Pad A に加えマウス左クリックでも送れる共通ヘルパ（マウス対応 P2）。
         bool z = Pad.AdvanceHeld();
-        _zEdge = z && !_zHeld;
+        _zEdge = z && !_zHeld && !Pad.UiBlocked(this);
         _zHeld = z;
         // バナー副題は「暴走」（機械の故障＝外から見た説明）を避ける。ミナは壊れたのではなく“満ちた”＝
         // 三人ぶんの穢れを抱えきれなくなった。旧副題「いなくならないで」は合言葉 Stay に紐づく語で、
@@ -200,11 +197,7 @@ public partial class StageMina : Node
             case 4: Step_BossWait(delta); break;
             case 5: if (_lunatic) Step_LunaticFinish(delta); else Step_Transition(); break;
         }
-        // ボス戦中の ambient は、全ボス共通の投稿弾（Y投稿モチーフの言葉弾）に統一（難易度で数がスケール）。
-        // FINAL は PostPool の Final テーマ（09 の F04〜F35 由来の 8 文字弾）を源にする＝暴走中に渦巻く声。
-        // ボス本体(BossMina)のスペル/予測線/パネル弾はそのまま。
-        if (_bossActive && !_boss.IsPurified && !Hud.BubblePaused && !_boss.AoeGateActive) PostBullets.Tick(this, _rng, delta, ref _rainT, ref _wordTick, source: _boss, theme: PostPool.Theme.Final, fallSpeed: 56f,
-            accent: new Color(0.70f, 0.55f, 0.84f), murkAll: true); // FINAL テーマ＝ミナの菫。渦巻く悲鳴＝全語濁色チップ
+
     }
 
     private void Advance() { _step++; _stepStarted = false; }
@@ -445,11 +438,4 @@ public partial class StageMina : Node
         GameManager.FadeToScene(this, "res://TitleMenu.tscn");
     }
 
-    // 投稿弾（暴走中に渦巻く悲鳴の言葉）の周期/tick 用アキュムレータ。湧き処理は PostBullets.Tick に集約。
-    // FINAL 固有の“声”プールは PostPool.Theme.Final（wiki/08_仮台本/09_投稿文集_Y風.md の FINAL の行）へ移した。
-    //   三人ぶんの穢れが満ちた、が設定＝層1（炎上のリプライ）／層2（悲鳴）／層3（三人の言葉とミナ語）を
-    //   3:5:2 で混ぜる。ミナ語（わたくしの、せいです／ご主人様／……アホですね）は 09 のとおり X 化せず
-    //   現行維持で層3 に置き、彼女自身の口癖が悲鳴として降ってくることで“これは彼女の内側だ”と示す
-    //   （Intro:48「ぜんぶ、わたくし、の……」の先取り）。
-    private int _wordTick;
 }

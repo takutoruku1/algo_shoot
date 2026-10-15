@@ -51,7 +51,11 @@ public partial class DialogueWrapQa : Node2D
                 return;
             }
             _visual = OS.GetCmdlineUserArgs().Contains("--visual");
-            if (!_visual) GetTree().Quit();
+            if (!_visual)
+            {
+                _font.Dispose();
+                GetTree().Quit();
+            }
         }
         catch (Exception error)
         {

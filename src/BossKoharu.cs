@@ -9,17 +9,14 @@ public partial class BossKoharu : Enemy
 {
     public override UnfolderKind UnfolderStyle => UnfolderKind.Koharu;
     public bool EdgeAttackActive => _caster != null && _caster.EdgeAttackActive;
+    internal float BodyExtent => Mathf.Max(BodyRadius, BodyHalfH);
     public bool Finished { get; private set; }
 
     private readonly BossMover _mover = new BossMover();
 
-    private double _fireT;
-    private double _fireT2;   // フィナーレ用の第2タイマー（2スペル同時撃ち）
-    private bool _finale;     // HP2割以下＝2スペル同時展開
+    private bool _finale;
     private bool _memoryPending;
     private bool _memoryPlayed;
-    private float _ringOff;
-    private float _spiralPhase;
     private int _pattern;
     private int _beatsFired;
     private const int PatternCount = 4;
@@ -38,18 +35,12 @@ public partial class BossKoharu : Enemy
     private BossPostSequence _posts = null!;
     public bool PostSequenceActive => _posts != null && _posts.Active;
 
-    // ── INI 外出しのバランス値（config/boss_stats.ini [koharu]。読めなければ現行既定値）──
-    private double _ringInterval = 1.0, _fanInterval = 1.1, _aimedInterval = 0.7, _spiralInterval = 0.085;
-    private int _ringCount = 16, _fanCount = 9, _aimedWing = 1; // wing=way数の片翼（3way→1）
-    private float _ringSpeed = 70f, _aimedSpeed = 96f, _spiralSpeed = 88f;
-
     // ── 「お残し禁止」（HP52%ワンショットスペル）──
     //   通常弾とテレグラフを止めて宣告 → 画面右半分（ボス側）に“料理弾”3列×8＝24発を配膳
     //  （消せる祈り弾 MakeErasable・降下12px/s）。8秒以内に撃って消した分は祈り弾の既存経路で
     //   そのまま報われる（Bullet.OnAreaEntered → GameManager.AddPrayerCleared: +15点）。
     //   残した弾は時間切れで 0.06s 間隔で順に自機狙いニードル（130px/s）に変わって飛んでくる。
     //   完食（被弾なし・ボムなしで全24発を撃ち消す）＝こはるの動的セリフ＋回復ハート1個
-    //  （報酬の流儀はレイの安置リレー完走報酬 BossRei.TickRelayWatch に合わせる。♥上限時はスコアで返す）。
     //   テーマ＝「アーカイブ、ぜんぶ見て」：前へ出て見るほど見残し（＝後の弾）が減って安全
     //   ＋ゲージも伸びる（リスクとリターン）。ボムで薙ぎ払うと弾は消えるが“食べて”いない＝完食報酬なし。
     //
@@ -78,26 +69,9 @@ public partial class BossKoharu : Enemy
     private float _mealNeedleSpeed = 130f; // お残しニードルの速度
     private static readonly Color MealNeedleTint = new("d6443f"); // 深紅（「みんな見てる」の色）
 
-    // ── 「五徳の十字火」（HP28%ワンショットスペル・B-4②）──
-    //   宣告 → 自機の現在地に十字（BeamH＋BeamV・予兆1.2s×WarnMul）→ 0.8s後に同じ中心へ45°回転した
-    //   第二十字（BeamSeg±45°・深紅のX）。第二十字を“同心”にするのは回避の読みやすさのため：
-    //   第一十字の安全地帯（対角）へ逃げた自機を、同じ中心のX字が正確に追う＝「次は軸方向へ戻る」と
-    //   いう読み筋が幾何で明示される。自機の最新位置に置き直す案は、回避移動中の頭上に湧いて
-    //   残り猶予が読めない理不尽が出るため不採用。進行中は通常弾とテレグラフを止める（お残し禁止と同じ流儀）。
     private bool _gotoFired;      // 発火ワンショット
-    private int _gotoPhase;       // 0=なし / 1=宣告→第一十字待ち / 2=第二十字待ち / 3=着弾待ち（ゲート解除待ち）
-    private double _gotoT;
-    private int _gotoWave;
-    private Vector2 _gotoCenter;  // 第一十字の中心（宣告時でなく“出現時”の自機位置＝予兆と実位置のズレを作らない）
+    private int _gotoPhase;
     private float _gotoHp = 0.26f;              // INI: goto_hp（第4スペル切替26%と同じ被弾＝終盤入りの合図。進行中は切替宣言を保留する）
-    private const double GotoFirstDelay = 0.7;  // 宣告→第一十字の溜め（通常テレグラフの _fireDelay と同格）
-    private const double GotoSecondDelay = 0.8; // 第一十字→第二十字（45°回転）の遅延
-    private const float GotoBeamHalf = 7f;      // 十字ビームの半太さ(px)（通常テレグラフのビーム帯 5-8px と同格）
-    private const float GotoDiagLen = 460f;     // 斜め一閃の長さ＝対角441pxを覆う（包丁の軌跡と同じ）
-    private static readonly Color GotoTint = new("e8945a");  // 琥珀（こはるAOEの危険色＝第一十字）
-    private static readonly Color GotoHot = new("ffc06a");
-    private static readonly Color GotoXTint = new("d6443f"); // 深紅（包丁の軌跡と同色＝斜め斬りの色＝第二十字）
-    private static readonly Color GotoXHot = new("ff8a7a");
 
     // フィナーレ発動HPの上限（INI: finale_cap）。既定式 0.5/バー本数 が Easy(2本)だと25%＝第4スペル切替26%の直後で、
     // 第4スペル帯がほぼ無い（QA指摘）。旧0.18で第4帯（26→18%＝16HP）を作っていたが、その帯は読めない長さのまま
@@ -121,8 +95,6 @@ public partial class BossKoharu : Enemy
         ("期待",             BulletShape.Needle,  new Color("e87a3c"), "koharu_ticket",   62f), // チケットの半券
         ("我に返る",         BulletShape.Rice,    new Color("ffa14a"), "koharu_penlight", 96f), // 消えたペンライト
     };
-    // 攻撃パターン→立ち位置の対応（0 リング＝中央に据わる／1 祈り弾の扇＝端で帯を張る／
-    // 2 自機狙い＝自機の x を追う／3 スパイラル＝端）。
     private static BossMover.Attack StanceOf(int pattern) => (pattern % PatternCount) switch
     {
         0 => BossMover.Attack.Ring,
@@ -193,16 +165,6 @@ public partial class BossKoharu : Enemy
         BarCount = bars > 0 ? bars : DiffBars(finalBoss: false);
 
         // 弾幕・ギミックの外出し値（INIに無ければフィールド初期値＝現行値のまま）。
-        _ringInterval = BossTuning.F("koharu", "ring_interval", 1.0f);
-        _ringCount = BossTuning.I("koharu", "ring_count", 16);
-        _ringSpeed = BossTuning.F("koharu", "ring_speed", 70f);
-        _fanInterval = BossTuning.F("koharu", "fan_interval", 1.1f);
-        _fanCount = BossTuning.I("koharu", "fan_count", 9);
-        _aimedInterval = BossTuning.F("koharu", "aimed_interval", 0.7f);
-        _aimedSpeed = BossTuning.F("koharu", "aimed_speed", 96f);
-        _aimedWing = Mathf.Max(0, BossTuning.I("koharu", "aimed_ways", 3) / 2); // 奇数way→片翼数
-        _spiralInterval = BossTuning.F("koharu", "spiral_interval", 0.085f);
-        _spiralSpeed = BossTuning.F("koharu", "spiral_speed", 88f);
         _mealHp = BossTuning.F("koharu", "meal_hp", 0.52f);
         _mealRows = Mathf.Max(1, BossTuning.I("koharu", "meal_rows", 3));
         _mealCols = Mathf.Max(1, BossTuning.I("koharu", "meal_cols", 8));
@@ -292,74 +254,9 @@ public partial class BossKoharu : Enemy
         ApplyBossMotion(_mover.VisualOffset, _mover.Lean, IsForm2 ? !_mover.FacingLeft : _mover.FacingLeft);
         FxLayer.Instance?.EmitBossAura(FxLayer.BossAura.Koharu, GlobalPosition, (float)delta, 32f);
         TickMeal(delta);
-        TickGoto(delta);
-        FirePattern(delta);
-    }
-
-    private void FirePattern(double delta)
-    {
-        if (_caster != null && _caster.EdgeAttackActive) return;
-        var pool = GetNodeOrNull<BulletPool>("/root/Pool");
-        if (pool == null) return;
-        // 「お残し禁止」「五徳の十字火」進行中は通常弾を止める（食べる/避けるに集中させる。レイの安置リレーと同じ流儀）。
-        if (_mealPhase != 0 || _gotoPhase != 0) return;
-        if (TickForm2Technique(delta, _mover, _caster!)) return;
-        if (BarrageHolding) { _fireT = _fireT2 = 0; return; }
-        if (_finale) { FireFinale(pool, delta); return; }
-        _fireT += delta;
-        switch (_pattern)
-        {
-            case 0: if (_fireT >= Di(_ringInterval)) { _fireT = 0; _mover.DeclareAttack(BossMover.Attack.Ring); TriggerAttackPose(); Ring(pool, Dn(_ringCount), _ringSpeed); } break;
-            case 1: if (_fireT >= Di(_fanInterval)) { _fireT = 0; _mover.DeclareAttack(BossMover.Attack.Wall); TriggerAttackPose(); FanDown(pool); } break;
-            case 2: if (_fireT >= Di(_aimedInterval)) { _fireT = 0; _mover.DeclareAttack(BossMover.Attack.Aimed); TriggerAttackPose(); Aimed(pool); } break;
-            default: if (_fireT >= Di(_spiralInterval)) { _fireT = 0; _mover.DeclareAttack(BossMover.Attack.Wall); TriggerAttackPose(); Spiral(pool); } break;
-        }
-    }
-
-    // フィナーレ（HP2割以下）：「ちゃんとしなきゃ」(琥珀の円弾リング)＋「みんな見てる」(深紅の菱形雨)を同時展開。
-    private void FireFinale(BulletPool pool, double delta)
-    {
-        _fireT += delta; _fireT2 += delta;
-        if (_fireT >= Di(0.95)) { _fireT = 0; SetSpellVisual(Spells[0].shape, Spells[0].tint, BulletArt.Get(Spells[0].art), Spells[0].rot); Ring(pool, Dn(16), 70f); }
-        if (_fireT2 >= Di(0.85)) { _fireT2 = 0; SetSpellVisual(Spells[1].shape, Spells[1].tint, BulletArt.Get(Spells[1].art), Spells[1].rot); FanDown(pool); }
-    }
-
-    // 弾サイズ階層（#攻撃種ごとのサイズ差）：密集バラマキ(Ring)=小／連続糸(Spiral)=極小／
-    //   自機狙いの精密弾(Aimed)=大／受け止め・撃ち返しの対象弾(FanDown祈り弾／配膳／お残しニードル)=中。
-    //   当たり芯ドットは全形状共通描画＝大きくしても被弾点は埋もれない。
-    private void Ring(BulletPool pool, int k, float spd)
-    {
-        BodyShotStyle = BossShotStyle.Ring;
-        k = BossDanmaku.RingCount(k, BulletPool.BossHitShape(Job.Heal, HasEvolved));
-        _ringOff = AimAtPlayer().Angle();
-        for (int i = 0; i < k; i++)
-        {
-            float a = _ringOff + Mathf.Tau * i / k;
-            FireBullet(pool, GlobalPosition, new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * spd, 3.0f);
-        }
-    }
-
-    // 「祈り弾」ギミック（#12 機構側／#20）：向かってくる光は、自機弾で“受け止め”られる。
-    // 消すと双方消滅＋加点（GameManager.AddPrayerCleared）。自機・フォロワーの弾列が受け皿になる。
-    // FanDown はスペル「みんな見てる」(pattern1)とフィナーレでしか撃たない＝スペル限定が自然に成立。
-    // サイズは「受け止める対象」であることが一目でわかる中サイズ（配膳の料理弾 ServeMeal と同格）。
-    // 2026-09-17 ユーザー指示：真下（Pi/2）固定をやめ、自機方向を中心に張る（あかりの扇と同じ直し）。
-    //   受け止め遊びはむしろ成立しやすくなる＝正面から来る弾に自機弾を合わせる形になる。
-    // 2026-10-03：本数が偶数だと中心線（t=0）に弾が無く、棒立ちの自機の両脇をすり抜ける。
-    //   DnOdd で必ず奇数＝正面の1本は必ず来る（あかりの扇と同じ直し）。受け止める的も中央に立つ。
-    private void FanDown(BulletPool pool)
-    {
-        BodyShotStyle = BossShotStyle.Aimed;
-        bool dense = GameManager.Instance!.Difficulty >= GameManager.Diff.Hard;
-        int k = dense ? (GameManager.Instance.IsLunatic ? 15 : 13) : Mathf.Min(7, DnOdd(_fanCount));
-        var aim = AimAtPlayer();
-        float baseA = Mathf.Atan2(aim.Y, aim.X);
-        for (int i = 0; i < k; i++)
-        {
-            float t = k > 1 ? (float)i / (k - 1) - 0.5f : 0f;
-            float a = baseA + t * Mathf.DegToRad(dense ? (GameManager.Instance.IsLunatic ? 210f : 180f) : 78f);
-            FireBullet(pool, GlobalPosition, new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * EnemyBulletSpeed, 3.6f);
-        }
+        TickGoto();
+        if (_mealPhase == 0 && _gotoPhase == 0 && !_caster.EdgeAttackActive)
+            TickForm2Technique(delta, _mover, _caster);
     }
 
     // 「お残し禁止」の進行。UpdateMovement 経由＝会話中(BubblePaused)は弾もタイマーも一緒に止まる。
@@ -486,126 +383,12 @@ public partial class BossKoharu : Enemy
         }
     }
 
-    // 「五徳の十字火」の進行。UpdateMovement 経由＝会話中(BubblePaused)は予兆(AreaStrike)側と一緒に凍る。
-    private void TickGoto(double delta)
+    private void TickGoto()
     {
-        if (_gotoPhase == 0) return;
-        _gotoT += delta;
-        float wm = _caster?.WarnMul() ?? 1f;
-        if (GameManager.Instance!.Difficulty != GameManager.Diff.Easy)
-        {
-            foreach (var node in GetTree().GetNodesInGroup("aoe"))
-                if (!node.IsQueuedForDeletion()) return;
-            if (_gotoT < 0.2) return;
-            if (_gotoWave < 4)
-            {
-                _gotoCenter = ((Player)GetTree().GetFirstNodeInGroup("player")).GlobalPosition;
-                if (_gotoWave % 2 == 0) SpawnGotoAxisCross(1.2 * wm);
-                else SpawnGotoDiagCross(1.2 * wm);
-                _gotoWave++;
-                _gotoT = 0;
-                return;
-            }
-            _gotoPhase = 0;
-            if (_caster != null && _mealPhase == 0) _caster.Suppressed = false;
-            OnHpChanged();
-            return;
-        }
-        switch (_gotoPhase)
-        {
-            case 1: // 宣告 → 第一十字（“出現時”の自機の現在地に置く）
-                if (_gotoT < GotoFirstDelay) return;
-                _gotoCenter = (GetTree().GetFirstNodeInGroup("player") as Node2D)?.GlobalPosition
-                              ?? new Vector2(Field.Left + 60f, 130f); // 自機不在（起こらない保険）＝自機定位置側
-                SpawnGotoAxisCross(1.2 * wm);
-                _gotoPhase = 2; _gotoT = 0;
-                return;
-            case 2: // 0.8s後 → 第二十字（同心・45°回転＝深紅のX）
-                if (_gotoT < GotoSecondDelay) return;
-                SpawnGotoDiagCross(1.2 * wm);
-                _gotoPhase = 3; _gotoT = 0;
-                return;
-            default: // 3: 第二十字の着弾（予兆＋フラッシュ0.2s）を待ってゲート解除
-                if (_gotoT < 1.2 * wm + 0.3) return;
-                _gotoPhase = 0;
-                if (_caster != null && _mealPhase == 0) _caster.Suppressed = false;
-                // 十字火の間に保留していたスペル切替／フィナーレの宣言を、X着弾の瞬間に発火させる
-                // （次の被弾を待つと、シールドが戻っていた場合に数秒「第3スペルのまま」が続く）。
-                OnHpChanged();
-                return;
-        }
-    }
-
-    // 第一十字：自機の行（BeamH・全幅）＋列（BeamV・全高）。盤面（Field）の中心軸に置く。
-    private void SpawnGotoAxisCross(double warn)
-    {
-        var world = GetParent();
-        AddCrossStrike(world, AreaStrike.Shape.BeamH, new Vector2(Field.CenterX, _gotoCenter.Y), Field.Width * 0.5f, GotoBeamHalf, warn);
-        AddCrossStrike(world, AreaStrike.Shape.BeamV, new Vector2(_gotoCenter.X, Field.CenterY), GotoBeamHalf, Field.Height * 0.5f, warn);
-    }
-
-    private void AddCrossStrike(Node world, AreaStrike.Shape shape, Vector2 c, float hw, float hh, double warn)
-    {
-        var z = new AreaStrike();
-        z.Configure(shape, hw, hh, warn, GotoTint, GotoHot, AreaStrike.Motif.Screen);
-        z.SetOwner(this); // 着弾前に浄化されたら予兆ごと消える（残留着弾を断つ）
-        world.AddChild(z);
-        z.GlobalPosition = c;
-    }
-
-    // 第二十字：第一十字と同じ中心を通る±45°の一閃×2（BeamSeg。中心から両側へ伸ばす）。
-    private void SpawnGotoDiagCross(double warn)
-    {
-        var world = GetParent();
-        foreach (float deg in new[] { 45f, -45f })
-        {
-            float a = Mathf.DegToRad(deg);
-            var dir = new Vector2(Mathf.Cos(a), Mathf.Sin(a));
-            var z = new AreaStrike();
-            z.ConfigureBeam(dir, GotoDiagLen, GotoBeamHalf - 1f, warn, GotoXTint, GotoXHot, AreaStrike.Motif.Screen);
-            z.SetOwner(this);
-            world.AddChild(z);
-            z.GlobalPosition = _gotoCenter - dir * (GotoDiagLen * 0.5f);
-        }
-    }
-
-    private void Aimed(BulletPool pool)
-    {
-        BodyShotStyle = BossShotStyle.Aimed;
-        Vector2 d = AimAtPlayer();
-        float baseA = Mathf.Atan2(d.Y, d.X);
-        bool dense = GameManager.Instance!.Difficulty >= GameManager.Diff.Hard;
-        int wing = dense ? (GameManager.Instance.IsLunatic ? 7 : 6) : _aimedWing;
-        for (int i = -wing; i <= wing; i++)
-        {
-            float a = baseA + i * Mathf.DegToRad(dense ? 15f : 13f);
-            FireBullet(pool, GlobalPosition, new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * _aimedSpeed, 4.0f);
-        }
-    }
-
-    private void Spiral(BulletPool pool)
-    {
-        BodyShotStyle = BossShotStyle.Ring;
-        bool dense = GameManager.Instance!.Difficulty >= GameManager.Diff.Hard;
-        if (dense) _spiralPhase = Mathf.PosMod(_spiralPhase + 0.14f, Mathf.Tau);
-        _ringOff = AimAtPlayer().Angle() + (dense ? _spiralPhase : 0);
-        int arms = dense ? (GameManager.Instance.IsLunatic ? 6 : 4) : 2;
-        for (int s = 0; s < arms; s++)
-        {
-            float a = _ringOff + Mathf.Tau * s / arms;
-            FireBullet(pool, GlobalPosition, new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * _spiralSpeed, 2.6f);
-        }
-    }
-
-    private Vector2 AimAtPlayer()
-    {
-        var players = GetTree().GetNodesInGroup("player");
-        if (players.Count > 0 && players[0] is Node2D pl)
-        {
-            var d = pl.GlobalPosition - GlobalPosition;
-            if (d.LengthSquared() > 0.01f) return d.Normalized();
-        }
-        return new Vector2(-1, 0);
+        if (_gotoPhase == 0 || _caster.AoeActive) return;
+        _gotoPhase = 0;
+        if (_mealPhase == 0) _caster.Suppressed = false;
+        OnHpChanged();
     }
 
     // 本体に弾が刺さった一拍を移動側へ渡す（小さくのけぞって戻る）。当たり判定の中心は
@@ -627,9 +410,9 @@ public partial class BossKoharu : Enemy
         if (!_gotoFired && _mealFired && _mealPhase == 0 && HpRatio <= _gotoHp)
         {
             _gotoFired = true;
-            _gotoPhase = 1; _gotoT = 0;
+            _gotoPhase = 1;
             if (_caster != null) _caster.Suppressed = true; // 通常テレグラフも保留（十字に集中させる）
-            GetHud()?.AnnounceSpell("こはる", BossHandles.KoharuMain, "自分なにしてんだろ", GotoTint);
+            _caster!.RequestFinale();
             GetHud()?.ShowBossLine("こはる", "……うごかないで。いま、鏡、見ちゃうから。", UiKit.Kegare, 2.0);
         }
         // 「お残し禁止」：HP52%（INI: meal_hp）を割った瞬間に一度だけ（パターン切替50%の直前＝中盤の山）。
@@ -683,7 +466,6 @@ public partial class BossKoharu : Enemy
             && (GameManager.LunaticActive || _posts.Count >= 4))
         {
             _finale = true;
-            _fireT = _fireT2 = 0;
             RallyShield();
             GetHud()?.SetBossBarTint(Spells[0].tint); // フィナーレ色（#26）
             GetHud()?.AnnounceSpell("こはる", BossHandles.KoharuMain, Spells[0].name + "＋" + Spells[1].name, Spells[0].tint);
@@ -767,7 +549,6 @@ public partial class BossKoharu : Enemy
             void ResumeBattle()
             {
                 _zHeld = Pad.AdvanceHeld();
-                _fireT = _fireT2 = 0;
                 _posts.ResumeMusic();
                 OnHpChanged();
             }
@@ -788,7 +569,7 @@ public partial class BossKoharu : Enemy
         if (!_seq && !_memoryPending && _mealPhase == 0 && _gotoPhase == 0) _posts.UpdateDamage();
         // 改心の会話送り：Z/Enter/ui_accept/Pad A に加えマウス左クリックでも送れる共通ヘルパ（マウス対応 P2）。
         bool z = Pad.AdvanceHeld();
-        bool zEdge = z && !_zHeld;
+        bool zEdge = z && !_zHeld && !Pad.UiBlocked(this);
         _zHeld = z;
         _lineT += delta;
 

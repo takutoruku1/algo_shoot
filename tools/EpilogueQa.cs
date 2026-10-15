@@ -53,8 +53,9 @@ public partial class EpilogueQa : Node
         var game = GetNode<GameManager>("/root/Game");
         for (int route = 0; route < 3; route++)
         {
-            game.FirstScattered = "おかえり";
             game.LastSentWord = "まだ送っていない";
+            int selected = route == 1 ? 0 : 1;
+            string expected = selected == 0 ? "会えてよかった、ミナ。一緒に帰ろう。" : "うまく言えない。……でも、君がいてくれてうれしい。";
             var final = GD.Load<PackedScene>("res://Final.tscn").Instantiate<Final>();
             GetTree().Root.AddChild(final);
             GetTree().CurrentScene = final;
@@ -68,18 +69,6 @@ public partial class EpilogueQa : Node
             await Frames(60);
             var overlay = Read<ChoiceOverlay>(final, "_choice");
             if (route == 0) { using var capture = await Shot("final_choice"); }
-            if (route == 1)
-            {
-                await Select(overlay, 0);
-                await AdvanceUntil(() => Read<ChoiceOverlay?>(final, "_choice") == null);
-                Check(game.LastSentWord == "まだ送っていない", "F4 refusal does not send a word");
-                Check(Read<int>(final, "_choiceLine") == -1 && game.HasChoiceAt("f4") && game.ChosenAt("f4") == "",
-                    "F4 refusal is final and is recorded as silence");
-                var talk = Read<IList>(final, "_talk");
-                for (int i = Read<int>(final, "_line"); i < talk.Count; i++)
-                    Check((string)talk[i]!.GetType().GetField("Who")!.GetValue(talk[i])! != "あなた",
-                        "refusal never invents player dialogue");
-            }
             if (route == 2)
             {
                 await Seconds(21);
@@ -87,11 +76,10 @@ public partial class EpilogueQa : Node
                     && game.LastSentWord == "まだ送っていない",
                     $"F4 waits for a decision after twenty seconds (same={Read<ChoiceOverlay?>(final, "_choice") == overlay}, decided={overlay.Decided}, word={game.LastSentWord})");
             }
-            if (route != 1)
-            {
-                await AdvanceUntil(() => Read<ChoiceOverlay?>(final, "_choice") == null);
-                Check(game.LastSentWord == "おかえり", $"F4 route {route} sends the original word after confirmation");
-            }
+            await Select(overlay, selected);
+            await AdvanceUntil(() => Read<ChoiceOverlay?>(final, "_choice") == null);
+            Check(Read<int>(final, "_choiceLine") == -1 && game.HasChoiceAt("f4") && game.ChosenAt("f4") == expected
+                && game.LastSentWord == expected, $"F4 route {route} records the chosen reply after confirmation");
             Check(!Read<bool>(final, "_cueResolveDone"), "Mina does not smile before receiving the word");
             await AdvanceUntil(() => Read<bool>(final, "_cueResolveDone"));
             // 受け取りCGのディゾルブ（Final._Draw の _resolveT / 2.4）が出切るまで待つ。
@@ -116,9 +104,11 @@ public partial class EpilogueQa : Node
             await AdvanceUntil(() => GetTree().CurrentScene?.SceneFilePath == "res://Epilogue.tscn");
             await QaSceneTransition.Wait(this);
             Check(!IsInstanceValid(final), "Final reaches the illustrated epilogue");
-            Check(Read<string>(GetTree().CurrentScene, "_rollLast") == "おかえり",
-                "credits echo the returned word on both final routes");
-            if (route == 1) Check(game.LastSentWord == "まだ送っていない", "credits preserve the refusal's actual send history");
+            Check(Read<string>(GetTree().CurrentScene, "_rollLast") == expected,
+                "credits echo the actual final reply on both routes");
+            var gaze = Read<IList>(GetTree().CurrentScene, "_gaze");
+            Check((string)gaze[0]!.GetType().GetField("Text")!.GetValue(gaze[0])! == "帰還後・ミナとの回線",
+                "return promises begin after the player's final reply");
             GetTree().CurrentScene.QueueFree();
             await Frames(3);
         }
@@ -148,9 +138,9 @@ public partial class EpilogueQa : Node
         GetTree().Root.AddChild(ep);
         GetTree().CurrentScene = ep;
         await Frames(30);
-        foreach (string field in new[] { "_skyDawn", "_rest", "_goodbye", "_together" })
+        foreach (string field in new[] { "_skyDawn", "_rest", "_goodbye" })
             Check(Read<Texture2D>(ep, field).ResourcePath.StartsWith("res://char/bg2/ending/"), $"{field} loads ending art");
-        foreach (string field in new[] { "_skyDawn", "_goodbye", "_together" })
+        foreach (string field in new[] { "_skyDawn", "_goodbye" })
             Check(Read<Texture2D>(ep, field).ResourcePath.EndsWith("_v2.png"), $"{field} uses the matched dawn artwork");
 
         if (choice == 0)
@@ -195,20 +185,16 @@ public partial class EpilogueQa : Node
             Check(row.Position.Y >= previousBottom && row.End.Y <= 720, "ending choices stay below faces with separate hit targets");
             previousBottom = row.End.Y;
         }
-        Check(Read<double>(ep, "_goodbyeT") == 0, "last close-up waits until after the choice");
         if (choice == 0) { using var capture = await Shot("choice"); }
         await Select(overlay, choice);
         await AdvanceUntil(() => Read<ChoiceOverlay?>(ep, "_e6Choice") == null);
-        string expected = choice == 0 ? "また会いに来る。次は、何でもない話をしよう" : "ミナに会えてよかった。もう、ひとりじゃない";
+        string expected = choice == 0 ? "また会いに来る。次は、何でもない話をしよう。" : "ミナに会えてよかった。もう、ひとりじゃない。";
         Check(game.HasChoiceAt("e6") && game.LastSentWord == expected, $"E6 choice {choice} records the correct last word");
         await AdvanceUntil(() => Read<int>(ep, "_line") == Read<IList>(ep, "_end").Count - 2);
-        Check(Read<double>(ep, "_goodbyeT") < 1.2, "last response starts a continuous close-up dissolve");
         await Frames(90);
         using (var goodbye = await Shot($"goodbye_{choice}"))
             MatchArt(goodbye, Read<Texture2D>(ep, "_goodbye"), new Rect2(0, 0, 1280, 720));
-        double goodbyeTime = Read<double>(ep, "_goodbyeT");
         await AdvanceUntil(() => Read<int>(ep, "_line") == Read<IList>(ep, "_end").Count - 1);
-        Check(Read<double>(ep, "_goodbyeT") > goodbyeTime, "line changes do not restart the close-up");
         if (choice == 0)
         {
             await Frames(80);
@@ -220,6 +206,7 @@ public partial class EpilogueQa : Node
             DisplayServer.WindowSetSize(new Vector2I(1280, 720));
         }
         await AdvanceUntil(() => GetTree().CurrentScene?.SceneFilePath == "res://TitleMenu.tscn");
+        await QaSceneTransition.Wait(this);
         Check(!IsInstanceValid(ep), $"E6 choice {choice} returns to title");
         GetTree().CurrentScene.QueueFree();
         await Frames(3);
@@ -230,15 +217,18 @@ public partial class EpilogueQa : Node
         Check(film.GetChildCount() == 0, "film has no walking sprites or articulated body parts");
         film.SetProcess(false);
         var art = Read<Texture2D[]>(film, "_art");
-        foreach (int shot in new[] { 6, 7, 8, 9 })
+        foreach (int shot in new[] { 4, 5, 6 })
             Check(art[shot].ResourcePath.EndsWith("_v2.png"), $"film cut {shot} uses the matched dawn artwork");
         var cuts = (double[])typeof(EndingFilm).GetField("Cuts", BindingFlags.Static | BindingFlags.NonPublic)!.GetValue(null)!;
         var lines = (string[])typeof(EndingFilm).GetField("Lines", BindingFlags.Static | BindingFlags.NonPublic)!.GetValue(null)!;
         for (int shot = 0; shot < art.Length; shot++)
         {
-            var wrapped = UiKit.WrapLines(DialogueBox.Body.Font, lines[shot], DialogueBox.Body.Size,
-                DialogueBox.WrapWidth(DialogueBox.FullScreen));
-            Check(wrapped.Count <= 2, $"film caption {shot} fits the shared two-line panel");
+            var pages = DialogueBox.Paginate(lines[shot], DialogueBox.WrapWidth(DialogueBox.FullScreen));
+            foreach (string page in pages)
+                Check(page.Split('\n').Length <= 2, $"film caption {shot} fits the shared two-line panel");
+            var pacing = DialoguePacing.ForPages(lines[shot], pages);
+            Check(0.25 + DialogueBox.CaptionDuration(pages, pacing) + 0.7 <= cuts[shot + 1] - cuts[shot] + 0.001,
+                $"film caption {shot} leaves time to read every page");
             double time = (cuts[shot] + cuts[shot + 1]) / 2;
             typeof(EndingFilm).GetProperty(nameof(EndingFilm.Elapsed))!.SetValue(film, time);
             film.QueueRedraw();
@@ -265,10 +255,8 @@ public partial class EpilogueQa : Node
             for (int x = 60; x < 1220; x += 5)
                 if (Difference(before.GetPixel(x, y), after.GetPixel(x, y)) > 0.15f) changed++;
         Check(changed > 100, "illustrated camera movement is visible");
-        // 残り（Duration 53 秒 − 49）を実時間で進ませ、自動終了（Complete→QueueFree）を待つ。
-        //   Elapsed は delta 加算なのでフレーム数ではなく経過秒で待つ（旧 Frames(260) は 60fps 前提）。
-        typeof(EndingFilm).GetProperty(nameof(EndingFilm.Elapsed))!.SetValue(film, 49.0);
-        await Seconds(EndingFilm.Duration - 49 + 1.0);
+        typeof(EndingFilm).GetProperty(nameof(EndingFilm.Elapsed))!.SetValue(film, cuts[^2]);
+        await Seconds(EndingFilm.Duration - cuts[^2] + 1.0);
         Check(!IsInstanceValid(film), "film completes automatically");
     }
 

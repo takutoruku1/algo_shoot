@@ -169,7 +169,7 @@ public partial class Hud : CanvasLayer
     private Color _dlgSpeakerCol = Colors.White;
     private bool _dlgIsDialog;          // true=シネマバー / false=ナレーション（中央）
     private Texture2D? _dlgPortrait;
-    private bool _dlgDraftMark;         // true=立ち絵の代わりに下書きの吹き出し印を出す（LineKind.Boy＝あなた。顔が無い）
+    private bool _dlgDraftMark;
     private double _messageTimer;
     private float _dlgRevealed;         // タイプライター表示済み文字数（＝現在ページ内の文字数）
     private double _pageReadT;
@@ -257,15 +257,14 @@ public partial class Hud : CanvasLayer
 
     // 操作子トークン（操作表示モードで KB / パッドを出し分け。パッド表記は Pad.Face の Xbox 基準に一本化）。
     // 単体チップ（BOMB残数横・モード切替・スキル）用＝代表1表記。
-    private static string TokBomb  => Pad.UsingPad ? Pad.Face(JoyButton.X)            : "X";
+    private static string TokBomb  => Pad.UsingPad ? Pad.Face(JoyButton.X)
+                                     : Pad.UsingMouse ? "中クリック" : "X";
     // ロックオン：Shift 長押し / パッド RB / マウス左クリック（Player.TickLockOn の判定と一致させる）。
     private static string TokLock   => Pad.UsingPad ? Pad.Face(JoyButton.RightShoulder)
                                      : Pad.UsingMouse ? "左クリック" : "Shift";
-    // 集中モード：C / パッド LB / マウスのホイール回転・サイドボタン（Player.cs の判定と一致させる）。
-    //   キーボードは 2026-09-27 に V → C（左手の定位置 Shift／Z／X／C／Space の人差し指）。
-    // 単体チップは代表1表記なので、直近デバイスに合わせて1つだけ出す（マウス時は KB 表記へ落ちないよう明示）。
+    // ホイールはロック中に対象送りへ回るため、集中の代表操作にはサイドボタンを表示する。
     private static string TokFocus  => Pad.UsingPad ? Pad.Face(JoyButton.LeftShoulder)
-                                     : Pad.UsingMouse ? "ホイール" : "C";
+                                      : Pad.UsingMouse ? "サイドボタン" : "C";
 
     // 操作子トークン（全割り当て版）：選択中の表示モードに属する割り当てを“全部”並べる。
     // 練習面（StageZero）の指示帯（DrawTutorialKeys）が使う。視認性のため区切りは細い「/」。
@@ -274,11 +273,12 @@ public partial class Hud : CanvasLayer
     //   「あそびかた」で見られる＝弾に案内を重ねない。ユーザー実機指摘「操作の UI がじゃま」）。
     private static string AllShot  => "オート";                                        // 射撃ボタン廃止＝常時オート射撃
     //   2026-09-27：帯のキーは UiKit.KeyCapRow で描く＝" / " の並記はキャップを並べ、矢印は1つのキャップにまとめる。
-    private static string AllMove  => Pad.UsingPad ? "L スティック / 十字"             : "↑↓←→";
+    private static string AllMove  => Pad.UsingPad ? "L スティック / 十字"
+                                     : Pad.UsingMouse ? "カーソル" : "↑↓←→";
     // ※低速移動（旧 AllFocus＝Shift / LB）は 2026-09-13 ユーザー決定で機能ごと廃止した。
-    private static string AllBomb  => Pad.UsingPad ? Pad.Face(JoyButton.X)            : "X";
-    // 回避ダッシュは Player.cs では Space / Pad L3(LeftStick) の2系統（2026-09-27 に Ctrl → Space）。Tok* と違い“全部”を見せる版。
-    private static string AllDodge => Pad.UsingPad ? Pad.Face(JoyButton.LeftStick)    : "Space";
+    private static string AllBomb  => TokBomb;
+    private static string AllDodge => Pad.UsingPad ? Pad.Face(JoyButton.LeftStick)
+                                     : Pad.UsingMouse ? "右クリック" : "Space";
 
     // ティッカー（降ってくる言葉）＝「Yの川」のノイズ。
     // 「下に流れているコメント」と「投稿弾」が同じ“声”を出すため、どちらも PostPool から引く。
@@ -514,8 +514,7 @@ public partial class Hud : CanvasLayer
         string speaker; Color color; bool dialog = true; string portraitToUse = portrait;
         switch (kind)
         {
-            // Boy＝プレイヤー本人（案C に少年は居ない）。顔が無いので立ち絵は出さず、
-            // 空いた枠には下書きの吹き出し風の小さな印だけを置く（DrawDialog の _dlgDraftMark）。
+            // 「あなた」の容姿を固定しないため、立ち絵の代わりに共通の人物シルエットを使う。
             case LineKind.Boy:   speaker = "あなた"; color = UiKit.Info; portraitToUse = ""; break;
             case LineKind.Mina:  speaker = MinaLabel; color = UiKit.Mina; break;
             case LineKind.Other: speaker = otherName; color = UiKit.Kegare; break;
@@ -747,6 +746,8 @@ public partial class Hud : CanvasLayer
     // ボス戦開始でフラグをリセット（次のボス戦の初回宣言で再びカットインが出る）。各ボスの ShowBossBar 経由でも可。
     public void ResetSpellCutin() { _cutinDoneThisBoss = false; _cutinTex = null; _cutinTimer = 0; _cutinLine = ""; }
 
+    internal void EndTechniqueCutin() { _cutinTimer = 0; _cutinTex = null; _cutinLine = ""; }
+
     private static bool IsAutoplay()
     {
         foreach (var a in OS.GetCmdlineUserArgs())
@@ -873,8 +874,8 @@ public partial class Hud : CanvasLayer
         _livesInited = true;
     }
 
-    public void Flash() { _flashRgb = new Color(1f, 1f, 1f); _flashAlpha = 0.55f; }
-    public void HitFlash() { _flashRgb = new Color(1f, 0.2f, 0.28f); _flashAlpha = 0.7f; _hurtEdge = 0.9; }
+    public void Flash() { _flashRgb = new Color(1f, 1f, 1f); _flashAlpha = 0.55f * Settings.FlashScale; }
+    public void HitFlash() { _flashRgb = new Color(1f, 0.2f, 0.28f); _flashAlpha = 0.7f * Settings.HitFlashStrength * Settings.FlashScale; _hurtEdge = 0.9; }
 
     // ───────── 描画（子 HudCanvas から呼ばれる。設計座標 1280x720）─────────
     public void DrawAll(HudCanvas ci)
@@ -900,7 +901,7 @@ public partial class Hud : CanvasLayer
         // 会話バー・ボスの一行字幕・スペル宣告カードは、BubbleLayer（世界側・弾より奥）が居ればそちらが描く
         //（作者指摘：文字枠が自機と弾を隠す）。居ない場面（保険）だけ従来どおりここ＝最前面に描く。
         bool sunk = Bubbles != null;
-        if (_cutinTimer > 0 && _cutinTex != null) DrawSpellCutin(ci); // 袖カットイン（カードより先＝上中央カードを侵さない）
+        if (!sunk && _cutinTimer > 0 && _cutinTex != null) DrawSpellCutin(ci);
         if (!sunk && _spellTimer > 0) DrawSpellCard(ci);
         DrawShotMode(ci);
         DrawPowerups(ci);
@@ -932,13 +933,14 @@ public partial class Hud : CanvasLayer
     }
 
     // ───────── 吹き出し（世界側の BubbleLayer から呼ばれる。設計座標 1280x720・弾より奥）─────────
-    //   DrawAll と同じ順（宣告カード → 会話 → 一行字幕）。見た目・位置は Hud に居た時と同じで、層だけが弾の奥。
+    //   カットインも弾より奥へ置き、宣告カードとの前後関係は維持する。
     //   カットシーン（CinematicMode）は弾が無いので従来どおり DrawAll（最前面）が描き、ここでは何も描かない。
     public void DrawBubbles(CanvasItem ci)
     {
         if (CinematicMode) return;
         UiKit.BeginDesign(ci);
         if (_spellTimer > 0) DrawSpellCard(ci);
+        if (_cutinTimer > 0 && _cutinTex != null) DrawSpellCutin(ci);
         if (_dlgText.Length > 0) DrawDialog(ci);
         if (_bossLineTimer > 0 && _bossLine.Length > 0) DrawBossLine(ci);
         UiKit.EndDesign(ci);
@@ -1017,14 +1019,14 @@ public partial class Hud : CanvasLayer
         Color coreColor = LifeEmblem.GemColor(_game!.JobDef.CharacterId);
         Color lifeColor = low ? SideRose : coreColor.Lightened(0.12f);
         if (low) ci.DrawRect(new Rect2(0, y + 8, 3f, 80f), SideRose);
-        UiKit.Text(ci, UiKit.ZenBold, new Vector2(x, y + 13), "ライフ", 14, low ? SideRose : SideMuted);
+        UiKit.Text(ci, UiKit.ZenBold, new Vector2(x, y + 13), "ライフ", 15, low ? SideRose : SideMuted);
         string capacity = $" / {maxLives}";
         float capacityW = UiKit.TextW(UiKit.Mono, capacity, 14);
         UiKit.Text(ci, UiKit.Mono, new Vector2(x, y + 16), capacity, 14, SideMuted, HorizontalAlignment.Right, w);
         UiKit.Text(ci, UiKit.Mono, new Vector2(x, y + 2), _lives.ToString("D2"), 30, lifeColor,
             HorizontalAlignment.Right, w - capacityW - 4f);
         DrawLifeMarks(ci, _lives, maxLives);
-        UiKit.Text(ci, UiKit.ZenBold, new Vector2(x, RowBomb + 13), "ボム", 14, SideMuted);
+        UiKit.Text(ci, UiKit.ZenBold, new Vector2(x, RowBomb + 13), "ボム", 15, SideMuted);
         float capW = UiKit.KeyCapW(TokBomb, SideCapH);
         UiKit.KeyCap(ci, new Vector2(x + w - capW, RowBomb + 13f), TokBomb, SideCapH, alpha: SideCapAlpha);
         UiKit.Text(ci, UiKit.Mono, new Vector2(x, RowBomb + 2f), bombs.ToString("D2"), 30, bombs > 0 ? SideGold : SideMuted,
@@ -1128,7 +1130,7 @@ public partial class Hud : CanvasLayer
         float lean = Mathf.Clamp((posF - 0.55f) / 1.05f, 0f, 1f); // 左端0 → 右端1
         float pulseHz = Mathf.Lerp(2.4f, 7.0f, lean);
         float pulse = 0.5f + 0.5f * Mathf.Sin((float)_t * pulseHz);
-        UiKit.Text(ci, UiKit.ZenBold, new Vector2(x, y + 14f), full ? "浄化完了" : "浄化", 14, SideTeal);
+        UiKit.Text(ci, UiKit.ZenBold, new Vector2(x, y + 14f), full ? "浄化完了" : "浄化", 15, SideTeal);
         UiKit.Text(ci, UiKit.Mono, new Vector2(x, y + 2f), $"{Mathf.RoundToInt(prog * 100f)}", 30, SideInk,
             HorizontalAlignment.Right, w - 19f);
         UiKit.Text(ci, UiKit.Mono, new Vector2(x, y + 18f), "%", 14, SideTeal,
@@ -1157,7 +1159,7 @@ public partial class Hud : CanvasLayer
         if (UiKit.TextW(UiKit.Mono, scoreStr, 14) > PostInnerW)
             scoreStr = score.ToString("0.##E+0", System.Globalization.CultureInfo.InvariantCulture);
         float x = PostX, y = RowScore;
-        UiKit.Text(ci, UiKit.Zen, new Vector2(x, y), "スコア", 13, SideMuted);
+        UiKit.Text(ci, UiKit.Zen, new Vector2(x, y), "スコア", 15, SideMuted);
         int size = 27;
         while (size > 14 && UiKit.TextW(UiKit.Mono, scoreStr, size) > PostInnerW) size--;
         UiKit.Text(ci, UiKit.Mono, new Vector2(x, y + 22f), scoreStr, size, SideInk);
@@ -1166,7 +1168,7 @@ public partial class Hud : CanvasLayer
     private void DrawTimer(HudCanvas ci)
     {
         string t = UiKit.FormatTime(_elapsed);
-        UiKit.Text(ci, UiKit.Zen, new Vector2(PostX, RowTime), "経過", 13, SideMuted);
+        UiKit.Text(ci, UiKit.Zen, new Vector2(PostX, RowTime), "経過", 15, SideMuted);
         int size = 16;
         while (size > 10 && UiKit.TextW(UiKit.Mono, t, size) > PostInnerW - 44f) size--;
         UiKit.Text(ci, UiKit.Mono, new Vector2(PostX, RowTime - 1f), t, size, SideInk,
@@ -1177,6 +1179,21 @@ public partial class Hud : CanvasLayer
     //   ステータス欄でロックオンモードかを分かるように」）。Player.LockArmed（狙う意思）と LockedOn（今掴んでいる）を分けて出す。
     //   OFF ＝ 灰 ／ 待機（モードは立っているが画面に敵が居ない）＝ 青緑でゆっくり明滅 ／ 追尾中 ＝ LIFEの宝石色。
     //   待機は盤面に照準マーカーが出ないので、ここが唯一の手がかり。
+    private static string LockStatusDetail(Player? player)
+    {
+        if (player == null || !player.LockArmed) return "";
+        if (!player.LockedOn) return "対象を探しています";
+        if (player.LockTarget is Enemy enemy)
+        {
+            if (enemy.GaugeAttackResolving) return "攻撃が終わるまで回避";
+            if (enemy.GaugeBreaking) return "シールド破壊";
+            if (enemy.GaugeReforming) return "シールド再形成中";
+            if (enemy.GaugeBodyExposed) return "本体に攻撃";
+            if (player.LockedUnfolder != null) return "シールドを照準";
+        }
+        return "対象を追尾しています";
+    }
+
     private void DrawLockOn(HudCanvas ci)
     {
         var player = GetTree().GetFirstNodeInGroup("player") as Player;
@@ -1185,12 +1202,12 @@ public partial class Hud : CanvasLayer
         string character = _game!.JobDef.CharacterId;
         float x = PostX, y = RowLock, w = PostInnerW;
         Color accent = on ? LifeEmblem.GemColor(character) : armed ? SideTeal : SideMuted;
-        ci.DrawRect(new Rect2(0, y, Field.PanelW - 1f, 66f), new Color(accent, armed ? 0.09f : 0.025f));
+        ci.DrawRect(new Rect2(0, y, Field.PanelW - 1f, RowFocus - RowLock), new Color(accent, armed ? 0.09f : 0.025f));
         if (armed) ci.DrawRect(new Rect2(0, y + 12f, 2f, 42f), accent);
-        UiKit.Text(ci, UiKit.Zen, new Vector2(x + 36f, y + 10f), "ロックオン", 13, SideMuted);
+        UiKit.Text(ci, UiKit.Zen, new Vector2(x + 36f, y), "ロックオン", 15, SideMuted);
         // ロックオンの意思（LockArmed）が立っている間はキャップを沈める＝「いま押さえている」ことを鍵の形でも見せる。
         float capW = UiKit.KeyCapW(TokLock, SideCapH);
-        UiKit.KeyCap(ci, new Vector2(x + w - capW, y + 23f), TokLock, SideCapH, pressed: armed, alpha: SideCapAlpha);
+        UiKit.KeyCap(ci, new Vector2(x + w - capW, y + 22f), TokLock, SideCapH, pressed: armed, alpha: SideCapAlpha);
         string status = on ? "追尾中" : armed ? "待機中" : "オフ";
         float a = armed && !on ? 0.7f + 0.3f * (0.5f + 0.5f * Mathf.Sin((float)_t * 4f)) : 1f;
         var center = new Vector2(x + 12f, y + 33f);
@@ -1206,14 +1223,15 @@ public partial class Hud : CanvasLayer
             rect.Position += center;
             ci.DrawTextureRect(BulletArt.PlayerMark(_game.SelectedJob), rect, false);
         }
-        UiKit.Text(ci, UiKit.ZenBold, new Vector2(x + 36f, y + 32f), status, 16, new Color(accent, a));
+        UiKit.Text(ci, UiKit.ZenBold, new Vector2(x + 36f, y + 22f), status, 16, new Color(accent, a));
+        UiKit.Draw(ci, UiKit.CombatState, new Vector2(x, y + 47f), LockStatusDetail(player), SideInk);
     }
 
     private void DrawCombo(HudCanvas ci)
     {
         int combo = _game?.Combo ?? 0;
         float x = PostX, y = RowCombo, w = PostInnerW;
-        UiKit.Text(ci, UiKit.Zen, new Vector2(x, y + 8f), "コンボ", 13, SideMuted);
+        UiKit.Text(ci, UiKit.Zen, new Vector2(x, y + 8f), "コンボ", 15, SideMuted);
         string value = $"×{combo:D2}";
         int size = 22;
         while (size > 10 && UiKit.TextW(UiKit.Mono, value, size) > w - 58f) size--;
@@ -1305,7 +1323,7 @@ public partial class Hud : CanvasLayer
     //   2026-09-07：左にサイドパネルができたので、袖を左→右へ反転した（左から差すと板と衝突する）。
     //   盤面の右端に密着し、不透明は着地〜ホールドの一拍だけ。以降はフェード＋袖へ戻りつつ消える＝弾の視認を守る。
     //   dx の符号はそのまま「袖の外へ逃がす量」を意味し、右袖では +x が外側になるので描画時に反転する。
-    private void DrawSpellCutin(HudCanvas ci)
+    private void DrawSpellCutin(CanvasItem ci)
     {
         if (_cutinTex == null) return;
         double age = CutinDur - _cutinTimer;                 // 経過（0→CutinDur）
@@ -1356,7 +1374,7 @@ public partial class Hud : CanvasLayer
         if (justLanded && !_cutinLandedFlashed)
         {
             _cutinLandedFlashed = true;
-            _flashRgb = new Color(1f, 1f, 1f); _flashAlpha = 0.28f; // 控えめな白フラッシュ（弾を飛ばさない程度）
+            _flashRgb = new Color(1f, 1f, 1f); _flashAlpha = 0.28f * Settings.FlashScale;
             GameCamera.Instance?.Shake(2.2f, 0.16f);
         }
         if (age < CutinSlideDur) _cutinLandedFlashed = false;       // 次回着地で再びフラッシュできるよう戻す
@@ -1412,10 +1430,10 @@ public partial class Hud : CanvasLayer
         Color accent = _focusOn ? AccountAccent : (_focusReady ? SideTeal : SideMuted);
         string status = _focusOn ? "発動中" : _focusReady ? "発動可能" : "充填中";
         float x = PostX, y = RowFocus, w = PostInnerW;
-        UiKit.Text(ci, UiKit.Zen, new Vector2(x, y + 7f), "集中", 13, SideMuted);
+        UiKit.Text(ci, UiKit.Zen, new Vector2(x, y + 7f), "集中", 15, SideMuted);
         UiKit.KeyCap(ci, new Vector2(x + w - UiKit.KeyCapW(TokFocus, SideCapH), y + 5f),
             TokFocus, SideCapH, pressed: _focusOn, alpha: SideCapAlpha);
-        UiKit.Text(ci, UiKit.ZenBold, new Vector2(x, y + 29f), status, 14, accent);
+        UiKit.Text(ci, UiKit.ZenBold, new Vector2(x, y + 29f), status, 16, accent);
         DrawMeter(ci, new Rect2(x + 74f, y + 39f, w - 74f, 4f), _focusRatio, accent);
     }
 

@@ -4,7 +4,7 @@ using System.Collections.Generic;
 using System.Reflection;
 
 // 会話本文の字形を、文字がまだ画面に出ていない時間に先に作っておく（2026-10-09）。
-//   本文フォント（DialogueBox.Body＝ZenBold・MSDF）の字形は、初めて使う瞬間に1字 約11〜15ms かけて生成される。
+//   本文フォント（DialogueBox.Body・MSDF）の字形は、初めて使う瞬間に1字 約11〜15ms かけて生成される。
 //   新しい行の頭でその行の初出の字がまとめて生成され、70〜150ms 固まっていた＝文字送りのカクつき
 //  （DialogueFrameQa の計測）。一度作った字形はプロセス内でキャッシュされ、2回目は 0.03ms。
 //   そこで「タイトルの裏でかな・英数・記号」「LoadingScreen の裏で行き先の台本」を先に作る。

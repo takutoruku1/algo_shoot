@@ -126,6 +126,9 @@ public partial class DialogueTempoQa : Node
             var epilogue = GD.Load<PackedScene>("res://Epilogue.tscn").Instantiate<Epilogue>();
             GetTree().Root.AddChild(epilogue);
             epilogue.SetProcess(false);
+            var gaze = Read<System.Collections.IList>(epilogue, "_gaze");
+            Set(epilogue, "_line", Enumerable.Range(0, gaze.Count).Single(i =>
+                (string)gaze[i]!.GetType().GetField("Text")!.GetValue(gaze[i])! == text));
             Set(epilogue, "_zHeld", Pad.AdvanceHeld());
             for (int i = 0; i < 24; i++) epilogue._Process(1.0 / 60);
             Check(Read<double>(epilogue, "_reveal") < pages[0].Length, "epilogue uses the same gradual reveal");

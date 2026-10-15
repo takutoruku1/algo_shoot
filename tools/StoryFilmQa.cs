@@ -391,7 +391,7 @@ public partial class StoryFilmQa : Node
             string id = Jobs.Get(job).CharacterId;
             bool report = stageId == "koharu" && job == Job.Melee;   // ユーザー報告の再現条件＝画面も残す
             game.SelectedJob = job;
-            dives[id] = 1;
+            dives[id] = 0;
             game.SelectedEntry = GameManager.StageEntry.Boss;
             _out = ProjectSettings.GlobalizePath($"res://build/qa_story/matrix/{stageId}/{id}");
             DirAccess.MakeDirRecursiveAbsolute(_out);
@@ -606,13 +606,20 @@ public partial class StoryFilmQa : Node
         bool quietHeader = true;
         var skip = Read<FilmSkip>(film, "_skip", typeof(StoryFilm));
         int right = skip.Available ? 995 : 1220;
+        string timestamp = Read<string>(film, "_timeText", typeof(StoryFilm));
+        if (timestamp.Length > 0)
+        {
+            float width = 0;
+            foreach (char letter in timestamp) width += UiKit.TextW(UiKit.Zen, letter.ToString(), 18) + 1.6f;
+            right = Math.Min(right, Mathf.FloorToInt(1208f - width - 16f));
+        }
         for (int y = 22; y < 50; y++)
             for (int x = 710; x < right; x++)
             {
                 var pixel = rendered.GetPixel(x * rendered.GetWidth() / 1280, y * rendered.GetHeight() / 720);
                 quietHeader &= Math.Max(pixel.R, Math.Max(pixel.G, pixel.B)) < 0.16f;
             }
-        Check(quietHeader, "upper-right header has no frame counter or progress ticks");
+        Check(quietHeader, "header outside the scene timestamp has no frame counter or progress ticks");
         var texture = grade.GetShaderParameter("scene_texture").AsGodotObject() as Texture2D;
         var region = grade.GetShaderParameter("scene_region").AsVector4();
         int shot = Read<int>(film, "_shot", typeof(StoryFilm));

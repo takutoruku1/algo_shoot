@@ -16,6 +16,7 @@ public partial class BossEdgeVolley : Node2D
     private int _rows;
     private Vector2[] _gates = null!;
     private Vector2 _direction;
+    private Vector2 _target;
     internal BossNormalBarrage? Sequence { get; private set; }
     public Edge Side { get; private set; }
     public string SpellName { get; private set; } = "";
@@ -49,7 +50,7 @@ public partial class BossEdgeVolley : Node2D
 
     public override void _Ready()
     {
-        ZIndex = -10;
+        ZIndex = -6; // 戦闘告知(-7)に予兆を隠させず、敵・弾よりは奥に置く。
         ZAsRelative = false;
         TextureFilter = TextureFilterEnum.Linear;
         Material = new CanvasItemMaterial { LightMode = CanvasItemMaterial.LightModeEnum.Unshaded };
@@ -74,12 +75,15 @@ public partial class BossEdgeVolley : Node2D
         bool vertical = Side is Edge.Top or Edge.Bottom;
         _spacing = difficulty switch
         { GameManager.Diff.Hard => 20, GameManager.Diff.Lunatic => 18, _ => 24 };
+        // Leave room for both parallel splits, including the final fragments' hitboxes.
+        if (_boss.BodyShotJob == Job.Magic) _spacing = 60;
         _totalRows = difficulty switch
         { GameManager.Diff.Easy => 3, GameManager.Diff.Normal => 5, GameManager.Diff.Hard => 6, _ => 7 };
         _rowInterval = difficulty switch
         { GameManager.Diff.Hard => 0.25, GameManager.Diff.Lunatic => 0.22, _ => 0.32 };
         int count = Mathf.CeilToInt((vertical ? Field.Width : Field.Height) / _spacing) + 1;
         var player = (Player)GetTree().GetFirstNodeInGroup("player");
+        _target = player.GlobalPosition;
         float low = vertical ? Field.Left : Field.Top;
         float high = vertical ? Field.Right : Field.Bottom;
         // 中心の1列は「予兆が出た瞬間の自機の軸」にぴったり乗せる。ここは盤面の縁までしか詰めない
@@ -134,8 +138,26 @@ public partial class BossEdgeVolley : Node2D
         {
             foreach (var gate in _gates)
             {
-                var bullet = _pool.Spawn(gate, _direction * _speed, true, 3.4f, 1, BulletShape.Diamond, _accent);
-                bullet.SetSprite(_art);
+                Bullet bullet;
+                if (_boss.BodyShotJob is Job.Heal or Job.Magic)
+                {
+                    Job job = _boss.BodyShotJob.Value;
+                    bullet = _pool.SpawnBossShot(gate, _direction, job, false);
+                    bullet.Velocity = _direction * _speed * GameManager.Instance!.BulletSpeedMul;
+                    bullet.UseBossPatternVisual(job, 1);
+                    if (bullet.Homing)
+                    {
+                        bullet.FormationHomingAnchor = _target;
+                        Vector2 offset = gate - _target;
+                        bullet.FormationHomingOffset = offset - _direction * offset.Dot(_direction);
+                        bullet.Velocity = bullet.Velocity.Rotated(0.1f);
+                    }
+                }
+                else
+                {
+                    bullet = _pool.Spawn(gate, _direction * _speed, true, 3.4f, 1, BulletShape.Diamond, _accent);
+                    bullet.SetSprite(_art);
+                }
                 if (GameManager.Instance?.IsLunatic != true) bullet.DeployBossFormation(gate, edgeLaunch: true);
                 if (_boss.BodyShotJob == Job.Melee)
                 {

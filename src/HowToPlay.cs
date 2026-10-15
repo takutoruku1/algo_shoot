@@ -40,14 +40,14 @@ public partial class HowToPlay : CanvasLayer
     public const int PageCount = TabCount + 3;
 
     // ── マウス用ジオメトリ（HowToCanvas.DrawScreen と同一式）──
-    //   パネル：pad=64, x=pad, y=48, w=W-128, h=H-96。以降の3つはそこからの相対。
+    //   パネル：pad=64, x=pad, y=32, w=W-128, h=H-64。以降の3つはそこからの相対。
     //   ホットスポット id：0..TabCount-1＝デバイスタブ／IdDotBase+i＝ページドット／IdClose＝フッタ「とじる」。
     public const int IdDotBase = 10, IdClose = 90;
 
     // デバイスタブの矩形（DrawDeviceTabs と同一式。操作ページを開いている時だけ意味を持つ）。
     public static Rect2 TabRect(int i)
     {
-        float pad = 64f, x = pad, y = 48f, w = UiKit.DesignW - pad * 2f;
+        float pad = 64f, x = pad, y = 32f, w = UiKit.DesignW - pad * 2f;
         float ix = x + 32f, iy = y + 92f, iw = w - 64f;
         float tw = (iw - 16f) / TabCount, th = 34f;
         return new Rect2(ix + i * (tw + 8f), iy, tw, th);
@@ -56,7 +56,7 @@ public partial class HowToPlay : CanvasLayer
     // ページドット（右上）の当たり矩形。描画は半径5の円だが、点を突くのは酷なので 22×22 の枠で取る。
     public static Rect2 DotRect(int i)
     {
-        float pad = 64f, x = pad, y = 48f, w = UiKit.DesignW - pad * 2f;
+        float pad = 64f, x = pad, y = 32f, w = UiKit.DesignW - pad * 2f;
         var c = new Vector2(x + w - 32f - (PageCount - 1 - i) * 22f, y + 40f);
         return new Rect2(c.X - 11f, c.Y - 11f, 22f, 22f);
     }
@@ -191,7 +191,7 @@ public partial class HowToCanvas : Node2D
     // Hud.Tok* は private なのでここで同等に持つ（割り当ては Player.cs と一致）。
     // ※フッタなど「いま握っているデバイス向けの案内」で使う。割り当て一覧表（3タブ）は
     //   デバイス固定で書くので、下の ControlRows(tab) が直に文字列を持つ。
-    private static string TokBomb  => Pad.UsingPad ? Pad.Face(JoyButton.X)            : "X";
+    private static string TokBomb => Pad.UsingPad ? Pad.Face(JoyButton.X) : Pad.UsingMouse ? "中クリック" : "X";
     // フッタの「とじる」表記は下の FootCloseToken（キーボードは Esc＝もどる、パッドは B）。
     //   メニューを開くキーの表記は Pad.PauseToken（M / Menu(≡)）＝2026-09-26 に Esc から分離した。
 
@@ -210,7 +210,7 @@ public partial class HowToCanvas : Node2D
         DrawRect(new Rect2(0, 0, W, H), new Color(4 / 255f, 6 / 255f, 14 / 255f, 0.9f));
 
         float pad = 64f;
-        float x = pad, y = 48f, w = W - pad * 2f, h = H - 96f;
+        float x = pad, y = 32f, w = W - pad * 2f, h = H - 64f;
         UiKit.Box(this, new Rect2(x, y, w, h), new Color(0.05f, 0.05f, 0.10f, 0.98f), 18f, new Color(UiKit.Purify, 0.6f), 1.4f);
 
         // ── ヘッダ（タイトル＋ページインジケータ）──
@@ -264,13 +264,14 @@ public partial class HowToCanvas : Node2D
     public const float FootCapH = 22f;
     private const float FootLabelGap = 6f, FootItemGap = 28f;
     private const string FootPageLabel = "タブ・ページ";
-    private static string FootPageToken => Pad.UsingPad ? Pad.Face(JoyButton.LeftShoulder) + " / " + Pad.Face(JoyButton.RightShoulder) : "←→";
+    private static string FootPageToken => Pad.UsingPad ? Pad.Face(JoyButton.LeftShoulder) + " / " + Pad.Face(JoyButton.RightShoulder)
+        : Pad.UsingMouse ? "ホイール" : "←→";
     // とじるキー：キーボードは Esc、パッドは B（HowToPlay._Process が読むのは X／Esc／B／右クリック。
     //   旧表記の Menu(≡) はこの画面では読まれていなかった）。
-    public static string FootCloseToken => Pad.UsingPad ? Pad.Face(JoyButton.B) : "Esc";
+    public static string FootCloseToken => Pad.UsingPad ? Pad.Face(JoyButton.B) : Pad.UsingMouse ? "右クリック" : "Esc";
     public static (float pageX, float closeX, float top, float closeW) FootLayout()
     {
-        float pad = 64f, x = pad, y = 48f, w = UiKit.DesignW - pad * 2f, h = UiKit.DesignH - 96f;
+        float pad = 64f, x = pad, y = 32f, w = UiKit.DesignW - pad * 2f, h = UiKit.DesignH - 64f;
         float pageW = UiKit.KeyCapRowW(FootPageToken, FootCapH) + FootLabelGap + UiKit.TextW(UiKit.Zen, FootPageLabel, UiKit.FontSmall);
         float closeW = UiKit.KeyCapW(FootCloseToken, FootCapH) + FootLabelGap + UiKit.TextW(UiKit.Zen, "とじる", UiKit.FontSmall);
         float lineX = x + (w - (pageW + FootItemGap + closeW)) / 2f;   // 中央寄せ1行の左端
@@ -326,72 +327,67 @@ public partial class HowToCanvas : Node2D
         string moveTok = tab switch { 1 => "L スティック / 十字キー", 2 => "カーソル", _ => "↑↓←→" };
         string moveDesc = tab == 2 ? "マウスカーソルの位置へ寄っていく" : "上下左右に動く";
         Add(moveTok, "移動", moveDesc, UiKit.Info, false);
-        Add("オート", "撃つ", "自動で撃ちます。光を放って心を浄化する", UiKit.Purify, false);
+        Add("オート", "撃つ", "通常の光は自動で出る。溜め中と回避中は止まる", UiKit.Purify, false);
 
-        // ロックオン。キーボードは Shift の押しっぱなし（2026-09-26 作者決定：F 送り／G 解除 → Shift 長押し。
-        //   押した瞬間に最寄りへロック、離した瞬間に解除。F は「次の敵へ送り」として残る）。
-        //   パッド RB／マウス左クリックは従来どおり「押すたび送り」。マウスだけ短押し／長押しの分岐があるので説明を変える。
-        string lockTok = tab switch { 1 => Pad.Face(JoyButton.RightShoulder), 2 => "左クリック", _ => "Shift 長押し" };
+        string lockTok = tab switch { 1 => Pad.Face(JoyButton.RightShoulder) + " / " + Pad.Face(JoyButton.RightStick), 2 => "左クリック 短押し", _ => "Shift 長押し" };
         string lockDesc = tab switch
         {
-            1 => "押すたび近い敵から順に狙う。移動は少し遅くなる",
-            2 => "短く押すと近い敵を狙う。狙っているあいだはホイールで前 / 次の敵へ。移動は少し遅くなる",
-            _ => "押しているあいだ近い敵を狙う。A / S で前 / 次の敵へ。移動は少し遅くなる",
+            1 => "RBで近い敵を狙う。R3で解除。\nロック中は移動が少し遅くなる",
+            2 => "短く押すとロック、もう一度短く押すと解除。\nロック中は移動が少し遅くなる",
+            _ => "押し続けると近い敵を狙い、離すと解除。\nロック中は移動が少し遅くなる",
         };
-        Add(lockTok, tab == 0 ? "ロックオン" : "ロックオン送り", lockDesc, UiKit.Purify, true);
+        Add(lockTok, "ロック・解除", lockDesc, UiKit.Purify, true);
 
-        // ロックオン解除。キーボードは Shift を離す（2026-09-26。旧 G は廃止）。パッド R3／マウス右クリックは従来どおり。
-        //   マウスの右クリックは回避と兼用＝解除の行と回避の行を別々に出し、注記で「同じボタン」と結ぶ。
-        Add(tab switch { 1 => Pad.Face(JoyButton.RightStick), 2 => "左クリック", _ => "Shift を離す" }, "ロックオン解除",
+        Add(tab switch { 1 => Pad.Face(JoyButton.RightShoulder), 2 => "ホイール", _ => "A / S" }, "狙う敵を替える",
             tab switch
             {
-                1 => "狙っている敵から照準を外す。倒せば次の敵へ勝手に移る",
-                2 => "狙っているときにもう一度短く押すと外れる",
-                _ => "離した瞬間に照準が外れる",
+                1 => "押すたび次の敵へ。対象を倒すと近い敵へ自動で移る",
+                2 => "ロック中、上で次・下で前の敵へ。\n対象を倒すと近い敵へ自動で移る",
+                _ => "Shiftを押しながら、Aで前・Sで次の敵へ。\n対象を倒すと近い敵へ自動で移る",
             }, UiKit.Purify, false);
 
         // 溜め打ち（最初から使える。2026-09-25 のユーザー決定で習得ゲートを撤廃）。
         //   ショップの「溜め打ち 二段」（n_charge）を買うと、離さずさらに溜めて 2段目が撃てる
         //   ＝買う前は1段だけの説明、買った後は2段目の秒数と伸びぶんも添える（どちらも実値）。
         bool tier2 = game?.HasChargeTier2 ?? false;
-        string chargeDesc = tier2
-            ? $"{chargeSec:0.0}秒ためて離す。{game!.JobDef.ChargeDescription}"
-              + $"／さらに {game.ChargeTier2NeedSec:0.0}秒まで溜めると 威力 ×{ChargeTier.PowerMul:0.0} の大きい一発"
-            : $"{chargeSec:0.0}秒ためて離す。{game!.JobDef.ChargeDescription}";
+        string chargeDesc = $"{chargeSec:0.0}秒ためて離すと、{game!.JobDef.ChargeDescription}。"
+            + (tier2 ? $"\n{game.ChargeTier2NeedSec:0.0}秒までためると2段目（威力 ×{ChargeTier.PowerMul:0.0}）"
+                     : "\nたまる前に離すと不発。完了は光と音で知らせる");
         // キーボードは Z 長押し（2026-09-26 作者決定。旧 C）。
         Add(tab switch { 1 => Pad.Face(JoyButton.Y) + " 長押し", 2 => "左クリック 長押し", _ => "Z 長押し" },
             "溜め打ち", chargeDesc, UiKit.Gold, true);
 
-        // 回避（ショップの「回避」＝n_dodge で覚える。2026-09-22 に1面クリア報酬から変更）。マウスは右クリック（ロック解除と兼用）。
-        //   キーボードは Space（2026-09-27 作者指示。左手の親指。旧 Ctrl は Shift 長押しと同じ小指で衝突していた）。
-        //   Space は会話送りと共用だが、会話中は回避が効かず、会話を送った押下は離すまで回避に読まない（Player）。
         Add(tab switch { 1 => Pad.Face(JoyButton.LeftStick), 2 => "右クリック", _ => "Space" }, "回避",
-            "一瞬無敵で弾をすり抜ける。攻めの切り札",
-            UiKit.Gold, hasDodge, hasDodge ? "" : "未習得 — ショップ「回避」");
+            (tab == 2 ? "カーソルの方向へ無敵ダッシュ。近ければその場回避"
+                      : "移動方向へ無敵ダッシュ。方向入力なしならその場回避")
+                + (hasDodge ? "" : "\nショップ「回避」で習得"),
+            UiKit.Gold, hasDodge, hasDodge ? "" : "未習得");
 
         Add(tab switch { 1 => Pad.Face(JoyButton.X), 2 => "中クリック", _ => "X" },
             "ボム", "敵にダメージを与え短時間無敵。残数ぶん", UiKit.Mina, false);
 
         // 集中モード（ショップの「集中モード」＝n_slow で覚える）。キーボードは C（2026-09-27。旧 V）。
-        Add(tab switch { 1 => Pad.Face(JoyButton.LeftShoulder), 2 => "ホイール / サイドボタン", _ => "C" },
-            "集中モード", "敵の時間だけが遅くなる。1.5秒", UiKit.Purify, hasFocus,
-            hasFocus ? "" : "未習得 — ショップ「集中モード」");
+        Add(tab switch { 1 => Pad.Face(JoyButton.LeftShoulder), 2 => "サイドボタン", _ => "C" },
+            "集中モード", "敵の時間だけが遅くなる。1.5秒"
+                + (tab == 2 ? "\n敵をロックしていない時はホイールでも発動" : "")
+                + (!hasFocus && tab != 2 ? "\nショップ「集中モード」で習得" : ""), UiKit.Purify, hasFocus,
+            hasFocus ? "" : tab == 2 ? "未習得 — ショップ" : "未習得");
 
         Add(tab switch { 1 => Pad.Face(JoyButton.A), 2 => "左クリック", _ => "Z / Enter / Space" },
             "会話を送る", "1回目で全文表示、2回目で次の行へ", UiKit.Info, false);
-        Add(tab == 1 ? Pad.Face(JoyButton.RightShoulder) + " 長押し" : tab == 2 ? "—" : "Ctrl 長押し",
-            "既読スキップ", tab == 2 ? "マウスには割り当てなし（Ctrl / " + Pad.Face(JoyButton.RightShoulder) + "）"
+        Add(tab == 1 ? Pad.Face(JoyButton.RightShoulder) + " 長押し" : tab == 2 ? "左クリック" : "Ctrl 長押し",
+            "既読スキップ", tab == 2 ? "会話ボックス上の「▶▶」を押して開始・停止"
                                     : "会話中、一度読んだ行だけ高速で送る", UiKit.Text2, false);
         // メニューは M / Esc（2026-09-27。Esc でも開く＝PauseMenu.EscOpensHere）。ただしスマホ系の画面（ハブ/ショップ等）の
         //   Esc は従来どおり「もどる」。メニューの中の Esc は一段もどる。
-        Add(tab == 1 ? Pad.Face(JoyButton.Start) : tab == 2 ? "—" : "M / Esc",
-            "メニュー", tab == 2 ? "マウスには割り当てなし（M / Esc / " + Pad.Face(JoyButton.Start) + "）"
+        Add(tab == 1 ? Pad.Face(JoyButton.Start) : "M / Esc",
+            "メニュー", tab == 2 ? "戦闘中はM / Esc。会話中は「メニュー」をクリック"
                                  : tab == 1 ? "セーブ・音量・あそびかた" : "メニュー内の Esc は一段もどる（スマホの画面の Esc はもどる）", UiKit.Text2, false);
-        Add(tab == 1 ? "—" : "R / Shift+R",
-            "やりなおす", tab == 1 ? "キーボードのみ（R＝続きから / Shift+R＝最初から）"
-                                    : "R＝続きから、Shift+R＝最初から", UiKit.Text2, false);
+        Add(tab == 1 ? Pad.Face(JoyButton.Start) : "R 長押し",
+            "やりなおす", tab == 1 ? "メニューの「リスタート」で最初からやりなおす"
+                : $"{RetryHold.HoldTime:0.00}秒長押しで最初から。敗北時はRで再開\n（ボス到達後はボスから）、Shift+Rなら最初から", UiKit.Text2, false);
 
-        float colW = (w - 24f) / 2f, rowH = 60f;
+        float colW = (w - 24f) / 2f, rowH = 72f;
         int half = (rows.Count + 1) / 2;
         for (int i = 0; i < rows.Count; i++)
         {
@@ -401,13 +397,14 @@ public partial class HowToCanvas : Node2D
             DrawControlRow(rx, ry, colW, rows[i].tok, rows[i].name, rows[i].desc, rows[i].accent, rows[i].hot, tab == 1, rows[i].locked);
         }
 
-        // 念押し：光はオート発射＝撃つボタンが無いことを明示する。
         float ny = y + half * rowH + 6f;
-        UiKit.Text(this, UiKit.Zen, new Vector2(x, ny),
-            "※ 光は自動で出ます。撃つボタンはありません", UiKit.FontLabel, UiKit.Gold);
-        // 会話中の2択（ChoiceOverlay）は全デバイス共通の操作なので1行案内。
-        UiKit.Text(this, UiKit.Zen, new Vector2(x, ny + 22f),
-            "◇ 会話中の2択：↑↓ / マウスで選ぶ、" + Pad.ConfirmToken + " で決定", UiKit.FontLabel, UiKit.PurifyHi,
+        string choice = tab switch
+        {
+            1 => $"◇ 会話の選択肢：Lスティック / 十字キーで選ぶ、{Pad.Face(JoyButton.A)}で決定",
+            2 => "◇ 会話の選択肢：選びたい項目を左クリックで決定",
+            _ => "◇ 会話の選択肢：↑↓で選ぶ、Z / Enter / Spaceで決定",
+        };
+        UiKit.Text(this, UiKit.Zen, new Vector2(x, ny), choice, UiKit.FontLabel, UiKit.PurifyHi,
             HorizontalAlignment.Left, w);
         // 会話ボックス上辺のボタン列（AUTO / SKIP / LOG / MENU・src/DialogToolbar.cs）。割り当てはタブの機種で出す。
         string toolbar = tab switch
@@ -417,7 +414,7 @@ public partial class HowToCanvas : Node2D
             2 => "◇ 会話ボックス上のボタン（▶ 自動送り / ▶▶ 既読スキップ / ログ / メニュー）：クリックで押せる",
             _ => "◇ 会話ボックス上のボタン：A 自動送り / S 既読スキップ / L ログ / M メニュー（クリックでも押せる）",
         };
-        UiKit.Text(this, UiKit.Zen, new Vector2(x, ny + 44f), toolbar, UiKit.FontLabel, UiKit.PurifyHi,
+        UiKit.Text(this, UiKit.Zen, new Vector2(x, ny + 22f), toolbar, UiKit.FontLabel, UiKit.PurifyHi,
             HorizontalAlignment.Left, w);
     }
 
@@ -426,17 +423,17 @@ public partial class HowToCanvas : Node2D
     private void DrawControlRow(float x, float y, float w, string tok, string name, string desc, Color accent, bool hot, bool pad,
         string locked = "")
     {
-        float h = 52f;
+        float h = 70f;
         bool dim = locked.Length > 0;
         if (hot) UiKit.Box(this, new Rect2(x, y, w, h), new Color(accent, 0.10f), 10f, new Color(accent, 0.55f), 1.2f);
         // キーキャップの並び（2026-09-27 に旧 KeyBadge＝文字の枠から UiKit.KeyCapRow へ。並記は 4px 間隔でキャップを並べ、
-        //   「長押し」「を離す」等の語は添え文字、マウスは絵）。高さ 24 を行の上寄せ（y+6）に置く＝名前の行と揃う。
-        float badgeW = UiKit.KeyCapRow(this, new Vector2(x + 8, y + 6), tok, 24f, dim ? 0.45f : 1f, pad, new Color(accent, 1f));
+        //   「長押し」「を離す」等の語は添え文字、マウスは絵）。高さ 22 を行の上寄せ（y+6）に置く＝名前の行と揃う。
+        float badgeW = UiKit.KeyCapRow(this, new Vector2(x + 8, y + 6), tok, 22f, dim ? 0.45f : 1f, pad, new Color(accent, 1f));
         float tx = x + 8 + badgeW + 14f;
         UiKit.Text(this, UiKit.ZenBold, new Vector2(tx, y + 6), name, UiKit.FontBody,
                    dim ? UiKit.Text4 : hot ? new Color(accent, 1f) : UiKit.White);
-        UiKit.Text(this, UiKit.Zen, new Vector2(tx, y + 28), desc, UiKit.FontLabel,
-                   dim ? new Color(UiKit.Text4, 0.75f) : UiKit.Text2, HorizontalAlignment.Left, w - (tx - x) - 8);
+        UiKit.Multi(this, UiKit.Zen, new Vector2(x + 8, y + 28), desc, UiKit.FontLabel,
+                    dim ? UiKit.Text3 : UiKit.Text2, w - 16f, 2);
         if (dim)
         {
             float lw = UiKit.TextW(UiKit.Zen, locked, UiKit.FontSmall);
@@ -466,6 +463,8 @@ public partial class HowToCanvas : Node2D
             (0, "浄化した心",  "通貨。浄化でこぼれた欠片を拾うと貯まる。ショップ（ハブのスマホ）でミナを強化できる", UiKit.Hp),
             (1, "フォロワー",  "届けた証。増えるほど全弾ダメージが微増（上限+50%）とインプレに上乗せ", UiKit.Info),
             (1, "TIME",        "クリアタイム。記録に挑戦",                            UiKit.Text2),
+            (1, "ロックオン",  "待機中は対象探し。追尾中は下の文字でシールド／本体を確認", UiKit.Purify),
+            (2, "ボスの状態",  "「本体に攻撃」が攻撃の合図。「回避」と出たら技が終わるまで避ける", UiKit.Gold),
         };
         float rowH = 40f;
         for (int i = 0; i < rows.Length; i++)
@@ -473,7 +472,7 @@ public partial class HowToCanvas : Node2D
             float ry = y + i * rowH;
             DrawIcon(new Vector2(x + 14, ry + 12), rows[i].icon, rows[i].col);
             UiKit.Text(this, UiKit.ZenBold, new Vector2(x + 40, ry + 4), rows[i].name, UiKit.FontBody, UiKit.White);
-            UiKit.Text(this, UiKit.Zen, new Vector2(x + 240, ry + 5), rows[i].desc, UiKit.FontLabel, UiKit.Text2);
+            UiKit.Text(this, UiKit.Zen, new Vector2(x + 240, ry + 4), rows[i].desc, UiKit.FontBody, UiKit.Text2);
         }
     }
 

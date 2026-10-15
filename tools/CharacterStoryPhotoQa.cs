@@ -37,6 +37,13 @@ public partial class CharacterStoryPhotoQa : Node
             game.ResetPersistent();
             game.AutoSaveEnabled = false;
             await Frames(2);
+            if (OS.GetCmdlineUserArgs().Contains("--progression"))
+            {
+                await CheckProgression(game);
+                GD.Print("[PhotoQA] ALL PASS");
+                GetTree().Quit();
+                return;
+            }
 
             // 写真エントリの表（PhotoEntries）を反射で引く。6枚のIDと、そこに載っているキーを見る。
             var entryType = typeof(Hub).GetNestedType("PhotoEntry", BindingFlags.NonPublic)!;
@@ -103,6 +110,92 @@ public partial class CharacterStoryPhotoQa : Node
             GD.PushError($"[PhotoQA] FAIL {ex}");
             GetTree().Quit(1);
         }
+    }
+
+    private async Task CheckProgression(GameManager game)
+    {
+        game.SelectedJob = Job.Tank;
+        game.CompleteStage("akari");
+        game.JustClearedStageId = null;
+        game.SelectedJob = Job.Melee;
+        game.SelectedEntry = GameManager.StageEntry.Start;
+        var hub = GD.Load<PackedScene>("res://Hub.tscn").Instantiate<Hub>();
+        GetTree().Root.AddChild(hub);
+        GetTree().CurrentScene = hub;
+        await Frames(2);
+        Call(hub, "Dive", "res://Koharu.tscn");
+        await QaSceneTransition.Wait(this);
+        Check(GetTree().CurrentScene is KoharuRoot && game.CharacterChapter(Job.Melee) == 1,
+            "entering the next story stage retains companion chapter one");
+
+        await PauseAction(PauseMenu.Act.Leave);
+        Check(GetTree().CurrentScene is Hub && game.CharacterChapter(Job.Melee) == 1
+            && !game.ClearedWithCompanion("koharu"), "leaving an unfinished chapter does not advance or report a clear");
+        Call(GetTree().CurrentScene, "Dive", "res://Koharu.tscn");
+        await QaSceneTransition.Wait(this);
+        Check(game.CharacterChapter(Job.Melee) == 1, "reentering after leaving resumes the same chapter");
+        await PauseAction(PauseMenu.Act.Restart);
+        Check(GetTree().CurrentScene is KoharuRoot && game.CharacterChapter(Job.Melee) == 1,
+            "restarting also retains the unfinished chapter");
+
+        Call(((KoharuRoot)GetTree().CurrentScene).Stage, "ReturnToHub");
+        await QaSceneTransition.Wait(this);
+        Check(game.CharacterChapter(Job.Melee) == 2 && game.ClearedWithCompanion("koharu"),
+            "the real clear callback advances exactly one companion chapter");
+        hub = (Hub)GetTree().CurrentScene;
+        var dialogue = Read<(string speaker, string text)[]>(hub, "_dlg");
+        Check(dialogue[0].speaker == "あかり" && dialogue.Any(l => l.text.Contains("帰ってきた仲間"))
+            && !dialogue.Any(l => l.text.Contains("数えてまいりました") || l.text.Contains("必死で振った")),
+            "companion returns before Mina receives the report without claiming to have been there");
+        Check(dialogue.Any(l => l.text.Contains("聞いただけのAI")), "the backlash quotes the report Mina actually posted");
+        game.SelectedJob = Job.Tank;
+        var savedReturn = ((string, string)[])Call(hub, "ReturnDialog", "koharu")!;
+        string post = savedReturn[0].Item2;
+        Check(post.Contains("帰ってきた仲間"), "changing the selected character does not rewrite the recorded post");
+        Check(game.SaveToSlot(2), "save companion progress and the return route");
+        game.ResetPersistent();
+        Check(game.CharacterChapter(Job.Melee) == 1 && !game.ClearedWithCompanion("koharu"), "new game clears story progress");
+        Check(game.LoadFromSlot(2) && game.CharacterChapter(Job.Melee) == 2 && game.ClearedWithCompanion("koharu"),
+            "save loading restores the completed chapter and matching post");
+        game.SelectedJob = Job.Melee;
+        game.CompleteStage(GameManager.FinalStageId);
+        Check(game.CharacterChapter(Job.Melee) == 2, "FINAL does not advance the companion's separate story");
+        game.Difficulty = GameManager.Diff.Lunatic;
+        game.CompleteStage("akari");
+        Check(game.CharacterChapter(Job.Melee) == 2, "Lunatic does not consume an unread companion chapter");
+        game.Difficulty = GameManager.Diff.Normal;
+        for (int i = 0; i < 5; i++) game.CompleteStage("akari");
+        Check(game.CharacterChapter(Job.Melee) == CharacterStory.LoopChapter, "completed companion stories remain on the loop chapter");
+
+        foreach (string id in new[] { "akari", "koharu", "rei" })
+        {
+            game.CompleteStage(id);
+            var report = ((string, string)[])Call(hub, "ReturnDialog", id)!;
+            Check(report[0].Item2.Contains("帰ってきた仲間"), id + " receives a companion report");
+            if (id == "rei") Check(report.Any(l => l.Item2.Contains("声が"))
+                && report.Any(l => l.Item2.Contains("返事して")), "companion Rei clear still leads to Mina's rescue");
+            game.SelectedJob = Job.Tank;
+            game.CompleteStage(id);
+            var minaLines = ((string, string)[])Call(hub, "ReturnDialog", id)!;
+            Check(!game.ClearedWithCompanion(id)
+                && !minaLines.Any(l => l.Item2.Contains("帰ってきた仲間")), id + " keeps Mina's own return when she completes the stage");
+            game.SelectedJob = Job.Melee;
+        }
+        game.JustClearedStageId = null;
+        hub.QueueFree();
+        GetNode<BulletPool>("/root/Pool").DespawnAll();
+        Audio.Instance?.StopMusic(0);
+        await Frames(4);
+    }
+
+    private async Task PauseAction(PauseMenu.Act act)
+    {
+        var menu = GetNode<PauseMenu>("/root/PauseMenu");
+        menu.Open();
+        Call(menu, "OpenConfirm", act, "QA");
+        typeof(PauseMenu).GetField("_confirmYes", Private)!.SetValue(menu, true);
+        Call(menu, "RunConfirm");
+        await QaSceneTransition.Wait(this);
     }
 
     private async Task Frames(int count)

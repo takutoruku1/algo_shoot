@@ -40,6 +40,10 @@ public partial class PauseMenuQa : Node
             StashSlots();
             DisplayServer.WindowSetMode(DisplayServer.WindowMode.Windowed);
             await Frames(2);
+            await CheckDialogueResume(game);
+            await CheckBossDialogueResume();
+            await CheckCombatResume(game);
+            await CheckRetryHoldResume();
 
             // ステージ（Akari）を立ててポーズを開く＝トップに6行そろう構成で検証する。
             var stage = GD.Load<PackedScene>("res://Akari.tscn").Instantiate();
@@ -191,6 +195,169 @@ public partial class PauseMenuQa : Node
         GetTree().Quit(_fails == 0 ? 0 : 1);
     }
 
+    private async Task CheckDialogueResume(GameManager game)
+    {
+        game.AutoAdvanceDialog = false;
+        game.Difficulty = GameManager.Diff.Normal;
+        game.SelectedJob = Job.Magic;
+        Hud.SkipLatched = false;
+        foreach (string scene in new[] { "Akari", "Koharu", "Rei", "MinaBattle", "Stage0" })
+        {
+            game.SelectedEntry = GameManager.StageEntry.Start;
+            var root = GD.Load<PackedScene>($"res://{scene}.tscn").Instantiate<Node2D>();
+            GetTree().Root.AddChild(root);
+            GetTree().CurrentScene = root;
+            await Frames(3);
+            var hud = root.GetNode<Hud>("Hud");
+            var stage = (Node)root.GetType().GetProperty("Stage")!.GetValue(root)!;
+            if (scene == "MinaBattle")
+            {
+                hud._Process(6);
+                await Frames(3);
+            }
+            root.GetNode<Node2D>("World").ProcessMode = ProcessModeEnum.Disabled;
+            string lineField = scene == "Stage0" ? "_tLine" : "_introLine";
+            await CheckConversationResume(hud, stage, lineField, scene);
+            root.QueueFree();
+            await Frames(3);
+            Hud.BubblePaused = false;
+        }
+    }
+
+    private async Task CheckBossDialogueResume()
+    {
+        var root = GD.Load<PackedScene>("res://Akari.tscn").Instantiate<AkariRoot>();
+        GetTree().Root.AddChild(root);
+        GetTree().CurrentScene = root;
+        root.Stage.SetProcess(false);
+        root.Player.SetPhysicsProcess(false);
+        foreach (Enemy boss in new Enemy[] { new BossAkari(), new BossKoharu(), new BossRei(), new BossMina() })
+        {
+            root.World.AddChild(boss);
+            boss.SetPhysicsProcess(false);
+            if (boss is BossMina)
+                boss.GetType().GetField("_memoryPlayed", Private)!.SetValue(boss, true);
+            Call(boss, "OnCryStart");
+            await Frames(3);
+            await CheckConversationResume(root.Hud, boss, "_line", boss.GetType().Name + " redemption");
+            if (boss is BossAkari)
+            {
+                var talk = CharacterStoryTalk.Start(CharacterStory.Memory(Job.Melee, "akari"), () => root.Hud,
+                    (hud, who, text, face) => Call(boss, "ShowStoryLine", hud, who, text, face), () => { });
+                boss.GetType().GetField("_memoryTalk", Private)!.SetValue(boss, talk);
+                await Frames(3);
+                await CheckConversationResume(root.Hud, talk!, "_line", "character memory");
+            }
+            boss.QueueFree();
+            await Frames(3);
+            root.Hud.HoldBubble = false;
+            root.Hud.BattleMemoryTempo = false;
+            root.Hud.HideBubble();
+        }
+        root.QueueFree();
+        await Frames(3);
+    }
+
+    private async Task CheckConversationResume(Hud hud, object driver, string lineField, string label)
+    {
+        for (int page = 0; page < 10 && !hud.DialogRevealed; page++) hud.RevealDialogNow();
+        int line = Read<int>(driver, lineField);
+        Check(hud.DialogRevealed && Hud.BubblePaused, $"{label}: dialogue is ready before pausing");
+        _pause.Open();
+        await Frames(3);
+        SetSel(_pause.CloseIndex);
+        Input.ActionPress("ui_accept");
+        await Frames(4);
+        Check(!_pause.IsOpen && !GetTree().Paused, $"{label}: confirm closes the pause menu");
+        Check(Read<int>(driver, lineField) == line && hud.DialogRevealed,
+            $"{label}: closing the pause menu does not advance the dialogue");
+        Input.ActionRelease("ui_accept");
+        await Frames(3);
+        await Action("ui_accept");
+        Check(Read<int>(driver, lineField) == line + 1,
+            $"{label}: a fresh confirm still advances exactly one line");
+    }
+
+    private async Task CheckCombatResume(GameManager game)
+    {
+        bool hadDodge = game.HasDodge;
+        game.TrainingSetUpgrade("n_dodge", true);
+        var root = GD.Load<PackedScene>("res://Akari.tscn").Instantiate<AkariRoot>();
+        GetTree().Root.AddChild(root);
+        GetTree().CurrentScene = root;
+        root.Stage.SetProcess(false);
+        root.Hud.HoldBubble = false;
+        root.Hud.HideBubble();
+        await PhysicsFrames(4);
+
+        int bombs = game.Bombs;
+        _pause.Open();
+        await Frames(3);
+        Input.ParseInputEvent(new InputEventKey { Keycode = Key.X, Pressed = true });
+        await PhysicsFrames(4);
+        Check(!_pause.IsOpen && game.Bombs == bombs, "X closes the pause menu without spending a bomb");
+        Input.ParseInputEvent(new InputEventKey { Keycode = Key.X, Pressed = false });
+        await PhysicsFrames(3);
+        Input.ParseInputEvent(new InputEventKey { Keycode = Key.X, Pressed = true });
+        await PhysicsFrames(3);
+        Input.ParseInputEvent(new InputEventKey { Keycode = Key.X, Pressed = false });
+        await PhysicsFrames(3);
+        Check(game.Bombs == bombs - 1, "a fresh X after resume still spends exactly one bomb");
+
+        int dodges = root.Player.DodgeCount;
+        foreach (InputEvent mapping in InputMap.ActionGetEvents("ui_accept"))
+            GD.Print($"[PauseQA] ui_accept mapping: {mapping.AsText()}");
+        _pause.Open();
+        await Frames(3);
+        SetSel(_pause.CloseIndex);
+        Input.ParseInputEvent(new InputEventKey { Keycode = Key.Space, Pressed = true });
+        await PhysicsFrames(4);
+        Check(!_pause.IsOpen && root.Player.DodgeCount == dodges,
+            $"Space confirms resume without triggering a dodge (open={_pause.IsOpen}, paused={GetTree().Paused}, dodges={root.Player.DodgeCount}/{dodges}, hasDodge={game.HasDodge}, key={Input.IsKeyPressed(Key.Space)}, accept={Input.IsActionPressed("ui_accept")})");
+        Input.ParseInputEvent(new InputEventKey { Keycode = Key.Space, Pressed = false });
+        await PhysicsFrames(3);
+        Input.ParseInputEvent(new InputEventKey { Keycode = Key.Space, Pressed = true });
+        await PhysicsFrames(3);
+        Input.ParseInputEvent(new InputEventKey { Keycode = Key.Space, Pressed = false });
+        await PhysicsFrames(3);
+        Check(root.Player.DodgeCount == dodges + 1,
+            $"a fresh Space after resume still dodges (open={_pause.IsOpen}, dodges={root.Player.DodgeCount}/{dodges + 1}, hasDodge={game.HasDodge}, bubble={Hud.BubblePaused})");
+        await ToSignal(GetTree().CreateTimer(0.6), SceneTreeTimer.SignalName.Timeout);
+
+        _pause.Open();
+        await Frames(3);
+        SetSel(_pause.CloseIndex);
+        Input.ParseInputEvent(new InputEventKey { Keycode = Key.Z, Pressed = true });
+        await PhysicsFrames(8);
+        Check(!_pause.IsOpen && root.Player.ChargeRatio == 0,
+            "holding Z after confirming resume does not start a charge shot");
+        Input.ParseInputEvent(new InputEventKey { Keycode = Key.Z, Pressed = false });
+        await PhysicsFrames(3);
+        Input.ParseInputEvent(new InputEventKey { Keycode = Key.Z, Pressed = true });
+        await PhysicsFrames(4);
+        Check(root.Player.ChargeRatio > 0, "a fresh Z after resume still starts charging");
+        Input.ParseInputEvent(new InputEventKey { Keycode = Key.Z, Pressed = false });
+        await PhysicsFrames(3);
+        root.QueueFree();
+        await Frames(3);
+        game.TrainingSetUpgrade("n_dodge", hadDodge);
+    }
+
+    private async Task CheckRetryHoldResume()
+    {
+        var retry = new RetryHold();
+        Check(!retry.Update(RetryHold.HoldTime - 0.05, true), "a partial retry hold does not restart");
+        await Frames(3);
+        Check(!retry.Update(0.1, true) && retry.Progress < 0.3f,
+            "a pause gap discards the previous partial retry hold");
+        Check(retry.Update(RetryHold.HoldTime, true), "a full hold after resume still restarts");
+        retry.Update(0, false);
+        await Frames(3);
+        Check(retry.Update(0, true, instant: true), "a fresh game-over retry remains immediate");
+        await Frames(3);
+        Check(!retry.Update(0, true, instant: true), "a held retry cannot gain a new edge across a pause");
+    }
+
     // ── 開発機のセーブスロットの退避 / 復元 ──
     private static string Slot(int i) => ProjectSettings.GlobalizePath($"user://save_{i}.json");
     private static string Bak(int i) => ProjectSettings.GlobalizePath($"user://save_{i}.json.qabak");
@@ -266,5 +433,11 @@ public partial class PauseMenuQa : Node
     private async Task Frames(int count)
     {
         for (int i = 0; i < count; i++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+    }
+
+    private async Task PhysicsFrames(int count)
+    {
+        await Frames(4);
+        for (int i = 0; i < count; i++) await ToSignal(GetTree(), SceneTree.SignalName.PhysicsFrame);
     }
 }

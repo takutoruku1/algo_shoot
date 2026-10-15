@@ -1,5 +1,6 @@
 using Godot;
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using System.Threading.Tasks;
@@ -26,18 +27,21 @@ public partial class MinaPhaseQa : Node
     {
         try
         {
+            Engine.MaxFps = 60;
             Check(OS.GetUserDataDir().Replace('\\', '/').Contains("/build/qa_story/"), "isolated save data");
             var game = GetNode<GameManager>("/root/Game");
             game.ResetPersistent();
             game.AutoSaveEnabled = false;
             game.MsgCharsPerSec = 300;
             game.AutoAdvanceDialog = false;
+            game.SelectedJob = Job.Tank;
             DisplayServer.WindowSetMode(DisplayServer.WindowMode.Windowed);
             DisplayServer.WindowSetSize(new Vector2I(1280, 720));
             await Frames(1);
             var root = GD.Load<PackedScene>("res://MinaBattle.tscn").Instantiate<MinaRoot>();
             GetTree().Root.AddChild(root);
             GetTree().CurrentScene = root;
+            Check(game.SelectedJob == Job.Magic, "FINAL entry assigns Rei when no companion was selected");
             root.SetProcess(false);
             root.Stage.SetProcess(false);
             root.World.ProcessMode = ProcessModeEnum.Inherit;
@@ -55,12 +59,13 @@ public partial class MinaPhaseQa : Node
             caster.SetProcess(false);
             caster.CancelPendingAttacks();
             await Frames(3);
-            if (!OS.GetCmdlineUserArgs().Contains("--sequence-only"))
+            bool attacksOnly = OS.GetCmdlineUserArgs().Contains("--attacks-only");
+            if (attacksOnly || !OS.GetCmdlineUserArgs().Contains("--sequence-only"))
             {
-                await CheckConversations(game, root);
+                if (!attacksOnly) await CheckConversations(game, root);
                 await CheckAttacks(game, root, boss, caster);
             }
-            await CheckPhases(game, root, boss, caster);
+            if (!attacksOnly) await CheckPhases(game, root, boss, caster);
             root.QueueFree();
             await Frames(8);
             Pool.DespawnAll();
@@ -85,6 +90,7 @@ public partial class MinaPhaseQa : Node
     {
         var starts = new[] { new Vector2(Field.Left + 12, 20), new Vector2(Field.Right - 12, Field.Bottom - 20),
             new Vector2(Field.CenterX, Field.CenterY) };
+        var attacks = new Dictionary<(GameManager.Diff, Job, Vector2, int), (int Locks, int Curtains, int Relays)>();
         foreach (var diff in Enum.GetValues<GameManager.Diff>())
             foreach (var job in Enum.GetValues<Job>())
             {
@@ -97,15 +103,28 @@ public partial class MinaPhaseQa : Node
                         caster.BeginPhase(phase);
                         caster._Process(2d);
                         Check(caster.Active, $"{diff}/{job}/{phase}: signature announces before damage");
-                        int waves = phase == 0 ? 1 : phase == 4 ? 7 : 3;
+                        int waves = (int)typeof(MinaPhaseAttacks).GetMethod("WaveCount", Private)!.Invoke(caster, new object[] { phase })!;
+                        int threatenedWaves = 0;
+                        int locks = 0, curtains = 0, relays = 0;
                         for (int wave = 0; wave < waves; wave++)
                         {
                             Vector2 locked = root.Player.GlobalPosition;
                             caster._Process(1d);
                             var zones = root.World.GetChildren().OfType<AreaStrike>().Where(z => !z.IsQueuedForDeletion()).ToArray();
                             foreach (var zone in zones) zone.SetProcess(false);
-                            Check(zones.Length > 0 && zones.Any(z => z.CoversPoint(locked)) && zones.All(z => !z.IsStriking),
-                                $"{phase}/{wave}: staying still is threatened only after a warning");
+                            Check(zones.Length > 0 && zones.All(z => !z.IsStriking),
+                                $"{phase}/{wave}: every area starts with a warning");
+                            var shape = Read<AreaStrike.Shape>(zones[0], "_shape");
+                            if (shape == AreaStrike.Shape.Circle) locks++;
+                            else if (shape == AreaStrike.Shape.Rect) curtains++;
+                            else if (shape == AreaStrike.Shape.Fullscreen) relays++;
+                            bool threatened = zones.Any(z => z.CoversPoint(locked));
+                            if (threatened) threatenedWaves++;
+                            if (zones.All(z => Read<AreaStrike.Shape>(z, "_shape") != AreaStrike.Shape.Fullscreen))
+                                Check(threatened, $"{phase}/{wave}: aimed attacks threaten a stationary player");
+                            else
+                                Check(zones.Any(z => starts.Any(z.CoversPoint)),
+                                    $"{phase}/{wave}: a predictable safe zone still leaves a dangerous area");
                             Vector2 safe = NearestSafe(locked, zones);
                             double warn = zones.Min(z => Read<double>(z, "_warn"));
                             Check(warn >= locked.DistanceTo(safe) / root.Player.SlowestMoveSpeed + 0.3,
@@ -125,10 +144,29 @@ public partial class MinaPhaseQa : Node
                             foreach (var zone in zones) zone.QueueFree();
                             await Frames(2);
                         }
+                        Check(threatenedWaves > 0, "completing the signature requires movement");
+                        attacks[(diff, job, start, phase)] = (locks, curtains, relays);
                         caster._Process(1d);
                         Check(!caster.Active && caster.OpenerCompleted, "all signature waves finish and release combat");
                     }
             }
+        foreach (var job in Enum.GetValues<Job>())
+        foreach (var start in starts)
+        foreach (int phase in new[] { 0, 1, 4 })
+        {
+            var easy = attacks[(GameManager.Diff.Easy, job, start, phase)];
+            var normal = attacks[(GameManager.Diff.Normal, job, start, phase)];
+            var hard = attacks[(GameManager.Diff.Hard, job, start, phase)];
+            var lunatic = attacks[(GameManager.Diff.Lunatic, job, start, phase)];
+            Check(easy.Locks == (phase == 0 ? 1 : phase == 1 ? 3 : 2)
+                && normal.Locks == (phase == 4 ? 2 : 4),
+                $"{job}/{start}/{phase}: EASY and NORMAL retain their emitted lock counts");
+            Check(hard.Locks == normal.Locks + 1 && lunatic.Locks == hard.Locks + 1,
+                $"{job}/{start}/{phase}: emitted locks increase NORMAL {normal.Locks} < HARD {hard.Locks} < LUNATIC {lunatic.Locks}");
+            Check(new[] { easy, normal, hard, lunatic }.All(count =>
+                count.Curtains == (phase == 4 ? 2 : 0) && count.Relays == (phase == 4 ? 3 : 0)),
+                $"{job}/{start}/{phase}: the later curtain and relay waves remain intact");
+        }
         game.Difficulty = GameManager.Diff.Normal;
         game.SelectedJob = Job.Tank;
         caster.CancelPendingAttacks();
@@ -150,20 +188,30 @@ public partial class MinaPhaseQa : Node
         await Frames(3);
         caster.BeginPhase(3);
         caster._Process(2d);
+        caster._Process(1d);
+        var interrupted = root.World.GetChildren().OfType<AreaStrike>().Single(z => !z.IsQueuedForDeletion());
+        interrupted.SetProcess(false);
         Check(caster.Active && !caster.OpenerCompleted, "the interrupted opener starts with its HP gate closed");
         typeof(Enemy).GetMethod("EnterBreak", Private)!.Invoke(boss, null);
+        interrupted._Process(Read<double>(interrupted, "_warn") + 1d);
         caster._Process(1d / 60);
-        Check(caster.OpenerCompleted && !caster.Active,
+        Check(caster.OpenerCompleted && !caster.Active && interrupted.IsQueuedForDeletion() && !interrupted.IsStriking,
             "breaking the shield interrupts the opener and releases its HP gate for high-power shots");
         boss._PhysicsProcess(2d);
         await Frames(3);
         Check(!Read<CollisionShape2D>(boss, "_bodyShape", typeof(Enemy)).Disabled,
             "ordinary combat restores body contact");
         // Finish the damage window before the costume tests assert the idle pose.
+        game.SelectedJob = Job.Magic;
         var tickPhase = typeof(Enemy).GetMethod("TickBossPhase", Private)!;
-        tickPhase.Invoke(boss, new object[] { 5d });
-        tickPhase.Invoke(boss, new object[] { 2d });
-        Check(!boss.GaugeVulnerable && !boss.GaugeReforming, "attack test restores the shielded phase");
+        for (int frame = 0; frame < 900 && (boss.GaugeVulnerable || boss.GaugeReforming); frame++)
+        {
+            if (Hud.BubblePaused) await AdvanceUntil(() => !Hud.BubblePaused);
+            tickPhase.Invoke(boss, new object[] { 1d / 60 });
+        }
+        await Frames(3);
+        Check(!boss.GaugeVulnerable && !boss.GaugeReforming && !Hud.BubblePaused,
+            "attack test restores the shielded phase after the reformation dialogue");
     }
 
     private static Vector2 NearestSafe(Vector2 start, AreaStrike[] zones)
@@ -188,7 +236,9 @@ public partial class MinaPhaseQa : Node
         var originalJob = game.SelectedJob;
         var seenBefore = new System.Collections.Generic.HashSet<string>(
             Read<System.Collections.Generic.HashSet<string>>(game, "_idleDialogSeen"));
-        foreach (var job in Enum.GetValues<Job>())
+        var companions = new[] { Job.Melee, Job.Heal, Job.Magic };
+        var readerPresent = new System.Collections.Generic.HashSet<Job>();
+        foreach (var job in companions)
         for (int phase = 1; phase <= 4; phase++)
         {
             game.SelectedJob = job;
@@ -200,7 +250,7 @@ public partial class MinaPhaseQa : Node
             Check(!Read<FilmSkip>(scene, "_skip").Available, $"{job}/{phase}: unread character dialogue cannot be skipped");
             Check(Read<bool>(root.Hud, "_cinematicBubble"), "phase conversation uses the compact speech bubble");
             var lines = Read<Array>(scene, "_lines");
-            int minaLines = 0, playerLines = 0;
+            int minaLines = 0, companionLines = 0;
             await Frames(8);
             await ToSignal(RenderingServer.Singleton, RenderingServer.SignalName.FramePostDraw);
             using var first = GetViewport().GetTexture().GetImage();
@@ -216,15 +266,20 @@ public partial class MinaPhaseQa : Node
                     minaLines++;
                     Check(speaker == "ミナ", "Mina keeps her own speaker identity");
                 }
+                else if (kind == Hud.LineKind.Boy)
+                {
+                    readerPresent.Add(job);
+                    Check(speaker == "あなた" && Read<Texture2D?>(root.Hud, "_dlgPortrait") == null,
+                        "the reader keeps a distinct identity without a companion portrait");
+                }
                 else
                 {
-                    playerLines++;
-                    Check(job != Job.Tank && kind == Hud.LineKind.Companion
+                    companionLines++;
+                    Check(kind == Hud.LineKind.Companion
                         && speaker == Jobs.Get(job).CharacterName,
-                        $"{job}/{phase}/{index}: only the entered character replies");
-                    if (job != Job.Tank)
-                        Check(Read<Texture2D>(root.Hud, "_dlgPortrait").ResourcePath == CompanionDialogue.Portrait(job),
-                            "speech avatar uses the selected character, including Rei's VTuber form");
+                        $"{job}/{phase}/{index}: companion replies use the entered character");
+                    Check(Read<Texture2D>(root.Hud, "_dlgPortrait").ResourcePath == CompanionDialogue.Portrait(job),
+                        "speech avatar uses the selected character, including Rei's VTuber form");
                 }
                 foreach (var page in Read<System.Collections.Generic.List<string>>(root.Hud, "_dlgPages"))
                     Check(page.Split('\n').Length <= 2 && page.Split('\n').All(line => UiKit.TextW(UiKit.Zen, line, 24) <= 928.1f),
@@ -237,7 +292,7 @@ public partial class MinaPhaseQa : Node
                 for (int x = 0; x < 1280; x += 5)
                     sameStage &= current.GetPixel(x, y) == first.GetPixel(x, y);
                 Check(sameStage, "changing speakers never adds a waist-up illustration over the stage");
-                if ((job == Job.Tank ? index == lines.Length - 1 : playerLines == 1 && kind != Hud.LineKind.Mina)
+                if (companionLines == 1 && kind == Hud.LineKind.Companion
                     && phase is 1 or 4)
                 {
                     await Shot($"dialogue_{job}_{phase}_1280x720");
@@ -247,11 +302,7 @@ public partial class MinaPhaseQa : Node
                     await Frames(8);
                 }
             }
-            Check(minaLines > 0 && (job == Job.Tank ? playerLines == 0 : playerLines > 0),
-                job == Job.Tank ? "Mina addresses the player without scripting an unchosen reply"
-                    : "the selected companion still answers Mina");
-            Check(lines.Cast<object>().Any(l => ((string)l.GetType().GetProperty("Text")!.GetValue(l)!).Contains("ご主人様")),
-                "the player remains part of Mina's relationship arc");
+            Check(minaLines > 0 && companionLines > 0, "the selected companion still answers Mina");
             Call(scene, "BeginLeave");
             scene._Process(0.6);
             await Frames(3);
@@ -260,6 +311,7 @@ public partial class MinaPhaseQa : Node
                 "dialogue completes once and restores combat and the normal HUD");
             Check(FilmSkip.Seen(game, $"mina_phase_{phase}_{Jobs.Get(job).CharacterId}"), "read status belongs to this character and phase");
         }
+        Check(companions.All(readerPresent.Contains), "the reader remains present across each companion's relationship arc");
         game.SelectedJob = originalJob;
         Write(game, "_idleDialogSeen", seenBefore);
     }
@@ -481,7 +533,8 @@ public partial class MinaPhaseQa : Node
     }
     private async Task WaitUntil(Func<bool> done, int frames)
     {
-        for (int i = 0; i < frames && !done(); i++) await Frames(1);
+        ulong deadline = Time.GetTicksMsec() + (ulong)Math.Ceiling(frames * 1000d / 60);
+        while (!done() && Time.GetTicksMsec() < deadline) await Frames(1);
         Check(done(), "automatic dialogue reaches its destination");
     }
     private async Task Shot(string name)

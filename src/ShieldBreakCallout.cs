@@ -5,10 +5,10 @@ public partial class ShieldBreakCallout : Node2D
     public Hud Hud = null!;
     private Enemy? _owner;
     private Texture2D? _portrait;
-    private string _speaker = "", _line = "";
+    private string _speaker = "", _line = "", _breakLine = "";
     private Color _accent;
     private float _age;
-    public bool Active => IsInstanceValid(_owner) && _owner.GaugeVulnerable
+    public bool Active => IsInstanceValid(_owner) && (_owner.GaugeBreaking || _owner.GaugeBodyExposed)
         && !Hud.BubblePaused && !Hud.CinematicMode && !Hud.SuppressCallouts;
 
     public override void _Ready()
@@ -33,6 +33,7 @@ public partial class ShieldBreakCallout : Node2D
             Job.Magic => "シールドは壊れたわ。\n今がチャンスよ。本体を狙って！",
             _ => "シールドを破壊しました。\nご主人様、今こそ本体を狙いましょう！",
         };
+        _breakLine = _line.Split('\n')[0];
         _portrait = GD.Load<Texture2D>(job switch
         {
             Job.Melee => "res://char/v3/akari_face.png",
@@ -60,9 +61,9 @@ public partial class ShieldBreakCallout : Node2D
         box.Position += new Vector2(-(1 - enter) * 22, 0);
         DialogueBox.DrawFrame(this, box, _speaker, _accent, _portrait, alpha: alpha);
         UiKit.Text(this, UiKit.Zen, new Vector2(box.End.X - 244, box.Position.Y + 17),
-            "本体にダメージが通る", 15,
+            _owner.GaugeBodyExposed ? "本体にダメージが通る" : "シールド破壊", 15,
             new Color(DialogueBox.Ink, alpha), HorizontalAlignment.Right, 220);
-        var pages = DialogueBox.Paginate(_line, DialogueBox.WrapWidth(box));
+        var pages = DialogueBox.Paginate(_owner.GaugeBodyExposed ? _line : _breakLine, DialogueBox.WrapWidth(box));
         DialogueBox.DrawBody(this, box, pages[0], pages[0].Length, alpha);
         var start = new Vector2(box.Position.X + DialogueBox.Padding, box.End.Y - 15);
         float width = DialogueBox.WrapWidth(box);

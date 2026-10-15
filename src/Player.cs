@@ -832,6 +832,16 @@ public partial class Player : Area2D
         _blinkPhase = 0f;
     }
 
+    public override void _Notification(int what)
+    {
+        if (what != NotificationUnpaused) return;
+        // UI の閉じ押下は物理フレームまで残るため、再開時に既存の入力ラッチで吸収する。
+        _bombHeld = _dodgeHeld = true;
+        _chargeKeyLocked = _dodgeKeyLocked = _mouseLockLocked = _mouseFlipLocked = true;
+        _chargeHeld = _mouseHoldValid = _mouseChargeHold = _mouseTapFire = false;
+        _chargeT = _mouseHoldT = 0;
+    }
+
     public override void _PhysicsProcess(double delta)
     {
         float dt = (float)delta;

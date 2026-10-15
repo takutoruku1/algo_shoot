@@ -1,5 +1,6 @@
 using Godot;
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using System.Threading.Tasks;
@@ -52,7 +53,8 @@ public partial class BossSpellQa : Node
             else
             {
                 bool clipsOnly = OS.GetCmdlineUserArgs().Contains("--rei-clips");
-                bool edgesOnly = OS.GetCmdlineUserArgs().Contains("--edges");
+                bool edgeEffects = OS.GetCmdlineUserArgs().Contains("--edge-effects");
+                bool edgesOnly = OS.GetCmdlineUserArgs().Contains("--edges") || edgeEffects;
                 foreach (string scene in clipsOnly ? new[] { "Rei" } : new[] { "Akari", "Koharu", "Rei", "MinaBattle" })
                 {
                     game.Difficulty = GameManager.Diff.Normal;
@@ -79,7 +81,8 @@ public partial class BossSpellQa : Node
                     boss.SetPhysicsProcess(false);
                     if (edgesOnly)
                     {
-                        await CheckEdgeVolleys(game, scene, boss, hud, world, player);
+                        if (edgeEffects) await CheckEasyEdgeEffects(game, scene, boss, hud, world, player);
+                        else await CheckEdgeVolleys(game, scene, boss, hud, world, player);
                         root.QueueFree();
                         await Frames(5);
                         Pool.DespawnAll();
@@ -184,6 +187,106 @@ public partial class BossSpellQa : Node
             Pool.DespawnAll();
             await Frames(5);
         }
+    }
+
+    private async Task CheckEasyEdgeEffects(GameManager game, string scene, Enemy boss, Hud hud, Node2D world, Player player)
+    {
+        string key = scene == "MinaBattle" ? "mina" : scene.ToLowerInvariant();
+        var caster = Read<Node>(boss, "_caster");
+        caster.SetProcess(false);
+        if (caster is AreaSpellCaster area) area.CancelPendingAttacks();
+        else ((MinaPhaseAttacks)caster).CancelPendingAttacks();
+        await ClearStrikes(world);
+        Pool.DespawnAll();
+        hud.HoldBubble = false;
+        hud.HideBubble();
+        foreach (var difficulty in new[] { GameManager.Diff.Normal, GameManager.Diff.Hard, GameManager.Diff.Lunatic })
+        {
+            game.Difficulty = difficulty;
+            var sequence = BossEdgeVolley.Begin(boss, key, 0);
+            sequence.SetPhysicsProcess(false);
+            Check(sequence.Sequence != null, $"{key}/{difficulty}: edge attack retains the normal barrage path");
+            sequence.Cancel();
+        }
+        if (boss is not BossKoharu and not BossRei) return;
+        game.Difficulty = GameManager.Diff.Easy;
+        game.SelectedJob = Job.Tank;
+        float hp = boss.HpRatio;
+        int lives = player.Lives;
+        int sides = key == "rei" ? 3 : 2;
+        int cases = 0, steeringCases = 0, splitCases = 0, doubleSplitCases = 0;
+        foreach (Job playerJob in Enum.GetValues<Job>())
+        for (int side = 0; side < sides; side++)
+        foreach (float crossFraction in new[] { 0f, 0.5f, 1f })
+        foreach (float depthFraction in new[] { 0f, 0.5f, 1f })
+        foreach (bool dodge in new[] { false, true })
+        {
+            game.SelectedJob = playerJob;
+            Pool.DespawnAll();
+            bool vertical = BossEdgeVolley.DirectionFor(key, side) is BossEdgeVolley.Edge.Top or BossEdgeVolley.Edge.Bottom;
+            float axis = vertical ? Mathf.Lerp(Field.Left + 4, Field.Right - 4, crossFraction)
+                : Mathf.Lerp(Field.Top + 4, Field.Bottom - 4, crossFraction);
+            float depth = vertical ? Mathf.Lerp(Field.Top + 8, Field.Bottom - 8, depthFraction)
+                : Mathf.Lerp(Field.Left + 8, Field.Right - 8, depthFraction);
+            Vector2 start = vertical ? new Vector2(axis, depth) : new Vector2(depth, axis);
+            player.Position = start;
+            var attack = BossEdgeVolley.Begin(boss, key, side);
+            attack.SetPhysicsProcess(false);
+            float spacing = Read<float>(attack, "_spacing");
+            var gates = Read<Vector2[]>(attack, "_gates");
+            Vector2 direction = Read<Vector2>(attack, "_direction");
+            float center = vertical ? Field.CenterX : Field.CenterY;
+            Vector2 destination = start + (vertical ? Vector2.Right : Vector2.Down) * (axis < center ? spacing / 2 : -spacing / 2);
+            CheckSilent(gates.Zip(gates.Skip(1), (a, b) => a.DistanceTo(b)).All(gap => gap >= spacing - 0.01f), "edge spacing is preserved");
+            CheckSilent(gates.Any(g => Mathf.Abs((g - start).Cross(direction)) < 0.01f), "one warned seed lane still targets the start position");
+            bool hit = false, steered = false, split = false, twice = false;
+            var seeds = new HashSet<(ulong, ulong)>();
+            for (int frame = 0; frame < 900; frame++)
+            {
+                if (dodge && frame >= 21) player.Position = player.Position.MoveToward(destination, player.SlowestMoveSpeed / 60);
+                if (!attack.Finished) attack._PhysicsProcess(1d / 60);
+                if (frame < 86) CheckSilent(Bullets().Length == 0, "EASY edge warning never damages early");
+                var shots = Bullets().Select(b => (b, b.ActivationId)).ToArray();
+                foreach (var (bullet, activation) in shots)
+                {
+                    if (!bullet.Active || bullet.ActivationId != activation) continue;
+                    bullet.SetPhysicsProcess(false);
+                    if (Mathf.IsEqualApprox(bullet.Radius, BulletPool.BossRadius * (key == "rei" ? 1.5f : 1)))
+                    {
+                        seeds.Add((bullet.GetInstanceId(), activation));
+                        CheckSilent(key == "koharu" ? bullet.Homing : !bullet.Homing, "edge seed retains the character effect");
+                    }
+                    bullet._PhysicsProcess(1d / 60);
+                    if (!bullet.Active || bullet.ActivationId != activation) continue;
+                    float angle = Mathf.Abs(Mathf.AngleDifference(direction.Angle(), bullet.Velocity.Angle()));
+                    if (key == "koharu" && Read<float>(bullet, "_age") > 0.2f && angle < 0.09f) steered = true;
+                    if (key == "rei" && bullet.Radius < BulletPool.BossRadius * 1.5f - 0.01f)
+                    {
+                        split = true;
+                        if (bullet.Radius < BulletPool.BossRadius - 0.01f) twice = true;
+                    }
+                }
+                hit |= Bullets().Any(b => b.CollisionLayer != 0 && BossCharacterShotQa.HitsPlayer(b, player.GlobalPosition));
+                if (attack.Finished && Bullets().Length == 0) break;
+            }
+            string label = $"{key}/EASY/{playerJob}/{side}/{crossFraction}/{depthFraction}/{dodge}";
+            CheckSilent(attack.Finished && Bullets().Length == 0, label + ": attack and descendants leave the field");
+            CheckSilent(seeds.Count == gates.Length * 3, label + ": exactly three seed rows fire");
+            CheckSilent(!dodge || !hit, label + ": sidestep after a 0.35s reaction delay escapes seeds and fragments");
+            CheckSilent(dodge || depthFraction != 0.5f || hit, label + ": stationary central-depth player is threatened");
+            if (steered) steeringCases++;
+            if (split) splitCases++;
+            if (twice) doubleSplitCases++;
+            cases++;
+            attack.Cancel();
+        }
+        Check(key == "koharu" ? steeringCases == cases : splitCases > 0 && doubleSplitCases > 0,
+            $"{key}/EASY: observed effects across {cases} cases (steering={steeringCases}, split={splitCases}, second split={doubleSplitCases})");
+        Check(Mathf.IsEqualApprox(boss.HpRatio, hp) && player.Lives == lives, $"{key}: HP and lives remain unchanged");
+        Check(true, $"{key}/EASY: all four player speeds escape at center and field edges with actual hit shapes");
+        foreach (var bullet in Pool.GetChildren().OfType<Bullet>()) bullet.SetPhysicsProcess(true);
+        Pool.DespawnAll();
+        await Frames(2);
     }
 
     private async Task CheckEdgeVolleys(GameManager game, string scene, Enemy boss, Hud hud, Node2D world, Player player)
@@ -309,7 +412,7 @@ public partial class BossSpellQa : Node
             areaCaster._Process(100);
             if (key == "rei")
             {
-                areaCaster.CastFullscreenChain(2, 70, 100);
+                areaCaster.RequestFinale();
                 Check(!areaCaster.EdgeAttackActive && areaCaster.AoeActive, "fullscreen relay replaces edge attack without overlap");
             }
         }
@@ -655,6 +758,7 @@ public partial class BossSpellQa : Node
             Check(effect.IsQueuedForDeletion() && !effect.Visible, "effect removes itself within 0.72 seconds");
             await Frames(2);
             FxLayer.Instance.BossBreak(boss.Position, 56);
+            FxLayer.Instance.BossBreakCue(boss.Position, 56);
             var interrupted = Effects().Single();
             hud.HoldBubble = true;
             hud.ShowMessage("QA");
@@ -1071,7 +1175,7 @@ public partial class BossSpellQa : Node
             else
             {
                 int hops = diff switch { GameManager.Diff.Easy => 2, GameManager.Diff.Lunatic => 4, _ => 3 };
-                caster.CastFullscreenChain(hops, 140f, 190f);
+                caster.RequestFinale();
                 Check(Read<string>(hud, "_spellName") == "最後まで見てて", $"Rei/{diff}: relay uses personal plea");
                 for (int i = 0; i < hops; i++)
                 {

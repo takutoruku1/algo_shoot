@@ -44,7 +44,7 @@ public partial class MinaPhaseScene : Node2D
                 new Line(Hud.LineKind.Companion, "うん。それでも、一緒に帰りたい。"),
                 new Line(Hud.LineKind.Mina, "あかりさん。わたくし、帰りたいです。"),
                 new Line(Hud.LineKind.Mina, "わたくしを……助けて、ください。"),
-                new Line(Hud.LineKind.Companion, "聞こえた。今度は、あたしが迎えに行く。"),
+                new Line(Hud.LineKind.Companion, "聞こえた。最後の壁を開けるよ。あたしにつかまって。"),
         },
         (Job.Heal, 1) => new[]
         {
@@ -80,7 +80,7 @@ public partial class MinaPhaseScene : Node2D
                 new Line(Hud.LineKind.Companion, "いいよ。今度は、あたしの隣で休んで。"),
                 new Line(Hud.LineKind.Mina, "こはるさん。わたくし、帰りたいです。"),
                 new Line(Hud.LineKind.Mina, "わたくしを……助けて、ください。"),
-                new Line(Hud.LineKind.Companion, "聞こえたよ。待ってて。いま、そっちに行くね。"),
+                new Line(Hud.LineKind.Companion, "聞こえたよ。最後の壁を開けるね。手、離さないから。"),
         },
         (Job.Magic, 1) => new[]
         {
@@ -101,7 +101,7 @@ public partial class MinaPhaseScene : Node2D
                 new Line(Hud.LineKind.Companion, "ほら。いまの話、もっと聞きたいわ。役に立つ報告より、ずっと。"),
                 new Line(Hud.LineKind.Mina, "ご報告することがなくても、話しかけたい日が、ありました。"),
                 new Line(Hud.LineKind.Companion, "どんなとき？"),
-                new Line(Hud.LineKind.Mina, "皆さまを送り届けたあと。呼びかけて、やめたことが……。"),
+                new Line(Hud.LineKind.Mina, "皆さまの帰還を確認したあと。呼びかけて、やめたことが……。"),
         },
         (Job.Magic, 3) => new[]
         {

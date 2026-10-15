@@ -20,21 +20,16 @@ public partial class DiffSelect : Node2D
         public string Face;   // MINA 立ち絵（難易度に応じた表情）
         public string Quip;   // 立ち絵脇のミナの一言
     }
-    // Density（弾密度メーター、5マス満点）は実際のリスクである GameManager.BulletCountMul
-    // （GameManager.cs:63 — Easy0.38/Normal0.7/Hard1.1/Lunatic1.9、Lunaticが最大値）に比例させて算出。
-    // 5 * mul/1.9 を四捨五入：Easy1/Normal2/Hard3/Lunatic5。旧実装は毎段+1の線形(2/3/4/5)で、
-    // 実値では最大の跳ね幅であるHard→Lunatic(+0.8, 全区間最大)が他の段(+0.32/+0.4)と同じ+1マスにしか
-    // 見えず、Lunaticへの賭け金を過小に見せていた。以後 BulletCountMul を変えたらここも合わせて見直すこと。
     private static readonly Tier[] Tiers =
     {
         // 名前はハブの投稿詳細と同じ 浅く／いつも通り／深く／底まで（3-1）。説明はミナの観測の言い方に寄せる。
-        new() { Name = "浅く",       Desc = "光は六つ。弾は少なく、ゆっくり。",   Diff = GameManager.Diff.Easy,    Density = 1,
+        new() { Name = "浅く",       Desc = "弾は少なく、ゆっくり。",             Diff = GameManager.Diff.Easy,    Density = 2,
                 Face = "res://char/mina_smile.png",   Quip = "ゆっくりで、いいんですよ。" },
-        new() { Name = "いつも通り", Desc = "光は四つ。",                         Diff = GameManager.Diff.Normal,  Density = 2,
+        new() { Name = "いつも通り", Desc = "標準の弾幕。慣れてきたらここから。", Diff = GameManager.Diff.Normal,  Density = 2,
                 Face = "res://char/mina_face.png",    Quip = "では、いつも通りに。" },
-        new() { Name = "深く",       Desc = "光は三つ。弾が増え、密度が上がる。", Diff = GameManager.Diff.Hard,    Density = 3,
+        new() { Name = "深く",       Desc = "弾が増え、密度が上がる。",           Diff = GameManager.Diff.Hard,    Density = 3,
                 Face = "res://char/mina_worried.png", Quip = "……無理は、しないでくださいね。" },
-        new() { Name = "底まで",     Desc = "光は二つ。最大強化前提の深さ。",     Diff = GameManager.Diff.Lunatic, Density = 5,
+        new() { Name = "底まで",     Desc = "弾が最も多く、攻撃の間隔も短い。",   Diff = GameManager.Diff.Lunatic, Density = 5,
                 Face = "res://char/mina_tears.png",   Quip = "……覚悟は、できていますか。" },
     };
 
@@ -217,11 +212,6 @@ public partial class DiffSelect : Node2D
         // DebugAlwaysBoss を見て毎ランそれを復元するので、ここで潰しても壊れない。
         if (_game != null && !_game.DebugAlwaysBoss) _game.SelectedEntry = GameManager.StageEntry.Start;
         string scene = _game?.PendingStageScene ?? "res://Rei.tscn";
-        // 他ジョブ潜行の章カウンタ：ダイブ確定のここで1回だけ数える（Stage 側の _Ready で数えると
-        //   R リトライの ReloadCurrentScene でも増えて章が飛ぶ）。対象は本編3面×結び手以外のみ
-        //   （FINAL は StageIdForScene が null＝数えない。FINAL は常にミナ本編のため章も持たない）。
-        if (_game != null && _game.SelectedJob != Job.Tank && GameManager.StageIdForScene(scene) != null)
-            _game.RegisterCharacterDive(_game.SelectedJob);
         GetNodeOrNull<BulletPool>("/root/Pool")?.DespawnAll();
         GameManager.FadeToScene(this, scene);
     }
@@ -240,7 +230,7 @@ public partial class DiffSelect : Node2D
         UiKit.Text(this, UiKit.Mono, new Vector2(padX, top + 8), _stageTag, UiKit.FontLabel, UiKit.Info);
         float tagW = UiKit.TextW(UiKit.Mono, _stageTag, UiKit.FontLabel);
         UiKit.Text(this, UiKit.ZenBlack, new Vector2(padX + tagW + 16, top), $"{_diveName} へ潜る", UiKit.FontTitle, UiKit.White);
-        UiKit.Text(this, UiKit.Zen, new Vector2(padX, top + 4), "深く潜るほど、弾は増え、光は減ります", UiKit.FontBody, UiKit.Text3,
+        UiKit.Text(this, UiKit.Zen, new Vector2(padX, top + 4), "難易度で弾幕とスコア倍率が変わります", UiKit.FontBody, UiKit.Text3,
             HorizontalAlignment.Right, W - padX * 2);
         DrawRect(new Rect2(padX, top + 44, W - padX * 2, 1f), new Color(1, 1, 1, 0.1f));
 
@@ -316,10 +306,8 @@ public partial class DiffSelect : Node2D
         UiKit.Text(this, UiKit.Mono, new Vector2(mulX, y + 50), mulS, UiKit.FontLabel, UiKit.Hp);
         UiKit.Heart(this, new Vector2(mulX - 12f, y + 57f), 6f, UiKit.Hp);
 
-        // ♥・ボムの基礎値は全難易度で共通（3/1・2026-09-15）になったため、この欄は素の値をそのまま出すだけ。
-        
-        string stake = $"♥{GameManager.BaseLivesFor(tr.Diff)}  ボム{GameManager.BaseBombsFor(tr.Diff)}";
-        UiKit.Text(this, UiKit.Mono, new Vector2(x + w - 24f - UiKit.TextW(UiKit.Mono, stake, UiKit.FontSmall), y + 66), stake, UiKit.FontSmall, UiKit.Text3);
+        string stake = $"開始 ♥{_game!.StartLives}  ボム{_game.StartBombs}";
+        UiKit.Text(this, UiKit.Zen, new Vector2(x + w - 24f - UiKit.TextW(UiKit.Zen, stake, UiKit.FontSmall), y + 66), stake, UiKit.FontSmall, UiKit.Text3);
     }
 
     // ── 右カラム：MINA 立ち絵 ＋ 一言（選択難易度の表情をクロスフェードで反映）──

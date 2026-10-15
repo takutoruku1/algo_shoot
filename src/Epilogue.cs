@@ -202,6 +202,10 @@ public partial class Epilogue : Node2D
         //   本作に第三者の語り手はいない（wiki/03_ストーリー/08_伏線と回収.md も明記）ので "ミナ" に寄せる。
         //   いちばん静かな場面で「誰が語っているか」が揺れないようにする。
         void G(string who, string t) => _gaze.Add(new DLine { Who = who, Text = t });
+        G("地", "帰還後・ミナとの回線");
+        G("あなた", "ごめん。君が苦しいって言える場所まで、僕が用意できているつもりだった。");
+        G("ミナ", "では、今から。何もできない日のお話も、聞いてください。");
+        G("あなた", "うん。今日の話も、明日のお小言も。僕からも話したい。");
         G("ミナ", "今夜は、こちらを。わたくしの目で見た空です。");
         G("あなた", "こんなふうに見えてたんだ。僕の観測画面より、ずっと明るい。");
         G("ミナ", "全部を数えるのは、やめました。今は、この一つを見ていただきたいので。");
@@ -639,7 +643,7 @@ public partial class Epilogue : Node2D
         bool narr = d.Who == "地";
         var box = DialogueBox.FullScreen;
         UiKit.BeginDesign(this);
-        DialogueBox.DrawFrame(this, box, narr ? "" : d.Who, EdgeFor(d.Who));
+        DialogueBox.DrawFrame(this, box, narr ? "" : d.Who, EdgeFor(d.Who), draft: d.Who == "あなた");
         double shown = narr ? CurPage.Length : _reveal;
         float alpha = narr ? Mathf.Clamp((float)_lineT / 0.35f, 0, 1) : 1;
         DialogueBox.DrawBody(this, box, CurPage, shown, alpha,

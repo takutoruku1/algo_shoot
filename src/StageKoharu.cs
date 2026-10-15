@@ -21,8 +21,6 @@ public partial class StageKoharu : Node
     private int _introLine;
     private BossKoharu _boss = null!;
     private bool _bossActive;
-    private double _rainT;
-    private readonly RandomNumberGenerator _rng = new RandomNumberGenerator();
     private bool _zHeld;
     private bool _zEdge;
     private bool _startBannerShown;
@@ -108,7 +106,7 @@ public partial class StageKoharu : Node
         (2, "好きに振っていいんだよ。……あたしは、ずっと振ってるけど。", "res://char/v3/koharu_face.png"),
     };
 
-    // こはる面・中ボスの第一声（s2_1 差分・2026-09-25）。道中の新規選択（壁の予定表・step 3）を拾う。
+    // こはる面・中ボスの第一声（s2_1 差分・2026-09-25）。道中の新規選択（壁の予定表）を拾う。
     //   既存 CameoTalk1 は置き換えず、選んでいたときだけ差し替える（選んでいなければ既存が出る）。
     //   s2_4 は step 9 なので、中ボスより前にあるのは s2_1 だけ。
     //   中ボスは本ボス本人の先出し＝「ボス戦で会う前から、もう聞かれていた」という画になる。
@@ -139,7 +137,7 @@ public partial class StageKoharu : Node
     };
 
     // ───────── 道中の下書き選択（正典: wiki/08_仮台本/17_道中の選択肢_案C.md・承認 2026-09-06）─────────
-    //   s2_1 … 道中A（部屋）の末尾（step 3・中ボスより前）。効果＝【激情】初期値（FuryMeter.InitialKoharu）。
+    //   s2_1 … 道中A（部屋）の末尾（中ボスより前）。効果＝【激情】初期値（FuryMeter.InitialKoharu）。
     //   s2_4 … 入力欄の場面の末尾（step 9・欄を閉じる前）。効果＝ここで散った語が F4 の悲鳴の枠の先頭へ。
 
     // ───── S2-1b 予定表（新規・2026-09-25）─────
@@ -215,12 +213,12 @@ public partial class StageKoharu : Node
     //   どの席もこちらを見ていない。視線だけがある。黒板に「期待」。文字はここ一箇所。
     private static readonly (int who, string text, string face)[] ClassTalk =
     {
-        (1, "……場所が、変わりました。教室。席は、ぜんぶ埋まっています。——誰とも目が合わないのに、視線だけが、こちらに。", "res://char/mina_face.png"),
-        (0, "本音に近づくと、景色も変わる。ここは教室の記憶だ。黒板に「期待」って書いてある。", ""),
+        (1, "……部屋の向こうに、教室が重なって見えます。席は、ぜんぶ埋まっています。——誰とも目が合わないのに、視線だけが、こちらに。", "res://char/mina_face.png"),
+        (0, "こはるさんの教室の記憶だね。この部屋にいても、学校で向けられた期待が離れないんだ。", ""),
         (4, "「今日も明るいねって言われた。……何の話してたか、覚えてない。」", ""),
         (1, "……明るい声で、投稿しています。明るい、と、言われたことを。", "res://char/mina_face.png"),
-        (0, "視線が集まってる。端の通路へ行こう。机の間なら、囲まれずに済む。", ""),
-        (1, "期待という字は、消すのも大変そうですね。……画数の話では、ありません。", "res://char/mina_face.png"),
+        (0, "視線が集まってる。ミナ、今いる通路を見て。進めるところから行こう。", ""),
+        (1, "期待というものは、部屋へ帰っても消えないのですね。……消灯では、足りませんか。", "res://char/mina_face.png"),
     };
 
     // ───────── S2-4 入力欄（ミッドシナリオ枠。仮台本 07）─────────
@@ -309,8 +307,6 @@ public partial class StageKoharu : Node
     //   結び手以外で潜ったとき true。ミナの行（who=1/3）・下書き選択・入力欄（S2-4）を
     //   すべて抑止し、ビート枠（出撃／道中3節目／ボス前／帰還）を CharacterStory のテーブルへ全面置換する。
     //   改心相当シーン（山場）は BossKoharu 側が CharacterStory.Redemption で差し替える。
-    //   ビート対応：step1=Sortie / 2=Mid1 / 7=Mid2 / 8=Mid3 / 12=PreBoss（ボス出現後の口上枠）/ 14=Return。
-    //   step4（中ボスの受け）と step10（S2-5 我に返る一拍）はミナ観測のみの場面なので空でスキップ。
     private bool _charStory;
     private (int who, string text, string face)[] _storyMid1 = System.Array.Empty<(int, string, string)>();
     private (int who, string text, string face)[] _storyMid3 = System.Array.Empty<(int, string, string)>();
@@ -321,15 +317,13 @@ public partial class StageKoharu : Node
     private static readonly (int who, string text, string face)[] NoLines = System.Array.Empty<(int, string, string)>();
 
     private bool _lunatic;
-    // 会話・選択の step 一覧（1 イントロ／2 Mid／3 予定表 s2_1／5 中ボスの受け／8 教室／9 入力欄 s2_4／11 MidEnd／13 ボス口上）。
-    private static bool IsTalkStep(int step) => step is 1 or 2 or 3 or 5 or 8 or 9 or 11 or 13;
+    private static bool IsTalkStep(int step) => step is 1 or 3 or 4 or 5 or 8 or 9 or 11 or 13;
     // ルナティックのクリア：アフターの代わりに、リザルトのバナーを読む間だけ置いてから帰る。
     private const double LunaticClearHold = 3.0;
     private double _lunaticClearT;
 
     public override void _Ready()
     {
-        _rng.Randomize();
         _step = 1;
         // 道中（A+B+C 三波）＋ボスで浄化カプセルが満ちる。
         var game = GetNodeOrNull<GameManager>("/root/Game");
@@ -363,8 +357,6 @@ public partial class StageKoharu : Node
 
         // チェックポイント入口（DiffSelect が SelectedEntry をセット）。道中＆イントロを飛ばしてその戦闘から始める。
         // 中ボスから＝Step_BossCameo(6)／ボスから＝Step_BossSpawn(12)。
-        //   ※2026-09-25: 道中Aの末尾へ s2_1（step 3）を挿したぶん、以降の step 番号が +1 ずれている。
-        //     ここはベタ書きなので、挿入時は必ず同時に直すこと（間違えるとコンティニューが別の場面に乗る）。
         else if (game != null && game.SelectedEntry != GameManager.StageEntry.Start)
         {
             _step = game.SelectedEntry switch
@@ -399,22 +391,17 @@ public partial class StageKoharu : Node
         if (!_clearing && !Hud.BubblePaused) { _stageElapsed += delta; Hud.SetElapsed((float)_stageElapsed); }
         // 会話送り：Z/Enter/ui_accept/Pad A に加えマウス左クリックでも送れる共通ヘルパ（マウス対応 P2）。
         bool z = Pad.AdvanceHeld();
-        _zEdge = z && !_zHeld;
+        _zEdge = z && !_zHeld && !Pad.UiBlocked(this);
         _zHeld = z;
         if (!_startBannerShown) { _startBannerShown = true; Hud.ShowStageStart(2, "こはる", new Color("8cddb1")); }
-        // 案C の場面の並び（仮台本 07 の S2-1〜S2-6）を、step 構成を変えずにそのまま流し込む。
-        //   部屋（S2-1・S2-3 Mid）→ 中ボス（S2-2）→ 教室（S2-3 BossTalk）→ 入力欄（S2-4）→
-        //   我に返る一拍（S2-5）→ 消えた画面の前の部屋でボス（S2-6）。
-        //   場所の入れ替えは Step_MidwaveB（部屋→教室）と Step_MidwaveC（教室→部屋）が層セットごと担う。
-        // ボス戦中割り込み（会話2択）は案C ではレイ面（S3-7）が本籍なので、この面には無い。
         // ルナティック：会話・選択の step は踏まずに次の戦闘 step へ（同じフレームで次の波が立つ＝空白を作らない）。
         while (_lunatic && IsTalkStep(_step)) Advance();
         switch (_step)
         {
             case 1: Step_Lines(delta, _playerIntro); break;
-            case 2: Step_Lines(delta, _charStory ? _storyMid1 : Mid); break;   // S2-3 Mid（部屋）＋Chat1／他ジョブ＝道中1
-            case 3: Step_Schedule(delta); break;          // ★S2-1b 壁の予定表＝下書き選択 s2_1（2026-09-25 追加）
-            case 4: Step_MidwaveA(delta); break;          // 道中ザコ戦A（部屋）
+            case 2: Step_MidwaveA(delta); break;
+            case 3: Step_Lines(delta, _charStory ? _storyMid1 : Mid); break;
+            case 4: Step_Schedule(delta); break;
             case 5: Step_Lines(delta, _charStory ? NoLines : BossTalk); break; // S2-2 中ボスの受け（ミナ観測＝他ジョブ時はスキップ）
             case 6: Step_BossCameo(delta); break;         // S2-2 中ボス こはる
             case 7: Step_MidwaveB(delta); break;          // 道中ザコ戦B（やや詰める。背景の切替は無し）
@@ -433,13 +420,7 @@ public partial class StageKoharu : Node
             //   そのものなので配列ごと落としている。機構（Step_LinesHold／Step_MidChoice／
             //   SetQuietVeil）も到達不能な死にコードとして落とした（2026-09-24）＝現物は StageRei にある。
         }
-        // ボス戦中の ambient は、全ボス共通の投稿弾（Y投稿モチーフの言葉弾）に統一。
-        // 旧「言葉弾＋ただの落下弾」混在から、Rei と同じく投稿弾のみ降らせる（難易度で数がスケール）。
-        // こはる面は PostPool のこはるのテーマ（09 の K09〜K38 由来の 8 文字弾）を源にする＝
-        // その面のテーマ語が降る一体感。層の比率は 09 のとおり 3:6:1（層2 が最も厚い面）。
-        // ボス本体(BossKoharu)のスペル/予測線/パネル弾はそのまま。
-        if (_bossActive && _boss?.PostSequenceActive != true && _boss?.EdgeAttackActive != true) PostBullets.Tick(this, _rng, delta, ref _rainT, ref _wordTick, source: _boss!, theme: PostPool.Theme.Koharu, fallSpeed: 44f,
-            accent: new Color(0.85f, 0.60f, 0.44f), murkAll: true); // こはる面テーマ＝配信画面の琥珀。全語が悲鳴＝濁色チップ
+
     }
 
     // 背景はここでは触らない：会話・選択肢は直前の戦闘背景（道中パノラマ／中ボスの部屋／ボスの部屋）の上で進む。
@@ -720,8 +701,6 @@ public partial class StageKoharu : Node
         StageTutorial.SyncCard(Hud, lines, _introLine);
     }
 
-    // ───── S2-1b 壁の予定表（step 3・2026-09-25 追加）─────
-    //   道中A（部屋）の Mid を流し切った直後・道中ザコ戦Aの前に、下書き選択 s2_1 だけを流す step。
     private void Step_Schedule(double delta)
     {
         if (!_stepStarted)
@@ -850,7 +829,7 @@ public partial class StageKoharu : Node
                     Fire = CameoFireTheme.KoharuFalling,
                     Aura = FxLayer.BossAura.Koharu,
                     Bgm = Audio.Instance?.BgmBossKoharu,
-                    // 第一声は s2_1（壁の予定表・step 3）の選択で差し替わる。選んでいなければ CameoTalk1（2026-09-25）。
+                    // 第一声は s2_1（壁の予定表）の選択で差し替わる。選んでいなければ CameoTalk1（2026-09-25）。
                     IntroLines = _lunatic ? CameoIntroFor(GetNodeOrNull<GameManager>("/root/Game")) : System.Array.Empty<(int, string, string)>(),
                     TauntLines = CameoTalk3, DefeatLines = CameoPost,
                 },
@@ -1011,8 +990,4 @@ public partial class StageKoharu : Node
         GameManager.FadeToScene(this, "res://Hub.tscn");
     }
 
-    // 投稿弾（言葉弾）の周期/tick 用アキュムレータ。湧き処理は全ボス共通ヘルパ PostBullets.Tick に集約。
-    // 面固有の語プールは PostPool.Theme.Koharu（wiki/08_仮台本/09 の「言葉弾の文言リスト」こはるの行）へ移した。
-    //   案C の S2-3：推し活の声の合間に、家の声と他人の目が同じ色で混じる（仮台本 07）。
-    private int _wordTick;
 }

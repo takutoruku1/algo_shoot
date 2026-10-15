@@ -228,7 +228,11 @@ public partial class TitleMenu : Node2D
             }
             if (clk >= 0) _pick = clk;
             bool loadNow = (zEdge || clk >= 0) && _game.SlotExists(_pick);
-            if (loadNow) { Audio.Instance?.PlayUiConfirm(); _game.LoadFromSlot(_pick); Go("res://Hub.tscn"); }
+            if (loadNow)
+            {
+                if (_game.LoadFromSlot(_pick)) { Audio.Instance?.PlayUiConfirm(); Go("res://Hub.tscn"); }
+                else { Audio.Instance?.PlayUiDeny(); Toast("セーブデータを読み込めませんでした"); }
+            }
             else if (zEdge || clk >= 0) Audio.Instance?.PlayUiDeny();
             else if (backEdge) { Audio.Instance?.PlayUiCancel(); _picking = false; }
             _zHeld = z; _backHeld = back;
@@ -316,8 +320,8 @@ public partial class TitleMenu : Node2D
         DrawTalk();
         UiKit.Text(this, UiKit.Mono, new Vector2(98, 679), "ver 2.035", UiKit.FontSmall, new Color(Muted, 0.7f * Reveal(0.6f, 0.7f)));
         DrawRect(new Rect2(0, 0, UiKit.DesignW, UiKit.DesignH), new Color(Ink, 0.8f * (1 - Reveal(0, 0.9f))));
-        DrawToast();
         if (_picking) DrawSlotPicker();
+        DrawToast();
         UiKit.EndDesign(this);
     }
 

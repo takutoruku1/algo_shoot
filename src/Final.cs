@@ -310,7 +310,7 @@ public partial class Final : Node2D
         Color edge = narr ? UiKit.CutNarr : d.Who == "ミナ" ? Cool : Warm;
         UiKit.BeginDesign(this);
         var box = DialogueBox.FullScreen;
-        DialogueBox.DrawFrame(this, box, narr ? "" : d.Who, edge);
+        DialogueBox.DrawFrame(this, box, narr ? "" : d.Who, edge, draft: d.Who == "あなた");
         DialogueBox.DrawBody(this, box, CurPage, _reveal,
             speed: _game?.MsgCharsPerSec ?? DialogueBox.DefaultCharsPerSec, pacing: CurPacing);
         if (PageReady && !_ffNow)

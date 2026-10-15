@@ -15,7 +15,7 @@ public partial class BossBreakFx : Node2D
     public override void _Ready()
     {
         // Keep hostile bullets (ZIndex 0) in front of the announcement. The boss body sprite shares -1,
-        // so FxLayer.BossBreak adds this node to the tail of World to draw it after (= over) the body.
+        // so FxLayer.BossBreakCue adds this node to the tail of World to draw it after (= over) the body.
         ZIndex = -1;
         ZAsRelative = false;
         Material = new CanvasItemMaterial { LightMode = CanvasItemMaterial.LightModeEnum.Unshaded };

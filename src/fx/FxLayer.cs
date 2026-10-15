@@ -456,16 +456,8 @@ public partial class FxLayer : Node2D
         Add0(new P { Type = T.Ring, X = pos.X, Y = pos.Y, R0 = 2, R1 = 12, Ttl = 0.4f, Col = col, W = 1.2f, A0 = 0.9f, Add = true });
     }
 
-    //   読めなかった。文字（ZIndex -1 絶対）と本体スプライト（Enemy 0 + Body -1 = -1）は同じ層で、同値の
-    //   前後は木の順序＝後に足した方が手前。FxLayer は World の先頭の子で、ボスはその後に足されるので、
-    //   FxLayer の下に置くと必ず本体の裏へ回る。World（FxLayer の親）の末尾へ足して本体より後・弾(0)より奥。
-    //   ポーズ凍結（ProcessMode 継承）と 0.72 秒の自己破棄は親が変わっても同じ。
     public void BossBreak(Vector2 pos, float bodyHeight)
     {
-        var burst = new BossBreakFx();
-        (GetParent() ?? this).AddChild(burst);
-        burst.PlaceOn(pos, bodyHeight);
-
         float h = Mathf.Max(32f, bodyHeight);
         Add0(new P { Type = T.Glow, X = pos.X, Y = pos.Y, Size = h * 0.18f, Ttl = 0.26f, Col = White, A0 = 0.9f, Grow = 1.4f, Add = true });
         Add0(new P { Type = T.Ring, X = pos.X, Y = pos.Y, R0 = h * 0.16f, R1 = h * 0.82f, Ttl = 0.38f, Col = Cyan, W = 1.9f, A0 = 0.82f, Add = true, Deep = true });
@@ -479,6 +471,14 @@ public partial class FxLayer : Node2D
                 Vx = Mathf.Cos(a) * sp, Vy = Mathf.Sin(a) * sp + R(-28f, 28f), Size = R(8f, 16f),
                 W = R(0.8f, 1.8f), Ttl = R(0.18f, 0.32f), Col = i % 3 == 0 ? Edge2 : Cyan, Drag = 5.2f, Add = true });
         }
+    }
+
+    public void BossBreakCue(Vector2 pos, float bodyHeight)
+    {
+        var burst = new BossBreakFx();
+        // The World tail keeps the cue over the boss body while hostile bullets stay in front.
+        (GetParent() ?? this).AddChild(burst);
+        burst.PlaceOn(pos, bodyHeight);
     }
 
     public void BossExpose(Vector2 pos, float bodyHeight)

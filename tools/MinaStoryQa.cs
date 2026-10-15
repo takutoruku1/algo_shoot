@@ -32,9 +32,11 @@ public partial class MinaStoryQa : Node
             _out = ProjectSettings.GlobalizePath($"res://build/qa_story/mina{(lethal ? "_lethal" : burst ? "_burst" : "")}/shots");
             DirAccess.MakeDirRecursiveAbsolute(_out);
             var game = GetNode<GameManager>("/root/Game");
+            CheckMemoryRoutes(game);
+            game.ResetPersistent();
             var quoteMethod = typeof(StageMina).GetMethod("S37Quote", BindingFlags.Static | BindingFlags.NonPublic)!;
-            var missingQuote = ((int, string, string))quoteMethod.Invoke(null, new object?[] { null })!;
-            Check(!missingQuote.Item2.Contains("つづけて") && !missingQuote.Item2.Contains("いただ"),
+            var missingQuote = ((int, string, string)[])quoteMethod.Invoke(null, new object?[] { null })!;
+            Check(Array.TrueForAll(missingQuote, line => !line.Item2.Contains("つづけて") && !line.Item2.Contains("いただ")),
                 "missing choice history does not invent a player instruction");
             game.MsgCharsPerSec = 300;
             game.AutoAdvanceDialog = false;
@@ -53,8 +55,8 @@ public partial class MinaStoryQa : Node
                   && player.GetNode<Sprite2D>("Sprite").Texture.ResourcePath == game.JobDef.PlayerTexturePath,
                   "final stage uses the selected playable character");
             var intro = Read<(int, string, string)[]>(stage, "_intro");
-            Check(Array.Exists(intro, x => x.Item2.Contains("送信元：あなた"))
-                  && Array.Exists(intro, x => x.Item2.Contains("回線")), "intro explains the remaining connection and sender");
+            Check(Array.Exists(intro, x => x.Item2.Contains("僕の声は今のミナに届かない"))
+                  && Array.Exists(intro, x => x.Item2.Contains("必ず、二人を帰す")), "intro separates the rescuer and the operator's roles");
             await AdvanceUntil(() => Read<int>(stage, "_introLine") >= 9);
             await Frames(80);
             await Shot("player_intro", false);
@@ -87,17 +89,20 @@ public partial class MinaStoryQa : Node
                 "only the boss remains in final-stage progress");
             foreach (var node in world.GetChildren())
                 Check(node is not MidEnemy && node is not Ripple, "echoes and purification waves do not leak into the boss fight");
-            player.SetPhysicsProcess(true);
-            var boss = world.GetNode<BossMina>("BossMina");
             Write(player, "_invincible", true);
             Write(player, "_invincibleTimer", 999f);
-            await AdvanceUntil(() => !hud.CinematicMode && !Hud.BubblePaused);
-            Check(world.ProcessMode == ProcessModeEnum.Inherit, "boss entrance releases combat before the memory threshold");
+            await AdvanceUntil(() => Read<int>(stage, "_step") == 4 && world.GetNodeOrNull<BossMina>("BossMina") != null);
+            var boss = world.GetNode<BossMina>("BossMina");
+            Check(Read<bool>(stage, "_bossActive"), "the actual boss arrival starts the boss phase");
+            await AdvanceUntil(() => hud.GetNodeOrNull<CameoIntroScene>("BossIntroScene") == null
+                && !hud.CinematicMode && !Hud.BubblePaused && world.ProcessMode == ProcessModeEnum.Inherit);
+            Check(!boss.MemoryPlayed && boss.HpRatio > 0.5f, "boss entrance releases combat before the memory threshold");
+            player.SetPhysicsProcess(true);
             await Frames(80);
             Check(boss.GetNode<Sprite2D>("Body").Texture.ResourcePath.Contains("boss_mina"), "new boss illustration loaded");
             foreach (string pose in new[] { "idle", "attack", "cry", "post" })
             {
-                var sprite = GD.Load<Texture2D>($"res://char/v3/boss_mina_body_{pose}.png").GetImage();
+                using var sprite = GD.Load<Texture2D>($"res://char/v3/boss_mina_body_{pose}.png").GetImage();
                 Check(sprite.GetPixel(0, 0).A == 0 && sprite.DetectAlpha() != Image.AlphaMode.None,
                     $"{pose} sprite has genuine transparency");
             }
@@ -119,7 +124,7 @@ public partial class MinaStoryQa : Node
                 Call(boss, "OnHpChanged");
             }
             Write(game, "_comboTimer", 5.0);
-            await Frames(10);
+            await AdvanceUntil(() => GetTree().GetFirstNodeInGroup("storyfilm") is MinaStoryFilm);
             var film = GetTree().GetFirstNodeInGroup("storyfilm") as StoryFilm;
             Check(film is MinaStoryFilm && hud.CinematicMode, "memory starts even after burst or lethal damage");
             Vector2 position = player.GlobalPosition;
@@ -138,10 +143,10 @@ public partial class MinaStoryQa : Node
                 "movement, damage and bombs freeze");
             Check(Read<double>(stage, "_stageElapsed") == elapsed && Read<double>(boss, "_phaseT", typeof(Enemy)) == phaseTime
                   && Read<double>(game, "_comboTimer") == comboTime, "stage, boss and combo clocks freeze");
-            var first = await Shot("memory_start", true);
+            using var first = await Shot("memory_start", true);
             Check(first.GetWidth() == 1280 && first.GetHeight() == 720, "desktop viewport is 1280x720");
             await Frames(90);
-            var moving = await Shot("memory_motion", true);
+            using var moving = await Shot("memory_motion", true);
             int changed = 0;
             for (int y = 100; y < 400; y += 5)
                 for (int x = 70; x < 1000; x += 5)
@@ -149,7 +154,7 @@ public partial class MinaStoryQa : Node
             Check(changed > 100, "flashback camera moves");
             DisplayServer.WindowSetSize(new Vector2I(960, 540));
             await Frames(15);
-            var small = await Shot("memory_small", true);
+            using var small = await Shot("memory_small", true);
             Check(small.GetWidth() == 960 && small.GetHeight() == 540, "small viewport is 960x540");
             DisplayServer.WindowSetSize(new Vector2I(1280, 720));
             var backlog = GetNode<Backlog>("/root/Backlog");
@@ -178,23 +183,25 @@ public partial class MinaStoryQa : Node
             }
             await AdvanceUntil(() => hud.CinematicMode);
             film = GetTree().GetFirstNodeInGroup("storyfilm") as StoryFilm;
-            Check(film is MinaStoryFilm && Read<bool>(film!, "_aftermath", typeof(StoryFilm)), "defeat starts everyone's report");
+            Check(film is MinaStoryFilm && Read<bool>(film!, "_aftermath", typeof(StoryFilm)), "defeat reconnects Mina to the player");
+            var connectionLines = Read<Array>(film!, "_lines", typeof(StoryFilm));
+            Check(connectionLines.Length == 4, "connection scene stays focused before the final response");
+            foreach (object line in connectionLines)
+            {
+                string time = (string)line.GetType().GetProperty("Time")!.GetValue(line)!;
+                string text = (string)line.GetType().GetProperty("Text")!.GetValue(line)!;
+                Check(!time.Contains("帰還後") && !text.Contains("続きを生きてる") && !text.Contains("何もできない日"),
+                    "return reports and promises do not precede the final response");
+            }
             await Frames(100);
-            await Shot("return_reports", false);
-            await AdvanceUntil(() => Read<int>(film!, "_line", typeof(StoryFilm)) == 12);
+            await Shot("connection_restored", false);
+            await AdvanceUntil(() => Read<int>(film!, "_line", typeof(StoryFilm)) == 3);
             await Frames(100);
-            await Shot("come_home_together", false);
-            Check(Read<int>(film!, "_shot", typeof(StoryFilm)) == 4, "Mina accepts the invitation before taking the hand");
-            await AdvanceUntil(() => Read<int>(film!, "_line", typeof(StoryFilm)) == 13);
-            var grade = Read<ShaderMaterial>(film!, "_grade", typeof(StoryFilm));
-            Check((grade.GetShaderParameter("previous_texture").AsGodotObject() as Texture2D)?.ResourcePath
-                  == "res://char/bg2/story/cg_mina_reunion_v1.png", "hand scene dissolves from the reunion CG");
-            await Shot("take_hand_blend", false);
-            await Frames(65);
-            await Shot("take_hand", false);
+            Check(Read<int>(film!, "_shot", typeof(StoryFilm)) == 5, "connection uses the rescuer's illustration");
+            await Shot("mina_ready_to_speak", false);
             DisplayServer.WindowSetSize(new Vector2I(960, 540));
             await Frames(15);
-            await Shot("take_hand_small", false);
+            await Shot("connection_small", false);
             DisplayServer.WindowSetSize(new Vector2I(1280, 720));
             await Frames(15);
             if (!lethal && !burst)
@@ -214,7 +221,7 @@ public partial class MinaStoryQa : Node
                 await WaitUntil(() => ended, 3000);
                 game.AutoAdvanceDialog = false;
                 await Frames(2);
-                Check(ended && !Hud.BubblePaused, "auto mode completes everyone's report");
+                Check(ended && !Hud.BubblePaused, "auto mode completes the connection scene");
                 MinaStoryFilm.Play(hud, world, false, () => throw new Exception("aborted callback fired"));
                 await Frames(5);
                 hud.GetNode("MinaStoryFilm").QueueFree();
@@ -229,12 +236,21 @@ public partial class MinaStoryQa : Node
             await AdvanceUntil(() => Read<ChoiceOverlay?>(final, "_choice") != null);
             await Frames(60);
             await Shot("final_word_choice", false);
+            Check(!game.HasChoiceAt("f4"), "reconnection does not choose the player's final reply");
             await AdvanceUntil(() => GetTree().CurrentScene?.SceneFilePath == "res://Epilogue.tscn");
             var epilogue = GetTree().CurrentScene;
-            await AdvanceUntil(() => Read<int>(epilogue, "_line") == 12);
+            Check(game.HasChoiceAt("f4") && game.ChosenAt("f4").Length > 0, "the player replies before returning home");
+            await AdvanceUntil(() => Read<int>(epilogue, "_line") == 4);
             await Frames(120);
             await Shot("rest_under_the_sky", false);
             Check(Read<int>(epilogue, "_phase") == 0, "new sky wish appears before walking or credits");
+            epilogue.QueueFree();
+            Audio.Instance?.StopMusic(0);
+            foreach (var node in GetNode<Audio>("/root/Audio").GetChildren())
+                if (node is AudioStreamPlayer audio) { audio.Stop(); audio.Stream = null; }
+            await Frames(5);
+            GC.Collect();
+            GC.WaitForPendingFinalizers();
             GD.Print($"[MinaQA] {(lethal ? "LETHAL" : burst ? "BURST" : "NORMAL")} ALL PASS");
             GetTree().Quit();
         }
@@ -243,6 +259,39 @@ public partial class MinaStoryQa : Node
             GD.PushError($"[MinaQA] FAIL {ex}");
             GetTree().Paused = false;
             GetTree().Quit(1);
+        }
+    }
+
+    private static void CheckMemoryRoutes(GameManager game)
+    {
+        var memory = typeof(MinaStoryFilm).GetMethod("Memory", BindingFlags.Static | BindingFlags.NonPublic)!;
+        string[] stages = { "akari", "koharu", "rei" };
+        for (int route = 0; route < 8; route++)
+        {
+            game.ResetPersistent();
+            game.AutoSaveEnabled = false;
+            for (int i = 0; i < stages.Length; i++)
+            {
+                game.SelectedJob = (route & (1 << i)) != 0 ? Job.Magic : Job.Tank;
+                game.CompleteStage(stages[i]);
+            }
+            var lines = (Array)memory.Invoke(null, new object[] { game })!;
+            string Field(int index, string name)
+            {
+                object line = lines.GetValue(index)!;
+                return (string)line.GetType().GetProperty(name)!.GetValue(line)!;
+            }
+            Check((route & 1) != 0
+                ? Field(0, "Text").Contains("帰ってきた仲間") && !Field(0, "Text").Contains("手のひら")
+                : Field(0, "Text").Contains("手のひら"), $"memory route {route} preserves who heard Akari on location");
+            string reply = (route & 2) != 0 ? "聞いただけのAIが、むだじゃないって決めるなよ。" : "数えた者って、数えただけの人が何言ってんの。";
+            Check(Field(2, "Text").Contains(reply), $"memory route {route} recalls the reply shown in the hub");
+            Check((route & 4) != 0
+                ? Field(4, "Time") == "レイの帰還を待つ間" && Field(5, "Text").Contains("お話を聞けます")
+                : Field(4, "Time") == "レイのところへ潜る前" && Field(5, "Text").Contains("潜れます"),
+                $"memory route {route} preserves Mina's role during Rei's rescue");
+            Check(lines.Length == 10 && Field(6, "Time") == "三人の帰還後・あなたへの下書き",
+                $"memory route {route} reaches the shared unsent request");
         }
     }
 

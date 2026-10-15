@@ -38,7 +38,9 @@ public partial class RouteBackgroundQa : Node
             DisplayServer.WindowSetMode(DisplayServer.WindowMode.Windowed);
             DisplayServer.WindowSetSize(new Vector2I(1280, 720));
             await Frames(1);
-            if (OS.GetCmdlineUserArgs().Contains("--route-length"))
+            if (OS.GetCmdlineUserArgs().Contains("--typography"))
+                await CheckTypography(game);
+            else if (OS.GetCmdlineUserArgs().Contains("--route-length"))
                 await CheckPreCameoRoutes(game);
             else if (OS.GetCmdlineUserArgs().Contains("--weather"))
                 await CheckWeather(game);
@@ -65,6 +67,238 @@ public partial class RouteBackgroundQa : Node
             GetTree().Paused = false;
             GetTree().Quit(1);
         }
+    }
+
+    private async Task CheckTypography(GameManager game)
+    {
+        var args = OS.GetCmdlineUserArgs();
+        int outputArg = Array.IndexOf(args, "--type-out");
+        Check(outputArg >= 0 && outputArg + 1 < args.Length
+            && System.IO.Path.IsPathFullyQualified(args[outputArg + 1]), "--type-out is an absolute screenshot directory");
+        string output = args[outputArg + 1];
+        Check(DirAccess.MakeDirRecursiveAbsolute(output) == Error.Ok, "typography screenshot directory created");
+        typeof(Settings).GetProperty(nameof(Settings.PauseWhenUnfocused))!.SetValue(null, false);
+        game.SetProcess(false);
+        game.AutoAdvanceDialog = false;
+        game.Difficulty = GameManager.Diff.Normal;
+        var sizes = new[] { new Vector2I(1280, 720), new Vector2I(960, 540) };
+        Hud? captureHud = null;
+        Enemy? captureBoss = null;
+        async Task Capture(string name)
+        {
+            captureHud?._Process(0);
+            captureHud?.Bubbles?._Process(0);
+            captureHud?.Bubbles?.ShieldBreak._Process(0.2);
+            if (IsInstanceValid(captureBoss))
+            {
+                captureBoss!.QueueRedraw();
+                foreach (var gauge in captureBoss.GetChildren().OfType<BossGauge>()) gauge._Process(0);
+            }
+            await Frames(4);
+            await ToSignal(RenderingServer.Singleton, RenderingServer.SignalName.FramePostDraw);
+            using var image = GetViewport().GetTexture().GetImage();
+            Check(image.SavePng($"{output}/{name}.png") == Error.Ok, $"typography screenshot {name}");
+        }
+        static string Letters(string text) => text.Replace("\r", "").Replace("\n", "");
+        void CheckDialogue(Node stage)
+        {
+            var texts = stage.GetType().GetFields(Private | BindingFlags.Static)
+                .Where(field => field.FieldType == typeof((int who, string text, string face)[]))
+                .SelectMany(field => ((int who, string text, string face)[]?)field.GetValue(stage)
+                    ?? Array.Empty<(int, string, string)>())
+                .Select(line => line.text).Distinct().ToArray();
+            foreach (var box in new[] { DialogueBox.Board, DialogueBox.FullScreen })
+            {
+                float width = DialogueBox.WrapWidth(box);
+                foreach (string text in texts)
+                {
+                    var pages = DialogueBox.Paginate(text, width);
+                    if (Letters(string.Concat(pages)) != Letters(text))
+                        throw new Exception($"{stage.Name}: pagination lost text: {text}");
+                    foreach (string page in pages)
+                    {
+                        string[] lines = page.Split('\n');
+                        float bottom = DialogueBox.TextPosition(box).Y
+                            + (lines.Length - 1) * DialogueBox.Body.LineHeight
+                            + DialogueBox.Body.Font.GetHeight(DialogueBox.Body.Size);
+                        if (lines.Length > Hud.DlgMaxLines || bottom > box.End.Y - 36f
+                            || lines.Any(line => UiKit.TextW(DialogueBox.Body.Font, line, DialogueBox.Body.Size) > width + 0.1f))
+                            throw new Exception($"{stage.Name}: dialogue exceeds the body or continue-button area: {page}");
+                    }
+                }
+            }
+            Check(texts.Length > 0, $"{stage.Name}: {texts.Length} dialogue lines preserve all text and fit both dialogue boxes");
+        }
+        foreach (string detail in new[] { "対象を探しています", "シールド破壊", "シールド再形成中", "本体に攻撃", "シールドを照準", "対象を追尾しています" })
+            Check(UiKit.TrackedW(UiKit.CombatState, detail) <= 172f, $"HUD lock detail fits: {detail}");
+        Check(UiKit.Zen.GetHeight(UiKit.FontLabel) * 2 <= 44f, "HowTo two-line descriptions fit their rows");
+        int cardBodySize = (int)typeof(StageImagery).GetField("CardBodySize", BindingFlags.Static | BindingFlags.NonPublic)!.GetValue(null)!;
+        float cardLineHeight = UiKit.Zen.GetHeight(cardBodySize);
+        Check(16 + Mathf.Ceil(cardLineHeight) + cardLineHeight < 40f, "background card body stays above its metadata");
+
+        foreach (string scene in new[] { "Akari", "Koharu", "Rei", "MinaBattle" })
+        {
+            game.SelectedEntry = GameManager.StageEntry.Start;
+            game.SelectedJob = Job.Tank;
+            var root = GD.Load<PackedScene>($"res://{scene}.tscn").Instantiate<Node2D>();
+            GetTree().Root.AddChild(root);
+            GetTree().CurrentScene = root;
+            root.ProcessMode = ProcessModeEnum.Disabled;
+            var stage = (Node)root.GetType().GetProperty("Stage")!.GetValue(root)!;
+            var hud = root.GetNode<Hud>("Hud");
+            captureHud = hud;
+            var world = root.GetNode<Node2D>("World");
+            var player = world.GetNode<Player>("Player");
+            player.Position = new Vector2(174, 126);
+            hud.HoldBubble = false;
+            hud.HideBubble();
+            hud.SetCinematicMode(false);
+            Write(hud, "_bannerTimer", 0d);
+            Hud.BubblePaused = false;
+            var imagery = root.GetNodeOrNull<StageImagery>("Imagery");
+            CheckDialogue(stage);
+            if (imagery != null)
+            {
+                Check(imagery.ZIndex < player.ZIndex && !imagery.ZAsRelative, $"{scene}: background text remains behind gameplay");
+                Write(imagery, "_t", 6d);
+                imagery.QueueRedraw();
+            }
+            Write(player, "_lockArmed", true);
+            foreach (var size in sizes)
+            {
+                DisplayServer.WindowSetSize(size);
+                hud._Process(0);
+                await Capture($"{scene}_route_{size.X}x{size.Y}");
+            }
+            DisplayServer.WindowSetSize(sizes[0]);
+            if (imagery != null)
+                for (int i = 1; i <= 2; i++)
+                {
+                    imagery._Process(0.5);
+                    await Capture($"{scene}_motion_{i}");
+                }
+
+            Enemy boss = scene switch { "Akari" => new BossAkari(), "Koharu" => new BossKoharu(),
+                "Rei" => new BossRei(), _ => new BossMina() };
+            world.AddChild(boss);
+            captureBoss = boss;
+            boss.Position = new Vector2(300, 103);
+            typeof(Enemy).GetMethod("TickEntrance", Private)!.Invoke(boss, new object[] { 0d });
+            typeof(Enemy).GetMethod("TickEntrance", Private)!.Invoke(boss, new object[] { 2d });
+            Write(player, "_locked", true);
+            Write(player, "_lockTarget", boss);
+            hud.HideSpellCard();
+            Write(hud, "_bossLineTimer", 0d);
+            Write(hud, "_cutinTimer", 0d);
+            for (int i = 0; i < 36; i++)
+            {
+                var bullet = Pool.Spawn(new Vector2(190 + i % 9 * 19, 40 + i / 9 * 35), Vector2.Zero, true);
+                bullet.SetPhysicsProcess(false);
+                bullet.SetProcess(false);
+            }
+            imagery?._Process(1);
+            foreach (var size in sizes)
+            {
+                DisplayServer.WindowSetSize(size);
+                hud._Process(0);
+                await Capture($"{scene}_combat_{size.X}x{size.Y}");
+            }
+            if (scene == "Akari")
+            {
+                foreach (var panel in boss.GetChildren().OfType<Panel>().ToArray()) panel.Shatter();
+                typeof(Enemy).GetMethod("TickBossPhase", Private)!.Invoke(boss, new object[] { 0.5d });
+                foreach (var size in sizes)
+                {
+                    DisplayServer.WindowSetSize(size);
+                    hud._Process(0);
+                    foreach (var gauge in boss.GetChildren().OfType<BossGauge>()) gauge.QueueRedraw();
+                    await Capture($"{scene}_exposed_{size.X}x{size.Y}");
+                }
+            }
+            Pool.DespawnAll();
+            boss.QueueFree();
+            captureBoss = null;
+            Write(player, "_locked", false);
+            Write(player, "_lockArmed", false);
+            await Frames(3);
+            hud.HideBossBar();
+            Write(hud, "_bossLineTimer", 0d);
+            var lines = scene == "MinaBattle" ? Read<(int who, string text, string face)[]>(stage, "_intro")
+                : ((int who, string text, string face)[])stage.GetType().GetField("Intro", BindingFlags.Static | BindingFlags.NonPublic)!.GetValue(null)!;
+            int longest = lines.Where(line => line.who == (int)Hud.LineKind.Mina).Max(line => line.text.Length);
+            int index = Array.FindIndex(lines, line => line.who == (int)Hud.LineKind.Mina && line.text.Length == longest);
+            Check(index >= 0, $"{scene}: real dialogue line selected");
+            Write(stage, "_introLine", index);
+            Call(stage, "ShowLine", (object)lines);
+            hud.HoldBubble = true;
+            hud.RevealDialogNow();
+            Check(Hud.BubblePaused, $"{scene}: actual dialogue enters the reading state");
+            if (imagery != null)
+            {
+                double before = Read<double>(imagery, "_t");
+                imagery._Process(1);
+                Check(Read<double>(imagery, "_t") == before && Read<float>(imagery, "_bulletDamp") < 0.36f,
+                    $"{scene}: reading dialogue freezes and dims background text");
+            }
+            foreach (var size in sizes)
+            {
+                DisplayServer.WindowSetSize(size);
+                hud._Process(0);
+                await Capture($"{scene}_dialogue_{size.X}x{size.Y}");
+            }
+            if (scene == "Akari")
+            {
+                var youLine = Read<(int who, string text, string face)[]>(stage, "_playerIntro")
+                    .First(line => line.who == (int)Hud.LineKind.Boy);
+                hud.ShowDialog(Hud.LineKind.Boy, youLine.text);
+                hud.RevealDialogNow();
+                foreach (var size in sizes)
+                {
+                    DisplayServer.WindowSetSize(size);
+                    await Capture($"{scene}_you_{size.X}x{size.Y}");
+                }
+            }
+            hud.HoldBubble = false;
+            hud.HideBubble();
+            if (imagery != null)
+            {
+                double before = Read<double>(imagery, "_t");
+                imagery._Process(0.5);
+                Check(Read<double>(imagery, "_t") == before + 0.5, $"{scene}: background text resumes after dialogue");
+                imagery.TriggerReversal();
+                Hud.BubblePaused = true;
+                imagery._Process(0.5);
+                Check(Read<double>(imagery, "_revT") == 0.5, $"{scene}: purification imagery continues during dialogue");
+            }
+            captureHud = null;
+            root.QueueFree();
+            await Frames(5);
+            Hud.BubblePaused = false;
+        }
+
+        var title = GD.Load<PackedScene>("res://TitleMenu.tscn").Instantiate<TitleMenu>();
+        GetTree().Root.AddChild(title);
+        GetTree().CurrentScene = title;
+        title.SetProcess(false);
+        Write(title, "_t", 3d);
+        title.QueueRedraw();
+        var how = GetNode<HowToPlay>("/root/HowTo");
+        Write(how, "_autoplay", false);
+        foreach (var size in sizes)
+        {
+            DisplayServer.WindowSetSize(size);
+            await Capture($"title_{size.X}x{size.Y}");
+            how.Open();
+            foreach (int page in new[] { 0, 2, HowToPlay.PageHud })
+            {
+                Write(how, "_page", page);
+                await Capture($"howto_{page}_{size.X}x{size.Y}");
+            }
+            Call(how, "Close");
+        }
+        title.QueueFree();
+        await Frames(4);
+        game.SetProcess(true);
     }
 
     private async Task CheckPreCameoRoutes(GameManager game)
@@ -343,8 +577,6 @@ public partial class RouteBackgroundQa : Node
         using (var shield = GD.Load<Texture2D>("res://char/ui/boss_shield_v1.png").GetImage())
             Check(shield.GetPixel(0, 0).A == 0 && shield.GetPixel(shield.GetWidth() / 2, shield.GetHeight() / 2).A == 0,
                 "shield art has a transparent exterior and center");
-        using (var you = GD.Load<Texture2D>("res://char/ui/dialogue_you_v1.png").GetImage())
-            Check(you.DetectAlpha() != Image.AlphaMode.None, "anonymous dialogue emblem is transparent");
         foreach (string scene in new[] { "Akari", "Koharu", "Rei", "MinaBattle" })
         {
             game.SelectedEntry = GameManager.StageEntry.Start;

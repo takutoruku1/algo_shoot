@@ -15,10 +15,10 @@ public partial class StageAkari : Node
     private int _introLine;
     private bool _zHeld;
     private bool _zEdge;
+    private (int who, string text, string face)[] _fieldTutorial = System.Array.Empty<(int, string, string)>();
+    private double _nextTutorialTime = 4.0;
     private BossAkari _boss = null!;
     private bool _bossActive;
-    private double _rainT;
-    private readonly RandomNumberGenerator _rng = new RandomNumberGenerator();
 
     private const float SpawnX = 300f;
 
@@ -53,11 +53,7 @@ public partial class StageAkari : Node
         (4, "すき、すき、すき。……ひとつでいいから、本物になって。", ""),
         (0, "到着した。回線はつながってる。ミナ、聞こえる？", ""),
         (1, "はい。雨が、下から上へ……。机も椅子も、天井へ落ちていきます。", "res://char/mina_face.png"),
-        (0, "ここはあかりさんの心が映る場所だ。会社そのものじゃない。見えている床より、僕のつける道のしるしを追って。", ""),
-        (1, "承知しました。……初出勤にしては、通勤路が過酷ですね。", "res://char/mina_face.png"),
-        (0, "悪いね。退勤の道まで、ちゃんと案内する。", ""),
-        (1, "言いましたね。記録しましたよ。", "res://char/mina_face.png"),
-        (0, "前方、アンチャー。飛んでくる言葉はよけて。進み方は、一つずつ伝える。", ""),
+        (0, "あかりさんの心が映る場所だ。会社そのものじゃない。飛んでくる言葉はよけて。進み方は、一つずつ伝える。", ""),
         (1, "はい。あの方のところへ、行きましょう。", "res://char/mina_face.png"),
     };
 
@@ -279,7 +275,6 @@ public partial class StageAkari : Node
 
     public override void _Ready()
     {
-        _rng.Randomize();
         _step = 1;
         // 道中（肩慣らし0＋A+B+C 三波）＋ボスで浄化カプセルが満ちる（部屋が晴れる）。
         var game = GetNodeOrNull<GameManager>("/root/Game");
@@ -325,21 +320,8 @@ public partial class StageAkari : Node
         _zHeld = Pad.AdvanceHeld();
         // ルナティックはイントロを流さない＝ここで once を消費させず、_Process の先頭で step 1 を飛ばす。
         if (_lunatic) return;
-        // 初見チュートリアル（2026-09-16）：セーブで最初の道中入りに一度だけ、イントロ末尾＝道中開始の
-        //   直前にミナの説明を流す。_step==1 確定後に繋ぐ＝チェックポイント入口（中ボス/ボスから）では
-        //   イントロごと飛ぶので消費しない。結び手のみ・once はセーブ単位（StageTutorial が一括で判定）。
-        if (_step == 1) _playerIntro = _playerIntro.Concat(StageTutorial.TakeRoute(game)).ToArray();
-        // 習得スキル説明（2026-09-22）：回避／溜め打ち（どちらもショップ）を覚えたあと最初に入った面で
-        //   一度だけ、チュートリアルの直後＝アンチャー紹介の前に使い方を流す（操作の説明が先）。
-        //   未習得は出さず once も消費しない。結び手潜行のみ（StageTutorial.TakeSkillIntros）。
-        if (_step == 1) _playerIntro = _playerIntro.Concat(StageTutorial.TakeSkillIntros(game)).ToArray();
-        // アンチャー紹介（2026-09-17）：チュートリアルの後ろ＝道中開始の直前に、この面のアンチャーの
-        //   性格だけを流す（一般→個別）。once は面ごと（once_ankers_akari）＝ステージ初回のみ。
-        if (_step == 1) _playerIntro = _playerIntro.Concat(StageTutorial.TakeAnkerAkari(game)).ToArray();
-        // 強化アイテム説明（2026-09-22）：アンチャー紹介の直後＝道中開始の直前に、ザコが落とす強化欠片の
-        //   拾い方・効果・表示位置・被弾で失うことを流す。最初の面（あかり）だけ。once はセーブ単位
-        //   （once_items_akari）。結び手潜行のときだけ・他ジョブでは非表示かつ非消費（StageTutorial.Take）。
-        if (_step == 1) _playerIntro = _playerIntro.Concat(StageTutorial.TakeItemIntroAkari(game)).ToArray();
+        if (_step == 1) _playerIntro = _playerIntro.Concat(StageTutorial.TakeRoute(game, basicsOnly: true)).ToArray();
+        if (_step == 1) _playerIntro = _playerIntro.Concat(StageTutorial.TakeSkillIntros(game, includeCharge: false)).ToArray();
         if (_step == 1) Step_Lines(0, _playerIntro);
     }
 
@@ -353,10 +335,11 @@ public partial class StageAkari : Node
         if (!_startBannerShown) { _startBannerShown = true; Hud.ShowStageStart(1, "あかり", new Color("efbc87")); }
         // 会話送り：Z/Enter/ui_accept/Pad A に加えマウス左クリックでも送れる共通ヘルパ（マウス対応 P2）。
         bool z = Pad.AdvanceHeld();
-        _zEdge = z && !_zHeld;
+        _zEdge = z && !_zHeld && !Pad.UiBlocked(this);
         _zHeld = z;
         // ルナティック：会話・選択の step は踏まずに次の戦闘 step へ（同じフレームで次の波が立つ＝空白を作らない）。
         while (_lunatic && IsTalkStep(_step)) Advance();
+        if (TickFieldTutorial()) return;
         switch (_step)
         {
             case 1: Step_Lines(delta, _playerIntro); break;
@@ -377,14 +360,68 @@ public partial class StageAkari : Node
             case 14: Step_Clear(delta); break;
             case 15: Step_Transition(); break;
         }
-        // ボス戦中の ambient は、全ボス共通の投稿弾（Y投稿モチーフ＝ティッカー連動の言葉弾）に統一。
-        // 旧「ただの自責の雨（落下弾）」は止め、Rei と同じく投稿弾のみ降らせる（難易度で数がスケール）。
-        // あかり面は PostPool のあかりのテーマ（09 の A01〜A40 由来の 8 文字弾）を引く。
-        // 下を流れるコメント（ティッカー）も同じプールを見る＝そのまま降る一体感は保つ。
-        // ボス本体(BossAkari)のスペル/予測線/パネル弾はそのまま。
-        if (_bossActive && _boss?.PostSequenceActive != true && _boss?.EdgeAttackActive != true)
-            PostBullets.Tick(this, _rng, delta, ref _rainT, ref _wordTick, source: _boss!, theme: PostPool.Theme.Akari, fallSpeed: 48f,
-                accent: new Color(0.47f, 0.65f, 0.85f)); // あかり面テーマ＝雨の青（教室の雨弾幕と同系）
+
+    }
+
+    private bool TickFieldTutorial()
+    {
+        if (_fieldTutorial.Length > 0)
+        {
+            if (_zEdge && !Hud.DialogRevealed)
+            {
+                Hud.RevealDialogNow();
+                _lineHold = 0;
+            }
+            else if (Hud.DialogRevealed
+                     && (_zEdge || (Hud.FastForwarding && _lineHold >= 0.15) || (Hud.AutoAdvanceReady && _lineHold >= 1.4)))
+            {
+                _lineHold = 0;
+                if (++_introLine < _fieldTutorial.Length) ShowLine(_fieldTutorial);
+                else
+                {
+                    _fieldTutorial = System.Array.Empty<(int, string, string)>();
+                    Hud.HoldBubble = false;
+                    Hud.HideBubble();
+                    _nextTutorialTime = _stageElapsed + 8.0;
+                }
+            }
+            return true;
+        }
+        if (_charStory || _lunatic || !_stepStarted || Hud.BubblePaused || Player.Lives <= 0
+            || Pad.UiBlocked(this) || _stageElapsed < _nextTutorialTime) return false;
+        int goal = _step switch { 2 => MidWave0, 5 => MidWaveA, 7 => MidWaveB, 9 => MidWaveC, _ => 0 };
+        if (goal == 0) return false;
+        var game = GameManager.Instance!;
+        int purified = game.PurifiedCount - _waveBase;
+        if (game.StageCleared || purified >= goal) return false;
+
+        int targets = 0;
+        bool panels = false, behind = false;
+        foreach (Node node in GetTree().GetNodesInGroup("enemies"))
+        {
+            if (node is not Enemy enemy || enemy.IsPurified || !enemy.IsVisibleInTree()
+                || !Field.Rect.HasPoint(enemy.GlobalPosition)) continue;
+            targets++;
+            panels |= enemy.UnfoldersActive && enemy.SelectUnfolder(Player.GlobalPosition, null) != null;
+            behind |= enemy.GlobalPosition.X < Player.GlobalPosition.X - 10f;
+        }
+
+        if (Player.LinePower > 0 || Player.SpeedPower > 0)
+            _fieldTutorial = StageTutorial.TakeItemIntroAkari(game);
+        if (_fieldTutorial.Length == 0 && panels)
+            _fieldTutorial = StageTutorial.TakeShield(game).Concat(StageTutorial.TakeAnkerAkari(game)).ToArray();
+        if (_fieldTutorial.Length == 0 && (behind || targets >= 2) && purified >= 1)
+            _fieldTutorial = StageTutorial.TakeLock(game);
+        if (_fieldTutorial.Length == 0 && panels && purified >= 3)
+            _fieldTutorial = StageTutorial.TakeCharge(game);
+        if (_fieldTutorial.Length == 0 && targets >= 3 && purified >= 6)
+            _fieldTutorial = StageTutorial.TakeBomb(game);
+        if (_fieldTutorial.Length == 0) return false;
+        _introLine = 0;
+        _lineHold = 0;
+        Hud.HoldBubble = true;
+        ShowLine(_fieldTutorial);
+        return true;
     }
 
     // 背景はここでは触らない：会話・選択肢は直前の戦闘背景（道中パノラマ／中ボスの部屋／ボスの部屋）の上で進む。
@@ -865,7 +902,4 @@ public partial class StageAkari : Node
         GameManager.FadeToScene(this, "res://Hub.tscn");
     }
 
-    // 投稿弾（ティッカー連動の言葉弾）の周期/tick 用アキュムレータ。
-    // 湧き処理は全ボス共通ヘルパ PostBullets.Tick に集約（難易度で数がスケール）。
-    private int _wordTick;
 }

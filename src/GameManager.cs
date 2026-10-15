@@ -81,23 +81,11 @@ public partial class GameManager : Node
             }
         return "まだ、出会っていない";
     }
-    // ───── 他ジョブ潜行の章管理（2026-09-15・キャラ専用ストーリー）─────
-    //   キャラごとの「ダイブ回数」カウンタ。DiffSelect のダイブ確定時に、結び手以外のジョブで
-    //   本編3面へ潜るときだけ増える（Stage の _Ready で数えると R リトライの ReloadCurrentScene
-    //   でも増えて章が飛ぶため、入口を DiffSelect に一本化）。永続は save_N.json の "charDives"
-    //   （CharacterId→回数）。キー無し＝旧セーブは全員0回＝後方互換（新キーはこの1個だけ）。
+    // 保存済みの進行値を保ち、以後は帰還まで完了した章だけを数える。
     private readonly Dictionary<string, int> _charDives = new();
-    public int CharacterDives(Job j) => _charDives.TryGetValue(Jobs.Get(j).CharacterId, out var v) ? v : 0;
-    public void RegisterCharacterDive(Job j)
-    {
-        if (j == Job.Tank) return;   // 結び手＝ミナ本編。専用ストーリーの章は進めない
-        string id = Jobs.Get(j).CharacterId;
-        _charDives[id] = CharacterDives(j) + 1;
-        GD.Print($"[CharStory] dive #{_charDives[id]} as {Jobs.Get(j).CharacterName}({id}) -> chapter {CharacterChapter(j)}");
-    }
-    // いま潜ったら流れる章：1〜3回目＝第1〜3章、4回目以降＝ループ章（CharacterStory.LoopChapter）。
-    //   ダイブ0回（--job= でのステージ直接起動＝QA走行など）でも第1章に落ちる＝進行は壊れない。
-    public int CharacterChapter(Job j) => Mathf.Clamp(CharacterDives(j), 1, CharacterStory.LoopChapter);
+    public int CharacterChapter(Job j) => Mathf.Clamp(
+        (_charDives.TryGetValue(Jobs.Get(j).CharacterId, out var completed) ? completed : 0) + 1,
+        1, CharacterStory.LoopChapter);
 
     // トレーニング場（TrainingRoot）が立てる：この間だけ全ノードを試せる（ジョブ導入後もモード自体はジョブ固定）。
     public bool TrainingMode;
@@ -139,7 +127,7 @@ public partial class GameManager : Node
     public int MaxAliveEnemies => 5;
     public string DiffName => Difficulty switch { Diff.Easy => "EASY", Diff.Hard => "HARD", Diff.Lunatic => "LUNATIC", _ => "NORMAL" };
     public bool DebugAttackGuides { get; private set; }
-    public static bool ShowAttackTelegraphs => Instance?.DebugAttackGuides == true || Instance?.Difficulty != Diff.Hard;
+    public static bool ShowAttackTelegraphs => true;
     // ルナティック（難易度選択の「底まで」）＝物語ギミックを全部切った、止まらない純粋シューティング（2026-09-26 作者指示）。
     //   回想フィルム・撃破後のアフター・下書き選択・戦闘を止める会話（HoldBubble）・ボス投稿の割り込み・
     //   フィナーレの段間カットシーン・エンディング（Final/Epilogue）を出さず、道中→中ボス→道中→ボス→クリアを切れ目なく繋ぐ。
@@ -403,6 +391,8 @@ public partial class GameManager : Node
     //   （DiffSelect.cs / Hub.cs の該当コメント参照）。IsMidBossCleared / SelectedEntry は現役。
 
     private readonly HashSet<string> _cleared = new();
+    private readonly HashSet<string> _companionClears = new();
+    public bool ClearedWithCompanion(string id) => _companionClears.Contains(id);
     // 直近にクリアしたステージ（ハブ帰還時の会話＆自動投稿トリガ。ハブが消費して null に戻す）。
     public string? JustClearedStageId;
 
@@ -515,6 +505,15 @@ public partial class GameManager : Node
     {
         RegisterStageClear();
         _cleared.Add(id);
+        if (System.Array.Exists(Stages, stage => stage.Id == id))
+        {
+            if (SelectedJob != Job.Tank)
+            {
+                if (!IsLunatic) _charDives[JobDef.CharacterId] = CharacterChapter(SelectedJob);
+                _companionClears.Add(id);
+            }
+            else _companionClears.Remove(id);
+        }
         JustClearedStageId = id; // ハブで帰還会話＆自動投稿を再生する
     }
 
@@ -960,6 +959,7 @@ public partial class GameManager : Node
 
     // 窓キャップ（Enemy.ExposedDamageCap）のテンポ還元。火力に投資するほど1窓で通せる量が増える＝
     //   「強くなったのに窓の中で手が空く」を作らない。基準180＋火力3段ぶん（各+35）。
+    internal const int MaximumExposedDamageCap = 285;
     public int ExposedDamageCap => 180 + 35 * ((Has("n_power_2x") ? 1 : 0) + (Has("n_lines") ? 1 : 0) + (Has("n_rate_2x") ? 1 : 0));
 
     // ── 旧ノードが消えたぶんの既定値（買えなくなった軸は「旧ノードを買い切った値」で固定する）──
@@ -1030,7 +1030,7 @@ public partial class GameManager : Node
     private static string SlotPath(int slot) => $"user://save_{slot}.json";
     public bool SlotExists(int slot) => FileAccess.FileExists(SlotPath(slot));
 
-    public void SaveToSlot(int slot)
+    public bool SaveToSlot(int slot)
     {
         var data = new Godot.Collections.Dictionary
         {
@@ -1096,15 +1096,19 @@ public partial class GameManager : Node
             ids.Add(key);
         data["idleDialogSeen"] = ids;
         data["phoneWallpaperPhotoId"] = PhoneWallpaperPhotoId;
-        // 他ジョブ潜行の章カウンタ（CharacterId→ダイブ回数）。後方互換：キー無し＝空扱い。
         var cd = new Godot.Collections.Dictionary();
         foreach (var kv in _charDives)
             cd[kv.Key] = kv.Value;
         data["charDives"] = cd;
+        var companionClears = new Godot.Collections.Array();
+        foreach (string id in _companionClears) companionClears.Add(id);
+        data["companionClears"] = companionClears;
 
         using var f = FileAccess.Open(SlotPath(slot), FileAccess.ModeFlags.Write);
-        if (f != null)
-            f.StoreString(Json.Stringify(data));
+        if (f == null) return false;
+        f.StoreString(Json.Stringify(data));
+        f.Flush();
+        return f.GetError() == Error.Ok;
     }
 
     public bool LoadFromSlot(int slot)
@@ -1229,6 +1233,10 @@ public partial class GameManager : Node
             foreach (var k in cd.Keys)
                 _charDives[k.AsString()] = cd[k].AsInt32();
         }
+        _companionClears.Clear();
+        if (data.ContainsKey("companionClears"))
+            foreach (var id in data["companionClears"].AsGodotArray())
+                _companionClears.Add(id.AsString());
         // ジョブの復元（2026-09-13）。モードはジョブが決めるので、ここが唯一の入口になる。
         //   ・"job" があればそれを採用（範囲外は結び手へクランプ）。
         //   ・"job" が無い＝ジョブ導入前の既存セーブ。壊さずに読むため、保存されていた "shotmode" から
@@ -1278,6 +1286,7 @@ public partial class GameManager : Node
         SelectedEntry = StageEntry.Start;
         _bossRetryScore = 0;
         _cleared.Clear();          // ステージ進行（クリア済み）も初期化＝救った人数0から（回避は _upgrades と一緒に消える）
+        _companionClears.Clear();
         _burnHappened = false; Burning = false; BurningThisRun = false;
         // 仕掛けの値も初期化（散った言葉が前データから残ると F4/E2 で他人の言葉が戻ってくる）。
         ScatteredWords.Clear(); _scatterById.Clear(); _hesitationById.Clear(); _chosenById.Clear();
@@ -1417,7 +1426,7 @@ public partial class GameManager : Node
         // 端末ローカル prefs（チュートリアル既読など）と会話の既読ログだけは起動時に読む。
         LoadPrefs();
         LoadReadLog();
-        MsgCharsPerSec = DialogueBox.Speed(AudioConfig.GetInt("msg", 1));
+        Settings.ApplySaved(this);
 
         // --job=melee|heal|tank|magic : このランのジョブを強制する（ハブの選択画面ができるまでの入口、
         //   かつ以後も残すデバッグ機能）。立てると JobForcedByCmdline が立ち、セーブのロードや
@@ -1587,6 +1596,7 @@ public partial class GameManager : Node
     //   湧き上限(MaxAliveEnemies＝難易度別 6/8/10/12)まで溜めて一掃する無限ファームだけが頭打ちになる。
     private const int BombPurifyRewardCap = 3;
     private int _bombPurifyCount; // 現在のボム1発で報酬を付けた体数（UseBomb でリセット）
+    internal int BombPurifiedCount => _bombPurifyCount;
 
     // 敵を浄化（撃破）した時の加点。コンボ倍率がかかる。
     // fromBomb=true はボムの強制浄化経路（Enemy.Purify）。上のボムキャップを超えた分は報酬を付けない。

@@ -24,7 +24,7 @@ public partial class GameCamera : Camera2D
         {
             _shakeT -= (float)delta;
             float f = Mathf.Max(0f, _shakeT / _shakeDur);
-            Offset = new Vector2(_rng.RandfRange(-1f, 1f), _rng.RandfRange(-1f, 1f)) * _shakeMag * f;
+            Offset = new Vector2(_rng.RandfRange(-1f, 1f), _rng.RandfRange(-1f, 1f)) * _shakeMag * f * Settings.ShakeStrength;
             // 揺れ切ったら強さを捨てる。残さないと以降の小さな Shake が
             // 直前の大きな mag を Max で引き継いだままになる。
             if (_shakeT <= 0f) _shakeMag = 0f;

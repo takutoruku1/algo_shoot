@@ -45,7 +45,7 @@ public partial class PauseMenu : CanvasLayer
     private int _sel;
     private bool _navHeld, _lrHeld, _zHeld, _escHeld, _menuHeld, _backHeld;
     private double _savedToast;
-    private int _savedSlot;
+    private string _saveMessage = "";
     private bool _autoplay;
     // デバッグ限定：--pause-shot <top|confirm|save|load|settings> で、その状態を開いたところから始める
     //   （スクショ用。Hub の --hub-detail / --hub-job と同じ趣旨で、開くだけで何も確定しない）。
@@ -227,6 +227,10 @@ public partial class PauseMenu : CanvasLayer
     public override void _Notification(int what)
     {
         if (what == (int)NotificationWMCloseRequest) OnCloseRequested();
+        if (what == NotificationApplicationFocusOut && Settings.PauseWhenUnfocused
+            && !_autoplay && !_open && IsInsideTree() && !GetTree().Paused
+            && EscOpensHere() && !OverlayOpen() && !LoadingScreen.IsActive)
+            Open();
     }
 
     // ウィンドウを閉じる要求。ゲームが始まっていない画面（タイトル/設定/スタッフロール）は確認せず終了。
@@ -641,8 +645,14 @@ public partial class PauseMenu : CanvasLayer
     {
         if (_slotForSave)
         {
+            if (_game?.SaveToSlot(slot) != true)
+            {
+                Audio.Instance?.PlayUiDeny();
+                _saveMessage = "保存できませんでした。空き容量・保存先を確認してください";
+                _savedToast = 4;
+                return;
+            }
             Audio.Instance?.PlayUiConfirm();
-            _game?.SaveToSlot(slot);             // スロットへ保存（上書き）
             // 「セーブしますか？」から来たセーブ＝保存したらそのままタイトルへ／終了（トーストは出さない＝すぐ遷移する）。
             if (_afterSave is { } after)
             {
@@ -650,21 +660,27 @@ public partial class PauseMenu : CanvasLayer
                 FinishQuit(after);
                 return;
             }
-            _savedSlot = slot; _savedToast = 1.8;
+            _saveMessage = $"スロット{slot}にセーブしました"; _savedToast = 1.8;
             CloseSlots();
             return;
         }
         // ロード：空スロットは選べない（タイトルの「つづきから」と同じ拒否音）。
         if (!SlotFilled(slot)) { Audio.Instance?.PlayUiDeny(); return; }
-        Audio.Instance?.PlayUiConfirm();
-        CloseSlots();
         // ロード後の遷移はタイトルの「つづきから」と同じ作法＝LoadFromSlot してハブへ入る
         //   （どのステージの途中から開いても、読み込んだセーブの続きはハブから始まる）。
         if (_game?.LoadFromSlot(slot) == true)
         {
+            Audio.Instance?.PlayUiConfirm();
+            CloseSlots();
             GetNodeOrNull<BulletPool>("/root/Pool")?.DespawnAll();
             Close();
             GameManager.FadeToScene(this, "res://Hub.tscn");
+        }
+        else
+        {
+            Audio.Instance?.PlayUiDeny();
+            _saveMessage = "セーブデータを読み込めませんでした";
+            _savedToast = 4;
         }
     }
 
@@ -903,7 +919,7 @@ public partial class PauseMenu : CanvasLayer
     //   描く画面はもう無いが、QA が「どの画面でも出ていない」ことを確かめられるよう、問いだけ残す。
     public bool ShowHint => false;
     public bool SlotFilled(int slot) => _game?.SlotExists(slot) ?? false;
-    public string SavedText => _savedToast > 0 ? $"スロット{_savedSlot}にセーブしました" : "";
+    public string SavedText => _savedToast > 0 ? _saveMessage : "";
     // 描画用：音量行の現在値（0..100）。
     public float VolValue(int i) => i >= 0 && i < _vol.Length ? _vol[i] : 0f;
 }
@@ -973,6 +989,14 @@ public partial class PauseCanvas : Node2D
         if (Menu.ConfirmOpen) DrawConfirm();
         else if (Menu.AskOpen) DrawAsk();
         else if (Menu.SlotOpen) DrawSlotPicker();
+        if (Menu.SavedText.Length > 0)
+        {
+            float width = UiKit.TextW(UiKit.ZenBold, Menu.SavedText, UiKit.FontLabel) + 48;
+            var toast = new Rect2((W - width) / 2, 82, width, 48);
+            UiKit.Box(this, toast, new Color(0.06f, 0.05f, 0.1f, 0.98f), 12, new Color(UiKit.Info, 0.6f), 1);
+            UiKit.Text(this, UiKit.ZenBold, toast.Position + new Vector2(24, 14), Menu.SavedText,
+                UiKit.FontLabel, UiKit.White, HorizontalAlignment.Center, width - 48);
+        }
     }
 
     // 「セーブしますか？」（タイトルへ／ウィンドウを閉じる）。確認ダイアログと同じ箱・同じボタン。
@@ -1018,17 +1042,14 @@ public partial class PauseCanvas : Node2D
             bool dim = rows[i].act == PauseMenu.Act.Save && !Menu.SaveEnabled;
             DrawRowLabel(r, rows[i].label, on, dim ? UiKit.Text4 : null);
             if (dim)
-                UiKit.Text(this, UiKit.Mono, new Vector2(x + w - 180, r.Position.Y + 11), "トレーニング中は不可", UiKit.FontSmall,
+                UiKit.Text(this, UiKit.Zen, new Vector2(x + w - 180, r.Position.Y + 11), "トレーニング中は不可", UiKit.FontSmall,
                     UiKit.Text4, HorizontalAlignment.Right, 158);
         }
 
-        if (Menu.SavedText.Length > 0)
-            UiKit.Text(this, UiKit.ZenBold, new Vector2(x, y + h - 80), Menu.SavedText, UiKit.FontLabel, UiKit.PurifyHi, HorizontalAlignment.Center, w);
         DrawButton(PauseMenu.CloseRect(rows.Length), "閉じる", Menu.Sel == Menu.CloseIndex, UiKit.Purify);
     }
 
     // 設定：音量3行（←→）＋画面モード1行（←→/Z）＋「もどる」。
-    //   解像度は Settings.cs 側でも表示だけ（実反映のコードが無い）なのでここには出さない。
     private void DrawSettingsPage()
     {
         var (x, y, w, h) = PauseMenu.SettingsBox();

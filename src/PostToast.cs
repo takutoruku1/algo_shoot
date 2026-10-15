@@ -78,9 +78,10 @@ public partial class PostToast : Control
     // ── 出す：書きかけ（本文が空。Type/Erase で打って消す）──
     //   自分からは消えない＝呼び出し側が Dismiss() するまで居座る。カーソルが末尾で明滅する。
     public static PostToast ShowComposing(Node parent, string name, string handle, string relT,
-        bool verified = false, int icon = 1)
+        bool verified = false, int icon = 1, Texture2D? portrait = null)
     {
         var t = Make(parent, name, handle, relT, verified, icon);
+        if (portrait != null) t._iconTex = portrait;
         t._composing = true; t._caret = true; t._dwell = -1f;
         return t;
     }

@@ -24,8 +24,6 @@ public partial class StageRei : Node
     private int _introLine;
     private BossRei _boss = null!;
     private bool _bossActive;
-    private double _rainT;
-    private readonly RandomNumberGenerator _rng = new RandomNumberGenerator();
     private bool _zHeld;
     private bool _zEdge;
     private bool _startBannerShown;
@@ -145,7 +143,7 @@ public partial class StageRei : Node
     private static readonly (int who, string text, string face)[] StormAfter =
     {
         (1, "…………。", "res://char/mina_face.png"),
-        (1, "……剥がし切りました。下に、送られなかった下書きが、一件。", "res://char/mina_face.png"),
+        (1, "……引用が消えました。下に、送られなかった下書きが、一件。", "res://char/mina_face.png"),
         (0, "「もう、いいかな」。……ここで終わりにしようとしてたのかもしれない。", ""),
         (1, "決めつけずに、聞きに行きましょう。わたくしは、まだお話ししたいです。", "res://char/mina_face.png"),
     };
@@ -304,7 +302,6 @@ public partial class StageRei : Node
 
     public override void _Ready()
     {
-        _rng.Randomize();
         _step = 1;
         // 道中ザコ（A+B+C 三波）＋引用の嵐の薄い波＋ボスで浄化カプセルが満ちるよう目標を設定（61体＋ボス1）。
         // 嵐ぶん(StormWave)を落とすと嵐の途中で StageCleared が立ち、以降 Spawner が止まって敵が出なくなる。
@@ -380,7 +377,7 @@ public partial class StageRei : Node
         if (!_clearing && !Hud.BubblePaused) { _stageElapsed += delta; Hud.SetElapsed((float)_stageElapsed); }
         // 会話送り：Z/Enter/ui_accept/Pad A に加えマウス左クリックでも送れる共通ヘルパ（マウス対応 P2）。
         bool z = Pad.AdvanceHeld();
-        _zEdge = z && !_zHeld;
+        _zEdge = z && !_zHeld && !Pad.UiBlocked(this);
         _zHeld = z;
         if (!_startBannerShown) { _startBannerShown = true; Hud.ShowStageStart(3, "レイ", new Color("9fcded")); }
 
@@ -417,16 +414,7 @@ public partial class StageRei : Node
             case 18: Step_QuoteStorm(delta); break;                // 十七枚・3段階・約50秒（QuoteStorm が持つ）
             case 19: Step_StormAfter(delta); break;                // 剥がし切りの受け → 道中C へ
         }
-        // ボス戦中の“雨弾”は、Y投稿モチーフの言葉弾（投稿弾）だけ降らせ、ただの常時落下弾は止める（ユーザー要望）。
-        // 投稿弾の湧きは全ボス共通ヘルパ PostBullets.Tick に集約（難易度で数がスケール）。
-        // 案C：レイ面の言葉弾は PostPool のレイのテーマ（09 の R01〜R43 由来の 8 文字弾）から引く＝
-        // この面のテーマ語だけが、層1（配信の日常）：層2（病みサイン）：層3（本人）＝5:4:1 で降る。
-        // ボス本体(BossRei)のスペル/予測線/パネル弾はそのまま。道中はSpawner任せでRain非依存。
-        // 安置リレー「最終選考」中（宣告〜最終着弾）は降らせない＝安置円の中に言葉弾が刺さって
-        // 「安置なのに被弾」になる理不尽を断つ（あかり面の CorridorRun 中ゲートと同じ流儀）。
-        if (_bossActive && !(IsInstanceValid(_boss) && (_boss.AoeGateActive || _boss.PostSequenceActive)))
-            PostBullets.Tick(this, _rng, delta, ref _rainT, ref _wordTick, source: _boss!, theme: PostPool.Theme.Rei, fallSpeed: 46f,
-                accent: new Color(0.62f, 0.70f, 0.92f)); // レイ面テーマ＝ランキングの銀青（穢れ桃より画面に馴染む）
+
     }
 
     // 背景はここでは触らない：会話・選択肢は直前の戦闘背景（道中パノラマ／中ボスの部屋／ボスの部屋）の上で進む。
@@ -1073,8 +1061,4 @@ public partial class StageRei : Node
         GameManager.FadeToScene(this, "res://Hub.tscn");
     }
 
-    // 投稿弾（Y投稿モチーフ＝ティッカー連動の言葉弾）の周期/tick 用アキュムレータ。
-    // 実際の湧き処理は全ボス共通ヘルパ PostBullets.Tick（難易度で数がスケール）に集約済み。
-    // 面固有の語プールは PostPool.Theme.Rei（wiki/08_仮台本/09 の「言葉弾の文言リスト」レイの行）へ移した。
-    private int _wordTick;
 }

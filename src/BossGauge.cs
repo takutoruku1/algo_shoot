@@ -9,9 +9,9 @@ using Godot;
 //   Z は絶対 11（自機 10・弾 0 より手前）＝弾幕の中でも読める。
 // 塗りの色分け（2026-09-27 作者指示「無敵のタイミングと、BREAK時のHPバー色分けしたい」）：
 //   無敵（SHIELDED／RECLOSE）＝灰＋45°の斜線ハッチ（「今は通らない」）。
-//   BREAK（BREAK／EXPOSED）＝金。割れた一拍は白へ寄せて光り、あとは脈打つ。
+//   破壊の合図＝暖白、本体に攻撃が通る EXPOSED＝金。
 //   改心の見送り中は従来どおり浄化色へ抜ける（上の2色より優先）。フェーズ色（スペル色）は残本数の点に残す。
-//   殴れるかどうかは Hud.GaugeState ではなくボス本体（Enemy.GaugeVulnerable／GaugeBreakFresh）から直接読む。
+//   殴れるかどうかは Hud.GaugeState ではなくボス本体（Enemy.GaugeBodyExposed）から直接読む。
 // 色味：ゲージは盤面側に居るので、各 Root の CanvasModulate（夜の冷色 Tint）で金がくすんで黄土色に沈む。
 //   BubbleLayer と同じく Tint の逆数を SelfModulate に置いて打ち消し、塗り・台座・点・斜線をすべて本来の色で見せる。
 public partial class BossGauge : Node2D
@@ -33,13 +33,15 @@ public partial class BossGauge : Node2D
     private static readonly Color HatchCol = new(0.10f, 0.10f, 0.12f, 0.6f);
     private const float HatchW = 0.65f, HatchPitch = 3.8f;
     private static readonly Color BreakFill = new("f0c85a");
+    private static readonly Color BreakingFill = new("f6e5c1");
     private static readonly Color ReformFill = new("76cfe0"), WindowFill = new("f6ab7b"), WindowWarning = new("ff746b");
 
     private double _t;   // BREAK 中の脈の時計
     private CanvasModulate? _tint;   // 祖先のどこかに居る世界の色味（無ければ打ち消し不要）
 
-    // 検証用（tools/BossGaugeQa.cs）：直近の _Draw で選んだ塗り＝"invuln" / "break" / "purify"。
+    // 検証用（tools/BossGaugeQa.cs）：直近の _Draw で選んだ塗りと状態案内。
     public string LastFillKind { get; private set; } = "";
+    public string LastStateLabel { get; private set; } = "";
 
     public static BossGauge Attach(Hud hud, Enemy owner)
     {
@@ -94,6 +96,7 @@ public partial class BossGauge : Node2D
 
     public override void _Draw()
     {
+        LastStateLabel = "";
         if (_hud == null || _owner == null || !IsInstanceValid(_owner)) return;
         var s = _hud.GaugeState;
         if (!s.Visible || s.Fade <= 0f) return;
@@ -102,20 +105,21 @@ public partial class BossGauge : Node2D
         // 改心の見送り：穢れ色（スペル色）→浄化色へ抜けてから薄れる（旧カードのアイコンと同じ段取り）。
         Color tint = s.Tint.Lerp(UiKit.PurifyHi, s.Purify);
 
-        // 塗りの種類：見送り ＞ BREAK ＞ 無敵。
-        string kind = s.Purify > 0f ? "purify" : _owner.GaugeVulnerable ? "break" : "invuln";
+        string kind = s.Purify > 0f ? "purify" : _owner.GaugeBodyExposed ? "break"
+            : _owner.GaugeBreaking ? "breaking" : _owner.GaugeAttackResolving ? "resolving" : "invuln";
         LastFillKind = kind;
         Color fillCol = kind switch
         {
             "purify" => new Color(tint, a),
-            "invuln" => new Color(InvulnFill, 0.8f * a),
-            // 割れた一拍（GaugeBreakFresh 1→0）は白へ寄せて光り、あとは 1.5Hz の脈で α 0.85〜1.0。
-            _ => new Color(BreakFill.Lerp(Colors.White, 0.8f * _owner.GaugeBreakFresh),
+            "invuln" => new Color(_owner.GaugeReforming ? InvulnFill.Lerp(ReformFill, 0.4f) : InvulnFill, 0.8f * a),
+            "resolving" => new Color(BreakingFill, .7f * a),
+            "breaking" => new Color(BreakingFill.Lerp(Colors.White, 0.8f * _owner.GaugeBreakFresh), a),
+            _ => new Color(BreakFill,
                 (0.85f + 0.15f * (0.5f + 0.5f * Mathf.Sin((float)_t * Mathf.Tau * 1.5f))) * a),
         };
 
         var bar = new Rect2(-w / 2f, top, w, BarH);
-        Color edge = kind == "invuln" ? Rail : fillCol;
+        Color edge = kind == "invuln" ? _owner.GaugeReforming ? ReformFill : Rail : fillCol;
         bool major = _owner is not CameoBoss;
         DrawPlate(bar.Grow(1.8f), new Color(Plate, 0.96f * a), new Color(edge, 0.72f * a));
         DrawPlate(bar, new Color(Track, a));
@@ -125,7 +129,7 @@ public partial class BossGauge : Node2D
         {
             var fill = new Rect2(bar.Position, new Vector2(w * s.Frac, BarH));
             DrawPlate(fill, fillCol);
-            if (kind == "invuln" && fill.Size.X > 4f)
+            if (kind is "invuln" or "resolving" && fill.Size.X > 4f)
                 DrawHatch(new Rect2(fill.Position + new Vector2(1.9f, 0.4f), fill.Size - new Vector2(3.8f, 0.8f)), a);
             if (fill.Size.X > 3f)
                 DrawLine(fill.Position + new Vector2(1.5f, 0.65f), new Vector2(fill.End.X - 1.5f, top + 0.65f),
@@ -160,32 +164,39 @@ public partial class BossGauge : Node2D
 
         if (s.Total > 1)
         {
-            int left = s.Index + 1;
-            float pitch = Mathf.Min(4.3f, (w - 4) / s.Total);
+            int groups = Mathf.Min(10, s.Total);
+            float remaining = (s.Index + s.Frac) * groups / s.Total;
+            int currentGroup = Mathf.Clamp(s.Index * groups / s.Total, 0, groups - 1);
+            float pitch = Mathf.Min(4.3f, (w - 4) / groups);
             float radius = Mathf.Min(1.25f, pitch * 0.31f);
-            float x0 = -(s.Total - 1) * pitch / 2f;
+            float x0 = -(groups - 1) * pitch / 2f;
             float py = top + BarH + 3.4f;
-            for (int i = 0; i < s.Total; i++)
+            for (int i = 0; i < groups; i++)
             {
                 var center = new Vector2(x0 + i * pitch, py);
-                bool current = i == s.Index;
+                bool current = i == currentGroup;
+                float amount = Mathf.Clamp(remaining - i, 0, 1);
                 DrawCrystal(center, radius + 0.6f, new Color(Plate, 0.9f * a), new Color(Plate, 0));
                 DrawCrystal(center, radius,
-                    i < left ? new Color(current ? fillCol : tint, a) : new Color(Track, a),
-                    new Color(current ? Colors.White : i < left ? tint : Rail, (current ? 0.8f : 0.6f) * a));
+                    new Color(Track.Lerp(current ? fillCol : tint, amount), a),
+                    new Color(current ? Colors.White : amount > 0 ? tint : Rail, (current ? 0.8f : 0.6f) * a));
             }
         }
-        if (s.Purify <= 0f && (_owner.GaugeVulnerable || _owner.GaugeReforming))
-            DrawRecoveryGauge(_owner, a);
+        if (s.Purify <= 0f && (_owner.UnfoldersActive || _owner.GaugeAttackResolving || _owner.GaugeBreaking || _owner.GaugeBodyExposed || _owner.GaugeReforming))
+            DrawCombatState(_owner, a);
     }
 
-    private void DrawRecoveryGauge(Enemy owner, float alpha)
+    private void DrawCombatState(Enemy owner, float alpha)
     {
         bool reforming = owner.GaugeReforming;
-        float fraction = reforming ? owner.GaugeReformProgress : owner.GaugeWindowLeft;
-        bool warning = !reforming && fraction < 0.25f;
+        bool exposed = owner.GaugeBodyExposed;
+        bool breaking = owner.GaugeBreaking;
+        bool resolving = owner.GaugeAttackResolving;
+        float fraction = reforming ? owner.GaugeReformProgress : exposed ? owner.GaugeWindowLeft : 1f;
+        bool warning = exposed && fraction < 0.25f;
         float pulse = 0.5f + 0.5f * Mathf.Sin((float)_t * Mathf.Tau * (warning ? 4f : 1.5f));
-        Color accent = reforming ? ReformFill : warning ? WindowWarning : WindowFill;
+        Color accent = reforming ? ReformFill : breaking || resolving ? BreakingFill
+            : exposed ? warning ? WindowWarning : WindowFill : InvulnFill;
         var center = new Vector2(-11f, owner.GaugeBottom + 3.4f);
         const float radius = 5.4f;
         DrawCircle(center, radius + 1.1f, new Color(Plate, 0.94f * alpha));
@@ -206,14 +217,14 @@ public partial class BossGauge : Node2D
         DrawColoredPolygon(_shield, new Color(Plate, 0.96f * alpha));
         for (int i = 0; i < 5; i++) _shieldOutline[i] = _shield[i];
         _shieldOutline[5] = _shield[0];
-        DrawPolyline(_shieldOutline, new Color(accent, (0.7f + 0.3f * pulse) * alpha), 0.7f, true);
+        DrawPolyline(_shieldOutline, new Color(accent, (exposed || reforming ? 0.7f + 0.3f * pulse : 1f) * alpha), 0.7f, true);
         if (reforming)
         {
             float scan = Mathf.Lerp(center.Y + 1.4f, center.Y - 1.8f, fraction);
             DrawLine(new Vector2(center.X - 1.5f, scan), new Vector2(center.X + 1.5f, scan),
                 new Color(accent.Lightened(0.3f), alpha), 0.65f, true);
         }
-        else
+        else if (breaking || exposed || resolving)
         {
             _shieldCrack[0] = center + new Vector2(0.7f, -1.8f);
             _shieldCrack[1] = center + new Vector2(-0.6f, -0.1f);
@@ -222,12 +233,22 @@ public partial class BossGauge : Node2D
             DrawPolyline(_shieldCrack, new Color(accent, alpha), 0.65f, true);
         }
 
-        string label = reforming ? "再生中" : "復帰まで";
-        var labelPosition = (center + new Vector2(8f, -2.8f)) / UiKit.Scale;
+        string label = reforming ? "再形成中" : breaking || resolving ? "シールド破壊" : exposed ? "本体に攻撃" : "シールド";
+        LastStateLabel = label;
+        var style = UiKit.CombatState;
+        var labelPosition = (center + new Vector2(8f, 0)) / UiKit.Scale - new Vector2(0, style.LineHeight / 2);
         UiKit.BeginDesign(this);
-        DrawStringOutline(UiKit.ZenBold, labelPosition + new Vector2(0, UiKit.ZenBold.GetAscent(13)), label,
-            HorizontalAlignment.Left, -1, 13, 4, new Color(Plate, alpha));
-        UiKit.Text(this, UiKit.ZenBold, labelPosition, label, 13, new Color(accent, alpha));
+        DrawStringOutline(style.Font, labelPosition + new Vector2(0, style.Font.GetAscent(style.Size)), label,
+            HorizontalAlignment.Left, -1, style.Size, 4, new Color(Plate, alpha));
+        UiKit.Draw(this, style, labelPosition, label, new Color(accent, alpha));
+        if (resolving)
+        {
+            var instructionPosition = labelPosition + new Vector2(0, style.LineHeight);
+            const string instruction = "攻撃が終わるまで回避";
+            DrawStringOutline(style.Font, instructionPosition + new Vector2(0, style.Font.GetAscent(style.Size)), instruction,
+                HorizontalAlignment.Left, -1, style.Size, 4, new Color(Plate, alpha));
+            UiKit.Draw(this, style, instructionPosition, instruction, new Color(accent, alpha));
+        }
         UiKit.EndDesign(this);
     }
 

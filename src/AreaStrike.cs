@@ -110,6 +110,7 @@ public partial class AreaStrike : Node2D, IAoeHazard
     //   CoversPoint … 点 p が被弾域内か（安置くり抜き含む Inside と同一判定）
     public bool IsStriking => _struck;
     public bool CoversPoint(Vector2 p) => Inside(p);
+    internal void EnsureWarning(double seconds) => _warn = System.Math.Max(_warn, seconds);
 
     // 全形状共通で "aoe" グループに入れる（QaPilot が走査する）。ゲーム本編では誰も参照しない。
     public override void _Ready()
@@ -163,7 +164,7 @@ public partial class AreaStrike : Node2D, IAoeHazard
         // 発生源が着弾前に消えた／浄化されたら、予測線ごとキャンセル（倒せば攻撃も消える）。
         if (_cancelOnOwnerLoss
             && (_owner == null || !IsInstanceValid(_owner)
-                || (_owner is Enemy e && e.IsPurified)))
+                || (_owner is Enemy e && (e.IsPurified || e.GaugeVulnerable || e.GaugeReforming))))
         {
             QueueFree();
             return;

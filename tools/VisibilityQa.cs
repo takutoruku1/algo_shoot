@@ -35,7 +35,7 @@ public partial class VisibilityQa : Node
     private static Color CorruptTint(float corruption) => Colors.White.Lerp(Murk, corruption);
 
     private int _fail;
-    private bool _shot;
+    private bool _shot, _overlayOnly;
     private string _out = "build/shots_visibility";
     private Hud? _hud;
     // 徘徊・進入で動く敵は撮影のあいだ定位置へ固定する（BossGaugeQa と同じ作法）。
@@ -59,6 +59,7 @@ public partial class VisibilityQa : Node
         // 全体の --shot（ShotTool 自動ロード＝撮って終了する）と衝突しないよう専用の旗にしてある。
         var args = OS.GetCmdlineUserArgs();
         foreach (var a in args) if (a == "--vis-shot") _shot = true;
+        _overlayOnly = args.Contains("--overlay-only");
         for (int i = 0; i + 1 < args.Length; i++) if (args[i] == "--vis-out") _out = args[i + 1];
         if (_shot)
         {
@@ -82,11 +83,196 @@ public partial class VisibilityQa : Node
         Check("セーブが隔離されている（APPDATA=build/qa_story/...）", OS.GetUserDataDir().Replace(Chr92, '/').Contains("/build/qa_story/"));
         var game = GetNode<GameManager>("/root/Game");
         game.ResetPersistent(); game.AutoSaveEnabled = false; game.Difficulty = GameManager.Diff.Normal;
-        foreach (var c in Cases) await RunStage(game, c);
-        CompareStages();
+        if (!_overlayOnly)
+        {
+            foreach (var c in Cases) await RunStage(game, c);
+            CompareStages();
+        }
+        if (_shot)
+            foreach (var c in Cases) await OverlayShots(game, c);
+        else if (_overlayOnly) Check("overlay-only requires --vis-shot and a rendered viewport", false);
     }
 
     private const char Chr92 = (char)92;   // Windows のパス区切り
+
+    private async Task OverlayShots(GameManager game, StageCase c)
+    {
+        game.ResetRun();
+        game.Difficulty = GameManager.Diff.Easy;
+        game.SelectedEntry = GameManager.StageEntry.Start;
+        var root = GD.Load<PackedScene>($"res://{c.Scene}.tscn").Instantiate<Node2D>();
+        GetTree().Root.AddChild(root);
+        GetTree().CurrentScene = root;
+        ((Node)root.GetType().GetProperty("Stage")!.GetValue(root)!).SetProcess(false);
+        var world = root.GetNode<Node2D>("World");
+        world.ProcessMode = ProcessModeEnum.Inherit;
+        var player = world.GetNode<Player>("Player");
+        player.SetPhysicsProcess(false);
+        var hud = root.GetNode<Hud>("Hud");
+        _hud = hud;
+        hud.HoldBubble = false;
+        hud.HideBubble();
+        hud.SetCinematicMode(false);
+        hud.SuppressCallouts = false;
+        Hud.BubblePaused = false;
+        Enemy boss = c.Boss();
+        boss.ProcessMode = ProcessModeEnum.Disabled;
+        world.AddChild(boss);
+        boss.GlobalPosition = new Vector2(Field.CenterX, 108);
+        typeof(Enemy).GetMethod("TickEntrance", P)!.Invoke(boss, new object[] { 100d });
+        boss.FinishFormReveal();
+        await Frames(4);
+        root.SetProcess(false);
+        hud.HideBubble();
+        hud.SetCinematicMode(false);
+        hud.SuppressCallouts = false;
+        Write(hud, "_bannerTimer", 0d);
+        Write(hud, "_calloutA", 1f);
+        hud.ResetSpellCutin();
+        var pool = GetNode<BulletPool>("/root/Pool");
+        pool.DespawnAll();
+        GetTree().Paused = true;
+        GameCamera.Instance.Offset = Vector2.Zero;
+        GameCamera.Instance.ForceUpdateScroll();
+        hud.Bubbles!._Process(0);
+        var body = player.GetNode<Sprite2D>("Sprite");
+        Pose(player, body);
+        var who = c.Id switch { "akari" => "あかり", "koharu" => "こはる", "rei" => "レイ", _ => "ミナ" };
+        hud.AnnounceSpell(who, "@visibility_qa", "視認性の検証", UiKit.Kegare);
+        var cutin = Read<Texture2D?>(hud, "_cutinTex");
+        Check($"{c.Id} actual first spell creates a cutin (run without --qa/--demo)", cutin != null);
+        if (cutin != null)
+        {
+            var positions = CutinSamplePositions(cutin);
+            Check($"{c.Id} four separated opaque cutin locations", positions.Count == 4);
+            if (positions.Count == 4)
+            {
+                player.GlobalPosition = positions[0];
+                var samples = new List<Node2D> { player };
+                for (int i = 1; i < positions.Count; i++)
+                {
+                    var bullet = pool.Spawn(positions[i], Vector2.Left * 60, true);
+                    bullet.SetSprite(BulletArt.AkariEnvelope!, 0);
+                    bullet.Rotation = 0;
+                    bullet.SetPhysicsProcess(false);
+                    samples.Add(bullet);
+                }
+                Write(hud, "_cutinTimer", 0d);
+                Write(hud, "_spellTimer", 0d);
+                using var before = await OverlayGrab(root, hud);
+                Save(before, $"overlay_{c.Id}_clear");
+                Write(hud, "_cutinTimer", 1.35d);
+                Write(hud, "_spellTimer", 4.5d);
+                using var after = await OverlayGrab(root, hud);
+                Save(after, $"overlay_{c.Id}_cutin");
+                Check($"{c.Id} comparison is live combat, not dialogue", !Hud.BubblePaused && samples.Skip(1).Cast<Bullet>().All(b => b.Active));
+                for (int i = 0; i < samples.Count; i++)
+                {
+                    var position = samples[i].GetGlobalTransformWithCanvas() * Vector2.Zero;
+                    var a = ScreenPixel(before, position);
+                    var b = ScreenPixel(after, position);
+                    float change = Diff(a, b);
+                    Check($"{c.Id} {(i == 0 ? "player core" : "enemy projectile " + i)} stays visible under cutin (pixel delta={change:0.000})", change < 0.04f);
+                }
+            }
+        }
+        pool.DespawnAll();
+        player.GlobalPosition = new Vector2(Field.Left + 38, 155);
+        if (c.Id != "mina")
+        {
+            var caster = (AreaSpellCaster)Read<Node>(boss, "_caster");
+            var animal = BossAnimalTechnique.Begin(boss, c.Id, caster);
+            animal.SetPhysicsProcess(false);
+            Write(animal, "_time", 0.4d);
+            Write(hud, "_cutinTimer", 0d);
+            Write(hud, "_spellTimer", 4.5d);
+            await CheckWarningOverlay(root, hud, animal, $"overlay_{c.Id}_easy_signature");
+            animal.Cancel();
+            await Frames(2);
+        }
+        var edge = BossEdgeVolley.Begin(boss, c.Id, c.Id == "akari" ? 1 : 0);
+        edge.SetPhysicsProcess(false);
+        Write(edge, "_time", 0.6d);
+        hud.AnnounceSpell(who, "@visibility_qa", edge.SpellName, UiKit.Kegare);
+        Write(hud, "_cutinTimer", cutin == null ? 0d : 1.35d);
+        Write(hud, "_spellTimer", 4.5d);
+        hud.ShowBossLine(who, "……ここにいるよ。", UiKit.Kegare, 3);
+        Write(hud, "_bossLineTimer", 2.5d);
+        await CheckWarningOverlay(root, hud, edge, $"overlay_{c.Id}_easy_edge");
+        edge.Cancel();
+        pool.DespawnAll();
+        foreach (var bullet in pool.GetChildren().OfType<Bullet>()) bullet.SetPhysicsProcess(true);
+        Audio.Instance?.StopMusic(0);
+        root.QueueFree();
+        await Frames(3);
+        _hud = null;
+        Hud.BubblePaused = false;
+        GetTree().Paused = false;
+        game.Difficulty = GameManager.Diff.Normal;
+    }
+
+    private List<Vector2> CutinSamplePositions(Texture2D texture)
+    {
+        using var source = texture.GetImage();
+        float scale = 460f / source.GetHeight();
+        var corner = new Vector2(1290 - source.GetWidth() * scale, 254);
+        var points = new List<Vector2>();
+        for (int y = source.GetHeight() / 3; y < source.GetHeight() * 9 / 10 && points.Count < 4; y += 12)
+            for (int x = source.GetWidth() / 5; x < source.GetWidth() * 4 / 5 && points.Count < 4; x += 12)
+            {
+                var p = (corner + new Vector2(x, y) * scale) * UiKit.Scale;
+                if (p.X < Field.Left + 24 || p.X > Field.Right - 12 || p.Y > Field.Bottom - 12
+                    || points.Any(old => old.DistanceTo(p) < 25f)) continue;
+                if (source.GetPixel(x, y).A < 0.99f) continue;
+                points.Add(p);
+            }
+        return points;
+    }
+
+    private async Task CheckWarningOverlay(Node2D root, Hud hud, Node2D warning, string name)
+    {
+        Check(name + " uses the actual Easy warning", GameManager.Instance!.Difficulty == GameManager.Diff.Easy && warning.Visible);
+        using var actual = await OverlayGrab(root, hud);
+        Save(actual, name);
+        int z = warning.ZIndex;
+        // Keep the reference behind bodies and bullets while revealing warnings above announcement panels.
+        warning.ZIndex = -3;
+        using var reference = await OverlayGrab(root, hud);
+        Save(reference, name + "_reference");
+        warning.ZIndex = z;
+        int covered = 0;
+        float max = 0;
+        for (int y = 0; y < actual.GetHeight(); y++)
+            for (int x = (int)(actual.GetWidth() * Field.Left / 384f); x < actual.GetWidth(); x++)
+            {
+                float delta = Diff(actual.GetPixel(x, y), reference.GetPixel(x, y));
+                max = Mathf.Max(max, delta);
+                if (delta > 0.06f) covered++;
+            }
+        Check($"{name} announcement does not cover warnings (changed pixels={covered}, max delta={max:0.000})", covered < 8);
+    }
+
+    private async Task<Image> OverlayGrab(Node root, Hud hud)
+    {
+        Write(hud, "_flashAlpha", 0f);
+        Write(hud, "_spellGlow", 0d);
+        Write(hud, "_cutinLandedFlashed", true);
+        Redraw(root);
+        return await Grab();
+    }
+
+    private static void Redraw(Node node)
+    {
+        if (node is CanvasItem canvas) canvas.QueueRedraw();
+        foreach (var child in node.GetChildren()) Redraw(child);
+    }
+
+    private Color ScreenPixel(Image image, Vector2 position)
+    {
+        var view = GetViewport().GetVisibleRect().Size;
+        return image.GetPixel(Mathf.Clamp(Mathf.RoundToInt(position.X * image.GetWidth() / view.X), 0, image.GetWidth() - 1),
+            Mathf.Clamp(Mathf.RoundToInt(position.Y * image.GetHeight() / view.Y), 0, image.GetHeight() - 1));
+    }
 
     private async Task RunStage(GameManager game, StageCase c)
     {
@@ -291,7 +477,7 @@ public partial class VisibilityQa : Node
         {
             Save(img, $"stage_{id}_before");
             Zoom(img, player, $"hitdot_{id}_before");
-            var (screen, source, n) = Measure(img, body);
+            var (screen, source, n) = await MeasureBody(body, dot);
             _bodyBefore = screen; _bodySource = source; _bodySamples = n;
         }
         Apply(true);
@@ -302,7 +488,7 @@ public partial class VisibilityQa : Node
             Save(img, $"stage_{id}_after");
             ringPlain = RingMean(img, player);   // シールド無しの輪の帯（後で泡ありと比べる）
             Zoom(img, player, $"hitdot_{id}_after");
-            var (screen, source, n) = Measure(img, body);
+            var (screen, source, n) = await MeasureBody(body, dot);
             _body.Add((id, Div(_bodyBefore, corrTint), Div(screen, corrTint), source, Math.Min(n, _bodySamples)));
             var want = Mul(source, corrTint);   // 素材 × 汚染ティント＝Tint を完全に打ち消したときに出るべき色
             GD.Print($"[VIS] info {id}: 自機の胴（不透明 {n} 画素）素材={Fmt(source)} 汚染込みの狙い={Fmt(want)} 修正前={Fmt(_bodyBefore)} 修正後={Fmt(screen)}");
@@ -340,14 +526,14 @@ public partial class VisibilityQa : Node
         using (var img = await Grab())
         {
             Zoom(img, player, $"hitdot_{id}_corrupt_before");
-            (before, _, _) = Measure(img, body);
+            (before, _, _) = await MeasureBody(body, dot);
         }
         body.SelfModulate = want;
         using (var img = await Grab())
         {
             Save(img, $"stage_{id}_corrupt_after");
             Zoom(img, player, $"hitdot_{id}_corrupt_after");
-            var (screen, source, n) = Measure(img, body);
+            var (screen, source, n) = await MeasureBody(body, dot);
             float ys = TintLift.Luma(source), yb = TintLift.Luma(before), ya = TintLift.Luma(screen);
             GD.Print($"[VIS] info {id}/汚染{DeepCorruption:0.00}: 自機の胴（不透明 {n} 画素）素材={Fmt(source)}（輝度 {ys:0.000}）"
                 + $" 修正前={Fmt(before)}（輝度 {yb:0.000}） 修正後={Fmt(screen)}（輝度 {ya:0.000}）");
@@ -375,22 +561,22 @@ public partial class VisibilityQa : Node
         foreach (var e in enemies) if (IsInstanceValid(e)) e.SetPhysicsProcess(!frozen);
     }
 
-    // ステージ間の食い違い（完全打ち消しなら、どの面でも自機は同じ明るさで出る）。
+    // FINAL switches Tank to Magic, so compare brightness relative to each actual character texture.
     private void CompareStages()
     {
         if (_body.Count < 2) return;
         // 汚染ティントぶんを割り戻した値でくらべる（面ごとの濁りは意図的なので、Tint の打ち消しだけを見る）。
         foreach (var (stage, before, after, source, n) in _body)
-            GD.Print($"[VIS] info まとめ {stage}: 素材={Fmt(source)} 汚染を割り戻した 前={Fmt(before)} 後={Fmt(after)}（{n} 画素）");
+            GD.Print($"[VIS] info まとめ {stage}: 素材={Fmt(source)} 素材比（汚染補正済み） 前={Fmt(Div(before, source))} 後={Fmt(Div(after, source))}（{n} 画素）");
         float spread = 0f, spreadBefore = 0f;
         for (int i = 0; i < _body.Count; i++)
             for (int j = i + 1; j < _body.Count; j++)
             {
-                spread = Mathf.Max(spread, Diff(_body[i].After, _body[j].After));
-                spreadBefore = Mathf.Max(spreadBefore, Diff(_body[i].Before, _body[j].Before));
+                spread = Mathf.Max(spread, Diff(Div(_body[i].After, _body[i].Source), Div(_body[j].After, _body[j].Source)));
+                spreadBefore = Mathf.Max(spreadBefore, Diff(Div(_body[i].Before, _body[i].Source), Div(_body[j].Before, _body[j].Source)));
             }
-        GD.Print($"[VIS] info 自機の明るさのステージ間の最大差：修正前 {spreadBefore:0.000} → 修正後 {spread:0.000}");
-        Check($"4ステージで自機の明るさがそろっている（最大差 {spread:0.000} < 0.05）", spread < 0.05f);
+        GD.Print($"[VIS] info 自機の素材比の明るさのステージ間の最大差：修正前 {spreadBefore:0.000} → 修正後 {spread:0.000}");
+        Check($"4ステージで自機の素材比の明るさがそろっている（最大差 {spread:0.000} < 0.05）", spread < 0.05f);
     }
 
     private static float Diff(Color a, Color b) =>
@@ -449,6 +635,19 @@ public partial class VisibilityQa : Node
         return n == 0 ? 0f : (float)(sum / n);
     }
 
+    private async Task<(Color Screen, Color Source, int Samples)> MeasureBody(Sprite2D body, PlayerHitDot dot)
+    {
+        bool visible = dot.Visible;
+        // The core is a separate foreground image and must not contaminate the body-color measurement.
+        dot.Hide();
+        try
+        {
+            using var image = await Grab();
+            return Measure(image, body);
+        }
+        finally { dot.Visible = visible; }
+    }
+
     // 自機の「素材が不透明な画素」だけを画面から拾って平均する。背景が混ざらないので、
     //   素材（昼の色）の同じ画素の平均と直接くらべられる＝「Tint で沈んでいないか」を数値で言える。
     private (Color Screen, Color Source, int Samples) Measure(Image img, Sprite2D body)
@@ -460,7 +659,8 @@ public partial class VisibilityQa : Node
         var xf = body.GetGlobalTransformWithCanvas();
         var inv = xf.AffineInverse();
         // 絵の中央 40%（胴＝髪・衣装の面積が大きいところ）だけを見る。輪郭の半透明を避ける。
-        var a = xf * (-size * 0.2f); var b = xf * (size * 0.2f);
+        var rect = body.GetRect();
+        var a = xf * (rect.GetCenter() - size * 0.2f); var b = xf * (rect.GetCenter() + size * 0.2f);
         int x0 = Mathf.Clamp((int)(Mathf.Min(a.X, b.X) * sx), 0, img.GetWidth() - 1);
         int y0 = Mathf.Clamp((int)(Mathf.Min(a.Y, b.Y) * sy), 0, img.GetHeight() - 1);
         int x1 = Mathf.Clamp((int)Mathf.Ceil(Mathf.Max(a.X, b.X) * sx), x0 + 1, img.GetWidth());
@@ -471,9 +671,9 @@ public partial class VisibilityQa : Node
         for (int y = y0; y < y1; y++)
             for (int x = x0; x < x1; x++)
             {
-                var local = inv * new Vector2(x / sx, y / sy) + size * 0.5f;   // テクスチャ画素座標
+                var local = inv * new Vector2((x + 0.5f) / sx, (y + 0.5f) / sy) - rect.Position;
                 if (body.FlipH) local.X = size.X - local.X;
-                var t = new Vector2I(Mathf.RoundToInt(local.X), Mathf.RoundToInt(local.Y));
+                var t = new Vector2I(Mathf.FloorToInt(local.X), Mathf.FloorToInt(local.Y));
                 if (t.X < 1 || t.Y < 1 || t.X >= size.X - 1 || t.Y >= size.Y - 1) continue;
                 var s = src.GetPixelv(t);
                 if (s.A < 0.99f) continue;   // 輪郭の半透明＝背景が混ざる画素は数えない

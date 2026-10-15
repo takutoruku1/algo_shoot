@@ -1,27 +1,21 @@
 using Godot;
-using System.Collections.Generic;
 
 public partial class MinaPhaseAttacks : Node
 {
     private BossMina _boss = null!;
-    private Node _world = null!;
-    private readonly List<AreaStrike> _strikes = new();
-    private int _phase, _wave;
-    private double _wait, _cooldown;
-    private Vector2 _lastSafe;
-    private BossEdgeVolley? _edgeVolley;
+    private BossCharacterTechnique? _attack;
+    private int _phase, _edge;
     private bool _nextEdge;
-    private int _edgeSequence;
-    public bool Active { get; private set; }
+    private double _cooldown;
+    private bool _active;
+    public bool Active => _boss != null && _boss.UsesTechniqueCycle
+        ? _attack != null && IsInstanceValid(_attack) && !_attack.Finished : _active;
     public bool OpenerCompleted { get; private set; }
-
     public void Configure(BossMina boss, Node world)
     {
         _boss = boss;
-        _world = world;
         BeginPhase(0);
     }
-
     public void BeginPhase(int phase)
     {
         CancelPendingAttacks();
@@ -30,209 +24,60 @@ public partial class MinaPhaseAttacks : Node
         OpenerCompleted = false;
         _cooldown = 1.2;
     }
-
     public void CancelPendingAttacks()
     {
-        if (_edgeVolley != null && IsInstanceValid(_edgeVolley)) _edgeVolley.Cancel();
-        _edgeVolley = null;
-        foreach (var strike in _strikes)
-            if (IsInstanceValid(strike)) strike.QueueFree();
-        _strikes.Clear();
-        Active = false;
-        _wave = 0;
-        _wait = 0;
+        if (_attack != null && IsInstanceValid(_attack) && !_attack.Finished) _attack.Cancel();
+        _attack = null;
+        _active = false;
         _cooldown = 3;
-        if (IsInstanceValid(_boss) && !_boss.IsPurified) _boss.SetBodyContactEnabled(true);
     }
-
     public override void _Process(double delta)
     {
-        if (_boss.IsPurified)
+        if (_boss.UsesTechniqueCycle) return;
+        if (_boss.IsPurified || _boss.GaugeVulnerable || _boss.GaugeReforming)
         {
             CancelPendingAttacks();
-            return;
-        }
-        if (_boss.GaugeVulnerable || _boss.GaugeReforming)
-        {
             if (_boss.GaugeVulnerable) OpenerCompleted = true;
             return;
         }
         if (Hud.BubblePaused || _boss.Transitioning) return;
-        delta = GameManager.EnemyDelta(delta);
-        if (!Active)
+        if (_attack != null)
         {
-            if (_boss.GaugeVulnerable || _boss.GaugeReforming) return;
-            _cooldown -= delta;
-            if (_boss.CrossfireActive || _boss.DodgeWaveActive) return;
-            if (_cooldown > 0) return;
-            Active = true;
-            if (_nextEdge && OpenerCompleted)
+            if (IsInstanceValid(_attack) && !_attack.Finished) return;
+            _attack = null;
+            _active = false;
+            _cooldown = _nextEdge ? 6 : 3;
+            return;
+        }
+        _cooldown -= GameManager.EnemyDelta(delta);
+        if (_cooldown > 0 || _boss.CrossfireActive || _boss.DodgeWaveActive) return;
+        _active = true;
+        if (AreaSpellCaster.HasRemainingShots(GetTree())) return;
+        var kind = _nextEdge ? BossTechniqueKind.Edge : BossTechniqueKind.Area;
+        _attack = BossCharacterTechnique.Begin(_boss, kind, _nextEdge ? _edge++ : _phase);
+        _attack.Ended += ended =>
+        {
+            if (ended.Completed)
             {
-                _edgeVolley = BossEdgeVolley.Begin(_boss, "mina", _edgeSequence++);
-                _boss.SetBodyContactEnabled(false);
-                _boss.ShowSignaturePose();
-                (GetTree().GetFirstNodeInGroup("hud") as Hud)?.AnnounceSpell(
-                    "ミナ", BossHandles.MinaBattle, _edgeVolley.SpellName, BossMina.PhaseTint(_phase));
-                return;
+                if (ended.TechniqueKind == BossTechniqueKind.Area) OpenerCompleted = true;
+                _nextEdge = ended.TechniqueKind == BossTechniqueKind.Area;
             }
-            _wave = 0;
-            _wait = Difficulty == GameManager.Diff.Easy ? 0.8 : 0.2;
-            _lastSafe = Vector2.Zero;
-            _boss.SetBodyContactEnabled(false);
-            _boss.ShowSignaturePose();
-            (GetTree().GetFirstNodeInGroup("hud") as Hud)?.AnnounceSpell(
-                "ミナ", BossHandles.MinaBattle, SignatureName(_phase), BossMina.PhaseTint(_phase));
-            return;
-        }
-        if (_edgeVolley != null)
-        {
-            if (IsInstanceValid(_edgeVolley) && !_edgeVolley.Finished && !_edgeVolley.IsQueuedForDeletion()) return;
-            _edgeVolley = null;
-            Active = false;
-            _nextEdge = false;
-            _cooldown = 3;
-            _boss.SetBodyContactEnabled(true);
-            return;
-        }
-        _strikes.RemoveAll(s => !IsInstanceValid(s) || s.IsQueuedForDeletion());
-        if (_strikes.Count > 0) return;
-        _wait -= delta;
-        if (_wait > 0) return;
-        if (_wave >= WaveCount(_phase))
-        {
-            Active = false;
-            OpenerCompleted = true;
-            _nextEdge = true;
-            _cooldown = _phase == 4 ? 6 : 9;
-            _boss.SetBodyContactEnabled(true);
-            return;
-        }
-        SpawnWave();
-        _wave++;
-        _wait = Difficulty == GameManager.Diff.Easy ? 0.35 : 0.05;
-    }
-
-    public static string SignatureName(int phase) => phase switch
-    {
-        0 => "消せなかった声",
-        1 => "未送信、再送",
-        2 => "拍手の檻",
-        3 => "閉じない配信",
-        _ => "リフレイン・帰り道",
-    };
-
-    private int WaveCount(int phase) => phase == 4 ? 7 : Difficulty == GameManager.Diff.Easy ? (phase == 0 ? 1 : 3) : 4;
-    private Player Player => (Player)GetTree().GetFirstNodeInGroup("player");
-    private GameManager.Diff Difficulty => GetNode<GameManager>("/root/Game").Difficulty;
-    private float WarnMul => Difficulty switch
-    {
-        GameManager.Diff.Hard => 0.9f,
-        GameManager.Diff.Lunatic => 0.8f, _ => 1f,
-    };
-
-    // The current game runs at 75 px/s before job/lock modifiers; warnings must use that speed.
-    private double TravelWarning(float distance, float minimum)
-        => Mathf.Max(minimum * WarnMul, Mathf.Max(0, distance) / Player.SlowestMoveSpeed + 0.45f);
-
-    private void SpawnWave()
-    {
-        int kind = _phase == 4 ? (_wave < 2 ? 1 : _wave < 4 ? 2 : 3) : _phase;
-        var motif = kind switch
-        {
-            1 => AreaStrike.Motif.Rain, 2 => AreaStrike.Motif.Screen,
-            3 => AreaStrike.Motif.Stream, _ => AreaStrike.Motif.Data,
         };
-        if (kind <= 1) SpawnLock(motif);
-        else if (kind == 2) SpawnCurtain(motif);
-        else SpawnRelay(_phase == 4 ? AreaStrike.Motif.Data : motif);
         _boss.ShowSignaturePose();
     }
-
-    private void Add(AreaStrike strike, Vector2 position)
+    internal void ObserveCycleAttack(BossCharacterTechnique technique)
     {
-        strike.SetOwner(_boss);
-        _world.AddChild(strike);
-        strike.GlobalPosition = position;
-        _strikes.Add(strike);
-    }
-
-    private void SpawnLock(AreaStrike.Motif motif)
-    {
-        float radius = _phase == 0 ? 48f : 56f;
-        var zone = new AreaStrike();
-        zone.Configure(AreaStrike.Shape.Circle, radius, radius,
-            TravelWarning(radius + 5, 1.2f), BossMina.PhaseTint(_phase), Colors.White, motif);
-        Add(zone, Player.GlobalPosition);
-    }
-
-    private void SpawnCurtain(AreaStrike.Motif motif)
-    {
-        bool vertical = _wave % 2 == 0;
-        float halfGap = Difficulty switch { GameManager.Diff.Easy => 26, GameManager.Diff.Normal => 10, _ => 7 };
-        float low = vertical ? Field.Left : Field.Top;
-        float high = vertical ? Field.Right : Field.Bottom;
-        float axis = vertical ? Player.GlobalPosition.X : Player.GlobalPosition.Y;
-        float center = (low + high) * 0.5f;
-        float margin = Difficulty == GameManager.Diff.Lunatic ? halfGap + 12 : 44;
-        float gap = Mathf.Clamp(axis + (axis < center ? 78 : -78), low + margin, high - margin);
-        double warn = TravelWarning(Mathf.Abs(gap - axis)
-            - (Difficulty == GameManager.Diff.Lunatic ? halfGap - 6 : 0), 1.5f);
-        AddCurtain(low, gap - halfGap, vertical, warn, motif);
-        AddCurtain(gap + halfGap, high, vertical, warn, motif);
-    }
-
-    private void AddCurtain(float start, float end, bool vertical, double warn, AreaStrike.Motif motif)
-    {
-        var zone = new AreaStrike();
-        zone.Configure(AreaStrike.Shape.Rect,
-            vertical ? (end - start) * 0.5f : Field.Width * 0.5f,
-            vertical ? Field.Height * 0.5f : (end - start) * 0.5f,
-            warn, BossMina.PhaseTint(_phase), Colors.White, motif);
-        Add(zone, vertical ? new Vector2((start + end) * 0.5f, Field.CenterY)
-            : new Vector2(Field.CenterX, (start + end) * 0.5f));
-    }
-
-    private void SpawnRelay(AreaStrike.Motif motif)
-    {
-        float radius = Difficulty switch
+        _attack = technique;
+        technique.Ended += ended =>
         {
-            GameManager.Diff.Easy => 32f, GameManager.Diff.Normal => 14f,
-            GameManager.Diff.Hard => 10f, _ => 8f,
+            if (ended.Completed && ended.TechniqueKind == BossTechniqueKind.Area && ended.TechniqueVariant == _phase)
+                OpenerCompleted = true;
         };
-        Vector2 safe = PickSafe(radius);
-        double warn = TravelWarning(Player.GlobalPosition.DistanceTo(safe) - radius + 8, 1.6f);
-        var zone = new AreaStrike();
-        zone.ConfigureFullscreen(safe, radius, warn, BossMina.PhaseTint(_phase), Colors.White, motif);
-        Add(zone, Vector2.Zero);
-        _lastSafe = safe;
     }
-
-    private Vector2 PickSafe(float radius)
+    public static string SignatureName(int phase) => phase switch
     {
-        if (Difficulty != GameManager.Diff.Lunatic)
-            return AreaSpellCaster.LearnedSafePoint(_boss.GlobalPosition, _wave);
-        Vector2 player = Player.GlobalPosition;
-        Vector2 best = new(Field.CenterX, Field.CenterY);
-        float bestDistance = float.MaxValue;
-        float margin = radius + 10;
-        for (int row = 0; row < 3; row++)
-            for (int col = 0; col < 5; col++)
-            {
-                var point = new Vector2(Mathf.Lerp(Field.Left + margin, Field.Right - margin, col / 4f),
-                    Mathf.Lerp(Field.Top + margin, Field.Bottom - margin, row / 2f));
-                float distance = player.DistanceTo(point);
-                if (distance <= radius + 24 || distance >= bestDistance) continue;
-                if (_lastSafe != Vector2.Zero && point.DistanceTo(_lastSafe) < radius * 2 + 8) continue;
-                best = point;
-                bestDistance = distance;
-            }
-        return best;
-    }
-
-    public override void _ExitTree()
-    {
-        if (_edgeVolley != null && IsInstanceValid(_edgeVolley)) _edgeVolley.Cancel();
-        foreach (var strike in _strikes)
-            if (IsInstanceValid(strike)) strike.QueueFree();
-    }
+        0 => "消せなかった声", 1 => "未送信、再送", 2 => "拍手の檻",
+        3 => "閉じない配信", _ => "リフレイン・帰り道",
+    };
+    public override void _ExitTree() => CancelPendingAttacks();
 }

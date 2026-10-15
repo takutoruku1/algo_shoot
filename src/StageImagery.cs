@@ -47,11 +47,12 @@ public partial class StageImagery : Node2D
 
     public override void _Process(double delta)
     {
-        _t += delta;
+        if (!Hud.BubblePaused) _t += delta;
         if (_revT >= 0) _revT += delta; // S3 画の反転の進行（改心成立後）
         // 敵弾が増えるほど背景の声カードを一段引く（20発まで等倍→80発で0.45倍）。なめらかに追従。
         int bullets = GetTree().GetNodesInGroup("enemy_bullets").Count;
         float target = Mathf.Lerp(1f, 0.45f, Mathf.Clamp((bullets - 20) / 60f, 0f, 1f));
+        if (Hud.BubblePaused) target = Mathf.Min(target, 0.35f);
         _bulletDamp = Mathf.Lerp(_bulletDamp, target, 1f - Mathf.Exp(-6f * (float)delta));
         QueueRedraw();
     }
@@ -82,11 +83,11 @@ public partial class StageImagery : Node2D
     }
 
     // 投稿は上下の背景レーンに限定し、弾幕が増えるほど薄くする。
-    private const float CardW = 164f, CardH = 48f;
+    private const float CardW = 164f, CardH = 50f;
+    private const int CardNameSize = 6, CardBodySize = 7, CardMetaSize = 5;
     private const float ScrollSpeed = 12f;           // px/s（ScrollFx近層より遥か遅い＝奥／画面酔い対策で半減）
     private const int CardCount = 4;                 // 同時表示（控えめ）
-    // 上下2段：縦中央の帯（弾の主戦場）を空ける。上段は画面上端寄り、下段は下端寄り（CardH=46）。
-    private static readonly float[] LaneRows = { 8f, H - CardH - 8f }; // 上段 y=8 / 下段 y=162
+    private static readonly float[] LaneRows = { 8f, H - CardH - 8f };
 
     private static float Frac(float v) => v - Mathf.Floor(v);
 
@@ -131,7 +132,8 @@ public partial class StageImagery : Node2D
     }
 
     private const float BodyTrack = 0f;
-    private const float DraftAlpha = 0.38f;    // 下書きの基準 α（旧 0.46）
+    private const int DraftSize = 8;
+    private const float DraftAlpha = 0.30f;
 
     // 字間を含めた文字列幅（DrawTracked が実際に進む横幅と一致させる）。
     private float TrackedWidth(string s, int size, float track)
@@ -186,24 +188,30 @@ public partial class StageImagery : Node2D
         DrawLine(new Vector2(x + pad, y + CardH), new Vector2(right, y + CardH),
             new Color(white, a * 0.7f), 0.4f);
         DrawAvatar(new Vector2(x + pad + avatar, y + pad + avatar), avatar, VoiceIndex(i), accent, a);
-        string name = Elide(UiKit.ZenBold, DisplayName(i), 7, 52);
-        UiKit.Text(this, UiKit.ZenBold, new Vector2(tx, y + pad), name, 7, new Color(white, Mathf.Min(a * 2.3f, 0.4f)));
-        float hx = tx + UiKit.TextW(UiKit.ZenBold, name, 7) + 3;
+        string name = Elide(UiKit.ZenBold, DisplayName(i), CardNameSize, 52);
+        UiKit.Text(this, UiKit.ZenBold, new Vector2(tx, y + pad), name, CardNameSize,
+            new Color(white, Mathf.Min(a * 2f, 0.34f)));
+        float hx = tx + UiKit.TextW(UiKit.ZenBold, name, CardNameSize) + 3;
         if (Verified(i))
         {
             UiKit.VerifiedBadge(this, new Vector2(hx + 2, y + 10), 1.8f, accent, Mathf.Min(a * 2, 0.35f));
             hx += 6;
         }
-        string handle = Elide(UiKit.Mono, Handle(i), 5, right - hx - 7);
-        UiKit.Text(this, UiKit.Mono, new Vector2(hx, y + pad + 1), handle, 5, meta);
+        string handle = Elide(UiKit.Mono, Handle(i), CardMetaSize, right - hx - 7);
+        UiKit.Text(this, UiKit.Mono, new Vector2(hx, y + pad + 1), handle, CardMetaSize, meta);
         for (int k = 0; k < 3; k++) DrawCircle(new Vector2(right - 4 + k * 1.6f, y + 9), 0.35f, meta);
         string content = body.StartsWith("> ") ? body.Substring(2) : body;
-        var lines = UiKit.WrapLines(UiKit.Zen, content, 8, right - tx - (quote ? 4 : 0));
-        if (quote) DrawLine(new Vector2(tx, y + 17), new Vector2(tx, y + 32), new Color(accent, a * 1.6f), 0.7f);
+        float bodyX = tx + (quote ? 4 : 0);
+        float bodyWidth = right - bodyX;
+        float bodyLineHeight = Mathf.Ceil(UiKit.Zen.GetHeight(CardBodySize));
+        var lines = UiKit.WrapLines(UiKit.Zen, content, CardBodySize, bodyWidth);
+        if (quote) DrawLine(new Vector2(tx, y + 16), new Vector2(tx, y + 16 + bodyLineHeight * Mathf.Min(lines.Count, 2)),
+            new Color(accent, a * 1.6f), 0.7f);
         for (int line = 0; line < Mathf.Min(lines.Count, 2); line++)
         {
-            string s = line == 1 && lines.Count > 2 ? Elide(UiKit.Zen, lines[line] + "…", 8, right - tx - 4) : lines[line];
-            UiKit.Text(this, UiKit.Zen, new Vector2(tx + (quote ? 4 : 0), y + 17 + line * 9), s, 8,
+            string s = line == 1 && lines.Count > 2
+                ? Elide(UiKit.Zen, lines[line] + "…", CardBodySize, bodyWidth) : lines[line];
+            UiKit.Text(this, UiKit.Zen, new Vector2(bodyX, y + 16 + line * bodyLineHeight), s, CardBodySize,
                 new Color(white, Mathf.Min(a * 2.8f, 0.46f)));
         }
         float step = (right - tx) / 4f;
@@ -211,9 +219,9 @@ public partial class StageImagery : Node2D
         for (int k = 0; k < 4; k++)
         {
             var color = k == 2 && liked ? new Color(0.85f, 0.6f, 0.69f, meta.A) : meta;
-            var p = new Vector2(tx + step * k, y + 40);
+            var p = new Vector2(tx + step * k, y + 43);
             DrawEngagementIcon(k, p, color);
-            UiKit.Text(this, UiKit.Mono, p + new Vector2(7, -3), nums[k], 5, color);
+            UiKit.Text(this, UiKit.Mono, p + new Vector2(7, -3), nums[k], CardMetaSize, color);
         }
     }
 
@@ -386,7 +394,6 @@ public partial class StageImagery : Node2D
         // 送信取消の下書き（道中の演出・2026-09-06 作り直し＝案 a）。白い板は使わない。
         //   文字だけが極薄い水色〜灰で背景に直接浮かび、言い切る前に末尾から一文字ずつ欠けていく（取り消し）。
         //   文字の下には入力欄の名残の極細線。文字が全部欠けたあと、線だけが残って薄れる。
-        //   濃さは「読める」より「消えかけている」が伝わる α 0.35〜0.5。板（DrawCard）と同じ淡水色・同じ極細線＝同じ画面言語。
         string[] drafts = { "す——", "あの——", "ね、——", "ごめ——" };
         var draftC = new Color(0.78f, 0.86f, 0.96f);
         var ci = GetCanvasItem();
@@ -406,16 +413,16 @@ public partial class StageImagery : Node2D
             else { keep = 0; aa = DraftAlpha * (1f - (p - 0.84f) / 0.16f); }
             aa *= fade;
             // 板（DrawCard）の本文と同じ字間・同じ濃さの方針で揃える＝背景の文字は全部この見え方に統一。
-            float fullW = TrackedWidth(s, 10, BodyTrack);
+            float fullW = TrackedWidth(s, DraftSize, BodyTrack);
             if (keep > 0)
-                DrawTracked(ci, new Vector2(bx, by), s.Substring(0, keep), 10, new Color(draftC, aa), BodyTrack);
+                DrawTracked(ci, new Vector2(bx, by), s.Substring(0, keep), DraftSize, new Color(draftC, aa), BodyTrack);
             // 極細の下線（入力欄の名残）。文字が欠けても線の長さは変わらない＝「そこに言葉があった」だけが残る。
             DrawLine(new Vector2(bx, by + 3f), new Vector2(bx + fullW, by + 3f), new Color(draftC, aa * 0.45f), 1f);
             // 欠けていく間だけ、末尾でカーソルが明滅する（削除中）。
             if (keep > 0 && p >= 0.52f && p < 0.84f && Frac((float)_t * 2.5f) < 0.5f)
             {
-                float cw = TrackedWidth(s.Substring(0, keep), 10, BodyTrack);
-                DrawLine(new Vector2(bx + cw + 1f, by - 8f), new Vector2(bx + cw + 1f, by + 1f), new Color(draftC, aa), 1f);
+                float cw = TrackedWidth(s.Substring(0, keep), DraftSize, BodyTrack);
+                DrawLine(new Vector2(bx + cw + 1f, by - DraftSize), new Vector2(bx + cw + 1f, by + 1f), new Color(draftC, aa), 1f);
             }
         }
 

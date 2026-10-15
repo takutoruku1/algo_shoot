@@ -13,9 +13,7 @@ public partial class BossAkari : Enemy
     private readonly BossMover _mover = new BossMover();
     private const float RoamSpeed = 40f;
 
-    private double _fireT;
-    private double _fireT2;   // フィナーレ用の第2タイマー（2スペル同時撃ち）
-    private bool _finale;     // HP2割以下＝2スペル同時展開
+    private bool _lowHpRallied;
     private bool _memoryPending;
     private bool _memoryPlayed;
     private int _shieldBreaks;
@@ -24,9 +22,7 @@ public partial class BossAkari : Enemy
     protected override void OnShieldBroken() => _shieldBreaks++;
     private BossPostSequence _posts = null!;
     public bool PostSequenceActive => _posts != null && _posts.Active;
-    private float _ringOff;
-    private float _spiralPhase;
-    private int _pattern;       // 現在の攻撃パターン（セリフを挟むたびに変化）
+    private int _pattern;
     private int _beatsFired;    // 流した独白の数
     private const int PatternCount = 4;
 
@@ -34,26 +30,15 @@ public partial class BossAkari : Enemy
 
     private AreaSpellCaster _caster = null!;
     // ── INI 外出しのバランス値（config/boss_stats.ini [akari]。読めなければ現行既定値）──
-    private double _fanInterval = 1.0, _ringInterval = 1.2, _aimedInterval = 0.7, _spiralInterval = 0.085;
-    private int _fanCount = 9, _ringCount = 16, _aimedWing = 1; // wing=way数の片翼（3way→1）
-    private float _ringSpeed = 72f, _aimedSpeed = 96f, _spiralSpeed = 90f, _roamSpeed = RoamSpeed;
+    private float _roamSpeed = RoamSpeed;
 
-    // スペルカード（STAGE1 あかり＝雨のフロア・青と白の寒色）。技名は仮台本 06 の S1-9。
-    // 弾は「仕事の書類」の絵で飛ぶ（art の名前＝char/v3/bullets/<name>.png）。総務三十歳の、
-    // 最後の出社日の夜に三秒で取り消した一通——机の上のものが、そのまま人へ向かって飛んでくる。
-    // 弾形・色は絵の裏のグロー（と、絵が無い時の保険）として残す＝当たり判定・弾数・弾速は不変。
-    //   rot: 絵の回転速度(deg/s)。追う弾ほど遅く回して「じっと向いている」感を出す。
-    private static readonly (string name, BulletShape shape, Color tint, string art, float rot)[] Spells =
+    private static readonly (BulletShape shape, Color tint, string art, float rot)[] MoodVisuals =
     {
-        ("ねえ、こっち見て", BulletShape.Needle,  new Color("6c9cd8"), "akari_sticky",   70f), // 赤い付箋＝こっち見て
-        ("すきって言って",   BulletShape.Diamond, new Color("4a6aa0"), "akari_envelope", 38f), // 封筒＝未送信の一通
-        ("ずっと一緒",       BulletShape.Orb,     new Color("a8c8e8"), "akari_clip",     52f), // クリップ＝鎖のように
-        ("離さない",         BulletShape.Needle,  new Color("e8f0ff"), "akari_stamp",    26f), // 承認印＝離さない
+        (BulletShape.Needle,  new Color("6c9cd8"), "akari_sticky",   70f), // 赤い付箋＝こっち見て
+        (BulletShape.Diamond, new Color("4a6aa0"), "akari_envelope", 38f), // 封筒＝未送信の一通
+        (BulletShape.Orb,     new Color("a8c8e8"), "akari_clip",     52f), // クリップ＝鎖のように
+        (BulletShape.Needle,  new Color("e8f0ff"), "akari_stamp",    26f), // 承認印＝離さない
     };
-    // 攻撃パターン→立ち位置の対応。スペルが変わるたび BossMover に「次に何をするか」を伝え、
-    // 攻撃の合間に「向かう→着く→一拍」でその立ち位置へ移る。
-    //   0 雨の扇＝Wall（端に寄って帯を張る）／1 リング＝Ring（中央に据わる）／
-    //   2 自機狙い＝Aimed（自機の x を追って横に滑る）／3 スパイラル＝Wall。
     private static BossMover.Attack StanceOf(int pattern) => (pattern % PatternCount) switch
     {
         1 => BossMover.Attack.Ring,
@@ -61,13 +46,12 @@ public partial class BossAkari : Enemy
         _ => BossMover.Attack.Wall,
     };
 
-    private void ApplySpell()
+    private void ApplyMood()
     {
-        var s = Spells[_pattern % Spells.Length];
+        var s = MoodVisuals[_pattern % MoodVisuals.Length];
         _mover.SetNextAttack(StanceOf(_pattern));
         SetSpellVisual(s.shape, s.tint, BulletArt.Get(s.art), s.rot);
-        GetHud()?.SetBossBarTint(s.tint); // HPバーもスペル色へ（#26 フェーズ移行の可視化）
-        GetHud()?.AnnounceSpell("あかり", BossHandles.AkariSpell, s.name, s.tint);
+        GetHud()?.SetBossBarTint(s.tint);
     }
 
     // 浄化時のかけあい（who: 1=ミナ / 2=あかり）。Zで手動送り。
@@ -98,8 +82,16 @@ public partial class BossAkari : Enemy
         (1, "十二通、読みました。寂しかったのですね。……「好き」まで悪いものにしなくて、よいと思います。", "res://char/mina_face.png"),
         (2, "……ぁ……", "res://char/v3/akari_face_cry.png"),
     };
-    // 決定打の手前で音を落とす行（本文一致で拾う）。ここから BGM 無しで決定打を置く。
-    private const string BgmStopLine = "取り消された十二通は、ぜんぶ、わたくしに当たりました。";
+    private const int SilenceAtLine = 5;
+
+    private static (int who, string text, string face)[] LinesFor(GameManager? game)
+    {
+        if (game?.ChosenAt("s1_4") != "一つずつ聞こう。ミナも無理しないで") return Lines;
+        var lines = Lines[..];
+        lines[SilenceAtLine] = (1, "机では、一通だけ開きました。続きは、あかりさんから聞きたくて。", "res://char/mina_face.png");
+        lines[SilenceAtLine + 1] = (1, "いま、聞かせてくださった言葉を、覚えておきます。寂しかったのですね。……「好き」まで悪いものにしなくて、よいと思います。", "res://char/mina_face.png");
+        return lines;
+    }
 
     // 改心の台詞の実体。他ジョブ潜行中はミナ前提の Lines の代わりに改心相当シーン
     //   （CharacterStory.Redemption＝キャラ×面の9通り）を流す（2026-09-15。_Ready で差し替える）。
@@ -126,16 +118,6 @@ public partial class BossAkari : Enemy
         BarCount = bars > 0 ? bars : Mathf.Max(1, DiffBars(finalBoss: false) - 1);
 
         // 弾幕・ギミックの外出し値（INIに無ければフィールド初期値＝現行値のまま）。
-        _fanInterval = BossTuning.F("akari", "fan_interval", 1.0f);
-        _fanCount = BossTuning.I("akari", "fan_count", 9);
-        _ringInterval = BossTuning.F("akari", "ring_interval", 1.2f);
-        _ringCount = BossTuning.I("akari", "ring_count", 16);
-        _ringSpeed = BossTuning.F("akari", "ring_speed", 72f);
-        _aimedInterval = BossTuning.F("akari", "aimed_interval", 0.7f);
-        _aimedSpeed = BossTuning.F("akari", "aimed_speed", 96f);
-        _aimedWing = Mathf.Max(0, BossTuning.I("akari", "aimed_ways", 3) / 2); // 奇数way→片翼数
-        _spiralInterval = BossTuning.F("akari", "spiral_interval", 0.085f);
-        _spiralSpeed = BossTuning.F("akari", "spiral_speed", 90f);
         _roamSpeed = BossTuning.F("akari", "roam_speed", RoamSpeed);
 
         PreTexPath = "res://char/v3/boss_akari_body_idle_v3.png";
@@ -183,6 +165,7 @@ public partial class BossAkari : Enemy
             _lines = CharacterStory.Redemption(game!.SelectedJob, "akari");
             _storySilenceAt = CharacterStory.RedemptionSilenceAt(game.SelectedJob, "akari");
         }
+        else _lines = LinesFor(game);
         // 移動：スペルごとの立ち位置＋状態機械（待機→構え→攻撃→余韻）。数値は INI（[akari] の
         // cruise_speed / accel_time / stance_*）。あかりは「座ったまま滑る」＝重く（accel_time 大）、
         // 上下に揺れない（hover_amp 0）。
@@ -191,7 +174,7 @@ public partial class BossAkari : Enemy
         GetHud()?.UpdateBossBar(CurrentBarIndex, TotalBars, CurrentBarFrac);
         // 【激情】メーター開始。初期値は道中（p4/s1_4/s1_5）の選択から決まる（FuryMeter.cs）。
         GetNodeOrNull<GameManager>("/root/Game")?.BeginFury("akari");
-        ApplySpell();
+        ApplyMood();
 
         _caster = new AreaSpellCaster();
         _caster.Configure("akari", GetParent());
@@ -210,7 +193,7 @@ public partial class BossAkari : Enemy
         if (!BarrageHolding) GlobalPosition = _mover.Step(GlobalPosition, delta, IsForm2 ? 1.65f : 1f);
         ApplyBossMotion(_mover.VisualOffset, _mover.Lean, IsForm2 ? !_mover.FacingLeft : _mover.FacingLeft, _mover.SquashScale);
         FxLayer.Instance?.EmitBossAura(FxLayer.BossAura.Akari, GlobalPosition, (float)delta, 32f);
-        FirePattern(delta);
+        TickForm2Technique(delta, _mover, _caster);
     }
 
     public override void _PhysicsProcess(double delta)
@@ -234,106 +217,6 @@ public partial class BossAkari : Enemy
         base.Purify();
     }
 
-    // 攻撃パターン（セリフを挟むたびに _pattern が変わる）。
-    private void FirePattern(double delta)
-    {
-        if (_caster != null && _caster.EdgeAttackActive) return;
-        var pool = GetNodeOrNull<BulletPool>("/root/Pool");
-        if (pool == null) return;
-        if (TickForm2Technique(delta, _mover, _caster!)) return;
-        if (BarrageHolding) { _fireT = _fireT2 = 0; return; }
-        if (_finale) { FireFinale(pool, delta); return; }
-        _fireT += delta;
-        switch (_pattern)
-        {
-            case 0: if (_fireT >= Di(_fanInterval)) { _fireT = 0; _mover.DeclareAttack(BossMover.Attack.Wall); TriggerAttackPose(); FanDown(pool); } break;       // 雨の扇＝自機方向へ帯を張る
-            case 1: if (_fireT >= Di(_ringInterval)) { _fireT = 0; _mover.DeclareAttack(BossMover.Attack.Ring); TriggerAttackPose(); Ring(pool); } break;         // 回転する放射リング
-            case 2: if (_fireT >= Di(_aimedInterval)) { _fireT = 0; _mover.DeclareAttack(BossMover.Attack.Aimed); TriggerAttackPose(); AimedSpread(pool); } break; // 自機狙いの3way連射
-            default: if (_fireT >= Di(_spiralInterval)) { _fireT = 0; _mover.DeclareAttack(BossMover.Attack.Wall); TriggerAttackPose(); Spiral(pool); } break;    // 二重スパイラル
-        }
-    }
-
-    // フィナーレ（HP2割以下）：「雨」(雨青の針)＋「机が落ちる」(藍の菱形螺旋)を同時展開。
-    private void FireFinale(BulletPool pool, double delta)
-    {
-        _fireT += delta; _fireT2 += delta;
-        // 雨＝赤い付箋の扇／机が落ちる＝書類の束の螺旋。最後は机の上のものが全部こぼれてくる。
-        if (_fireT >= Di(0.9)) { _fireT = 0; SetSpellVisual(Spells[0].shape, Spells[0].tint, BulletArt.Get(Spells[0].art), Spells[0].rot); FanDown(pool); }
-        if (_fireT2 >= Di(0.085)) { _fireT2 = 0; SetSpellVisual(BulletShape.Diamond, Spells[1].tint, BulletArt.AkariDocs, 44f); Spiral(pool); }
-    }
-
-    // 弾サイズ階層（#攻撃種ごとのサイズ差）：密集バラマキ(FanDown/Ring)=小／連続糸(Spiral)=極小／
-    //   自機狙いの精密弾(AimedSpread)=大。当たり芯ドットは全形状共通描画＝大きくしても被弾点は埋もれない。
-    // 2026-09-17 ユーザー指示：真下（Pi/2）固定の扇をやめ、自機方向を中心に張る。
-    // 左に張り付いているだけでは当たらない＝どこにいても避ける動きを要求する。扇の幅は据え置き。
-    // 2026-10-03 ユーザー指摘「止まってたら必ず弾が当たらない位置になってる」：本数が偶数だと
-    //   t=0（＝自機の正面）になる i が存在せず、中心に安全車線ができていた。DnOdd で必ず奇数にする。
-    private void FanDown(BulletPool pool)
-    {
-        BodyShotStyle = BossShotStyle.Aimed;
-        bool dense = GameManager.Instance!.Difficulty >= GameManager.Diff.Hard;
-        int k = dense ? (GameManager.Instance.IsLunatic ? 17 : 15) : Mathf.Min(7, DnOdd(_fanCount));
-        var aim = AimAtPlayer();
-        float baseA = Mathf.Atan2(aim.Y, aim.X);
-        for (int i = 0; i < k; i++)
-        {
-            float t = k > 1 ? (float)i / (k - 1) - 0.5f : 0f;
-            float a = baseA + t * Mathf.DegToRad(dense ? (GameManager.Instance.IsLunatic ? 210f : 180f) : 80f);
-            FireBullet(pool, GlobalPosition, new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * EnemyBulletSpeed, 3.0f);
-        }
-    }
-
-    private void Ring(BulletPool pool)
-    {
-        BodyShotStyle = BossShotStyle.Ring;
-        int k = BossDanmaku.RingCount(Dn(_ringCount), BulletPool.BossHitShape(Job.Melee, HasEvolved));
-        _ringOff = AimAtPlayer().Angle();
-        for (int i = 0; i < k; i++)
-        {
-            float a = _ringOff + Mathf.Tau * i / k;
-            FireBullet(pool, GlobalPosition, new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * _ringSpeed, 3.0f);
-        }
-    }
-
-    private void AimedSpread(BulletPool pool)
-    {
-        BodyShotStyle = BossShotStyle.Aimed;
-        float baseA = Mathf.Atan2(AimAtPlayer().Y, AimAtPlayer().X);
-        bool dense = GameManager.Instance!.Difficulty >= GameManager.Diff.Hard;
-        int count = dense ? (GameManager.Instance.IsLunatic ? 15 : 13) : Mathf.Min(5, DnOdd(_aimedWing * 2 + 1));
-        for (int i = 0; i < count; i++)
-        {
-            float spread = count > 1 ? (float)i / (count - 1) * 2f - 1f : 0f;
-            float a = baseA + spread * Mathf.DegToRad(dense ? (GameManager.Instance.IsLunatic ? 91f : 78f) : _aimedWing * 14f);
-            FireBullet(pool, GlobalPosition, new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * _aimedSpeed, 4.0f);
-        }
-    }
-
-    private void Spiral(BulletPool pool)
-    {
-        BodyShotStyle = BossShotStyle.Ring;
-        bool dense = GameManager.Instance!.Difficulty >= GameManager.Diff.Hard;
-        if (dense) _spiralPhase = Mathf.PosMod(_spiralPhase + 0.16f, Mathf.Tau);
-        _ringOff = AimAtPlayer().Angle() + (dense ? _spiralPhase : 0);
-        int arms = dense ? (GameManager.Instance.IsLunatic ? 7 : 5) : Mathf.Max(2, Dn(2));
-        for (int s = 0; s < arms; s++)
-        {
-            float a = _ringOff + Mathf.Tau * s / arms;
-            FireBullet(pool, GlobalPosition, new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * _spiralSpeed, 2.6f);
-        }
-    }
-
-    private Vector2 AimAtPlayer()
-    {
-        var players = GetTree().GetNodesInGroup("player");
-        if (players.Count > 0 && players[0] is Node2D pl)
-        {
-            var d = pl.GlobalPosition - GlobalPosition;
-            if (d.LengthSquared() > 0.01f) return d.Normalized();
-        }
-        return new Vector2(-1, 0);
-    }
-
     // 本体に弾が刺さった一拍を移動側へ渡す（小さくのけぞって戻る）。当たり判定の中心は
     // 最大4px・時定数0.12sでしか動かない＝弾避けの公平性は保つ（BossMover.OnHit のコメント参照）。
     protected override void OnBodyDamaged(Vector2 fromDir) => _mover.OnHit(fromDir);
@@ -342,27 +225,23 @@ public partial class BossAkari : Enemy
     {
         GetHud()?.UpdateBossBar(CurrentBarIndex, TotalBars, CurrentBarFrac);
         if (_memoryPending) return;
-        // HPが閾値を割るたびに攻撃パターンを変える。
         if (_beatsFired < PatternThresholds.Length && HpRatio <= PatternThresholds[_beatsFired])
         {
             _pattern = (_pattern + 1) % PatternCount;
             _beatsFired++;
-            ApplySpell();
+            ApplyMood();
             // 第二形態は既存の閾値の中盤（PatternThresholds[1]=0.52）に乗せる＝新しい閾値を足さない。
-            // ここは既に ApplySpell の宣告が出る節目なので、形態変化も同じ一拍に重ねて読ませる。
             if (_beatsFired == 2 && !_memoryPlayed)
             {
                 _memoryPending = true;
                 return;
             }
         }
-        if (!_finale && HpRatio <= 0.20f && (GameManager.LunaticActive || _posts.Count >= 4))
+        if (!_lowHpRallied && HpRatio <= 0.20f && (GameManager.LunaticActive || _posts.Count >= 4))
         {
-            _finale = true;
-            _fireT = _fireT2 = 0;
+            _lowHpRallied = true;
             RallyShield();
-            GetHud()?.SetBossBarTint(Spells[0].tint); // フィナーレ色（#26）
-            GetHud()?.AnnounceSpell("あかり", BossHandles.AkariSpell, Spells[0].name + "＋" + Spells[1].name, Spells[0].tint);
+            GetHud()?.SetBossBarTint(MoodVisuals[0].tint); // フィナーレ色（#26）
         }
     }
 
@@ -424,7 +303,7 @@ public partial class BossAkari : Enemy
             if (GameManager.LunaticActive)
             {
                 AdvanceForm2();
-                ApplySpell();
+                ApplyMood();
                 OnHpChanged();
                 return;
             }
@@ -432,10 +311,9 @@ public partial class BossAkari : Enemy
             void ResumeBattle()
             {
                 _zHeld = Pad.AdvanceHeld();
-                _fireT = _fireT2 = 0;
                 _posts.ResumeMusic();
                 AdvanceForm2();
-                ApplySpell();
+                ApplyMood();
                 OnHpChanged();
             }
             // ミナ潜行＝この面のボスのフィルム（操作キャラを問わない。StoryFilm.cs 冒頭の「選択の規則」参照）。
@@ -460,7 +338,7 @@ public partial class BossAkari : Enemy
         if (!_seq && !IsPurified) _posts.UpdateDamage();
         // 改心の会話送り：Z/Enter/ui_accept/Pad A に加えマウス左クリックでも送れる共通ヘルパ（マウス対応 P2）。
         bool z = Pad.AdvanceHeld();
-        bool zEdge = z && !_zHeld;
+        bool zEdge = z && !_zHeld && !Pad.UiBlocked(this);
         _zHeld = z;
         _lineT += delta;
 
@@ -497,9 +375,7 @@ public partial class BossAkari : Enemy
         var hud = GetHud();
         if (hud == null) return;
         var kind = (Hud.LineKind)who;
-        // 決定打の手前で音を落とす（台本の「ここでBGM停止」）。以降は無音のまま決定打を置く。
-        //   本編＝本文一致（BgmStopLine）／改心相当シーン＝ト書きの行番号（CharacterStory.RedemptionSilenceAt）。
-        if (_charStory ? _line == _storySilenceAt : text == BgmStopLine) Audio.Instance?.StopMusic(1.2f);
+        if (_line == (_charStory ? _storySilenceAt : SilenceAtLine)) Audio.Instance?.StopMusic(1.2f);
         string portrait = kind switch
         {
             Hud.LineKind.Companion => face,                 // 潜行キャラ本人＝表情差分（空欄は Hud がジョブ立ち絵へ）

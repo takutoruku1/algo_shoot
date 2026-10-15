@@ -142,10 +142,11 @@ public partial class Enemy : Area2D
     private const double AttackPoseDur = 0.55;
     private double _animalMotionT, _animalTechniqueCooldown = 3.0;
     private bool _animalWindup;
-    private BossAnimalTechnique? _animalTechnique;
+    private BossCharacterTechnique? _animalTechnique;
     private Texture2D[] _animalFrames = System.Array.Empty<Texture2D>();
     private string AnimalId => Form2TexPath.GetFile().Split('_')[0];
     internal bool AnimalTechniqueActive => IsInstanceValid(_animalTechnique) && !_animalTechnique!.Finished;
+    internal bool AnimalTechniquePending { get; private set; }
 
     // ─── ボス用：言葉のシールド＋無防備窓サイクル（HPバー方式リワーク）───
     // SHIELDED（周回パネル・通常弾幕。弾はパネルのInkを削るだけ。本体HPは減らない）
@@ -153,9 +154,13 @@ public partial class Enemy : Area2D
     //  → EXPOSED 無防備窓（プレイヤー弾の威力が本体HPへ直通。パネル復活なし）
     //  → 窓終了で RECLOSE（キャラ別セリフ→パネル一括再生成）→ SHIELDED
     //  → HP<=0 で Redeem()
-    protected enum BossPhase { Shielded, Break, Exposed, Reclose }
+    protected enum BossPhase { Shielded, Resolving, Break, Exposed, Reclose }
     private BossPhase _phase = BossPhase.Shielded;
     private double _phaseT; // 現フェーズ経過秒
+    private bool _shieldTechniqueCompleted;
+    private BossCharacterTechnique? _shieldTechnique;
+    internal bool UsesTechniqueCycle => GameManager.Instance?.Difficulty >= GameManager.Diff.Normal
+        && this is BossAkari or BossKoharu or BossRei or BossMina or CameoBoss;
     public const int BarHp = 100;                 // 1本=100（HUDで大きく動く）
     protected int BarCount = 0;                    // >0でHPバー方式に。総HP=BarHp×BarCount（派生が設定）。
     private const double VulnDur = 8.0;            // 無防備窓（全難易度共通）
@@ -182,6 +187,7 @@ public partial class Enemy : Area2D
     //     手が空く」を作らない。値の定義元は GameManager.ExposedDamageCap（BodyHitCd は据え置き）。
     protected virtual int WindowCap => GameManager.Instance?.ExposedDamageCap ?? 180;
     private int _windowDamage;                      // 現在の無防備窓で本体へ通した累計ダメージ
+    private int _windowHpFloor;
     private bool _windowCapNotified;               // 「MAX」表示を窓ごとに一度だけ出すワンショット
     // ── 与ダメ数値のポップアップ（2026-09-17 ユーザー指示で非表示）──
     //   「いくつ食らわせた／食らっているか」を数字で見せない＝手応えは光・音・揺れ・HPバーで返す。
@@ -371,6 +377,7 @@ public partial class Enemy : Area2D
         };
         AddChild(_bodyShape);
         // ボスHPは難易度別バー本数で決まる（総HP=BarHp×BarCount）。本数は派生 OnEnemyReady で確定済み。
+        if (UsesTechniqueCycle) BarCount = Mathf.Max(BarCount, TechniqueCycleBars());
         _maxHp = BarCount * BarHp;
         _hp = _maxHp;
         if (_maxHp > 0) _danmaku = new BossDanmaku(this);
@@ -751,15 +758,26 @@ public partial class Enemy : Area2D
 
     protected bool TickForm2Technique(double delta, BossMover mover, AreaSpellCaster caster)
     {
+        if (UsesTechniqueCycle)
+            return _danmaku?.ActiveTechnique is { Finished: false, TechniqueKind: BossTechniqueKind.Signature };
         if (!_form2) return false;
+        if (GaugeVulnerable || GaugeReforming || Transforming || IsPurified)
+        {
+            CancelAnimalTechnique();
+            return false;
+        }
         if (AnimalTechniqueActive) return true;
         _animalTechniqueCooldown -= delta;
+        if (!AnimalTechniquePending && _animalTechniqueCooldown <= 0 && !caster.AttackPending)
+            AnimalTechniquePending = true;
         if (CrossfireActive || DodgeWaveActive) return false;
-        if (_animalTechniqueCooldown > 0 || caster.AttackPending) return false;
+        if (!AnimalTechniquePending || caster.AttackPending) return false;
+        if (AreaSpellCaster.HasRemainingShots(GetTree())) return false;
         foreach (var node in GetTree().GetNodesInGroup("aoe"))
             if (!node.IsQueuedForDeletion()) return false;
         mover.DeclareAttack(BossMover.Attack.Spell);
-        _animalTechnique = BossAnimalTechnique.Begin(this, AnimalId, caster);
+        _animalTechnique = BossCharacterTechnique.Begin(this, BossTechniqueKind.Signature);
+        AnimalTechniquePending = false;
         _animalTechniqueCooldown = Di(8.0);
         return true;
     }
@@ -780,6 +798,7 @@ public partial class Enemy : Area2D
     {
         if (AnimalTechniqueActive) _animalTechnique!.Cancel();
         _animalTechnique = null;
+        AnimalTechniquePending = false;
         _animalWindup = false;
     }
 
@@ -840,9 +859,6 @@ public partial class Enemy : Area2D
         _panels.Add(p);
     }
 
-    // パネルが砕けた通知。
-    // 通常敵：全部剥がれたら浄化。
-    // ボス(HPバー方式)：本体HPは減らさない＝残数カウントのみ。0枚で BREAK へ遷移し、無防備窓を開く。
     public void OnPanelStripped(Panel p)
     {
         _panels.Remove(p);
@@ -850,10 +866,8 @@ public partial class Enemy : Area2D
         if (_maxHp > 0)
         {
             if (_purified) return;
-            // SHIELDED 中に全パネルを剥がし切ったら BREAK（合図）へ。
-            // BREAK/EXPOSED 中はパネルが無いので通常ここには来ないが、保険で残数だけ見る。
             if (_phase == BossPhase.Shielded && _panels.Count == 0)
-                EnterBreak();
+                ResolveShieldBreak();
             else
                 QueueRedraw();
             return;
@@ -866,17 +880,40 @@ public partial class Enemy : Area2D
     }
 
     // ─── 無防備窓サイクルのフェーズ遷移 ───
-    private void EnterBreak()
+    private void ResolveShieldBreak()
     {
-        _phase = BossPhase.Break; _phaseT = 0;
         OnShieldBroken();
-        SetDownBody(true);
         _shieldLayer?.QueueRedraw();
         FxLayer.Instance?.BossBreak(GlobalPosition, BodyDisplayH);
         GameCamera.Instance?.Shake(1.6f, 0.14f);
         Audio.Instance?.PlaySpell();
-        // 祈り手（Heal）だけ BREAK 成立ごとに BOMB+1（設計書 §2）。他ジョブでは何も起きない。
         GetNodeOrNull<GameManager>("/root/Game")?.NotifyBossBreak();
+        if (UsesTechniqueCycle && (!_shieldTechniqueCompleted || TechniqueInProgress))
+        {
+            _phase = BossPhase.Resolving;
+            _phaseT = 0;
+            QueueRedraw();
+            return;
+        }
+        EnterBreak();
+    }
+
+    private bool TechniqueInProgress => IsInstanceValid(_shieldTechnique) && !_shieldTechnique!.Finished;
+
+    internal void OnTechniqueStarted(BossCharacterTechnique technique) => _shieldTechnique = technique;
+
+    internal void OnTechniqueFinished(BossCharacterTechnique technique)
+    {
+        if (technique.Completed && _phase is BossPhase.Shielded or BossPhase.Resolving)
+            _shieldTechniqueCompleted = true;
+    }
+
+    private void EnterBreak()
+    {
+        _phase = BossPhase.Break; _phaseT = 0;
+        FxLayer.Instance?.BossBreakCue(GlobalPosition, BodyDisplayH);
+        SetDownBody(true);
+        _shieldLayer?.QueueRedraw();
         (GetTree().GetFirstNodeInGroup("hud") as Hud)?.Bubbles?.ShieldBreak.Show(this,
             GameManager.Instance?.SelectedJob ?? Job.Tank);
         QueueRedraw();
@@ -889,6 +926,7 @@ public partial class Enemy : Area2D
         _phase = BossPhase.Exposed; _phaseT = 0;
         _shieldLayer?.QueueRedraw();
         _windowDamage = 0;            // 窓キャップを新しい窓ぶんリセット
+        _windowHpFloor = UsesTechniqueCycle ? Mathf.RoundToInt(_maxHp * TechniqueCycleFloor()) : 0;
         _windowCapNotified = false;
         _bodyHitCd = 0;
         FxLayer.Instance?.BossExpose(GlobalPosition, BodyDisplayH);
@@ -918,6 +956,8 @@ public partial class Enemy : Area2D
     private void EnterShielded()
     {
         _phase = BossPhase.Shielded; _phaseT = 0;
+        _shieldTechniqueCompleted = false;
+        _shieldTechnique = null;
         _shieldLayer?.QueueRedraw();
         if (_panels.Count == 0)
         {
@@ -933,6 +973,42 @@ public partial class Enemy : Area2D
         if (!_purified && _maxHp > 0 && _phase is BossPhase.Break or BossPhase.Exposed)
             EnterReclose();
     }
+
+    internal void RestartShieldCycle() => RallyShield();
+
+    private int TechniqueCycleBars()
+    {
+        int repeats = GameManager.Instance!.Difficulty == GameManager.Diff.Normal ? 2 : 3;
+        int cap = GameManager.MaximumExposedDamageCap;
+        (int Count, float Span)[] segments = this switch
+        {
+            BossAkari => new[] { (10, .48f), (9, .51f) },
+            BossKoharu or BossRei => new[] { (9, .50f), (5, .24f), (5, .25f) },
+            BossMina => new[] { (4, .20f), (4, .22f), (4, .22f), (4, .20f), (3, .15f) },
+            _ => new[] { (2, 1f) },
+        };
+        float hp = 0;
+        // One spare window absorbs rounded story thresholds without cutting a rotation short.
+        foreach (var segment in segments)
+            hp = Mathf.Max(hp, (segment.Count * repeats + 1) * cap / segment.Span);
+        return Mathf.CeilToInt(hp / BarHp);
+    }
+
+    private int LimitTechniqueCycleDamage(int damage)
+    {
+        if (!UsesTechniqueCycle) return damage;
+        int floor = Mathf.Max(_windowHpFloor, Mathf.RoundToInt(_maxHp * TechniqueCycleFloor()));
+        return Mathf.Min(damage, Mathf.Max(0, _hp - floor));
+    }
+
+    private float TechniqueCycleFloor() => this switch
+        {
+            BossAkari when !HasEvolved => .52f,
+            BossKoharu or BossRei when !HasEvolved => .50f,
+            BossKoharu or BossRei when HpRatio > .26f => .26f,
+            BossMina mina => mina.AttackPhase switch { 0 => .80f, 1 => .58f, 2 => .36f, 3 => .16f, _ => 0f },
+            _ => 0f,
+        };
 
     // 無防備窓中：本体に当たった自機弾の威力ぶん本体HPを削る。
     private void OnBodyHitByPlayerBullet(Area2D area)
@@ -995,7 +1071,7 @@ public partial class Enemy : Area2D
             }
 
             // 窓キャップ：残り許容ぶんへクランプ（密着クリティカルは上限を超えず到達を早めるだけ）。
-            dmg = LimitBodyDamage(Mathf.Min(dmg, WindowCap - _windowDamage));
+            dmg = LimitBodyDamage(LimitTechniqueCycleDamage(Mathf.Min(dmg, WindowCap - _windowDamage)));
             if (dmg <= 0) return;
             b.ChargeImpact(b.GlobalPosition);
             _windowDamage += dmg;
@@ -1073,6 +1149,7 @@ public partial class Enemy : Area2D
         if (!ResourceLoader.Exists(Form2TexPath)) return false; // 絵が無ければ黙って起きない
         var previous = BossTransformation.Frame.Capture(_bodySprite);
         _form2 = true;
+        if (UsesTechniqueCycle) RallyShield();
         _attackPoseT = 0;
         string[] poses = { "move_0", "move_1", "move_2", "move_3", "windup", "recover" };
         _animalFrames = new Texture2D[poses.Length];
@@ -1140,7 +1217,7 @@ public partial class Enemy : Area2D
         if (Transforming) return;
         var game = GetNodeOrNull<GameManager>("/root/Game");
         int dmg = Mathf.RoundToInt(BombStrikeBase * (game?.BombPowerMul ?? 1f));
-        dmg = Mathf.Min(dmg, WindowCap - _windowDamage); // 窓キャップの残り許容内でだけ通す
+        dmg = LimitTechniqueCycleDamage(Mathf.Min(dmg, WindowCap - _windowDamage));
         if (dmg <= 0)
         {
             // キャップ到達済み：弾ヒットと同じ「MAX」ワンショットで「次の窓で」を伝える。
@@ -1727,6 +1804,9 @@ public partial class Enemy : Area2D
         _phaseT += delta;
         switch (_phase)
         {
+            case BossPhase.Resolving:
+                if (_shieldTechniqueCompleted && !TechniqueInProgress) EnterBreak();
+                break;
             case BossPhase.Break:
                 if (_phaseT >= BreakCueDur) EnterExposed();
                 else QueueRedraw();
@@ -1737,7 +1817,8 @@ public partial class Enemy : Area2D
                 QueueRedraw(); // 発光/明滅（_Draw）を更新し「今は殴れる」を可視化
                 // 窓キャップ到達済みなら残り時間（最大4.0s）を待たせず次サイクルへ即移行。
                 // 火力に投資するほど「窓を早く閉じて次のBREAKへ進める」形でリターンを返す（#b案）。
-                if (_windowDamage >= WindowCap || _phaseT >= VulnDur) EnterReclose();
+                if (_windowDamage >= WindowCap || _phaseT >= VulnDur
+                    || _windowHpFloor > 0 && _hp <= _windowHpFloor) EnterReclose();
                 break;
             case BossPhase.Reclose:
                 // 弱気セリフ(RecloseLineDur)を見せ、RespawnGap 置いてパネルを一括再生成＝SHIELDED へ。
@@ -1890,13 +1971,16 @@ public partial class Enemy : Area2D
     public float GaugeTop => -Mathf.Max(BodyHalfH + 3f, BodyDisplayH * 0.35f) - 8f;
     public float GaugeWidth => Mathf.Clamp(Mathf.Max(BodyRadius * 2f + 6f, BodyDisplayH * 0.5f), 26f, 56f);
     public float GaugeBottom => Mathf.Max(BodyHalfH + 3f, BodyDisplayH * 0.55f) + 7f;
+    public bool GaugeBreaking => !_purified && !_entering && !Transforming && _phase == BossPhase.Break;
+    public bool GaugeAttackResolving => !_purified && !_entering && _phase == BossPhase.Resolving;
+    public bool GaugeBodyExposed => !_purified && !_entering && !Transforming && _phase == BossPhase.Exposed;
     public bool GaugeReforming => !_purified && !_entering && _phase == BossPhase.Reclose;
     public float GaugeReformProgress => GaugeReforming
         ? Mathf.Clamp((float)(_phaseT / (RecloseLineDur + RespawnGap)), 0f, 1f) : 0f;
 
     // 頭上ゲージの塗り分け（2026-09-27 作者指示「無敵のタイミングと、BREAK時のHPバー色分けしたい」）。
     //   Hud.GaugeState は「1本ぶんの割合・残本数」しか持たないので、今殴れるかどうかはボス本体から直接読む。
-    //   GaugeVulnerable：BREAK（割れた一拍）と EXPOSED（無防備窓）＝殴れる時間。SHIELDED／RECLOSE は無敵。
+    //   BREAK は本体の被弾前の合図を含むため、攻撃可の表示には GaugeBodyExposed を使う。
     public bool GaugeVulnerable => !_purified && _phase is BossPhase.Break or BossPhase.Exposed;
     private const double GaugeFreshDur = 0.35;     // 割れた瞬間のゲージの明滅の減衰
     // BREAK に入ってからの経過が短いほど 1→0。EXPOSED は BREAK の尺（BreakCueDur）を足して同じ時計で続ける
@@ -1936,7 +2020,7 @@ public partial class Enemy : Area2D
         {
             float pulse = 0.5f + 0.5f * Mathf.Sin((float)_phaseT * Mathf.Tau * 1.5f);
             float hit = Mathf.Clamp((float)(_hitFlashT / HitFlashDur), 0, 1);
-            var color = new Color(new Color("e9d28b").Lerp(Colors.White, hit), 0.65f + 0.15f * pulse);
+            var color = new Color(new Color(GaugeBodyExposed ? "e9d28b" : "f6e5c1").Lerp(Colors.White, hit), 0.65f + 0.15f * pulse);
             float w = Mathf.Max(BodyRadius + 3, BodyDisplayH * 0.24f);
             float h = Mathf.Max(BodyHalfH + 3, BodyDisplayH * 0.35f);
             // 四隅の枠はロックオン中だけ（2026-09-26 ユーザー「ロックオンしてないときにボスを囲う枠は出さない」）。

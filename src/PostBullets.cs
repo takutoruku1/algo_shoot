@@ -15,7 +15,7 @@ using Godot;
 //
 // 難易度スケール（やること2）：難しいほど“投稿数（量）”が増える。
 //   ・湧き間隔：DanmakuIntervalMul（Easy ほど長い）に加え、難易度別の頻度係数 FreqMul を掛ける。
-//   ・同時数  ：1 tick あたりの投稿弾本数を難易度で増やす（Lunatic は最大同時2発＝面が埋まり過ぎない範囲）。
+//   ・同時数  ：1 tick あたりの投稿弾本数を難易度で増やす。
 //   X風カードは大きめ＝大量描画は重いので、同時数・頻度ともに控えめの上限に収める（描画負荷への配慮）。
 public static class PostBullets
 {
@@ -34,11 +34,11 @@ public static class PostBullets
         _                        => 1.0f,   // Normal : 基準（旧 StageRei.Rain と同オーダー）
     };
 
-    // Salvo：1 tick で同時に出す投稿弾の本数（同時に降る“晒し”の枚数）。X風カードは大きいので上限2。
-    private static int Salvo(GameManager.Diff d) => d switch
+    private static int Salvo(GameManager.Diff d, int sequence) => d switch
     {
-        GameManager.Diff.Lunatic => 2,
-        _                        => 1,
+        GameManager.Diff.Easy => 1,
+        GameManager.Diff.Lunatic => 3,
+        _ => sequence % 2 == 0 ? 2 : 1,
     };
 
     // 画面上に同時に存在できる投稿弾の上限（難易度別）。X風カードは大きく毎フレーム全弾描画＝重いので、
@@ -46,15 +46,10 @@ public static class PostBullets
     private static int MaxOnScreen(GameManager.Diff d) => d switch
     {
         GameManager.Diff.Easy    => 4,
-        GameManager.Diff.Hard    => 10,
-        GameManager.Diff.Lunatic => 14,
-        _                        => 7,      // Normal
+        GameManager.Diff.Hard    => 15,
+        GameManager.Diff.Lunatic => 21,
+        _                        => 11,
     };
-
-    // 各難易度の“投稿量の目安”（Normalを1.0とした相対量＝FreqMul×Salvo）：
-    //   Easy 0.55 / Normal 1.0 / Hard 1.4 / Lunatic 3.8（1.9×2発）。
-    //   DanmakuIntervalMul（Easy ほど周期が長い）も併さるので体感差はさらに開く。
-    //   実効の同時数は MaxOnScreen（Easy4/Normal7/Hard10/Lunatic14）でも頭打ちする。
 
     // ボス戦中に毎フレーム呼ぶ。会話中（Hud.BubblePaused）は内部で止む。
     //   node     : 呼び元ステージ（GetNodeOrNull 用）。
@@ -73,6 +68,10 @@ public static class PostBullets
         Color? accent = null, bool murkAll = false)
     {
         if (Hud.BubblePaused || !GodotObject.IsInstanceValid(source) || source.IsPurified || source.IsQueuedForDeletion()) return;
+        if (source.GaugeVulnerable || source.GaugeReforming || source.CrossfireActive
+            || source.DodgeWaveActive || source.AnimalTechniqueActive || source.AnimalTechniquePending) return;
+        foreach (var child in source.GetChildren())
+            if (child is AreaSpellCaster { AttackPending: true } or MinaPhaseAttacks { Active: true }) return;
 
         var pool = node.GetNodeOrNull<BulletPool>("/root/Pool");
         if (pool == null) return;
@@ -95,7 +94,7 @@ public static class PostBullets
         if (room <= 0) return;
 
         var th = theme ?? PostPool.CurrentTheme(node);
-        int salvo = Mathf.Min(Salvo(diff), room);
+        int salvo = Mathf.Min(Salvo(diff, wordTick / BaseEvery), room);
         // 層2（病みポスト）は画面に 1 枚まで（10 の視認性の表）。すでに 1 枚出ていればこの tick の層2 抽選は
         // 層1 へ落とす＝「TL の中に一本だけ沈んでいる」を保ち、敵弾の視認性も侵さない。
         bool achingRoom = !AnyAchingPost(pool);

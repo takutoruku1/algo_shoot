@@ -118,7 +118,7 @@ public partial class ControlCard : Control
             new Row("コントローラー", "L スティック / 十字キー", "上下左右に動く"),
             new Row("マウス",         "カーソル",                "カーソルの位置へ寄っていく"),
         }),
-        Topic.Shot => ("撃つ", "光は自動で出ます。撃つボタンはありません", UiKit.Purify, new[]
+        Topic.Shot => ("撃つ", "通常の光は自動で出ます。溜め中と回避中は止まります", UiKit.Purify, new[]
         {
             new Row("キーボード",     "オート", "押さなくていい"),
             new Row("コントローラー", "オート", "押さなくていい"),
@@ -128,13 +128,13 @@ public partial class ControlCard : Control
         //   ロック、ロック中はホイールで前／次。パッド RB は従来どおり押すたび次へ。
         Topic.Lock => ("ロックオン", "近い敵から順に狙う。移動は少し遅くなる", UiKit.Purify, new[]
         {
-            new Row("キーボード",     "Shift 長押し",             "押しているあいだ狙う。A / S で前 / 次の敵へ"),
+            new Row("キーボード",     "Shift 長押し",             "押しているあいだ狙う\nA：前の敵 / S：次の敵"),
             new Row("コントローラー", Pad.Face(JoyButton.RightShoulder), "押すたび次の敵へ"),
-            new Row("マウス",         "左クリック",               "短く押して狙う。ホイールで前 / 次の敵へ"),
+            new Row("マウス",         "左クリック",               "短く押すとロック\nホイール上：次 / 下：前"),
         }),
         // 解除は送りとは別ボタン（2026-09-17 追加）。話題を分けて、送りの直後の行で差し替える。
         //   キーボードは Shift を離す。マウスは左クリックをもう一度（2026-09-26。旧 G・右クリック解除は廃止）。
-        Topic.LockClear => ("ロックオン解除", "狙いを外す。倒せば次の敵へ勝手に移る", UiKit.Purify, new[]
+        Topic.LockClear => ("ロックオン解除", "狙いを外すと、通常の移動速度に戻ります", UiKit.Purify, new[]
         {
             new Row("キーボード",     "Shift を離す",                 "離した瞬間に外れる"),
             new Row("コントローラー", Pad.Face(JoyButton.RightStick),  "右スティック押し込み"),
@@ -148,12 +148,11 @@ public partial class ControlCard : Control
         }),
         // 回避（ショップ「回避」で覚える）。割り当ては Player.cs の回避入力＝Space / L3 / 右クリック（HowToPlay と同表記）。
         //   キーボードは 2026-09-26 に Alt → Ctrl、2026-09-27 に Ctrl → Space（左手の親指）。
-        //   マウスの右クリックはロックオン解除と兼用＝解除カードの注記と対にする。
-        Topic.Dodge => ("回避", "一瞬だけ駆け抜ける。そのあいだは何も当たらない", UiKit.Gold, new[]
+        Topic.Dodge => ("回避", "短い無敵時間を使って避けます。方向入力がなければその場で回避", UiKit.Gold, new[]
         {
             new Row("キーボード",     "Space",                        "移動方向へ。無ければその場"),
-            new Row("コントローラー", Pad.Face(JoyButton.LeftStick),   "左スティック押し込み"),
-            new Row("マウス",         "右クリック",                    "カーソル方向へ。無ければその場"),
+            new Row("コントローラー", Pad.Face(JoyButton.LeftStick),   "左スティック押し込み\n倒した方向へ。無ければその場"),
+            new Row("マウス",         "右クリック",                    "カーソル方向へ\n自機の近くならその場"),
         }),
         // 溜め打ち（最初から使える。2026-09-25）。割り当ては Player.cs の溜め入力＝Z / Y / 左クリックの長押し
         //   （キーボードは 2026-09-26 に C → Z）。マウスは短押しがロックオン送り・長押しが溜め（同じ左クリック）＝注記で分ける。
@@ -161,7 +160,7 @@ public partial class ControlCard : Control
         {
             new Row("キーボード",     "Z 長押し",                            "満ちたら離す"),
             new Row("コントローラー", Pad.Face(JoyButton.Y) + " 長押し",      "満ちたら離す"),
-            new Row("マウス",         "左クリック 長押し",                    "短く押すとロックオン"),
+            new Row("マウス",         "左クリック 長押し",                    "短押し：ロック・解除\n長押し：溜めて離す"),
         }),
         _ => ("", "", UiKit.White, System.Array.Empty<Row>()),
     };
@@ -197,7 +196,7 @@ public partial class ControlCard : Control
             UiKit.Box(this, new Rect2(cx, colY, colW, colH), new Color(accent, 0.07f * a), 12f,
                       new Color(accent, 0.30f * a), 1.1f);
             UiKit.Text(this, UiKit.ZenBold, new Vector2(cx, colY + 14f), rows[i].device, UiKit.FontLabel,
-                       new Color(UiKit.Text3, a), HorizontalAlignment.Center, colW);
+                       new Color(UiKit.Text2, a), HorizontalAlignment.Center, colW);
             // キーキャップの並び（列の中央。2026-09-27 に文字のバッジから UiKit.KeyCapRow へ＝あそびかたの表と同じ絵）。
             //   コントローラーの列（i==1）はいまの表示が KB でもパッドの絵（丸ボタン／ピル）で描く。
             //   キャップの後ろに板を敷き、今の話題だけその縁をゆっくり明滅させて視線を集める。
@@ -210,14 +209,15 @@ public partial class ControlCard : Control
                       new Color(accent, (0.55f + 0.35f * pulse) * a), 1.3f);
             UiKit.KeyCapRow(this, new Vector2(bx + 12f, by + (44f - CapH) / 2f + 1f), rows[i].tok, CapH, a, padCol,
                             new Color(accent, 1f));
-            if (rows[i].note.Length > 0)
-                UiKit.Text(this, UiKit.Zen, new Vector2(cx + 10f, colY + 102f), rows[i].note, UiKit.FontSmall,
-                           new Color(UiKit.Text4, a), HorizontalAlignment.Center, colW - 20f);
+            var notes = UiKit.WrapLines(UiKit.Zen, rows[i].note, UiKit.FontLabel, colW - 20f);
+            for (int line = 0; line < notes.Count; line++)
+                UiKit.Text(this, UiKit.Zen, new Vector2(cx + 10f, colY + 102f + line * UiKit.Zen.GetHeight(UiKit.FontLabel)),
+                           notes[line], UiKit.FontLabel, new Color(UiKit.Text2, a), HorizontalAlignment.Center, colW - 20f);
         }
 
         // 足元の一行（全カード共通の念押し）。「あそびかた」で後からいつでも見られることを伝える。
         UiKit.Text(this, UiKit.Zen, new Vector2(x + 28f, y + h - 30f),
-                   "この表は " + Pad.PauseToken + " →「あそびかた」でいつでも見られます", UiKit.FontSmall,
-                   new Color(UiKit.Text4, 0.9f * a), HorizontalAlignment.Center, w - 56f);
+                   "この表は " + Pad.PauseToken + " →「あそびかた」でいつでも見られます", UiKit.FontLabel,
+                   new Color(UiKit.Text3, a), HorizontalAlignment.Center, w - 56f);
     }
 }

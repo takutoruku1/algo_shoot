@@ -36,6 +36,7 @@ public partial class StageZero : Node
 
     // 達成計測用ベースライン／フラグ。
     private double _t1Up, _t1Down, _t1Left, _t1Right;
+    private Vector2 _t1PreviousPosition;
     private int _t2KillBase;                              // ショット：ダミー撃破の起点（PurifiedCount 増分で判定）
     private int _t4DodgeBase;                             // 回避：DodgeCount の起点
     private int _t6PurifyBase;                            // 浄化：PurifiedCount の起点
@@ -102,11 +103,28 @@ public partial class StageZero : Node
         _lineHold += delta;
         // 会話送り：Z/Enter/ui_accept/Pad A に加えマウス左クリックでも送れる共通ヘルパ（マウス対応 P1）。
         bool z = Pad.AdvanceHeld();
-        _zEdge = z && !_zHeld;
+        _zEdge = z && !_zHeld && !Pad.UiBlocked(this);
         _zHeld = z;
         if (!_bannerShown) { _bannerShown = true; Hud.ShowBanner("れんしゅう"); }
 
         Drive(delta);
+    }
+
+    public override void _PhysicsProcess(double delta)
+    {
+        if (_phase != 2 || !_phaseStarted) return;
+        Vector2 moved = Player.GlobalPosition - _t1PreviousPosition;
+        _t1PreviousPosition = Player.GlobalPosition;
+        if (Hud.BubblePaused || Pad.UiBlocked(this)) return;
+
+        // 自機と同じ物理更新で測り、描画 FPS に達成時間を依存させない。
+        Vector2 v = Pad.UsingMouse
+            ? (moved.LengthSquared() > 0.0001f ? moved.Normalized() : Vector2.Zero)
+            : Input.GetVector("ui_left", "ui_right", "ui_up", "ui_down");
+        if (v.X < -0.2f) _t1Left  += delta;
+        if (v.X >  0.2f) _t1Right += delta;
+        if (v.Y < -0.2f) _t1Up    += delta;
+        if (v.Y >  0.2f) _t1Down  += delta;
     }
 
     // 各ステップ（説明会話フェーズ＆実践フェーズ）で、その操作に割り当たった“全ボタン”を
@@ -143,22 +161,19 @@ public partial class StageZero : Node
                 if (TutTalk(Tut1Move)) NextPhase();
                 break;
             case 2: // 実践（上下左右をそれぞれ約1秒ずつ押す＝全方向そろうまで進まない）
-                if (!_phaseStarted) { _phaseStarted = true; _t1Up = _t1Down = _t1Left = _t1Right = 0; Hud.ClearSpot(); }
-                Player?.TutorialGlow();
+                if (!_phaseStarted)
+                {
+                    _phaseStarted = true;
+                    _t1Up = _t1Down = _t1Left = _t1Right = 0;
+                    _t1PreviousPosition = Player.GlobalPosition;
+                    Hud.ClearSpot();
+                }
+                Player.TutorialGlow();
                 {
                     const double need = 1.0; // 各方向これだけ押し続けたらカウント
-                    Vector2 v = Input.GetVector("ui_left", "ui_right", "ui_up", "ui_down");
-                    if (v.X < -0.2f || Input.IsKeyPressed(Key.A)) _t1Left  += delta;
-                    if (v.X >  0.2f || Input.IsKeyPressed(Key.D)) _t1Right += delta;
-                    if (v.Y < -0.2f || Input.IsKeyPressed(Key.W)) _t1Up    += delta;
-                    if (v.Y >  0.2f || Input.IsKeyPressed(Key.S)) _t1Down  += delta;
                     int done = (_t1Up >= need ? 1 : 0) + (_t1Down >= need ? 1 : 0)
                              + (_t1Left >= need ? 1 : 0) + (_t1Right >= need ? 1 : 0);
-                    // ユーザー承認済み: docs/20260914/ストーリー添削_2026-09-14.md 【10】
-                    //   分かち書き＋「〜してみよう」は児童向けで、対象読者（20代後半〜30代後半）と衝突する。
-                    //   かつ、ここも世界の中ではミナが喋っている場所なので、口上だけ話者の人格が変わってはいけない。
-                    //   ミナの文体（体言止め・読点で区切る・命令ではなく提示）へ揃える。
-                    Hud.SetTutorialHint($"上下左右へ、それぞれ一秒（{done}/4）");
+                    Hud.SetTutorialHint($"各方向へ一秒：↑{(_t1Up >= need ? "済" : "未")} ↓{(_t1Down >= need ? "済" : "未")} ←{(_t1Left >= need ? "済" : "未")} →{(_t1Right >= need ? "済" : "未")}");
                     if (done >= 4 || _phaseTime > 30.0) { Hud.ClearTutorialHint(); NextPhase(); }
                 }
                 break;
@@ -180,7 +195,7 @@ public partial class StageZero : Node
                     int killed = (GetNodeOrNull<GameManager>("/root/Game")?.PurifiedCount ?? 0) - _t2KillBase;
                     // 倒し切る前に標的が尽きたら湧き直し（詰み防止）。湧き直しは1体ずつで「撃って→消える」を反復。
                     if (killed < ShotKillNeed && CountLiveEnemies() == 0) SpawnDummy(true);
-                    Hud.SetTutorialHint($"ダミーに光を当てる（{Mathf.Min(killed, ShotKillNeed)}/{ShotKillNeed}）");
+                    Hud.SetTutorialHint($"自動の光をダミーへ当てる（{Mathf.Min(killed, ShotKillNeed)}/{ShotKillNeed}）");
                     if (killed >= ShotKillNeed || _phaseTime > SafetyTimeout)
                     {
                         Hud.ClearTutorialHint();
@@ -241,19 +256,17 @@ public partial class StageZero : Node
                 {
                     _phaseStarted = true;
                     _t5BombBase = Player?.BombCount ?? 0;
-                    _t5PurifyBase = GetNodeOrNull<GameManager>("/root/Game")?.PurifiedCount ?? 0;
                     Hud.SetSpot(SpotBomb, 0.25f);
                     SpawnBombCluster(); // 自機の少し上に3体まとめて
                 }
                 {
                     var game = GetNodeOrNull<GameManager>("/root/Game");
-                    int caught = (game?.PurifiedCount ?? 0) - _t5PurifyBase;
                     bool bombed = (Player?.BombCount ?? 0) - _t5BombBase >= 1;
+                    int caught = bombed ? game?.BombPurifiedCount ?? 0 : 0;
                     // ボムを撃ったのに3体まとめられなかった＝固め直して再挑戦（押すだけでは進めない）。
                     if (bombed && caught < BombKillNeed)
                     {
                         _t5BombBase = Player?.BombCount ?? 0;
-                        _t5PurifyBase = game?.PurifiedCount ?? 0;
                         ClearDummies();
                         SpawnBombCluster();
                     }
@@ -261,8 +274,8 @@ public partial class StageZero : Node
                     else if (!bombed && CountLiveEnemies() == 0)
                         SpawnBombCluster();
                     // キーは真上の指示帯（Hud.DrawTutorialKeys のキーキャップ）が示す。文面には書かない（旧「Ｘ の」はパッドでも X と読めて紛らわしかった）。
-                    Hud.SetTutorialHint($"ボムで、三体まとめて（{Mathf.Min(caught, BombKillNeed)}/{BombKillNeed}）");
-                    if (caught >= BombKillNeed || _phaseTime > SafetyTimeout)
+                    Hud.SetTutorialHint($"一度のボムで、三体まとめて（{Mathf.Min(caught, BombKillNeed)}/{BombKillNeed}）");
+                    if ((bombed && caught >= BombKillNeed) || _phaseTime > SafetyTimeout)
                     {
                         Hud.ClearTutorialHint();
                         Hud.ClearSpot();
@@ -300,7 +313,7 @@ public partial class StageZero : Node
                     int purified = (game?.PurifiedCount ?? 0) - _t6PurifyBase;
                     if (purified < PurifyNeed && CountLiveEnemies() == 0)
                         SpawnDummy(false); // 逃げて全滅したら湧き直し（詰み防止）
-                    Hud.SetTutorialHint($"ダミーを浄化する（{Mathf.Min(purified, PurifyNeed)}/{PurifyNeed}）");
+                    Hud.SetTutorialHint($"周りの板を砕いて、浄化する（{Mathf.Min(purified, PurifyNeed)}/{PurifyNeed}）");
                     if (purified >= PurifyNeed || _phaseTime > SafetyTimeout)
                     {
                         Hud.ClearTutorialHint();
@@ -394,7 +407,7 @@ public partial class StageZero : Node
 
     // ════════════════════ ダミー弾・ダミー敵 ════════════════════
     private int CountEnemyBullets() => GetTree().GetNodesInGroup("enemy_bullets").Count;
-    private int _t5BombBase, _t5PurifyBase;
+    private int _t5BombBase;
 
     // まだ改心していない（＝倒せる）ダミー敵の数。湧き直し判定・進捗計測の補助に使う。
     private int CountLiveEnemies()

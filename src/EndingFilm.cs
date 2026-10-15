@@ -9,10 +9,18 @@ public partial class EndingFilm : Node2D
     public double Elapsed { get; private set; }
     public bool Finished { get; private set; }
 
-    private static readonly double[] Cuts = { 0, 4, 10, 15, 20, 26, 31, 37, 42, 49, 53 };
-    private static readonly string[] Speakers = { "ミナ", "あかり", "こはる", "こはる", "レイ", "レイ", "あかり", "レイ", "ミナ", "" };
+    private static readonly double[] Cuts = { 0, 4, 12, 20, 28, 34, 41, 45 };
+    private static readonly string[] Speakers = { "ミナ", "あかり", "こはる", "レイ", "ミナ", "あなた", "" };
     private static readonly string[] Lines =
-    { "……覚えている声が、あります。", "返事を待つだけじゃなくて。\nあたしの明日も、決めていいんだ。", "……ひとりで、なんとかしなくても。\n少しだけ、頼ってみよう。", "ねえ。ここ、分かんないんだけど……\n聞いてもいい？", "好きなところ、まだあるの。\n……今日は、最後まで話すね。", "……ちゃんと、話せた。", "ミナ。待っててくれて、ありがと。", "次は、ミナの話も聞かせて。\n……急がなくて、いいから。", "……ええ。\nわたくしも、ここにいて、よいのですね。", "" };
+    {
+        "皆さまから、その後のお話が届きました。",
+        "今日、仕事を残して帰ってきた。明日でいいって言えたよ。座ったら、お腹すいてるって気づいた。",
+        "途中で配信を閉じて寝たの。でも今日も、レイちゃんのこと好きだったよ。分かんない問題も、人に聞けた。",
+        "好きな本の話、最後までした。人は少なかったけど、次に話したいことができたわ。",
+        "わたくしが離れたあとにも、続いていたのですね。",
+        "うん。君が全部、持っていなくても。みんな、続きを生きてる。",
+        "",
+    };
     private static readonly Rect2 SkipRect = DialogToolbar.FilmSkipRect;
     private Texture2D[] _art = null!;
     private readonly List<List<string>> _captionPages = new();
@@ -54,9 +62,9 @@ public partial class EndingFilm : Node2D
         {
             GD.Load<Texture2D>(dir + "cg_ep_mina_sky_v3.png"),
             akari,
-            koharu, koharu,
-            rei, rei,
-            akari, rei,
+            koharu,
+            rei,
+            GD.Load<Texture2D>(dir + "cg_ep_goodbye_v2.png"),
             GD.Load<Texture2D>(dir + "cg_ep_goodbye_v2.png"),
             GD.Load<Texture2D>(dir + "bg_ep_dawn_v2.png"),
         };
@@ -84,7 +92,8 @@ public partial class EndingFilm : Node2D
                 _loggedShot = Shot;
                 string sp = Speakers[_loggedShot];
                 if (Lines[_loggedShot].Length > 0)
-                    Hud.PushLog(sp == "ミナ" ? Hud.LineKind.Mina : Hud.LineKind.Other, sp, Lines[_loggedShot], AccentFor(sp));
+                    Hud.PushLog(sp == "ミナ" ? Hud.LineKind.Mina : sp == "あなた" ? Hud.LineKind.Boy : Hud.LineKind.Other,
+                        sp, Lines[_loggedShot], AccentFor(sp));
             }
             bool held = SkipHeld();
             if (!held) _inputArmed = true;
@@ -102,7 +111,7 @@ public partial class EndingFilm : Node2D
         int shot = Shot;
         if (Lines[shot].Length == 0) return;
         var caption = DialogueBox.CaptionAt(_captionPages[shot], Elapsed - Cuts[shot] - 0.25, _captionPacing[shot]);
-        DialogueBox.TypeSound(Speakers[shot] == "ミナ" ? Hud.LineKind.Mina : Hud.LineKind.Other,
+        DialogueBox.TypeSound(Speakers[shot] == "ミナ" ? Hud.LineKind.Mina : Speakers[shot] == "あなた" ? Hud.LineKind.Boy : Hud.LineKind.Other,
             caption.Page, caption.Shown, ref _typeCursor);
     }
 
@@ -135,9 +144,9 @@ public partial class EndingFilm : Node2D
         float zoom = shot switch
         {
             0 => Mathf.Lerp(1.025f, 1.045f, progress),
-            3 or 5 or 7 => Mathf.Lerp(1.025f, 1.01f, progress),
-            8 => Mathf.Lerp(1.01f, 1f, progress),
-            9 => 1f,
+            3 => Mathf.Lerp(1.025f, 1.01f, progress),
+            4 or 5 => Mathf.Lerp(1.01f, 1f, progress),
+            6 => 1f,
             _ => Mathf.Lerp(1.055f, 1.025f, progress),
         };
         Vector2 size = _art[shot].GetSize();
@@ -145,11 +154,11 @@ public partial class EndingFilm : Node2D
         Vector2 slack = size - new Vector2(1280, 720);
         float pan = shot switch
         {
-            0 or >= 6 => 0.5f,
-            3 or 5 => Mathf.Lerp(0.68f, 0.5f, progress),
+            0 or >= 4 => 0.5f,
+            3 => Mathf.Lerp(0.68f, 0.5f, progress),
             _ => Mathf.Lerp(0.32f, 0.68f, progress),
         };
-        return new Rect2(-slack * new Vector2(pan, shot == 8 ? 0f : 0.5f), size);
+        return new Rect2(-slack * new Vector2(pan, shot is 4 or 5 ? 0f : 0.5f), size);
     }
 
     private void Frame(int shot, float progress, float alpha)
@@ -173,14 +182,14 @@ public partial class EndingFilm : Node2D
         if (Lines[shot].Length > 0)
         {
             var box = DialogueBox.FullScreen;
-            DialogueBox.DrawFrame(this, box, Speakers[shot], AccentFor(Speakers[shot]));
+            DialogueBox.DrawFrame(this, box, Speakers[shot], AccentFor(Speakers[shot]), draft: Speakers[shot] == "あなた");
             var caption = DialogueBox.CaptionAt(_captionPages[shot], local - 0.25, _captionPacing[shot]);
             DialogueBox.DrawBody(this, box, caption.Page, caption.Shown, captionAlpha, pacing: caption.Pacing);
         }
-        if (Elapsed > 1 && shot < 9)
+        if (Elapsed > 1 && shot < Lines.Length - 1)
             DialogToolbar.DrawFilmSkip(this, Mathf.Clamp((float)(_skipHold / 0.65), 0, 1), SkipRect.HasPoint(Pad.MousePos()));
         if (_leaving)
-            Frame(9, 1, Ease(_leaveTime / 0.7));
+            Frame(Lines.Length - 1, 1, Ease(_leaveTime / 0.7));
     }
 
     // 話者ごとの差し色（字幕と会話ログで共用）。
@@ -189,6 +198,7 @@ public partial class EndingFilm : Node2D
         "あかり" => new Color("f0c969"),
         "こはる" => new Color("a6dac8"),
         "レイ" => new Color("de91b9"),
+        "あなた" => UiKit.CutWarm,
         _ => new Color("87d7ed"),
     };
 

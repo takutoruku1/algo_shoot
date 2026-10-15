@@ -1,23 +1,13 @@
 using Godot;
 using System.Linq;
 
-// StageTutorial : 初見チュートリアル会話（ミナ）の once 管理と本文の一元置き場（2026-09-16）。
-//   ①道中 … セーブで最初にステージの道中へ入ったとき（各ステージ _Ready の _step==1 確定後、
-//            イントロ会話の末尾へ Concat ＝道中ザコ戦が始まる直前に流れる）。
-//   ②本ボス … 言葉の板（パネル）が周回する本ボス戦の初回開始時。Step_BossSpawn で消費し、
-//            対面演出のあとに _playerBoss として表示する＝道中で倒れても初ボス到達まで温存。
-//   once キーはセーブ単位（GameManager._idleDialogSeen）。"once_" 接頭辞は小話の既読リセット
-//   （ResetIdleDialogSeen）でも消えない＝once_phone_home と同じ流儀。
-//   ・結び手（ミナ潜行）のときだけ表示する。他ジョブのキャラ別ストーリー中は出さず、
-//     once も消費しない＝結び手の初回で必ず見られる。
-//   ・本文の正典: docs/20260916/フェイクレルム_チュートリアル本文_2026-09-16.md（ユーザー支給草稿準拠・
-//     操作表記は HowToPlay/Player の実装が正典）。差し替えはこの配列だけ＝フック側は無改造。
-//   ・2026-09-17: 操作表記（キー名の羅列）をミナのセリフから抜き、盤面中央の操作カード（ControlCard）へ
-//     分離した。セリフは「何ができるか・なぜするか」、カードは「どのボタンか」を担う。行ごとの
-//     出し分けは下の RouteCues（Route と同じ並び・同じ長さ）が持つ。
+// once キーは小話の既読リセットでも残し、仲間の潜行ではミナの案内を消費しない。
 public static class StageTutorial
 {
     public const string RouteSeenKey = "once_tutorial_route";
+    public const string ShieldSeenKey = "once_tutorial_shield";
+    public const string LockSeenKey = "once_tutorial_lock";
+    public const string BombSeenKey = "once_tutorial_bomb";
     public const string BossSeenKey = "once_tutorial_boss";
     public const string AnkerAkariSeenKey = "once_ankers_akari";
     public const string AnkerKoharuSeenKey = "once_ankers_koharu";
@@ -34,26 +24,40 @@ public static class StageTutorial
         (1, "こちらですね。服の端をかすめるくらいなら、大丈夫、と。", "res://char/mina_face.png"),
         (0, "うん。光は自動で放たれる。最初は、よけることと狙うことに慣れよう。", ""),
         (1, "余計なボタンを探しておりました。少なくて助かります。", "res://char/mina_face.png"),
+    };
+
+    private static readonly (int who, string text, string face)[] Shield =
+    {
         (0, "アンチャーの周りを回る板は、アンフォールダー。まず、あれを砕く。浄化が進めば、本人の本音へ近づける。", ""),
         (1, "言葉を消すのではなく、塞いでいるものをほどくのですね。", "res://char/mina_face.png"),
-        (0, "その通り。背後の相手を狙うときはロックオン。押すたびに近い相手から順に切り替わる。その間は少し移動が遅くなるよ。", ""),
+    };
+
+    private static readonly (int who, string text, string face)[] Lock =
+    {
+        (0, "狙う相手を選ぶときはロックオン。背後にも光が届く。狙う相手は切替操作で選べるけれど、ロック中は少し移動が遅くなるよ。", ""),
         (1, "狙いに夢中で、ぶつからないようにします。", "res://char/mina_face.png"),
-        (0, "解除すれば、すぐ元の動きに戻る。相手を浄化したあとは、次の相手へ狙いが移る。", ""),
-        (0, "囲まれたらBOMB。弾とアンチャーをまとめて祓える。残数は見ておこう。", ""),
+        (0, "ロックを解除すれば、元の動きに戻る。ロックした相手を浄化したあとは、次の相手へ狙いが移る。", ""),
+    };
+
+    private static readonly (int who, string text, string face)[] Bomb =
+    {
+        (0, "囲まれたらBOMB。アンチャーをまとめて祓い、短い無敵の間に退避できる。弾は残るから、空いた場所へ。残数も見ておこう。", ""),
         (1, "温存したまま倒れては、元も子もありませんね。", "res://char/mina_face.png"),
-        (0, "うん。使って帰ってきてくれるほうが、僕はうれしい。心の欠片も、拾える範囲で集めよう。帰ったあとに力へ変えられる。", ""),
-        (1, "承知しました。危ないところは、遠慮なく教えてください。ご主人様。", "res://char/mina_face.png"),
     };
 
     private static readonly ControlCard.Topic[] RouteCues =
-    { ControlCard.Topic.Move, ControlCard.Topic.Move, ControlCard.Topic.Shot, ControlCard.Topic.Shot, ControlCard.Topic.None, ControlCard.Topic.None, ControlCard.Topic.Lock, ControlCard.Topic.Lock, ControlCard.Topic.LockClear, ControlCard.Topic.Bomb, ControlCard.Topic.Bomb, ControlCard.Topic.None, ControlCard.Topic.None };
+    { ControlCard.Topic.Move, ControlCard.Topic.Move, ControlCard.Topic.Shot, ControlCard.Topic.Shot };
+    private static readonly ControlCard.Topic[] LockCues =
+    { ControlCard.Topic.Lock, ControlCard.Topic.Lock, ControlCard.Topic.LockClear };
+    private static readonly ControlCard.Topic[] BombCues =
+    { ControlCard.Topic.Bomb, ControlCard.Topic.Bomb };
 
     // ② 本ボス戦チュートリアル（ブロック2・5行）。ボスの口上（who=2）の直後に続く。
     private static readonly (int who, string text, string face)[] Boss =
     {
-        (0, "この先が、フェイクレルムの主だ。周りのアンフォールダーをほどけば、本人へ働きかけられる。", ""),
+        (0, "この先が、フェイクレルムの主だ。周りのアンフォールダーをすべて砕くと、本人へ光が届く時間ができる。", ""),
         (1, "あの方の姿まで、変わっているのですね。", "res://char/mina_face.png"),
-        (0, "心を閉じ込めるものが、姿にも重なってる。アンフォールダーは時間がたつと戻るから、何度でもほどこう。", ""),
+        (0, "心を閉じ込めるものが、姿にも重なってる。本人が無防備な間に光を。板が戻ったら、また板をほどこう。", ""),
         (1, "その間に、わたくしがお話しします。", "res://char/mina_face.png"),
         (0, "うん。僕の声は本人には届かない。こちらで危険を見てるから、君の言葉を聞かせてあげて。", ""),
     };
@@ -66,8 +70,7 @@ public static class StageTutorial
     private static readonly (int who, string text, string face)[] AnkerAkari =
     {
         (0, "このフロアのアンチャーは、距離を詰めてくる。落ちる途中で速くなるものにも気をつけて。", ""),
-        (1, "立てる場所を、少しずつ削られますね。", "res://char/mina_face.png"),
-        (0, "同じ場所に留まらず、空いた側へ。次は左が広い。", ""),
+        (0, "同じ場所に留まらず、空いた側へ進もう。", ""),
         (1, "はい。道を教えていただけるのは、助かります。", "res://char/mina_face.png"),
     };
 
@@ -93,16 +96,14 @@ public static class StageTutorial
     //   拾い方は欠片と同じ（磁力）。効果は Player.ApplyPowerup、表示は Hud.DrawPowerups（左パネル・LIFE の上）、
     //   被弾で失う（Player.LosePowerupsOnHit／Shield は肩代わりで消費）。本文は数値に依存しない＝WIP の
     //   調整（倍率・間隔）で嘘にならない書き方にしてある。
-    //   最初の面（あかり）だけ。アンチャー紹介③の後ろへ繋ぐ＝「一般 → この面の敵 → 拾い物」の順。
+    //   あかり面で強化を拾い、左の効果欄に実物が出たときに流す。
     //   once はセーブ単位（once_items_akari）。①③と同じく結び手潜行のときだけ・消費も同条件（Take）。
     //   本文の正典: docs/20260922/強化アイテム説明_本文_2026-09-22.md。
     private static readonly (int who, string text, string face)[] ItemsAkari =
     {
-        (0, "色の枠がある欠片は、拾うとその場で力になる。光が増えたり、速く動けたり、敵をたくさん倒すと、LIFEを1回復するハートも落ちるよ。", ""),
-        (1, "お着替えなしで変われるのは、手軽ですね。", "res://char/mina_face.png"),
-        (0, "変身中に待ってくれる相手でもないしね。効果は、左のパネルに出るよ。", ""),
-        (1, "ご主人様の趣味で、長い変身シーンがついていなくて安心しました。", "res://char/mina_face.png"),
-        (0, "……付けなくてよかった。攻撃を受けると効果が消えるから、そこは気をつけよう。", ""),
+        (0, "今の欠片で、力が変わった。色の枠が目印だよ。光が増えたり、速く動けたりする。敵をたくさん倒すと、LIFEを1回復するハートも落ちるよ。", ""),
+        (1, "お着替えなしで変われるのは、手軽ですね。危なくないところから、拾います。", "res://char/mina_face.png"),
+        (0, "効果は左のパネルへ。被弾すると消えるから気をつけよう。普通の心の欠片は、帰ったあとに力へ変えられる。", ""),
     };
 
     // ⑤ 習得スキルの説明（2026-09-22・ユーザー要望「回避とチャージショットが追加されたときはステージに
@@ -111,9 +112,9 @@ public static class StageTutorial
     //     発火条件は HasDodge かつ未見＝買ったあと最初に入った面の冒頭。ここは HasDodge だけを見る＝
     //     習得経路がどちらでも動く（本文はステージ名・主の名を出さないので、どの面で流れても嘘にならない）。
     //   ・溜め打ち … 2026-09-25 のユーザー決定で**最初から使える**（ショップの n_charge は「溜め打ち 二段」＝
-    //     速さの強化になった）。発火条件は「未見」だけ＝Route（①）と同じく最初に入った面の冒頭で必ず出る。
+    //     速さの強化になった）。あかり面では板の敵と戦ってから案内する。
     //     本文（SkillCharge）の1行目も同日に差し替え済み＝「この光に備わっている
-    //     使い方」の提示で、習得・購入の含意は無い（2〜4行目＝操作の説明は変更なし）。
+    //     使い方」の提示で、習得・購入の含意は無い。
     //   ・溜め打ち2段目 … ショップの品目 n_charge「溜め打ち 二段」（HasChargeTier2）。発火条件は
     //     HasChargeTier2 かつ未見＝買ったあと最初に入った面の冒頭で、回避（SkillDodge）と同じ作法。
     //     既存の SkillCharge（1段目）は一行も変えない＝この4行は「その先がある」ことだけを足す。
@@ -136,11 +137,8 @@ public static class StageTutorial
     private static readonly (int who, string text, string face)[] SkillCharge =
     {
         (0, "次はチャージ。押し続けると光が集まる。頭上の弧が満ちて、白く光ったら離して。", ""),
-        (1, "……今ですか。", "res://char/mina_face.png"),
-        (0, "そう。板を貫く、重い一発になる。ただ、溜めている間は通常の光が止まるよ。", ""),
-        (1, "必殺技の名前を考えている間に、囲まれそうですね。", "res://char/mina_face.png"),
-        (0, "名前は帰ってから考えよう。溜まる前に離したときは、通常の光へ戻る。", ""),
-        (1, "では、今は無言で。……えい。", "res://char/mina_face.png"),
+        (0, "板を貫く、重い一発になる。溜めている間は通常の光が止まるよ。溜まる前に離したときは、通常の光へ戻る。", ""),
+        (1, "では、安全な場所を選んで試します。必殺技の名前は、帰ってからですね。", "res://char/mina_face.png"),
     };
 
     // ⑥ 2段階チャージの説明（2026-09-25）。ショップの n_charge（「溜め打ち 二段」1200）を買うと
@@ -150,7 +148,7 @@ public static class StageTutorial
     //   キー名は書かない（操作カードが担う）。数値も書かない＝倍率調整で嘘にならない。
     private static readonly (int who, string text, string face)[] SkillCharge2 =
     {
-        (0, "チャージの二段目が開いた。白い合図でも離さず、もう少し待つ。外側の弧が金色になったら、二段目だ。", ""),
+        (0, "チャージの二段目が開いた。白い合図でも離さず、もう少し待つ。同じ輪がもう一周満ちて、暖かな白で光ったら、二段目だ。", ""),
         (1, "強いぶん、溜める時間も長いのですね。", "res://char/mina_face.png"),
         (0, "うん。その間は通常の光が止まる。安全な場所を決めてから使おう。", ""),
         (1, "承知しました。欲張って、帰り道まで失わないようにします。", "res://char/mina_face.png"),
@@ -161,7 +159,7 @@ public static class StageTutorial
     private static readonly ControlCard.Topic[] SkillDodgeCues =
     { ControlCard.Topic.Dodge, ControlCard.Topic.Dodge, ControlCard.Topic.Dodge, ControlCard.Topic.Dodge, ControlCard.Topic.Dodge };
     private static readonly ControlCard.Topic[] SkillChargeCues =
-    { ControlCard.Topic.Charge, ControlCard.Topic.Charge, ControlCard.Topic.Charge, ControlCard.Topic.Charge, ControlCard.Topic.Charge, ControlCard.Topic.Charge };
+    { ControlCard.Topic.Charge, ControlCard.Topic.Charge, ControlCard.Topic.Charge };
     // ⑥（2段目）の cue。ControlCard.Topic に Charge2 は無いので既存の Charge を流用する
     //   ＝どのボタンかは 1段目と同じ（押し続ける／離す）ため、カード面を分ける必要が無い。
     private static readonly ControlCard.Topic[] SkillCharge2Cues =
@@ -171,6 +169,8 @@ public static class StageTutorial
     private static readonly ((int who, string text, string face)[] lines, ControlCard.Topic[] cues)[] CardBlocks =
     {
         (Route, RouteCues),
+        (Lock, LockCues),
+        (Bomb, BombCues),
         (SkillDodge, SkillDodgeCues),
         (SkillCharge, SkillChargeCues),
         (SkillCharge2, SkillCharge2Cues),
@@ -208,7 +208,16 @@ public static class StageTutorial
     }
 
     // 道中開始時に一度だけ返す（返した瞬間に once を消費）。出さない条件では None（消費もしない）。
-    public static (int who, string text, string face)[] TakeRoute(GameManager? game) => Take(game, RouteSeenKey, Route);
+    public static (int who, string text, string face)[] TakeRoute(GameManager? game, bool basicsOnly = false)
+    {
+        var lines = Take(game, RouteSeenKey, Route);
+        return basicsOnly ? lines : lines.Concat(TakeShield(game)).Concat(TakeLock(game)).Concat(TakeBomb(game)).ToArray();
+    }
+
+    public static (int who, string text, string face)[] TakeShield(GameManager? game) => Take(game, ShieldSeenKey, Shield);
+    public static (int who, string text, string face)[] TakeLock(GameManager? game) => Take(game, LockSeenKey, Lock);
+    public static (int who, string text, string face)[] TakeBomb(GameManager? game) => Take(game, BombSeenKey, Bomb);
+    public static (int who, string text, string face)[] TakeCharge(GameManager? game) => Take(game, SkillChargeSeenKey, SkillCharge);
 
     // 本ボス出現時に一度だけ返す。同上。
     public static (int who, string text, string face)[] TakeBoss(GameManager? game) => Take(game, BossSeenKey, Boss);
@@ -218,22 +227,19 @@ public static class StageTutorial
     public static (int who, string text, string face)[] TakeAnkerKoharu(GameManager? game) => Take(game, AnkerKoharuSeenKey, AnkerKoharu);
     public static (int who, string text, string face)[] TakeAnkerRei(GameManager? game) => Take(game, AnkerReiSeenKey, AnkerRei);
 
-    // 強化アイテム説明（④）。あかり面の道中開始時に一度だけ返す（③の直後に繋ぐ）。結び手潜行のときだけ・消費も同条件。
     public static (int who, string text, string face)[] TakeItemIntroAkari(GameManager? game) => Take(game, ItemsAkariSeenKey, ItemsAkari);
 
     // 習得スキル説明（⑤⑥）。どのステージでも道中開始時に、未見のものだけを
     //   回避 → 溜め打ち → 溜め打ち2段目 の順で連結して返す。
     //   ・回避は未習得なら出さず once も消費しない＝買ったあと最初の面で必ず見られる。
-    //   ・溜め打ちは最初から使える（2026-09-25）＝習得を待たず、最初の面の冒頭で必ず出る。
+    //   ・あかり面の溜め打ちは、実物が出たときに TakeCharge で受け取る。
     //   ・2段目は未購入（HasChargeTier2=false）なら出さず once も消費しない＝回避と同じ作法。
     //   結び手潜行のときだけ・消費も同条件（Take）。①の直後・③の前に繋ぐ。
-    public static (int who, string text, string face)[] TakeSkillIntros(GameManager? game)
+    public static (int who, string text, string face)[] TakeSkillIntros(GameManager? game, bool includeCharge = true)
     {
         if (game == null) return None;
         var dodge = game.HasDodge ? Take(game, SkillDodgeSeenKey, SkillDodge) : None;
-        // 溜め打ちは最初から使える（2026-09-25）＝習得を待たず、最初に入った面の冒頭で必ず一度出す。
-        //   Route（道中チュートリアル①）と同じ扱いになった＝条件は「未見」だけ。
-        var charge = Take(game, SkillChargeSeenKey, SkillCharge);
+        var charge = includeCharge ? TakeCharge(game) : None;
         // 2段目（⑥・2026-09-25）はショップで n_charge を買ったあと最初に入った面の冒頭で一度だけ。
         var charge2 = game.HasChargeTier2 ? Take(game, SkillCharge2SeenKey, SkillCharge2) : None;
         var all = dodge;

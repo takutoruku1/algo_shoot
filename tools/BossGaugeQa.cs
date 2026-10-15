@@ -13,9 +13,7 @@ using System.Threading.Tasks;
 //   ④ HideBossBar：顔あり＝改心の見送り（Purify 0→1 → Fade 1→0 → 非表示）／顔なし＝即非表示
 //   ⑤ ボスを消せばゲージも消える
 //   ⑥ （--bg-shot のみ）スクショ＋画面上端に旧カードの暗い箱が出ていないことのピクセル確認
-//   ⑦ 塗りの色分け（2026-09-27 追加）：_phase／_phaseT を反射で Shielded→Break→Exposed→Reclose と切り替え、
-//      BossGauge.LastFillKind が invuln／break／break／invuln、Enemy.GaugeVulnerable／GaugeWindowLeft／GaugeBreakFresh が
-//      状態どおりか。--bg-shot では gauge_invuln／gauge_break と、ゲージ部分の3倍拡大 gauge_zoom_* も撮る。
+//   ⑦ 全パネル破壊→Break→Exposed→Reclose→Shielded の実遷移と本体ダメージ可否を表示と照合する。
 //   使い方（実セーブを汚さないよう APPDATA=build/qa_story/boss_gauge_appdata を渡す）：
 //     ヘッドレス : Godot --headless --path . res://tools/qa_boss_gauge.tscn
 //     スクショ付き（窓あり。Shot はヘッドレスで固まる）:
@@ -36,6 +34,8 @@ public partial class BossGaugeQa : Node
     private bool _shot;
     private string _out = "build/shots_gauge_qa";
     private Hud? _hud;
+    private AkariRoot? _sceneRoot;
+    private bool _keepDialogue;
     // 徘徊で盤面上端（旧カードの帯）まで上がられるとピクセル確認が濁るので、描画直前に定位置へ戻す。
     private readonly Dictionary<Enemy, Vector2> _pin = new();
 
@@ -43,6 +43,7 @@ public partial class BossGaugeQa : Node
     {
         // ※ 全体の --shot（ShotTool 自動ロード＝撮って終了する）と衝突しないよう、専用の旗にしてある。
         var args = OS.GetCmdlineUserArgs();
+        typeof(Settings).GetProperty(nameof(Settings.PauseWhenUnfocused))!.SetValue(null, false);
         foreach (var a in args) if (a == "--bg-shot") _shot = true;
         for (int i = 0; i + 1 < args.Length; i++) if (args[i] == "--bg-out") _out = args[i + 1];
         if (_shot)
@@ -55,10 +56,35 @@ public partial class BossGaugeQa : Node
         try
         {
             await Run();
-            GD.Print(_fail == 0 ? "[BG] DONE ok" : $"[BG] DONE fail={_fail}");
-            GetTree().Quit(_fail == 0 ? 0 : 1);
         }
-        catch (Exception ex) { GD.PushError($"[BG] FAIL {ex}"); GetTree().Quit(1); }
+        catch (Exception ex) { _fail++; GD.PushError($"[BG] FAIL {ex}"); }
+        finally { await Cleanup(); }
+        GD.Print(_fail == 0 ? "[BG] DONE ok" : $"[BG] DONE fail={_fail}");
+        GetTree().Quit(_fail == 0 ? 0 : 1);
+    }
+
+    private async Task Cleanup()
+    {
+        SetProcess(false);
+        _pin.Clear();
+        _hud = null;
+        Hud.BubblePaused = false;
+        GetTree().Paused = false;
+        GetNode<BulletPool>("/root/Pool").DespawnAll();
+        _sceneRoot?.QueueFree();
+        _sceneRoot = null;
+        await Frames(5);
+        var audio = GetNode<Audio>("/root/Audio");
+        audio.StopMusicOnce(0);
+        foreach (var stream in audio.GetChildren().OfType<AudioStreamPlayer>())
+        {
+            stream.Stop();
+            stream.Stream = null;
+        }
+        await Task.Delay(250);
+        GC.Collect();
+        GC.WaitForPendingFinalizers();
+        await Frames(5);
     }
 
     private async Task Run()
@@ -66,8 +92,10 @@ public partial class BossGaugeQa : Node
         Check("セーブが隔離されている（APPDATA=build/qa_story/...）", OS.GetUserDataDir().Replace('\\', '/').Contains("/build/qa_story/"));
         var game = GetNode<GameManager>("/root/Game");
         game.ResetPersistent(); game.AutoSaveEnabled = false;
+        game.Difficulty = GameManager.Diff.Normal;
+        game.MarkIdleDialogSeen("once_midboss_shield");
 
-        var root = GD.Load<PackedScene>("res://Akari.tscn").Instantiate<AkariRoot>();
+        var root = _sceneRoot = GD.Load<PackedScene>("res://Akari.tscn").Instantiate<AkariRoot>();
         GetTree().Root.AddChild(root);
         GetTree().CurrentScene = root;
         await Frames(2);
@@ -118,8 +146,6 @@ public partial class BossGaugeQa : Node
         hud.UpdateBossBar(0, 1, 0.5f);
         await Shot("mid_half");
 
-        // ── ⑦ 塗りの色分け：無敵＝灰＋斜線／BREAK＝金 ──
-        await PhaseColors(hud, cameo);
         await RecoveryGauge(hud, cameo, "mid");
         await DamageTrail(hud, g1[0]);
 
@@ -151,24 +177,12 @@ public partial class BossGaugeQa : Node
         await Shot("main_4of6");
         await Zoom(g2[0], "main_zoom");
         await BandControl("main_4of6");
+        hud.UpdateBossBar(second.CurrentBarIndex, second.TotalBars, second.CurrentBarFrac);
+        Check($"実戦HPが12500以上で表示にも反映（HP={BaseField(second, "_hp").GetValue(second)}, bars={hud.GaugeState.Total}）",
+            (int)BaseField(second, "_maxHp").GetValue(second)! >= 12500 && hud.GaugeState.Total == second.TotalBars);
+        await Shot("main_real_hp_10_crystals");
+        await Zoom(g2[0], "main_real_hp_10_crystals_zoom");
         await RecoveryGauge(hud, second, "main");
-        if (_shot)
-        {
-            var phase = BaseField(second, "_phase");
-            phase.SetValue(second, Enum.Parse(phase.FieldType, "Reclose"));
-            BaseField(second, "_phaseT").SetValue(second, 0.675);
-            second.GetNode<Node2D>("Shield").QueueRedraw();
-            foreach (Vector2I size in new[] { new Vector2I(960, 540), new(1920, 1080), new(540, 960) })
-            {
-                DisplayServer.WindowSetSize(size);
-                await Frames(3);
-                await Shot($"main_{size.X}x{size.Y}");
-            }
-            DisplayServer.WindowSetSize(new Vector2I(1280, 720));
-            await Frames(3);
-            phase.SetValue(second, Enum.Parse(phase.FieldType, "Shielded"));
-            second.GetNode<Node2D>("Shield").QueueRedraw();
-        }
 
         // ── ⑤ HideBossBar：顔あり（BossHandles.AkariBar）＝改心の見送り ──
         await HideWithFace(hud, second);
@@ -193,96 +207,141 @@ public partial class BossGaugeQa : Node
         await Frames(3);
         Check($"盤面の BossGauge は0（{AllGauges(root).Length}）", AllGauges(root).Length == 0);
 
-        GetNodeOrNull<BulletPool>("/root/Pool")?.DespawnAll();
-        root.QueueFree(); await Frames(5);
-    }
-
-    private async Task PhaseColors(Hud hud, CameoBoss boss)
-    {
-        var g = Gauges(boss).FirstOrDefault();
-        Check("⑦ 中ボスにゲージが付いている", g != null);
-        if (g == null) return;
-        var fPhase = BaseField(boss, "_phase");
-        var fPhaseT = BaseField(boss, "_phaseT");
-        var enumT = fPhase.FieldType;
-        object Ph(string n) => Enum.Parse(enumT, n);
-        hud.UpdateBossBar(1, 3, 0.7f);
-
-        // 世界の CanvasModulate（夜の冷色 Tint）を SelfModulate の逆数で打ち消している（BubbleLayer と同じ）。
-        var cm = boss.GetParent()?.GetParent()?.GetChildren().OfType<CanvasModulate>().FirstOrDefault();
-        if (cm != null)
+        if (_shot)
         {
-            var back = g.SelfModulate * cm.Color;
-            GD.Print($"[BG] info Tint={cm.Color} SelfModulate={g.SelfModulate}");
-            Check($"Tint を打ち消している（SelfModulate×Tint={back}）", back.IsEqualApprox(Colors.White) || cm.Color.IsEqualApprox(Colors.White));
+            var how = GetNode<HowToPlay>("/root/HowTo");
+            Write(how, "_autoplay", false);
+            how.Open();
+            Write(how, "_page", HowToPlay.PageHud);
+            await Shot("howto_combat_states", checkBand: false);
+            typeof(HowToPlay).GetMethod("Close", P)!.Invoke(how, null);
         }
 
-        // 各状態に入れて 2 フレーム後に読む。Break の _phaseT 0 は BreakCueDur(0.45s) 内・Reclose の 0 は 1.35s 内なので自動遷移しない。
-        async Task Enter(string phase, double t)
-        {
-            fPhase.SetValue(boss, Ph(phase)); fPhaseT.SetValue(boss, t);
-            await Frames(2);
-        }
-
-        await Enter("Shielded", 0.0);
-        Check($"Shielded：LastFillKind=invuln（{g.LastFillKind}）", g.LastFillKind == "invuln");
-        Check($"Shielded：GaugeVulnerable=false（{boss.GaugeVulnerable}）", !boss.GaugeVulnerable);
-        Check($"Shielded：GaugeWindowLeft=0（{boss.GaugeWindowLeft:0.00}）", boss.GaugeWindowLeft == 0f);
-        await Shot("gauge_invuln");
-        await Zoom(g, "gauge_zoom_invuln");
-
-        await Enter("Break", 0.0);
-        Check($"Break：LastFillKind=break（{g.LastFillKind}）", g.LastFillKind == "break");
-        Check($"Break：GaugeVulnerable=true（{boss.GaugeVulnerable}）", boss.GaugeVulnerable);
-        Check($"Break：GaugeWindowLeft=1（{boss.GaugeWindowLeft:0.00}）", boss.GaugeWindowLeft == 1f);
-        Check($"Break 直後：GaugeBreakFresh が立っている（{boss.GaugeBreakFresh:0.00}）", boss.GaugeBreakFresh > 0.5f);
-
-        await Enter("Exposed", 4.0 * 0.4);   // 無防備窓（VulnDur=4.0s）の残り 60%
-        float left = boss.GaugeWindowLeft;
-        Check($"Exposed：LastFillKind=break（{g.LastFillKind}）", g.LastFillKind == "break");
-        Check($"Exposed：GaugeVulnerable=true（{boss.GaugeVulnerable}）", boss.GaugeVulnerable);
-        Check($"Exposed：GaugeWindowLeft が 0..1 で約 0.6（{left:0.000}）", left >= 0f && left <= 1f && Mathf.Abs(left - 0.6f) < 0.05f);
-        Check($"Exposed：GaugeBreakFresh は減衰済み（{boss.GaugeBreakFresh:0.00}）", boss.GaugeBreakFresh == 0f);
-        fPhaseT.SetValue(boss, 1.6);   // 撮影前に 60% へ戻す（2 フレームぶん進んでいる）
-        await Shot("gauge_break");
-        await Zoom(g, "gauge_zoom_break");
-
-        await Enter("Reclose", 0.0);
-        Check($"Reclose：LastFillKind=invuln（{g.LastFillKind}）", g.LastFillKind == "invuln");
-        Check($"Reclose：GaugeVulnerable=false（{boss.GaugeVulnerable}）", !boss.GaugeVulnerable);
-        Check($"Reclose：GaugeWindowLeft=0（{boss.GaugeWindowLeft:0.00}）", boss.GaugeWindowLeft == 0f);
-
-        await Enter("Shielded", 0.0);   // 以降の項目のために盾へ戻す
-        Check($"盾へ戻すと invuln（{g.LastFillKind}）", g.LastFillKind == "invuln");
     }
 
     private async Task RecoveryGauge(Hud hud, Enemy boss, string prefix)
     {
         bool physics = boss.IsPhysicsProcessing();
         boss.SetPhysicsProcess(false);
-        // 物理を止めた＝TickEntrance が回らないので登場フラグが立ちっぱなしになる。GaugeReforming は
-        //   それを見て黙る（登場中はゲージを出さない）ので、_purified と同じく直に倒してから状態を作る。
-        BaseField(boss, "_entering").SetValue(boss, false);
-        var phase = BaseField(boss, "_phase");
-        var time = BaseField(boss, "_phaseT");
         var gauge = Gauges(boss).Single();
-        hud.HideSpellCard();
-        async Task Enter(string name, double t)
+        var callout = hud.Bubbles!.ShieldBreak;
+        var tick = typeof(Enemy).GetMethod("TickBossPhase", P)!;
+        var hp = BaseField(boss, "_hp");
+        var pool = GetNode<BulletPool>("/root/Pool");
+        var cameoBarrage = boss is CameoBoss ? new BossDanmaku(boss) : null;
+        BossCharacterTechnique? uiAttack = null;
+        foreach (var attack in boss.GetChildren().OfType<BossCharacterTechnique>().Where(a => !a.Finished)) attack.Cancel();
+        BaseField(boss, "_shieldTechniqueCompleted").SetValue(boss, false);
+        BaseField(boss, "_shieldTechnique").SetValue(boss, null);
+        void StartTechnique()
         {
-            phase.SetValue(boss, Enum.Parse(phase.FieldType, name));
-            time.SetValue(boss, t);
+            uiAttack = BossCharacterTechnique.Begin(boss, boss is CameoBoss ? BossTechniqueKind.Cameo : BossTechniqueKind.Normal);
+            uiAttack.SetProcess(false);
+            uiAttack.SetPhysicsProcess(false);
+            uiAttack.Tick(.6);
+        }
+        void CompleteTechnique()
+        {
+            foreach (var attack in boss.GetChildren().OfType<BossCharacterTechnique>().Where(a => !a.Finished).ToArray())
+                typeof(BossCharacterTechnique).GetMethod("Finish", P)!.Invoke(attack, null);
+            BaseField(boss, "_shieldTechniqueCompleted").SetValue(boss, true);
+        }
+        Panel[] Panels() => boss.GetChildren().OfType<Panel>().Where(p => !p.IsQueuedForDeletion()).ToArray();
+        string Phase() => BaseField(boss, "_phase").GetValue(boss)!.ToString()!;
+        hud.HideSpellCard();
+        hud.HideBubble();
+        hud.UpdateBossBar(boss.CurrentBarIndex, boss.TotalBars, boss.CurrentBarFrac);
+        async Task Advance(double delta)
+        {
+            tick.Invoke(boss, new object[] { delta });
             boss.QueueRedraw();
             boss.GetNode<Node2D>("Shield").QueueRedraw();
             await Frames(2);
         }
+        async Task BodyShot(bool damages)
+        {
+            int before = (int)hp.GetValue(boss)!;
+            var bullet = pool.Spawn(boss.GlobalPosition + new Vector2(0, 80), Vector2.Zero, false, damage: 1);
+            for (int i = 0; i < 2; i++)
+                await ToSignal(GetTree(), SceneTree.SignalName.PhysicsFrame);
+            Check($"{prefix}: test shot is active before entering the body", bullet.Active);
+            bullet.GlobalPosition = boss.GlobalPosition;
+            for (int i = 0; i < 4; i++)
+                await ToSignal(GetTree(), SceneTree.SignalName.PhysicsFrame);
+            await Frames(2);
+            int after = (int)hp.GetValue(boss)!;
+            if (damages && after == before)
+                GD.Print($"[BG] info missed body hit: bullet={bullet.Active}/{bullet.CollisionLayer}/{bullet.GlobalPosition} boss={boss.GlobalPosition}/{boss.Monitoring}/{boss.CollisionMask} shapeDisabled={((CollisionShape2D)BaseField(boss, "_bodyShape").GetValue(boss)!).Disabled} paused={Hud.BubblePaused}");
+            Check($"{prefix}: {Phase()} body hit {(damages ? "damages" : "cannot damage")} ({before}->{after})",
+                damages ? after < before : after == before);
+            pool.Despawn(bullet);
+        }
+        void State(string phase, string fill, string label)
+        {
+            Check($"{prefix}: {phase} state/fill/label ({Phase()}/{gauge.LastFillKind}/{gauge.LastStateLabel})",
+                Phase() == phase && gauge.LastFillKind == fill && gauge.LastStateLabel == label);
+            if (phase != "Shielded")
+            {
+                if (cameoBarrage != null && phase != "Resolving")
+                {
+                    pool.DespawnAll();
+                    cameoBarrage.Tick(2);
+                    Check($"{prefix}: {phase} does not emit hidden recovery shots",
+                        !pool.GetChildren().OfType<Bullet>().Any(b => b.Active && b.IsEnemy));
+                }
+                var player = (Player)GetTree().GetFirstNodeInGroup("player");
+                string detail = (string)typeof(Hud).GetMethod("LockStatusDetail", BindingFlags.Static | BindingFlags.NonPublic)!
+                    .Invoke(null, new object[] { player })!;
+                Check($"{prefix}: sidebar follows the same combat state ({detail})", detail == (phase == "Reclose" ? "シールド再形成中"
+                    : phase == "Resolving" ? "攻撃が終わるまで回避" : label));
+            }
+        }
 
-        await Enter("Break", 0);
-        Check($"{prefix}: broken shield starts with a full attack window", boss.GaugeWindowLeft == 1f && !boss.GaugeReforming);
-        hud.Bubbles!.ShieldBreak.Show(boss, GetNode<GameManager>("/root/Game").SelectedJob);
+        await Frames(2);
+        Check($"{prefix}: entrance completed before combat", !(bool)BaseField(boss, "_entering").GetValue(boss)!);
+        State("Shielded", "invuln", "シールド");
+        Check($"{prefix}: shield has targetable panels", Panels().Length > 0 && Panels().All(p => p.CanLock));
+        Check($"{prefix}: shielded boss has no attack window", !boss.GaugeBreaking && !boss.GaugeBodyExposed && boss.GaugeWindowLeft == 0f);
+        var cm = boss.GetParent()?.GetParent()?.GetChildren().OfType<CanvasModulate>().FirstOrDefault();
+        if (cm != null)
+            Check($"{prefix}: gauge cancels the world tint", (gauge.SelfModulate * cm.Color).IsEqualApprox(Colors.White) || cm.Color.IsEqualApprox(Colors.White));
+        await BodyShot(false);
+        await Shot($"{prefix}_shielded");
+
+        if (boss.UsesTechniqueCycle) StartTechnique();
+        foreach (var panel in Panels()) panel.Shatter();
+        await Frames(2);
+        if (boss.UsesTechniqueCycle)
+        {
+            State("Resolving", "resolving", "シールド破壊");
+            Check($"{prefix}: resolving keeps the attack active and hides body-attack callouts", boss.GaugeAttackResolving
+                && !boss.GaugeVulnerable && !boss.GaugeBodyExposed && boss.GaugeWindowLeft == 0 && !callout.Active
+                && uiAttack is { Finished: false });
+            Check($"{prefix}: resolving has no large BREAK cue", !boss.GetParent().GetChildren().OfType<BossBreakFx>().Any(fx => !fx.IsQueuedForDeletion()));
+            await BodyShot(false);
+            await Shot($"{prefix}_resolving_evade");
+            await Zoom(gauge, $"{prefix}_resolving_evade_zoom", recovery: true);
+            CompleteTechnique();
+            await Advance(0);
+        }
+        State("Break", "breaking", "シールド破壊");
+        Check($"{prefix}: actual BREAK displays the large cue", boss.GetParent().GetChildren().OfType<BossBreakFx>().Any(fx => !fx.IsQueuedForDeletion()));
+        Check($"{prefix}: all panels are gone before the body attack cue", Panels().Length == 0);
+        Check($"{prefix}: break cue precedes body vulnerability", boss.GaugeBreaking && !boss.GaugeBodyExposed
+            && boss.GaugeVulnerable && boss.GaugeWindowLeft == 1f && boss.GaugeBreakFresh > 0.5f);
+        await BodyShot(false);
         await Wait(0.3);
-        Check($"{prefix}: shield break callout is visible", hud.Bubbles.ShieldBreak.Active);
+        Check($"{prefix}: shield break callout is visible", callout.Active);
         await Shot($"{prefix}_recovery_break");
         await Zoom(gauge, $"{prefix}_recovery_break_zoom", recovery: true);
+
+        await Advance(0.45);
+        State("Exposed", "break", "本体に攻撃");
+        Check($"{prefix}: body attack cue opens with the actual collision mask", boss.GaugeBodyExposed && !boss.GaugeBreaking
+            && boss.Monitoring && boss.GetCollisionMaskValue(2) && boss.GaugeWindowLeft == 1f && boss.GaugeBreakFresh == 0f);
+        await BodyShot(true);
+        await Shot($"{prefix}_exposed");
+        await Zoom(gauge, $"{prefix}_exposed_zoom", recovery: true);
         if (_shot)
         {
             var game = GetNode<GameManager>("/root/Game");
@@ -296,27 +355,117 @@ public partial class BossGaugeQa : Node
             game.SelectedJob = previousJob;
             boss.QueueRedraw();
         }
-        foreach (double t in new[] { 1.6, 3.4, 4.0 })
+
+        double elapsed = 0;
+        foreach (double t in new[] { 3.2, 6.8 })
         {
-            await Enter("Exposed", t);
-            Check($"{prefix}: window at {t}s is exact", Mathf.IsEqualApprox(boss.GaugeWindowLeft, 1f - (float)t / 4f));
+            await Advance(t - elapsed);
+            elapsed = t;
+            Check($"{prefix}: window at {t}s is exact", Mathf.IsEqualApprox(boss.GaugeWindowLeft, 1f - (float)t / 8f));
             await Shot($"{prefix}_recovery_window_{t:0.0}");
         }
-        foreach (double t in new[] { 0.0, 0.675, 1.35 })
+        await Advance(8.0 - elapsed);
+        State("Reclose", "invuln", "再形成中");
+        Check($"{prefix}: reform removes the preceding attack cue", !boss.GaugeBreaking && !boss.GaugeBodyExposed
+            && !callout.Active && !boss.Monitoring && !boss.GetCollisionMaskValue(2) && Panels().Length == 0);
+        await BodyShot(false);
+        elapsed = 0;
+        foreach (double t in new[] { 0.0, 0.675 })
         {
-            await Enter("Reclose", t);
+            await Advance(t - elapsed);
+            elapsed = t;
             Check($"{prefix}: reformation at {t}s is exact", boss.GaugeReforming && !boss.GaugeVulnerable
                 && boss.GaugeWindowLeft == 0 && Mathf.IsEqualApprox(boss.GaugeReformProgress, (float)(t / 1.35)));
             await Shot($"{prefix}_recovery_reform_{t:0.000}");
             if (t == 0.675) await Zoom(gauge, $"{prefix}_recovery_reform_zoom", recovery: true);
         }
+        if (_shot && prefix == "main")
+        {
+            foreach (Vector2I size in new[] { new Vector2I(960, 540), new(1920, 1080), new(540, 960) })
+            {
+                DisplayServer.WindowSetSize(size);
+                await Frames(3);
+                await Shot($"main_{size.X}x{size.Y}");
+            }
+            DisplayServer.WindowSetSize(new Vector2I(1280, 720));
+            await Frames(3);
+        }
+        await Advance(1.35 - elapsed);
+        State("Shielded", "invuln", "シールド");
+        Check($"{prefix}: completed reform restores panels and clears the timer", Panels().Length > 0
+            && !boss.GaugeReforming && boss.GaugeReformProgress == 0 && !callout.Active);
+        if (cameoBarrage != null)
+        {
+            cameoBarrage.Tick(0.69);
+            Check($"{prefix}: reform leaves a readable beat before the next attack",
+                !pool.GetChildren().OfType<Bullet>().Any(b => b.Active && b.IsEnemy));
+            cameoBarrage.Tick(0.02);
+            var resumed = cameoBarrage.ActiveTechnique;
+            Check($"{prefix}: the next attack resumes with a complete warning after the recovery beat",
+                resumed is { Elapsed: 0, Finished: false } && resumed.TechniqueKind == BossTechniqueKind.Cameo);
+            if (resumed != null)
+            {
+                resumed.SetProcess(false);
+                resumed.SetPhysicsProcess(false);
+                for (int frame = 0; frame < 1800 && !resumed.Finished && resumed.ShotsCreated == 0 && resumed.HazardFrames == 0; frame++)
+                    resumed.Tick(1d / 60);
+                Check($"{prefix}: the resumed technique reaches its visible attack after the warning",
+                    resumed.ShotsCreated > 0 || resumed.HazardFrames > 0);
+                resumed.Cancel();
+            }
+            pool.DespawnAll();
+        }
+        await Shot($"{prefix}_recovery_done");
+
+        foreach (var panel in Panels()) panel.Shatter();
+        if (boss.GaugeAttackResolving)
+        {
+            CompleteTechnique();
+            await Advance(0);
+        }
+        await Advance(0.45);
+        var transformation = new BossTransformation();
+        try
+        {
+            BaseField(boss, "_transformation").SetValue(boss, transformation);
+            await Frames(2);
+            Check($"{prefix}: transformation hides the body attack cue", !boss.GaugeBodyExposed
+                && !boss.GaugeBreaking && gauge.LastFillKind == "invuln" && gauge.LastStateLabel == "" && !callout.Active);
+            await BodyShot(false);
+        }
+        finally
+        {
+            BaseField(boss, "_transformation").SetValue(boss, null);
+            transformation.Free();
+        }
+        callout.Show(boss, GetNode<GameManager>("/root/Game").SelectedJob);
+        _keepDialogue = true;
+        hud.HoldBubble = true;
+        hud.ShowDialog("戦闘状態の会話表示確認");
+        await Frames(2);
+        Check($"{prefix}: dialogue suppresses the attack callout", Hud.BubblePaused && !callout.Active);
+        hud.HoldBubble = false;
+        hud.HideBubble();
+        hud.SetCinematicMode(true);
+        callout.Show(boss, GetNode<GameManager>("/root/Game").SelectedJob);
+        await Frames(2);
+        Check($"{prefix}: cinematic suppresses the attack callout", !callout.Active);
+        hud.SetCinematicMode(false);
+        _keepDialogue = false;
+        callout.Show(boss, GetNode<GameManager>("/root/Game").SelectedJob);
+        hud.SuppressCallouts = true;
+        await Frames(2);
+        Check($"{prefix}: suppressed callouts stay inactive", !callout.Active);
+        hud.SuppressCallouts = false;
+
         BaseField(boss, "_purified").SetValue(boss, true);
-        Check($"{prefix}: purified boss has no recovery indicator", !boss.GaugeVulnerable && !boss.GaugeReforming && boss.GaugeReformProgress == 0);
+        await Frames(2);
+        Check($"{prefix}: purified boss clears its previous state label", !boss.GaugeVulnerable && !boss.GaugeBodyExposed
+            && !boss.GaugeBreaking && !boss.GaugeReforming && boss.GaugeReformProgress == 0 && gauge.LastStateLabel == "" && !callout.Active);
         await Shot($"{prefix}_recovery_purified");
         BaseField(boss, "_purified").SetValue(boss, false);
-        await Enter("Shielded", 0);
-        Check($"{prefix}: shielded boss has no recovery indicator", !boss.GaugeVulnerable && !boss.GaugeReforming && boss.GaugeReformProgress == 0);
-        await Shot($"{prefix}_recovery_done");
+        await Advance(8.0);
+        await Advance(1.35);
         boss.SetPhysicsProcess(physics);
     }
 
@@ -458,10 +607,10 @@ public partial class BossGaugeQa : Node
     {
         foreach (var (e, at) in _pin) if (IsInstanceValid(e)) e.GlobalPosition = at;
         // ステージ本体のイントロ会話が居座ると BubblePaused で時間が止まるので畳み続ける（LockModeQa と同じ）。
-        if (_hud != null && IsInstanceValid(_hud) && Hud.BubblePaused) { _hud.HoldBubble = false; _hud.HideBubble(); }
+        if (!_keepDialogue && _hud != null && IsInstanceValid(_hud) && Hud.BubblePaused) { _hud.HoldBubble = false; _hud.HideBubble(); }
     }
 
-    private async Task Shot(string name)
+    private async Task Shot(string name, bool checkBand = true)
     {
         if (!_shot) return;
         GetNodeOrNull<BulletPool>("/root/Pool")?.DespawnAll();   // 弾でゲージが読みにくくならないように
@@ -469,7 +618,7 @@ public partial class BossGaugeQa : Node
         await ToSignal(RenderingServer.Singleton, RenderingServer.SignalName.FramePostDraw);
         using var image = GetViewport().GetTexture().GetImage();
         Check($"screenshot {name}", image.SavePng($"{_out}/{name}.png") == Error.Ok);
-        Check($"{name}: 上端に旧カードの暗い箱が無い", BandLooksEmpty(image, name));
+        if (checkBand) Check($"{name}: 上端に旧カードの暗い箱が無い", BandLooksEmpty(image, name));
     }
 
     // 旧カードの矩形（Hud.DrawBossCard：設計座標 x=DCenterX±280, y 24..68、塗り (18,12,22)×0.62）。

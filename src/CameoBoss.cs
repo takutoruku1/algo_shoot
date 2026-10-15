@@ -70,36 +70,6 @@ public partial class CameoBoss : Enemy
     public bool Finished { get; private set; }
 
     private readonly BossMover _mover = new BossMover();
-    private double _fireT;
-    private double _fireT2;
-    private float _ringOff;
-
-    // ── 中ボスの立ち位置サイクル（2026-09-07）──
-    // 旧実装は BossMover の旧シグネチャ（ゾーン指定）を呼んでいたため、状態機械にも立ち位置にも
-    // 繋がらず「Ring の立ち位置＝ゾーン中心に着いたら、あとは一生ホバーするだけ」だった
-    //（実測: 戦闘中の x が 300 から1pxも動かない＝ユーザー所感「ふよふよして動かない」の正体）。
-    // 中ボスは尺が短いので本戦ボスのようなスペル切替を持たない。代わりに、撃った攻撃の種類を
-    // そのまま「次の立ち位置」として宣言する＝2種の弾幕を交互に撃つあいだ、寄る／離れるを往復する。
-    // 立ち位置そのものは BossMover.Attack が決める（Aimed=自機の x を追って寄る／Ring=中央に据わる／
-    // Wall=自機と反対の端へ離れる／Spell=中央の高めで動かない）。
-    // ステージ別の性格は Configure の section 名で分ける（下の MoverSection）。
-    private BossMover.Attack _stance = BossMover.Attack.Ring;
-
-    // 撃った攻撃の種類を BossMover へ伝える。同じ種類が続く間は立ち位置を動かさない
-    //（SetNextAttack が同値を弾く）＝撃つたびに目標が飛んで震えることはない。
-    private void Declare(BossMover.Attack a)
-    {
-        _stance = a;
-        AnnounceTechnique(Theme.Fire switch
-        {
-            CameoFireTheme.AkariGrief => a == BossMover.Attack.Wall ? "止まらない締切" : "溜め込んだため息",
-            CameoFireTheme.ReiAggressive => a == BossMover.Attack.Aimed ? "引用の連鎖" : "反響の花冠",
-            _ => a == BossMover.Attack.Wall ? "降り積もる祈り" : "あなたを見つける",
-        });
-        _mover.SetNextAttack(a);
-        _mover.OnAttack(a);
-    }
-
     // ステージごとの性格（BossMover.Configure の section 名。値は config/boss_stats.ini の同名節）。
     //   レイ  ＝ 配信の枠から出ない（本戦のレイと同じ "cameo_rei"：横移動が小さく傾きで演じる）
     //   あかり＝ 重い（座ったまま滑る。加速が遅く上下に揺れない）
@@ -219,7 +189,7 @@ public partial class CameoBoss : Enemy
         // 移動：状態機械＋立ち位置つき（本戦ボスと同じ作法）。速度・立ち位置は ini の
         // [cameo_rei]/[cameo_akari]/[cameo_koharu] 節で上書きでき、無ければ BossMover 側の性格既定値。
         _mover.Configure(MoverSection, ZoneCenter, ZoneHalfW, ZoneHalfH);
-        _mover.SetNextAttack(_stance);
+        _mover.SetNextAttack(BossMover.Attack.Ring);
         SetSpellVisual(Theme.SpellShape, Theme.SpellTint);
 
         // カメオ用ボスバー（本戦ボスと同じ複数ゲージ式）。本ボス前なので時系列は重ならない。
@@ -236,162 +206,11 @@ public partial class CameoBoss : Enemy
     {
         // 自機の位置は毎フレーム渡す（自機狙いの追従＝x と y の両方、向きの反転判定に要る）。
         if (GetTree().GetFirstNodeInGroup("player") is Node2D pl) _mover.SetPlayerPos(pl.GlobalPosition);
-        GlobalPosition = _mover.Step(GlobalPosition, delta);
+        if (!BarrageHolding) GlobalPosition = _mover.Step(GlobalPosition, delta);
         ApplyBossMotion(_mover.VisualOffset, _mover.Lean, _mover.FacingLeft, _mover.SquashScale);
         FxLayer.Instance?.EmitBossAura(Theme.Aura, GlobalPosition, (float)delta, 30f);
-        FirePattern(delta);
     }
 
-    // 弾幕：ステージのテーマ別。SHIELDED 中に撃ち、無防備窓中は止めない（本戦ボスと同じく常時撃つ）。
-    private void FirePattern(double delta)
-    {
-        var pool = GetNodeOrNull<BulletPool>("/root/Pool");
-        if (pool == null) return;
-        switch (Theme.Fire)
-        {
-            case CameoFireTheme.ReiAggressive: FireRei(pool, delta); break;
-            case CameoFireTheme.AkariGrief:    FireAkari(pool, delta); break;
-            default:                           FireKoharu(pool, delta); break;
-        }
-    }
-
-    // レイ：詰める。自機狙いの扇＝自機の側へ寄る／回転リング＝中央に据わって撒く。
-    // 弾の間隔・数・速さは一切変えていない（Declare は立ち位置と一拍だけを動かす）。
-    private void FireRei(BulletPool pool, double delta)
-    {
-        _fireT += delta; _fireT2 += delta;
-        if (_fireT >= Di(0.95))
-        {
-            _fireT = 0;
-            Declare(BossMover.Attack.Aimed);
-            SetSpellVisual(Theme.SpellShape, Theme.SpellTint, BulletArt.Get("enemy_rei_anonymous"), -18f);
-            Aimed(pool, 3, 13f, 96f);
-        }
-        if (_fireT2 >= Di(1.2))
-        {
-            _fireT2 = 0;
-            Declare(BossMover.Attack.Ring);
-            SetSpellVisual(Theme.SpellShape, Theme.SpellTint, BulletArt.Get("enemy_rei_metrics"), 22f);
-            Ring(pool, Dn(12), CameoBulletSpd * 0.85f);
-        }
-    }
-
-    // あかり：悲嘆の雨（上から降る自責）＝画面幅の帯なので端へ離れて張る／本人周りの弱いリング＝中央。
-    private void FireAkari(BulletPool pool, double delta)
-    {
-        _fireT += delta; _fireT2 += delta;
-        if (_fireT >= Di(1.0))
-        {
-            _fireT = 0;
-            Declare(BossMover.Attack.Wall);
-            SetSpellVisual(Theme.SpellShape, Theme.SpellTint, BulletArt.AkariDocs, 24f);
-            RainDown(pool, Dn(7), CameoBulletSpd * 0.9f);
-        }
-        if (_fireT2 >= Di(1.4))
-        {
-            _fireT2 = 0;
-            Declare(BossMover.Attack.Ring);
-            SetSpellVisual(Theme.SpellShape, Theme.SpellTint, BulletArt.AkariEnvelope, -18f);
-            Ring(pool, Dn(8), CameoBulletSpd * 0.55f);
-        }
-    }
-
-    // こはる：落ちる祈り（上から落ちる弾）＝帯なので端へ／自機方向へ張る扇＝自機の側へ寄って落とす。
-    private void FireKoharu(BulletPool pool, double delta)
-    {
-        _fireT += delta; _fireT2 += delta;
-        if (_fireT >= Di(1.1))
-        {
-            _fireT = 0;
-            Declare(BossMover.Attack.Wall);
-            SetSpellVisual(Theme.SpellShape, Theme.SpellTint, BulletArt.KoharuPenlight, 16f);
-            RainDown(pool, Dn(8), CameoBulletSpd * 0.95f);
-        }
-        if (_fireT2 >= Di(1.5))
-        {
-            _fireT2 = 0;
-            Declare(BossMover.Attack.Aimed);
-            SetSpellVisual(Theme.SpellShape, Theme.SpellTint, BulletArt.KoharuTicket, -26f);
-            FanDown(pool, DnOdd(5), 50f, CameoBulletSpd * 0.7f);
-        }
-    }
-
-    // ── 弾幕プリミティブ ──
-    private void Ring(BulletPool pool, int k, float spd)
-    {
-        BodyShotStyle = BossShotStyle.Ring;
-        _ringOff = AimAtPlayer().Angle();
-        for (int i = 0; i < k; i++)
-        {
-            float a = _ringOff + Mathf.Tau * i / Mathf.Max(1, k);
-            FireBullet(pool, GlobalPosition, new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * spd, 3.2f);
-        }
-    }
-
-    private void Aimed(BulletPool pool, int fan, float stepDeg, float spd)
-    {
-        BodyShotStyle = BossShotStyle.Aimed;
-        Vector2 d = AimAtPlayer();
-        float baseA = Mathf.Atan2(d.Y, d.X);
-        int half = fan / 2;
-        for (int i = -half; i <= half; i++)
-        {
-            float a = baseA + i * Mathf.DegToRad(stepDeg);
-            FireBullet(pool, GlobalPosition, new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * spd, 3.2f);
-        }
-    }
-
-    private void RainDown(BulletPool pool, int k, float spd)
-    {
-        var bullets = new Bullet[k];
-        float targetX = (GetTree().GetFirstNodeInGroup("player") as Node2D)?.GlobalPosition.X ?? Field.PlayerStartX;
-        float pitch = Mathf.Max(6.4f + BulletPool.BossLaneGap, Field.Width / Mathf.Max(1, k));
-        int center = Mathf.Clamp(Mathf.RoundToInt((targetX - Field.Left) / pitch), 0, k - 1);
-        for (int i = 0; i < k; i++)
-        {
-            float x = targetX + (i - center) * pitch;
-            bullets[i] = FireBullet(pool, new Vector2(x, -6f), new Vector2(0, spd), 3.2f, 1,
-                fromCenter: false);
-            if (Theme.Fire == CameoFireTheme.AkariGrief)
-            {
-                float mul = GameManager.Instance!.BulletSpeedMul;
-                bullets[i].MakeAccel(0.6f * mul, spd * mul, 1.05f);
-                bullets[i].UseCharacterProjectile(Job.Melee);
-            }
-        }
-        OverheadCast.Begin(this, bullets, CurSprite, CurTint);
-    }
-
-    // 2026-10-03：基準角を真下（Pi/2）固定から自機方向へ変えた。本戦ボスの扇が 2026-09-17 に受けた
-    //   同じ直しの取り残しで、Declare(Attack.Aimed) と宣告しているのに自機と高さがずれていると
-    //   一発も掛からない＝棒立ちが最も安全だった。本数は呼び元で DnOdd（必ず奇数）＝中心の1本が
-    //   自機の正面を通る。1本のときは t=0 を使う（旧式だと単発が -spread/2 へ逸れて必ず外した）。
-    private void FanDown(BulletPool pool, int fan, float spreadDeg, float spd)
-    {
-        BodyShotStyle = BossShotStyle.Aimed;
-        var aim = AimAtPlayer();
-        float baseA = Mathf.Atan2(aim.Y, aim.X);
-        for (int i = 0; i < fan; i++)
-        {
-            float t = fan > 1 ? (float)i / (fan - 1) - 0.5f : 0f;
-            float a = baseA + Mathf.DegToRad(t * spreadDeg);
-            FireBullet(pool, GlobalPosition, new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * spd, 3.2f);
-        }
-    }
-
-    private Vector2 AimAtPlayer()
-    {
-        var players = GetTree().GetNodesInGroup("player");
-        if (players.Count > 0 && players[0] is Node2D pl)
-        {
-            var d = pl.GlobalPosition - GlobalPosition;
-            if (d.LengthSquared() > 0.01f) return d.Normalized();
-        }
-        return new Vector2(-1, 0);
-    }
-
-    // 本体に弾が刺さった一拍を移動側へ渡す（小さくのけぞって戻る）。当たり判定の中心は
-    // 最大4px・時定数0.12sでしか動かない＝弾避けの公平性は保つ（BossMover.OnHit のコメント参照）。
     protected override void OnBodyDamaged(Vector2 fromDir) => _mover.OnHit(fromDir);
 
     protected override void OnHpChanged()

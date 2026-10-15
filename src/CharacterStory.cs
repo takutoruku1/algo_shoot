@@ -18,8 +18,7 @@ using Godot;
 //   改心相当シーン（Redemption＝山場）だけは「キャラ×潜った面」の9通りで引く（相手ボスと噛み合わせるため）。
 //
 // ── 章管理 ──
-//   キャラごとのダイブ回数（GameManager.CharacterDives・save_N.json "charDives" に永続）から
-//   GameManager.CharacterChapter が章を決める：1〜3回目＝第1〜3章、4回目以降＝LoopChapter（ループ章＝毎回同じ軽量セット）。
+//   GameManager.CharacterChapter は完了した章の次を返し、中断・再挑戦では進めない。
 //
 // ── who の約束（Hud.LineKind と同値）──
 //   6=潜行キャラ本人（話者名は素の名前。face 指定行は表情差分、空欄はジョブの立ち絵＝Hud.ShowDialog 参照）／
@@ -30,7 +29,6 @@ public static class CharacterStory
     // ビート（本編ステージの会話ステップと 1:1 で対応する枠）。
     public enum Beat { Sortie, Mid1, Mid2, Mid3, PreBoss, Return }
 
-    // 4回目以降のダイブが固定で引く「ループ章」の章番号。
     public const int LoopChapter = 4;
 
     // 他ジョブ潜行中か（＝ミナ本編の代わりに専用ストーリーを流すか）。3ステージと各ボスが読む唯一の判定。

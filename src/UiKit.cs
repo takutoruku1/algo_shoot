@@ -76,6 +76,7 @@ public static class UiKit
     }
     public static TextStyle PanelLabel      => new(ZenBold, 15, 0f, 1f);   // セクション見出し：LIFE / BOMB / SCORE / TIME / 浄化
     public static TextStyle SmallLabel      => new(ZenBold, FontSmall, 0f, 1f);   // 小ラベル：キーバッジ・炎上の内訳
+    public static TextStyle CombatState     => new(ZenBold, 16, 0f, 1f);
 
     // ── 字間つき描画（Hud のローカル実装から公開ヘルパへ格上げ）──
     //   track を1文字ごとに足しながら1文字ずつ描く。track=0 なら普通の DrawString と同じなので素通しする。

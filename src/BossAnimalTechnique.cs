@@ -13,6 +13,7 @@ public partial class BossAnimalTechnique : Node2D
     private double _time, _warning;
     private int _wave, _count;
     private bool _dense;
+    private bool _waitingForClear;
     internal BossNormalBarrage? Sequence { get; private set; }
     public bool Finished { get; private set; }
     public string SpellName { get; private set; } = "";
@@ -29,7 +30,7 @@ public partial class BossAnimalTechnique : Node2D
     public override void _Ready()
     {
         AddToGroup("boss_animal_techniques");
-        ZIndex = -9;
+        ZIndex = -6; // 戦闘告知(-7)に予兆を隠させず、敵・弾よりは奥に置く。
         Material = new CanvasItemMaterial { LightMode = CanvasItemMaterial.LightModeEnum.Unshaded };
         _pool = GetNode<BulletPool>("/root/Pool");
         var game = GetNode<GameManager>("/root/Game");
@@ -52,7 +53,8 @@ public partial class BossAnimalTechnique : Node2D
         _color = new Color(tint);
         (GetTree().GetFirstNodeInGroup("hud") as Hud)?.AnnounceSpell(speaker, handle, name, _color);
         _boss.SetAnimalWindup(true);
-        if (game.Difficulty != GameManager.Diff.Easy) Sequence = BossNormalBarrage.BeginSignature(_boss);
+        _waitingForClear = AreaSpellCaster.HasRemainingShots(GetTree());
+        if (!_waitingForClear && game.Difficulty != GameManager.Diff.Easy) Sequence = BossNormalBarrage.BeginSignature(_boss);
     }
 
     private IEnumerable<(Vector2 Origin, Vector2 Direction)> Volley(int wave)
@@ -97,6 +99,18 @@ public partial class BossAnimalTechnique : Node2D
             return;
         }
         if (Hud.BubblePaused) { QueueRedraw(); return; }
+        if (_waitingForClear)
+        {
+            if (AreaSpellCaster.HasRemainingShots(GetTree())) return;
+            _waitingForClear = false;
+            _origin = _boss.ShotCenter;
+            _target = ((Player)GetTree().GetFirstNodeInGroup("player")).GlobalPosition;
+            _aim = _origin.DirectionTo(_target);
+            if (_aim.IsZeroApprox()) _aim = Vector2.Left;
+            _side = new Vector2(-_aim.Y, _aim.X);
+            if (GameManager.Instance!.Difficulty != GameManager.Diff.Easy)
+                Sequence = BossNormalBarrage.BeginSignature(_boss);
+        }
         if (Sequence != null)
         {
             int wave = Sequence.Wave;
@@ -137,12 +151,14 @@ public partial class BossAnimalTechnique : Node2D
 
     public override void _Draw()
     {
-        if (Finished || Sequence != null || Hud.BubblePaused || _wave >= Waves || !GameManager.ShowAttackTelegraphs) return;
+        if (Finished || Sequence != null || _waitingForClear || Hud.BubblePaused || _wave >= Waves || !GameManager.ShowAttackTelegraphs) return;
         var origins = new HashSet<Vector2>();
         for (int wave = _wave; wave < Waves; wave++)
             foreach (var shot in Volley(wave))
             {
                 origins.Add(shot.Origin);
+                if (wave == _wave)
+                    DrawLine(shot.Origin, shot.Origin + shot.Direction * 52, new Color(_color, 0.4f), 1f, true);
             }
         foreach (var origin in origins)
             DrawArc(origin, 6f + (float)(_time % 0.6) * 4f, 0, Mathf.Tau, 20, new Color(_color, 0.5f), 1f, true);

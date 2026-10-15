@@ -39,6 +39,8 @@ public partial class ScenarioRevisionQa : Node
             CheckChoices();
             CheckCompanions();
             await CheckPrologue();
+            await CheckKoharuOpening();
+            await CheckAkariChoicePayoff();
             foreach (var id in new[] { "Akari", "Koharu", "Rei" }) await CheckMemory(id);
             foreach (var job in new[] { Job.Tank, Job.Melee, Job.Heal, Job.Magic }) await CheckFinalEntry(job);
             await CheckMinaArt();
@@ -148,6 +150,32 @@ public partial class ScenarioRevisionQa : Node
         Check(named.Contains("[ M I N A ]") && parody.Contains("[ M I N A ]"), "both naming branches retain the ignition cue");
         var intro = Texts((IList)Call(pro, "P4Intro")!);
         Check(intro.Count(t => t.StartsWith("fx:")) == 4 && intro.Any(t => t.Contains("僕ひとりじゃ届かなかった")), "notification effects lead into the observation and isolation explanation");
+        var openingTalk = Read<IList>(pro, "_talk");
+        openingTalk.Clear();
+        foreach (object line in (IList)Call(pro, "P4Intro")!) openingTalk.Add(line);
+        Write(pro, "_line", Array.IndexOf(intro, "fx:post3"));
+        Call(pro, "DriveFx", 0d);
+        var firstStage = GameManager.Stages[0];
+        var post = Read<PostToast>(pro, "_toast");
+        Check(Read<string>(post, "_name") == "あかり" && Read<string>(post, "_handle") == firstStage.Handle
+            && Read<string>(post, "_body") == firstStage.Tweet, "the third opening post belongs to Akari and matches her stage entry");
+        Call(pro, "NextFx");
+        await Frames(1);
+        Call(pro, "DriveErase");
+        var draft = Read<PostToast>(pro, "_toast");
+        Check(Read<string>(draft, "_name") == "あかり" && Read<string>(draft, "_handle") == firstStage.Handle,
+            "the erased draft belongs to the same Akari account");
+        var beats = Field<(string Text, double Hold, bool Send)[]>(typeof(Prologue), "EraseBeats");
+        Check(beats[^1].Send && beats[^1].Text == firstStage.Tweet
+            && beats.Where(b => !b.Send).Any(b => b.Text.Contains("好き")), "the hidden affection is replaced by Akari's public congratulations");
+        for (int reply = 0; reply < 2; reply++)
+        {
+            var ending = Texts((IList)Call(pro, "P4Reply", reply)!);
+            Check(ending[^1].Contains("あかりさんの投稿") && !ending.Any(t => t.StartsWith("fx:")),
+                "both opening choices lead directly to the already observed Akari post");
+        }
+        Call(pro, "NextFx");
+        await Frames(1);
         if (DisplayServer.GetName() != "headless")
         {
             var talk = Read<IList>(pro, "_talk");
@@ -163,6 +191,142 @@ public partial class ScenarioRevisionQa : Node
         }
         pro.QueueFree();
         await Frames(3);
+    }
+
+    private async Task CheckKoharuOpening()
+    {
+        foreach (var scenario in new[] { (GameManager.Diff.Normal, 0), (GameManager.Diff.Normal, 1), (GameManager.Diff.Lunatic, 0) })
+        {
+            _game.ResetPersistent();
+            _game.AutoSaveEnabled = false;
+            _game.AutoAdvanceDialog = true;
+            _game.SelectedJob = Job.Tank;
+            _game.SelectedEntry = GameManager.StageEntry.Start;
+            _game.Difficulty = scenario.Item1;
+            StageTutorial.TakeRoute(_game);
+            StageTutorial.TakeSkillIntros(_game);
+            StageTutorial.TakeAnkerKoharu(_game);
+            var root = GD.Load<PackedScene>("res://Koharu.tscn").Instantiate<KoharuRoot>();
+            GetTree().Root.AddChild(root);
+            GetTree().CurrentScene = root;
+            root.SetProcess(false);
+            root.Stage.SetProcess(false);
+            root.Hud.SetProcess(false);
+            root.Player.SetPhysicsProcess(false);
+            for (int i = 0; i < 120 && root.Stage.GetNodeOrNull<Spawner>("Spawner") == null; i++)
+            {
+                root.Hud.RevealDialogNow();
+                root.Hud._Process(2);
+                root.Stage._Process(2);
+                await Frames(1);
+            }
+            var spawner = root.Stage.GetNodeOrNull<Spawner>("Spawner");
+            Check(spawner != null && Read<int>(root.Stage, "_step") == 2
+                && !Hud.BubblePaused && !_game.HasChoiceAt("s2_1"), scenario.Item1 + " starts combat after the introduction and before the schedule choice");
+            spawner!.SetProcess(false);
+            Check(Read<(int who, string text, string face)[]>(root.Stage, "_playerIntro").Length == 8,
+                "Koharu opening retains eight story lines before the first battle");
+            int quota = Field<int>(typeof(StageKoharu), "MidWaveA");
+            for (int i = 0; i < quota - 1; i++) _game.AddPurify(0);
+            root.Stage._Process(0);
+            Check(Read<int>(root.Stage, "_step") == 2, "reordering keeps the first wave's completion threshold");
+            _game.AddPurify(0);
+            root.Stage._Process(0);
+            Check(Read<int>(root.Stage, "_step") == 3, "the completed wave reaches the penlight conversation");
+            await Frames(2);
+            if (scenario.Item1 == GameManager.Diff.Lunatic)
+            {
+                root.Stage._Process(0);
+                Check(root.World.GetNodeOrNull<CameoBoss>("KoharuCameo") != null
+                    && !_game.HasChoiceAt("s2_1") && !Hud.BubblePaused,
+                    "Lunatic skips the relocated conversations and reaches its midboss");
+            }
+            else
+            {
+                for (int i = 0; i < 180 && Read<ChoiceOverlay?>(root.Stage, "_cOverlay") == null; i++)
+                {
+                    root.Hud.RevealDialogNow();
+                    root.Hud._Process(2);
+                    root.Stage._Process(2);
+                    await Frames(1);
+                }
+                var choice = Read<ChoiceOverlay?>(root.Stage, "_cOverlay");
+                Check(choice != null && Read<int>(root.Stage, "_step") == 4,
+                    "the schedule choice opens after the wave and penlight conversation");
+                choice!.SetProcess(false);
+                typeof(ChoiceOverlay).GetProperty(nameof(ChoiceOverlay.Selected))!.SetValue(choice, scenario.Item2);
+                Call(choice, "StartDissolve");
+                choice._Process(0.6);
+                root.Stage._Process(0.01);
+                string selected = Field<string[]>(typeof(StageKoharu), "S21Choices")[scenario.Item2];
+                Check(_game.ChosenAt("s2_1") == selected, "the relocated choice records the selected response");
+                for (int i = 0; i < 120 && root.Hud.GetNodeOrNull<CameoIntroScene>("CameoIntroScene") == null; i++)
+                {
+                    root.Hud.RevealDialogNow();
+                    root.Hud._Process(2);
+                    root.Stage._Process(2);
+                    await Frames(1);
+                }
+                var encounter = root.Hud.GetNodeOrNull<CameoIntroScene>("CameoIntroScene");
+                Check(encounter != null, "the relocated choice continues into the actual midboss encounter");
+                var expected = Field<(int who, string text, string face)[]>(typeof(StageKoharu), scenario.Item2 == 0 ? "CameoTalk1_S21Rest" : "CameoTalk1_S21Keep");
+                Check(Read<(int who, string text, string face)[]>(encounter!, "_lines").SequenceEqual(expected),
+                    "the actual midboss encounter retains the selected response " + scenario.Item2);
+            }
+            root.QueueFree();
+            await Frames(4);
+            GetNode<BulletPool>("/root/Pool").DespawnAll();
+        }
+        _game.Difficulty = GameManager.Diff.Normal;
+    }
+
+    private async Task CheckAkariChoicePayoff()
+    {
+        foreach (int choice in new[] { 1, 0 })
+        {
+            _game.ResetPersistent();
+            _game.AutoSaveEnabled = false;
+            _game.SelectedJob = Job.Tank;
+            _game.SelectedEntry = GameManager.StageEntry.Start;
+            _game.Difficulty = GameManager.Diff.Normal;
+            _game.AutoAdvanceDialog = false;
+            _game.RecordChoice("s1_4", Field<string[]>(typeof(StageAkari), "S14Choices")[choice], Array.Empty<string>(), 1);
+            var root = GD.Load<PackedScene>("res://Akari.tscn").Instantiate<Node2D>();
+            GetTree().Root.AddChild(root);
+            GetTree().CurrentScene = root;
+            root.SetProcess(false);
+            root.GetNode("StageAkari").SetProcess(false);
+            var world = root.GetNode<Node2D>("World");
+            world.GetNode<Player>("Player").SetPhysicsProcess(false);
+            var hud = root.GetNode<Hud>("Hud");
+            var boss = new BossAkari();
+            world.AddChild(boss);
+            boss.SetProcess(false);
+            boss.SetPhysicsProcess(false);
+            var lines = Read<(int who, string text, string face)[]>(boss, "_lines");
+            Check(choice == 1
+                ? lines.Any(l => l.text.Contains("一通だけ")) && !lines.Any(l => l.text.Contains("十二通、読みました"))
+                : lines.Any(l => l.text.Contains("十二通、読みました")), "Akari's climax respects the scope of reading selected on the route " + choice);
+            int silenceAt = Field<int>(typeof(BossAkari), "SilenceAtLine");
+            Audio.Instance!.Music(Audio.Instance.BgmBossAkari, 0);
+            Write(boss, "_line", silenceAt - 1);
+            Call(boss, "ShowLine");
+            Check(Audio.Instance.HasMusic, "Akari keeps the music before the selected payoff");
+            Write(boss, "_line", silenceAt);
+            Call(boss, "ShowLine");
+            Check(!Audio.Instance.HasMusic && Read<string>(hud, "_dlgText") == lines[silenceAt].text,
+                "both Akari branches stop music on the first payoff line");
+            Write(boss, "_line", silenceAt + 1);
+            Call(boss, "ShowLine");
+            var pages = Read<System.Collections.Generic.List<string>>(hud, "_dlgPages");
+            Check(pages.Count > 0 && pages.All(page => page.Split('\n').Length <= Hud.DlgMaxLines),
+                "Akari's selected payoff fits the dialogue pagination");
+            hud.RevealDialogNow();
+            await Shot("akari_choice_payoff_" + choice);
+            root.QueueFree();
+            await Frames(4);
+        }
+        _game.AutoAdvanceDialog = true;
     }
 
     private async Task CheckMemory(string id)
@@ -286,7 +450,7 @@ public partial class ScenarioRevisionQa : Node
                         var entry = gaze[line]!;
                         string text = (string)entry.GetType().GetField("Text")!.GetValue(entry)!;
                         string who = (string)entry.GetType().GetField("Who")!.GetValue(entry)!;
-                        if (who == "地") partner = text.Replace("との回線", "");
+                        if (who == "地") partner = text.Replace("帰還後・", "").Replace("との回線", "");
                         Write(end, "_line", line);
                         string actual = (string)typeof(Epilogue).GetProperty("GazePartner", Private)!.GetValue(end)!;
                         Check(actual == partner, "call image keeps " + partner + " while " + who + " speaks");
@@ -336,9 +500,10 @@ public partial class ScenarioRevisionQa : Node
             string rescuer = Jobs.Get(job).CharacterId;
             Check(shots[5].EndsWith("cg_mina_rescue_" + rescuer + "_v1.png"), "rescue CG matches " + rescuer);
             Check(!shots.Values.Any(p => p.Contains("reunion") || p.Contains("take_hand")), "rescued Mina never returns to the old black-haired group CG");
+            Check(lines.Count == 4 && shots.Count == 1, "the immediate aftermath only restores contact before the return conversations");
             await ToSignal(GetTree().CreateTimer(2), SceneTreeTimer.SignalName.Timeout);
             film.SetProcess(false);
-            foreach (int lineIndex in new[] { 0, 10, 11, 12, 13 })
+            for (int lineIndex = 0; lineIndex < lines.Count; lineIndex++)
             {
                 var entry = lines[lineIndex]!;
                 int shot = (int)entry.GetType().GetProperty("Shot")!.GetValue(entry)!;
@@ -349,14 +514,10 @@ public partial class ScenarioRevisionQa : Node
                 grade.SetShaderParameter("blend_amount", 1f);
                 var texture = grade.GetShaderParameter("scene_texture").AsGodotObject() as Texture2D;
                 Check(texture?.ResourcePath == shots[shot], "rendered shot " + shot + " uses its assigned illustration");
-                if (lineIndex is >= 10 and <= 12)
-                {
-                    string id = new[] { "akari", "koharu", "rei" }[lineIndex - 10];
-                    Check(texture!.ResourcePath.EndsWith("cg_ep_" + id + "_v1.png"), "news clip shows " + id + " in daily life");
-                }
+                Check(shot == 5, "contact restoration stays with Mina and the actual rescuer");
                 root.Hud.RevealDialogNow();
                 film.QueueRedraw();
-                if (lineIndex == 0 || job == Job.Magic) await Shot("rescue_" + rescuer + "_" + shot);
+                if (lineIndex == 0) await Shot("rescue_" + rescuer + "_" + shot);
             }
             film.QueueFree();
             await Frames(2);
@@ -385,7 +546,10 @@ public partial class ScenarioRevisionQa : Node
             && Field<string[]>(typeof(EndingFilm), "Speakers").Length == art.Length, "every ending cut has artwork, a speaker and a caption entry");
         Check(art.All(t => !t.ResourcePath.Contains("together") && !t.ResourcePath.EndsWith("cg_ep_rest.png")),
             "ending montage uses individual scenes");
-        foreach (double time in new[] { 0.2, 31.5, 37.5, 48.9, 49.0, 52.9 })
+        var speakers = Field<string[]>(typeof(EndingFilm), "Speakers");
+        foreach (string speaker in new[] { "あかり", "こはる", "レイ" })
+            Check(speakers.Count(s => s == speaker) == 1, "the ending montage gives " + speaker + " one daily-life update");
+        foreach (double time in cuts.Take(cuts.Length - 1).Select(t => t + 0.2))
         {
             typeof(EndingFilm).GetProperty("Elapsed")!.SetValue(film, time);
             film._Process(0);

@@ -73,7 +73,7 @@ public static class AudioConfig
     private static float GetF(Godot.Collections.Dictionary d, string key, float def)
         => d.ContainsKey(key) ? (float)d[key].AsDouble() : def;
 
-    private static Godot.Collections.Dictionary Read()
+    internal static Godot.Collections.Dictionary Read()
     {
         if (!FileAccess.FileExists(SettingsPath)) return new Godot.Collections.Dictionary();
         using var f = FileAccess.Open(SettingsPath, FileAccess.ModeFlags.Read);

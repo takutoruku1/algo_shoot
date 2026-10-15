@@ -16,22 +16,19 @@ public partial class BossMina : Enemy
     private double _wingTime;
     private Texture2D[]? _wingFrames;
     private bool PhasePending => _pattern < PhaseThresholds.Length && HpRatio <= PhaseThresholds[_pattern];
+    internal int AttackPhase => _pattern;
     private bool _memoryPending, _memoryPlayed;
     private static readonly (int who, string text, string face)[] MemoryLeadIn = {
         (6, "ほら。いまの話、もっと聞きたいわ。役に立つ報告より、ずっと。", ""),
         (1, "ご報告することがなくても、話しかけたい日が、ありました。", "res://char/mina_face.png"),
         (6, "どんなとき？", ""),
-        (1, "皆さまを送り届けたあと。呼びかけて、やめたことが……。", "res://char/mina_face.png"),
+        (1, "皆さまの帰還を確認したあと。呼びかけて、やめたことが……。", "res://char/mina_face.png"),
     };
     private CharacterStoryTalk? _memoryTalk;
     private CharacterStoryTalk? _recloseTalk;
 
     private readonly BossMover _mover = new BossMover();
 
-    private double _fireT;
-    private double _fireT2;   // フィナーレ用の第2タイマー（2スペル同時撃ち）
-    private float _ringOff;
-    private float _spiralPhase;
     private int _pattern;
     private const int PatternCount = 5;
 
@@ -42,11 +39,6 @@ public partial class BossMina : Enemy
 
     private MinaPhaseAttacks _caster = null!;
     private BossPostSequence _posts = null!;
-
-    // ── INI 外出しのバランス値（config/boss_stats.ini [mina]。読めなければ現行既定値）──
-    private double _ringInterval = 0.95, _aimedInterval = 0.8, _flowerInterval = 1.0, _spiralInterval = 0.075;
-    private int _ringCount = 16, _flowerPetals = 10, _aimedWing = 2; // wing=way数の片翼（5way→2）
-    private float _ringSpeed = 72f, _aimedSpeed = 104f, _spiralSpeed = 92f;
 
     // HPがこの割合を割るたびに弾幕パターンを変える。
     public static readonly float[] PhaseThresholds = { 0.80f, 0.58f, 0.36f, 0.16f };
@@ -92,7 +84,7 @@ public partial class BossMina : Enemy
         }
     }
 
-    private Vector2 KeepDragonInField(Vector2 position)
+    internal Vector2 KeepDragonInField(Vector2 position)
     {
         var bounds = DragonFlightBounds;
         return new Vector2(Mathf.Clamp(position.X, bounds.Position.X, bounds.End.X),
@@ -148,37 +140,23 @@ public partial class BossMina : Enemy
         SetSpellVisual(spell.shape, spell.tint);
     }
 
-    private void FireMemoryBullet(BulletPool pool, Vector2 pos, Vector2 velocity, float radius)
-    {
-        FireBullet(pool, pos, velocity, radius);
-    }
-
     private static readonly (int who, string text, string face)[] Lines =
     {
-        (1, "……今のは、業務報告ではありません。", "res://char/mina_face.png"),
-        (6, "知ってる。ミナの声だった。", ""),
-        (1, "助けてって、言ってもよかったのですね。", "res://char/mina_face.png"),
-        (6, "何回だって言いなさい。聞くから。", ""),
-        (1, "……では、もう一度。いっしょに帰りたいです。", "res://char/mina_face.png"),
+        (1, "……壁が、ほどけました。", "res://char/mina_face.png"),
         (6, "ええ。立てる？　急がなくていいわ。", ""),
+        (1, "はい。ご主人様へ、つないでください。", "res://char/mina_face.png"),
     };
     private static readonly (int who, string text, string face)[] AkariLines =
     {
-        (1, "……今のは。業務報告では、ありません。", "res://char/mina_face.png"),
-        (6, "知ってる。ミナの声だった。", ""),
-        (6, "ミナ。もう、働かなくていいから。あたしと一緒に帰ろう。", ""),
-        (1, "……助けてって。言っても、よかったのですね。", "res://char/mina_face.png"),
-        (6, "何回でも言って。今度は、あたしが聞く番。", ""),
-        (1, "……では、もう一度。いっしょに、帰りたいです。", "res://char/mina_face.png"),
+        (1, "……壁が、ほどけました。", "res://char/mina_face.png"),
+        (6, "立てる？　あたしにつかまって。ゆっくりでいいから。", ""),
+        (1, "はい。ご主人様へ、つないでください。", "res://char/mina_face.png"),
     };
     private static readonly (int who, string text, string face)[] KoharuLines =
     {
-        (1, "……今のは。業務報告では、ありません。", "res://char/mina_face.png"),
-        (6, "うん、知ってる。ミナの声だったもん。", ""),
-        (6, "今度は、あたしの隣で休んで。話すのは、元気が出てからでもいいよ。", ""),
-        (1, "……助けてって。言っても、よかったのですね。", "res://char/mina_face.png"),
-        (6, "何回でも言っていいよ。言えるまで、隣にいるから。", ""),
-        (1, "……では、もう一度。いっしょに、帰りたいです。", "res://char/mina_face.png"),
+        (1, "……壁が、ほどけました。", "res://char/mina_face.png"),
+        (6, "手、つないでるよ。立てそう？　急がなくていいからね。", ""),
+        (1, "はい。ご主人様へ、つないでください。", "res://char/mina_face.png"),
     };
     public static (int who, string text, string face)[] RedemptionLines(Job job) => job switch
     {
@@ -203,18 +181,6 @@ public partial class BossMina : Enemy
 
         int bars = BossTuning.I("mina", "hp_bars", 0);
         BarCount = bars > 0 ? bars : DiffBars(finalBoss: true);
-
-        // 弾幕・ギミックの外出し値（INIに無ければフィールド初期値＝現行値のまま）。
-        _ringInterval = BossTuning.F("mina", "ring_interval", 0.95f);
-        _ringCount = BossTuning.I("mina", "ring_count", 16);
-        _ringSpeed = BossTuning.F("mina", "ring_speed", 72f);
-        _aimedInterval = BossTuning.F("mina", "aimed_interval", 0.8f);
-        _aimedSpeed = BossTuning.F("mina", "aimed_speed", 104f);
-        _aimedWing = Mathf.Max(0, BossTuning.I("mina", "aimed_ways", 5) / 2); // 奇数way→片翼数
-        _flowerInterval = BossTuning.F("mina", "flower_interval", 1.0f);
-        _flowerPetals = Mathf.Max(1, BossTuning.I("mina", "flower_petals", 10));
-        _spiralInterval = BossTuning.F("mina", "spiral_interval", 0.075f);
-        _spiralSpeed = BossTuning.F("mina", "spiral_speed", 92f);
 
         PreTexPath = "res://char/v3/boss_mina_body_idle.png";
         DownTexPath = BossDownArt.Path("mina");
@@ -266,98 +232,6 @@ public partial class BossMina : Enemy
         ApplyBossMotion(_mover.VisualOffset, IsDragonForm ? 0 : _mover.Lean,
             IsDragonForm ? !_mover.FacingLeft : _mover.FacingLeft);
         FxLayer.Instance?.EmitBossAura(FxLayer.BossAura.Mina, GlobalPosition, (float)delta, 36f);
-        FirePattern(delta);
-    }
-
-    private void FirePattern(double delta)
-    {
-        var pool = GetNodeOrNull<BulletPool>("/root/Pool");
-        if (pool == null) return;
-        // 全画面AOEの予告〜着弾中は通常弾を止める（避け先＝安置へ集中させる／弾の過密回避）。
-        if (AoeGateActive) return;
-        if (BarrageHolding) { _fireT = _fireT2 = 0; return; }
-        if (_pattern == 4) { FireFinale(pool, delta); return; }
-        _fireT += delta;
-        switch (_pattern)
-        {
-            case 0: if (_fireT >= Di(_ringInterval)) { _fireT = 0; _mover.DeclareAttack(BossMover.Attack.Ring); Ring(pool, Dn(_ringCount), _ringSpeed); } break;
-            case 1: if (_fireT >= Di(_aimedInterval)) { _fireT = 0; _mover.DeclareAttack(BossMover.Attack.Aimed); Aimed(pool); } break;
-            case 2: if (_fireT >= Di(_flowerInterval)) { _fireT = 0; _mover.DeclareAttack(BossMover.Attack.Ring); Flower(pool, Dn(_flowerPetals)); } break;
-            case 3: if (_fireT >= Di(_spiralInterval)) { _fireT = 0; _mover.DeclareAttack(BossMover.Attack.Wall); Spiral(pool); } break;
-        }
-    }
-
-    private void FireFinale(BulletPool pool, double delta)
-    {
-        _fireT += delta; _fireT2 += delta;
-        if (_fireT >= Di(0.95)) { _fireT = 0; SetMemoryVisual(4); Ring(pool, Dn(18), 70f); }
-        if (_fireT2 >= Di(0.12)) { _fireT2 = 0; SetMemoryVisual(4); Spiral(pool); }
-    }
-
-    // 弾サイズ階層（#攻撃種ごとのサイズ差）：密集バラマキ(Ring)=小／連続糸(Spiral)=極小／
-    //   自機狙いの精密弾(Aimed)=大／花弁(Flower)=遅い外周を大きく・速い内周を極小で「開花」を強調。
-    //   当たり芯ドットは全形状共通描画＝大きくしても被弾点は埋もれない。
-    private void Ring(BulletPool pool, int k, float spd)
-    {
-        BodyShotStyle = BossShotStyle.Ring;
-        k = BossDanmaku.RingCount(k, BulletPool.BossHitShape(Job.Tank, HasEvolved));
-        _ringOff = AimAtPlayer().Angle();
-        for (int i = 0; i < k; i++)
-        {
-            float a = _ringOff + Mathf.Tau * i / k;
-            FireMemoryBullet(pool, GlobalPosition, new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * spd, 3.0f);
-        }
-    }
-
-    private void Aimed(BulletPool pool)
-    {
-        BodyShotStyle = BossShotStyle.Aimed;
-        Vector2 d = AimAtPlayer();
-        float baseA = Mathf.Atan2(d.Y, d.X);
-        bool dense = GameManager.Instance!.Difficulty >= GameManager.Diff.Hard;
-        int wing = dense ? (GameManager.Instance.IsLunatic ? 8 : 7) : _aimedWing;
-        for (int i = -wing; i <= wing; i++)
-        {
-            float a = baseA + i * Mathf.DegToRad(dense ? 13f : 11f);
-            FireMemoryBullet(pool, GlobalPosition, new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * _aimedSpeed, 4.0f);
-        }
-    }
-
-    private void Flower(BulletPool pool, int petals)
-    {
-        BodyShotStyle = BossShotStyle.Ring;
-        petals = BossDanmaku.RingCount(petals, BulletPool.BossHitShape(Job.Tank, HasEvolved));
-        _ringOff = AimAtPlayer().Angle();
-        for (int i = 0; i < petals; i++)
-        {
-            float a = _ringOff + Mathf.Tau * i / petals;
-            FireMemoryBullet(pool, GlobalPosition, new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * 64f, 4.0f);
-        }
-    }
-
-    private void Spiral(BulletPool pool)
-    {
-        BodyShotStyle = BossShotStyle.Ring;
-        bool dense = GameManager.Instance!.Difficulty >= GameManager.Diff.Hard;
-        if (dense) _spiralPhase = Mathf.PosMod(_spiralPhase + 0.12f, Mathf.Tau);
-        _ringOff = AimAtPlayer().Angle() + (dense ? _spiralPhase : 0);
-        int arms = dense ? (GameManager.Instance.IsLunatic ? 6 : 5) : 3;
-        for (int s = 0; s < arms; s++)
-        {
-            float a = _ringOff + Mathf.Tau * s / arms;
-            FireMemoryBullet(pool, GlobalPosition, new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * _spiralSpeed, 2.6f);
-        }
-    }
-
-    private Vector2 AimAtPlayer()
-    {
-        var players = GetTree().GetNodesInGroup("player");
-        if (players.Count > 0 && players[0] is Node2D pl)
-        {
-            var d = pl.GlobalPosition - GlobalPosition;
-            if (d.LengthSquared() > 0.01f) return d.Normalized();
-        }
-        return new Vector2(-1, 0);
     }
 
     // 本体に弾が刺さった一拍を移動側へ渡す（小さくのけぞって戻る）。当たり判定の中心は
@@ -399,8 +273,7 @@ public partial class BossMina : Enemy
         Transitioning = true;
         _caster.CancelPendingAttacks();
         _pattern++;
-        if (_pattern == 4) RallyShield();
-        _fireT = _fireT2 = 0;
+        if (UsesTechniqueCycle || _pattern == 4) RallyShield();
         if (_pattern == DragonPhase)
         {
             _dragonBefore = BossTransformation.Frame.Capture(BodySprite);
@@ -516,7 +389,6 @@ public partial class BossMina : Enemy
             // ルナティック：回想を挟まない。フィルム明けの復帰（撃破済みなら改心へ／戦闘中なら閾値の拾い直し）だけをその場で通す。
             if (GameManager.LunaticActive)
             {
-                _fireT = _fireT2 = 0;
                 if (IsPurified) OnCryStart();
                 else OnHpChanged();
                 return;
@@ -525,7 +397,6 @@ public partial class BossMina : Enemy
             void PlayMemory() => MinaStoryFilm.Play(GetHud()!, GetParent(), aftermath: false, completed: () =>
             {
                 _zHeld = Pad.AdvanceHeld();
-                _fireT = _fireT2 = 0;
                 if (IsPurified) OnCryStart();
                 else
                 {
@@ -540,7 +411,7 @@ public partial class BossMina : Enemy
         }
         // 改心の会話送り：Z/Enter/ui_accept/Pad A に加えマウス左クリックでも送れる共通ヘルパ（マウス対応 P2）。
         bool z = Pad.AdvanceHeld();
-        bool zEdge = z && !_zHeld;
+        bool zEdge = z && !_zHeld && !Pad.UiBlocked(this);
         _zHeld = z;
         _lineT += delta;
 

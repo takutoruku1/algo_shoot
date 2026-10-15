@@ -127,7 +127,9 @@ public partial class Bullet : Area2D
     private int _reiSplitsRemaining;
     private float _reiSplitTravel;
     private float ReiSplitDistance => _reiSplitsRemaining == 2 ? 42f : 32f;
+    internal float PendingFormationSplitOffset => _reiSplitsRemaining == 2 ? 18f : _reiSplitsRemaining == 1 ? 6f : 0;
     private bool _bossDeploying;
+    private bool _bossShotHeld;
     private bool _bossEdgeLaunch;
     private MidEnemy? _roadOwner;
     private float _roadWarning;
@@ -218,8 +220,8 @@ public partial class Bullet : Area2D
             GetNode<BulletPool>("/root/Pool").Despawn(this);
             return;
         }
-        CollisionLayer = LayerEnemyBullet;
-        CollisionMask = MaskEnemyBullet;
+        CollisionLayer = _bossShotHeld ? 0 : LayerEnemyBullet;
+        CollisionMask = _bossShotHeld ? 0 : MaskEnemyBullet;
         Modulate = Colors.White;
         QueueRedraw();
     }
@@ -834,6 +836,7 @@ void fragment() {
         _reiSplitsRemaining = 0; _reiSplitTravel = 0;
         BossBarrageId = 0;
         _bossWarnedLaunch = false;
+        _bossShotHeld = false;
         BossBarrageWave = -1;
         _bossDeploying = false; _bossEdgeLaunch = false; BossStyle = default; BossPattern = -1; BossAimTarget = null; FormationHomingOffset = Vector2.Zero; FormationHomingAnchor = null; Modulate = Colors.White; _accelStartSpeed = 0; AccelRampSeconds = 0;
         // 減速弾のフラグ群も同様にリセット（持ち越すと別の弾が勝手に失速する）。
@@ -916,6 +919,22 @@ void fragment() {
         CollisionMask &= ~MaskEnemyBullet;
         if (_wordCore != null) _wordCore.Visible = false;
         QueueRedraw();
+    }
+
+    internal void HoldBossShot()
+    {
+        _bossShotHeld = true;
+        MakeHarmless();
+    }
+
+    internal void ReleaseBossShot()
+    {
+        _bossShotHeld = false;
+        if (!LeadIn)
+        {
+            CollisionLayer = LayerEnemyBullet;
+            CollisionMask = MaskEnemyBullet;
+        }
     }
 
     public void MakeAccel(float chargeSpeed, float fastSpeed, float delaySec, float rampSeconds = 0.22f)

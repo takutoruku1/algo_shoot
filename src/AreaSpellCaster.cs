@@ -1,616 +1,127 @@
 using Godot;
+using System.Linq;
 
-// AreaSpellCaster : ボスに付ける「予測攻撃（テレグラフ）」のキャスター（RefrainArenaHTML 移植）。
-//   一定間隔で技名を宣告（Xツイート風＝Hud.AnnounceSpell）→ 少し遅れて予測線/予測エリアを N 個出す。
-//   キャラ別に形状・色・予兆時間・技セットが変わり、出る数は難易度でスケール（弱2/中4/強7/ルナ10）。
-//   会話中(BubblePaused)は出さない。ボスの子に AddChild すれば、ボス撃破で一緒に消える。
-//
-// 使い方（各ボスの _Ready）：
-//   var caster = new AreaSpellCaster();
-//   caster.Configure("rei", GetParent());   // GetParent()=World（テレグラフの追加先）
-//   AddChild(caster);
 public partial class AreaSpellCaster : Node2D
 {
-    // 盤面（Field）の寸法と端の別名。位置には Left/Right/CenterX を、長さには W/H を使い分ける。
-    private const float W = Field.Width, H = Field.Height;
-    private const float L = Field.Left, R = Field.Right, T = Field.Top, B = Field.Bottom;
-
-    private string _key = "";  // Configure のプロファイルキー（rei/akari/koharu/mina。リレー宣告の文言分岐に使う）
-    private string _disp = "", _handle = "";
-    private Color _tint = new(1f, 0.34f, 0.30f), _hot = new(1f, 0.92f, 0.7f);
-    private double _warnMin = 1.0, _warnMax = 1.4, _interval = 6.0;
-    // 技が形状を指定しないとき（_spells の shape が null＝ミナの「全テレグラフ同時」）だけ、ここから引く。
-    // 三ボスのスペルは全て shape 固定なのでこの配列を読まない＝設定するのはミナのプロファイルだけ。
-    private AreaStrike.Shape[] _shapes = { AreaStrike.Shape.Circle };
-    private (string name, AreaStrike.Shape? shape)[] _spells = { ("range", null) };
-    // 各ボレーの1枚目を自機の現在地にアンカーするか（rei/koharu で有効）。
-    // ＝「AOEが自機と無関係な場所で光っているだけ＝脅威として死んでいる」を断ち、
-    //   左端に張り付いていても定期的に一歩動かされる。アンカー枚の予兆は固定 1.2s×WarnMul
-    //  （ランダム下限より長め）＝頭上に出ても必ず逃げ切れる（死は要求しない設計）。
-
-    private readonly RandomNumberGenerator _rng = new();
-    private Node _world = null!;
-    // このキャスターを抱えるボス（＝攻撃の発生源）。浄化されたら予約中の宣告・出現済みの予兆を全てキャンセルする。
-    // ＝「ボスが改心したのに、撃ち終わった範囲技だけが後から着弾する」残留攻撃を断つ。AddChild 先の親＝ボス。
-    private Enemy? _owner;
-
-    private double _castT, _fireT;
-    private bool _pending;
-    private int _areaWaves;
-    private readonly System.Collections.Generic.List<AreaStrike> _areaStrikes = new();
-    private BossEdgeVolley? _edgeVolley;
-    private int _edgeSequence;
-    private int _spellSequence;
-    private Vector2 _castTarget, _learnedSafe;
-    private bool _nextEdge = true;
-    public bool EdgeAttackActive => _edgeVolley != null && IsInstanceValid(_edgeVolley)
-        && !_edgeVolley.Finished && !_edgeVolley.IsQueuedForDeletion();
-
-    private void CancelEdgeAttack()
-    {
-        if (_edgeVolley != null && IsInstanceValid(_edgeVolley)) _edgeVolley.Cancel();
-        _edgeVolley = null;
-    }
-
-    public void CancelPendingAttacks()
-    {
-        _owner ??= GetParent() as Enemy;
-        _owner?.CancelAnimalTechnique();
-        CancelEdgeAttack();
-        _pending = _aoePending = false;
-        _areaWaves = 0;
-        foreach (var strike in _areaStrikes)
-            if (IsInstanceValid(strike)) strike.QueueFree();
-        _areaStrikes.Clear();
-        _pendArt = AreaStrike.Art.None;
-        _chainRemain = 0;
-        _castT = _fireT = _aoeFireT = 0;
-    }
-    private AreaStrike.Shape? _pendShape;
-    private AreaStrike.Art _pendArt;
-    private float ThreatRadius => _key switch { "akari" => 34f, "koharu" => 39f, "rei" => 44f, _ => 48f };
-    private float HorizontalHalfHeight => ThreatRadius * 0.65f;
-    private double _fireDelay = 0.7; // 技名宣告 → 予兆出現までの溜め
-
-    // ── 全画面AOE（ラスボスMina専用・通常ランダム枠とは独立した専用経路）──
-    //   CastFullscreen で予約 → _aoeFireT 後に Fullscreen の AreaStrike を1枚出す。
-    //   AoeActive は宣告〜予兆着弾まで true＝ボス側が通常弾(FirePattern)をこの間だけ止める(gate)のに使う。
-    private bool _aoePending;            // 宣告済み・予兆出現待ち
-    private double _aoeFireT;            // 予兆出現までの残り
-    // 安置は常に在る（安置なしの全面型は廃止＝§7「必ず予告＋回避手段」）。
-    private bool _aoeTight;              // 「絶域」＝安置が狭い版（そのぶん予兆を TightWarnBoost 倍に伸ばす）
-    private const float TightWarnBoost = 1.45f; // 狭い安置ぶんの猶予（1.6s→2.32s @Normal）
-    private const float AoeWarn = 1.6f;  // 全画面AOEの予兆尺（WarnMul で難易度補正）
-    private const float AoeFireDelay = 0.7f; // 宣告→予兆出現の溜め
-    private const float AoeSafeR = 30f;  // 安置(セーフゾーン)半径（28-32px帯）
-    // フィナーレ級の「絶域」用の狭い安置半径。全面（安置なし＝回避不能）は廃し、
-    // 「狭いが必ず在る安置」に置き換える（§7 理不尽回避：全ての攻撃に回避手段を実在させる）。
-    private float AoeTightSafeR() => (GetNodeOrNull<GameManager>("/root/Game")?.Difficulty ?? GameManager.Diff.Normal) switch
-    {
-        GameManager.Diff.Hard => 20f,
-        GameManager.Diff.Lunatic => 17f,
-        _ => 24f,
-    };
-    private AreaStrike? _aoeStrike;      // 出現中の全画面予兆（生存＝AOE進行中の判定に使う）
-    // 宣告〜着弾までの間 true（ボスが通常弾を止めるゲート）。安置リレー中はホップ間の
-    // 「生存確認の間」も含めて最終ホップの着弾終了まで true を保つ（被弾でスキップさせない）。
-    public bool AoeActive => _aoePending || _chainRemain > 0 || (_aoeStrike != null && IsInstanceValid(_aoeStrike));
-    internal bool AttackPending => _pending || AoeActive || EdgeAttackActive || Suppressed;
-
-    // ボス側の専用ギミック（こはる「お残し禁止」等）の間、通常ランダム枠の宣告/発火を一時停止する
-    // 外部ゲート。予約済み(_pending)の発火・タイマーも保留し、解除後にそのまま再開する（破棄はしない）。
-    private bool _suppressed;
+    private Enemy _owner = null!;
+    private string _key = "";
+    private double _clock, _interval;
+    private int _area, _edge;
+    private bool _nextEdge = true, _pending, _finalePending, _suppressed;
+    private BossCharacterTechnique? _attack;
+    public bool EdgeAttackActive => (_pending && _nextEdge) || Active && _attack!.TechniqueKind == BossTechniqueKind.Edge;
+    public bool AoeActive => _finalePending || Active && _attack!.TechniqueKind == BossTechniqueKind.Finale;
+    internal bool AttackPending => _pending || _finalePending || Active || Suppressed;
+    private bool Active => _attack != null && IsInstanceValid(_attack) && !_attack.Finished;
+    public Vector2 LastChainSafe { get; private set; }
+    public bool FinaleCompleted { get; private set; }
+    internal bool CycleFinalePending => _finalePending;
     public bool Suppressed
     {
         get => _suppressed;
-        set { _suppressed = value; if (value) CancelEdgeAttack(); }
-    }
-
-    // ── 安置リレー（レイ「最終選考」／ミナ強化枠で共用）──
-    //   全画面AOEを hops 回連結する。各ホップ：予兆(1.6s×WarnMul)→着弾0.2s→生存確認の間(0.35s)→次ホップ。
-    //   初回の安置＝既存の「70px以上の最近傍」。2ホップ目以降＝前の安置中心を起点に距離帯 [hopMin,hopMax]
-    //   のランダム方向（ジグザグ保証つき）。安置半径は r=30 固定＝公平性は予兆尺（WarnMul）側で担保する。
-    private int _chainRemain;            // 未出現のホップ数（>0 の間はリレー進行中＝AoeActive を保つ）
-    private int _chainTotal;             // リレーの全ホップ数（宣告ラベルの何次/最終の判定に使う）
-    private bool _chainSingle;
-    private bool Training => GameManager.Instance!.Difficulty == GameManager.Diff.Easy;
-    private float RelayRadius => Training ? AoeSafeR : GameManager.LunaticActive ? 8 : GameManager.Instance!.Difficulty == GameManager.Diff.Hard ? 10 : 14;
-    private Vector2 _chainPrevSafe;      // 直前ホップの安置中心（次ホップの起点）
-    private Vector2 _chainPrevDir;       // 直前ホップの進行方向（内積<0.5 になるまで採り直し＝ジグザグ保証）
-    private float _chainHopMin, _chainHopMax; // ホップ距離帯（難易度別にボス側が渡す）
-    private double _restT;               // 着弾後〜次ホップ予兆までの「生存確認の間」の残り
-    private const double ChainRestDur = 0.35; // 生存確認の間（着弾フラッシュが消えてから計時）
-    // 直近ホップの安置中心（リレー完走報酬の出現位置。BossRei が参照）。
-    public Vector2 LastChainSafe { get; private set; }
-
-    // ボス側（BossMina.OnHpChanged）から全画面AOEを1回予約する。
-    // wide=true  … 学習用の広い安置（r=30・予兆 1.6s×WarnMul）
-    // wide=false … フィナーレの「絶域」。安置は狭い（AoeTightSafeR）が必ず在り、予兆も長め（TightWarnMul倍）。
-    //   旧実装は安置なし（_safeR=0）＝画面全域が被弾域で、ボム以外に回避手段が存在しなかった
-    //   （ボム0個なら確定被弾）。§7「必ず予告＋回避手段」に反するため安置ありへ改める。
-    public void CastFullscreen(bool wide)
-    {
-        if (AoeActive) return; // 多重予約しない（HP閾値の同フレーム多重発火対策）
-        CancelEdgeAttack();
-        _aoeTight = !wide;
-        _aoePending = true;
-        _aoeFireT = AoeFireDelay;
-        _chainSingle = true;
-        if (!Training) _chainTotal = _chainRemain = 4;
-        _learnedSafe = LearnedSafePoint(BossPos() ?? new Vector2(Field.BossCenterX, Field.CenterY), -1);
-        string name = wide ? "この重さは、わたくしが" : "あなたまで、穢したくない";
-        (GetTree().GetFirstNodeInGroup("hud") as Hud)?.AnnounceSpell(_disp, _handle, name, _tint);
-    }
-
-    // ボス側から安置リレーを1回予約する（レイ HP26%／ミナ HP42%）。hops=連結数、[hopMin,hopMax]=ホップ距離帯。
-    // 各ホップの予兆尺は、現在位置から安置までの距離と装備中の最低移動速度で決める。
-    public void CastFullscreenChain(int hops, float hopMin, float hopMax)
-    {
-        if (AoeActive) return; // 多重予約しない
-        CancelEdgeAttack();
-        _chainSingle = false;
-        _chainTotal = _chainRemain = Mathf.Max(Training ? 1 : 4, hops);
-        _chainHopMin = hopMin; _chainHopMax = hopMax;
-        _chainPrevDir = Vector2.Zero;
-        _aoeTight = false; // リレーは r=30 固定（直前の「絶域」設定を引きずらない）
-        _aoePending = true;
-        _aoeFireT = AoeFireDelay;
-        _learnedSafe = LearnedSafePoint(BossPos() ?? new Vector2(Field.BossCenterX, Field.CenterY), 0);
-        string name = _key == "rei" ? "最後まで見てて" : "まだ、抱えられます";
-        (GetTree().GetFirstNodeInGroup("hud") as Hud)?.AnnounceSpell(_disp, _handle, name, _tint);
-    }
-
-    private void TickFullscreen(double delta)
-    {
-        // リレー中：直前ホップの着弾（_aoeStrike）が消えてから「生存確認の間」を置いて次ホップの予兆を出す。
-        // 被弾してもリレーは止めない＝被弾をスキップ手段にしない（残機比較の完走判定はボス側）。
-        if (_chainRemain > 0 && !_aoePending && (_aoeStrike == null || !IsInstanceValid(_aoeStrike)))
+        set
         {
-            _restT -= delta;
-            if (_restT <= 0) SpawnChainHop();
-            return;
+            _suppressed = value;
+            if (value && !AoeActive) CancelPendingAttacks();
         }
-
-        if (!_aoePending) return;
-        _aoeFireT -= delta;
-        if (_aoeFireT > 0) return;
-        _aoePending = false;
-
-        if (_chainRemain > 0) { SpawnChainHop(); return; } // リレーの初回ホップ
-
-        // 単発：安置位置は自機の現在地を避けて配置（即死事故防止）。画面端に寄せすぎない。
-        // 「絶域」は安置を狭くする代わりに予兆を伸ばす＝狭い的でも必ず到達できる。
-        float r = _aoeTight ? AoeTightSafeR() : AoeSafeR;
-        Vector2 safe = GameManager.LunaticActive ? PickSafeNearPlayer(r + 14f) : _learnedSafe;
-        SpawnFullscreenStrike(safe, r, _aoeTight ? TightWarnBoost : 1f);
     }
-
-    // Keep both the destination and its approach clear of the boss body.
-    private const float BossClear = 60f;
-    internal static Vector2 LearnedSafePoint(Vector2 boss, int hop) => new(
-        boss.X >= Field.CenterX ? Field.Left + 64 : Field.Right - 64,
-        hop < 0 ? Field.CenterY : hop % 2 == 0 ? Field.Top + 54 : Field.Bottom - 54);
-    private Vector2 PickSafeNearPlayer(float margin)
-    {
-        Vector2 player = PlayerPos();
-        Vector2 safe = player;
-        float bestD = float.MaxValue;
-        for (int row = 0; row < 5; row++)
-        for (int column = 0; column < 9; column++)
-        {
-            var cand = new Vector2(Mathf.Lerp(L + margin, R - margin, column / 8f), Mathf.Lerp(T + margin, B - margin, row / 4f));
-            if (!ClearOfBoss(player, cand)) continue;
-            float d = cand.DistanceTo(player);
-            if (d >= 70f && d < bestD) { bestD = d; safe = cand; }
-        }
-        return safe;
-    }
-
-    private bool ClearOfBoss(Vector2 from, Vector2 to)
-    {
-        if (BossPos() is not Vector2 boss) return true;
-        return to.DistanceTo(boss) >= BossClear
-            && Geometry2D.GetClosestPointToSegment(boss, from, to).DistanceTo(boss) >= Mathf.Min(32, from.DistanceTo(boss)) - 0.01f;
-    }
-
-    // 自機の現在地（いなければ画面中央＝旧フォールバックを踏襲）。
-    private Vector2 PlayerPos() =>
-        (GetTree().GetFirstNodeInGroup("player") as Node2D)?.GlobalPosition ?? new Vector2(Field.CenterX, Field.CenterY);
-    // このキャスターを抱えるボスの現在地（未キャッシュ/消滅時は null）。
-    private Vector2? BossPos() =>
-        _owner != null && IsInstanceValid(_owner) ? _owner.GlobalPosition : null;
-
-    // リレーのホップを1つ出す。初回＝既存の最近傍安置。2ホップ目以降＝前の安置中心を起点に
-    // 距離帯からランダム方向へ。前ホップ方向と内積<0.5になるまで採り直し（ジグザグ保証）、
-    // 画面端は margin=r+14 でクランプする。クランプで距離が潰れた候補（緊張が抜ける）も採り直す。
-    private void SpawnChainHop()
-    {
-        int hopIdx = _chainTotal - _chainRemain; // 0始まり
-        _chainRemain--;
-        float margin = AoeSafeR + 14f;
-        Vector2 safe;
-        if (!GameManager.LunaticActive)
-        {
-            safe = new Vector2(_learnedSafe.X, _chainSingle && hopIdx == 0 ? Field.CenterY : hopIdx % 2 == 0 ? T + 54 : B - 54);
-        }
-        else if (hopIdx == 0)
-        {
-            safe = PickSafeNearPlayer(margin);
-            _chainPrevDir = Vector2.Zero;
-        }
-        else
-        {
-            safe = _chainPrevSafe;
-            for (int i = 0; i < 24; i++)
-            {
-                float a = _rng.RandfRange(0f, Mathf.Tau);
-                var dir = new Vector2(Mathf.Cos(a), Mathf.Sin(a));
-                if (_chainPrevDir != Vector2.Zero && dir.Dot(_chainPrevDir) >= 0.5f) continue; // 同方向すぎ＝採り直し
-                var cand = _chainPrevSafe + dir * _rng.RandfRange(_chainHopMin, _chainHopMax);
-                cand.X = Mathf.Clamp(cand.X, L + margin, R - margin);
-                cand.Y = Mathf.Clamp(cand.Y, T + margin, B - margin);
-                if (cand.DistanceTo(_chainPrevSafe) < _chainHopMin * 0.9f) continue; // 端クランプで潰れた＝採り直し（0.9: 縦216pxで垂直系候補が潰れやすく、棄却→再抽選で横方向が創発的に優先される。sakurai査定 2026-07-05）
-                if (!ClearOfBoss(PlayerPos(), cand)) continue;
-                safe = cand;
-                break;
-            }
-            if (safe == _chainPrevSafe)
-                safe = PickSafeNearPlayer(margin);
-            _chainPrevDir = (safe - _chainPrevSafe).Normalized();
-        }
-        _chainPrevSafe = safe;
-        LastChainSafe = safe;
-
-        if (_key == "rei")
-        {
-            string label = _chainRemain == 0 ? "……まだ、いてくれる？"
-                         : hopIdx switch { 0 => "画面、閉じないで", 1 => "まだ、話していたい", _ => "あと少しだけ" };
-            (GetTree().GetFirstNodeInGroup("hud") as Hud)?.AnnounceSpell(_disp, _handle, label, _tint);
-        }
-
-        SpawnFullscreenStrike(safe, RelayRadius);
-        _restT = Training ? ChainRestDur : 0.05;
-    }
-
-    private AreaStrike.Motif MotifFor(AreaStrike.Shape shape)
-    {
-        if (shape == AreaStrike.Shape.BeamSeg) return AreaStrike.Motif.None;
-        return _key switch
-        {
-            "rei"    => AreaStrike.Motif.Stream,
-            "akari"  => AreaStrike.Motif.Rain,
-            "koharu" => AreaStrike.Motif.Screen,
-            "mina"   => AreaStrike.Motif.Data,
-            _        => AreaStrike.Motif.Data, // 既定（mina 相当）
-        };
-    }
-
-    // 全画面予兆を1枚出す（単発／リレー共用）。warnBoost>1 で予兆尺を伸ばす（狭い安置の「絶域」用）。
-    private void SpawnFullscreenStrike(Vector2 safe, float r, float warnBoost = 1f)
-    {
-        double warning = AoeWarn * WarnMul() * warnBoost;
-        if (GetTree().GetFirstNodeInGroup("player") is Player player)
-        {
-            float detour = !GameManager.LunaticActive && !ClearOfBoss(player.GlobalPosition, safe) ? 64 : 0;
-            warning = System.Math.Max(warning,
-                Mathf.Max(0, player.GlobalPosition.DistanceTo(safe) + detour - r + Player.HitRadius + 4) / player.SlowestMoveSpeed + 0.35);
-        }
-        var z = new AreaStrike();
-        z.ConfigureFullscreen(safe, r, warning, _tint, _hot, MotifFor(AreaStrike.Shape.Fullscreen));
-        if (_owner != null) z.SetOwner(_owner); // 着弾前にボス浄化されたら予兆ごと消える
-        _world.AddChild(z);
-        z.GlobalPosition = Vector2.Zero; // 画面座標基準（Fullscreen は内部で安置座標を画面系で扱う）
-        _aoeStrike = z;
-    }
-
     public void Configure(string key, Node world)
     {
         _key = key;
-        _world = world;
-        _rng.Randomize();
-        var H_ = AreaStrike.Shape.BeamH; var V = AreaStrike.Shape.BeamV;
-        var C = AreaStrike.Shape.Circle; var R = AreaStrike.Shape.Rect;
-        var B = AreaStrike.Shape.BeamSeg;
-        switch (key)
-        {
-            case "rei": // 壁一面の配信画面・整然と裁く（予兆長め・金/菫）
-                _disp = "レイ"; _handle = BossHandles.ReiMain;
-                _tint = new Color("e8c45a"); _hot = new Color("ffe39a");
-                _warnMin = 1.1; _warnMax = 1.6; _interval = 8.0; // 11.0→8.0：範囲技の存在感を上げる（sakurai 2026-07 週次）
-                // 技名は仮台本 07 の S3-6 の圏内へ寄せた（旧・順位掲示板の技名＝ランキング／表彰台／序列は落とす）。
-                _spells = new (string, AreaStrike.Shape?)[] { ("コメント一斉読み", H_), ("配信枠", R), ("切り抜きの線", H_) };
-                break;
-            case "akari": // 雨の教室・降る前に予報（蒼）
-                _disp = "あかり"; _handle = BossHandles.AkariSpell;
-                _tint = new Color("6c9cd8"); _hot = new Color("a9dcff");
-                _warnMin = 1.0; _warnMax = 1.4; _interval = 9.0;
-                _spells = new (string, AreaStrike.Shape?)[] { ("豪雨予報", V), ("沈黙の波紋", C) };
-                break;
-            case "koharu": // 消えた配信画面の前の部屋・溜めてから一気に（予兆やや短め・琥珀/深紅）
-                _disp = "こはる"; _handle = BossHandles.KoharuMain;
-                _tint = new Color("e8945a"); _hot = new Color("ffc06a");
-                // warn 下限 0.7→1.0s：全ボス最短の予兆が5秒の宣言カードと乖離し「宣言だけ出て
-                // 何も起きない」感の主因だった（QA 2026-07 週次）。短予兆の性格は上限1.3sで残す。
-                _warnMin = 1.0; _warnMax = 1.3; _interval = 7.0;
-                // 技名は仮台本 07 の S2-7 の圏内へ寄せた（旧・台所の技名＝フライパン／鍋／包丁は落とす）。
-                // 第3スペル（catalog: Refrain Telegraphs.dc.html 274-277）＝±26°の深紅の斜め一閃×2。
-                _spells = new (string, AreaStrike.Shape?)[] { ("画面の光", C), ("視線のかたまり", R), ("既読の線", B) };
-                break;
-            default: // mina（暴走）：全テレグラフ同時・濁った全色
-                _disp = "ミナ"; _handle = BossHandles.MinaBattle;
-                _tint = new Color("e072ac"); _hot = new Color("ff8cc4");
-                _warnMin = 0.8; _warnMax = 1.2; _interval = 6.0;
-                _shapes = new[] { H_, V, C, R };
-                _spells = new (string, AreaStrike.Shape?)[] { ("消せなかった声", null), ("声が、止まらない", null) };
-                break;
-        }
-        // INI上書き（config/boss_stats.ini の [key] セクション）。キーが無ければ上のハードコード既定のまま。
-        _interval = BossTuning.F(key, "aoe_interval", (float)_interval);
-        _warnMin = BossTuning.F(key, "aoe_warn_min", (float)_warnMin);
-        _warnMax = BossTuning.F(key, "aoe_warn_max", (float)_warnMax);
+        _interval = BossTuning.F(key, "aoe_interval", key == "akari" ? 9 : key == "rei" ? 8 : 7);
     }
-
+    public void CancelPendingAttacks()
+    {
+        bool cycle = _owner != null && _owner.UsesTechniqueCycle;
+        bool retryFinale = cycle && !_owner!.IsPurified
+            && (_finalePending || Active && _attack!.TechniqueKind == BossTechniqueKind.Finale);
+        if (Active) _attack!.Cancel();
+        _attack = null;
+        _pending = false;
+        _finalePending = retryFinale;
+        _clock = 0;
+        if (!cycle || retryFinale) FinaleCompleted = false;
+    }
+    internal void RequestFinale()
+    {
+        if (AoeActive) return;
+        _owner ??= (Enemy)GetParent();
+        if (_owner.UsesTechniqueCycle)
+        {
+            _finalePending = true;
+            FinaleCompleted = false;
+            return;
+        }
+        _owner.CancelAnimalTechnique();
+        if (Active) _attack!.Cancel();
+        _attack = null;
+        _pending = false;
+        _finalePending = true;
+        FinaleCompleted = false;
+    }
     public override void _Process(double delta)
     {
-        // 発生源（ボス）を一度キャッシュ：AddChild 先の親がボス（Configure とは独立にここで拾う）。
-        _owner ??= GetParent() as Enemy;
-        // ボスが浄化（改心）されたら、以降は宣告も予兆出現もしない＝攻撃が終わった後に技が残らない。
-        // 予約済み（宣告→出現待ち）の発火も破棄する。出現済みの予兆は AreaStrike 側が owner 浄化で自滅する。
-        if (_owner != null && _owner.IsPurified)
+        _owner ??= (Enemy)GetParent();
+        if (_owner.IsPurified) { CancelPendingAttacks(); return; }
+        if (_owner.UsesTechniqueCycle) return;
+        if (_owner.GaugeVulnerable || _owner.GaugeReforming || _owner.Transforming)
         {
+            bool retryFinale = _finalePending || Active && _attack!.TechniqueKind == BossTechniqueKind.Finale;
+            bool completed = FinaleCompleted;
             CancelPendingAttacks();
+            FinaleCompleted = completed;
+            _finalePending = retryFinale;
             return;
         }
-        if (_owner != null && (_owner.GaugeVulnerable || _owner.GaugeReforming)) return;
-
-        if (Hud.BubblePaused) return; // 会話中は出さない
-        if (Suppressed || (_owner?.AnimalTechniqueActive ?? false)) return;
-        if ((_owner?.CrossfireActive ?? false) || (_owner?.DodgeWaveActive ?? false))
+        if (Hud.BubblePaused || ! _owner.IsVisibleInTree()) return;
+        if (_attack != null)
         {
-            // Charge the next spell during a barrage, but never interrupt its committed lanes.
-            if (!_pending && !AoeActive && !EdgeAttackActive) _castT += GameManager.EnemyDelta(delta);
+            if (Active) return;
+            _attack = null;
+            _clock = 0;
             return;
         }
-
-        // ★集中モード（#10）：宣告→出現の待ち時間も敵側の時計で進める（AreaStrike の _t と同じ倍率）。
-        delta = GameManager.EnemyDelta(delta);
-
-        // 全画面AOEの予約を進める（専用経路）。AOE進行中は通常ランダム枠は止める（弾幕の過密回避）。
-        TickFullscreen(delta);
-        if (AoeActive || EdgeAttackActive) return;
-
-        if (_pending)
+        if (Suppressed && !_finalePending || _owner.AnimalTechniqueActive || _owner.AnimalTechniquePending) return;
+        if (!_pending && !_finalePending) _clock += GameManager.EnemyDelta(delta);
+        if (_clock >= _interval) _pending = true;
+        if (_owner.CrossfireActive || _owner.DodgeWaveActive || HasRemainingShots(GetTree())) return;
+        if (!_pending && !_finalePending) return;
+        var kind = _finalePending ? BossTechniqueKind.Finale : _nextEdge ? BossTechniqueKind.Edge : BossTechniqueKind.Area;
+        int variant = kind == BossTechniqueKind.Area ? _area++ % (_key == "akari" ? 2 : 3)
+            : kind == BossTechniqueKind.Edge ? _edge++ : 0;
+        _attack = BossCharacterTechnique.Begin(_owner, kind, variant);
+        _attack.Ended += finished =>
         {
-            _areaStrikes.RemoveAll(s => !IsInstanceValid(s) || s.IsQueuedForDeletion());
-            if (_areaStrikes.Count > 0) return;
-            if (_areaWaves == 0) { _pending = false; return; }
-            _fireT -= delta;
-            if (_fireT <= 0)
-            {
-                if (!Training) _castTarget = PlayerPos();
-                SpawnTelegraphs();
-                _areaWaves--;
-                _fireT = Training ? 0 : 0.05;
-            }
-            return;
-        }
-        _castT += delta;
-        if (_castT < _interval) return;
-        if (_nextEdge && (_key is "akari" or "koharu" or "rei") && _owner != null)
-        {
-            if (_owner.GaugeVulnerable || _owner.GaugeReforming || !_owner.Visible) return;
-            foreach (var node in GetTree().GetNodesInGroup("aoe"))
-                if (!node.IsQueuedForDeletion()) return;
-            _edgeVolley = BossEdgeVolley.Begin(_owner, _key, _edgeSequence++);
-            (GetTree().GetFirstNodeInGroup("hud") as Hud)?.AnnounceSpell(_disp, _handle, _edgeVolley.SpellName, _tint);
-        }
-        else Cast();
-        _nextEdge = !_nextEdge;
-        _castT = 0;
+            LastChainSafe = finished.LastPosition;
+            FinaleCompleted = finished.TechniqueKind == BossTechniqueKind.Finale && finished.Completed;
+            if (finished.TechniqueKind == BossTechniqueKind.Finale && !finished.Completed && !_owner.IsPurified)
+                _finalePending = true;
+        };
+        _pending = _finalePending = false;
+        if (kind != BossTechniqueKind.Finale) _nextEdge = !_nextEdge;
     }
-
-    public override void _ExitTree() => CancelEdgeAttack();
-
-    // 技名を宣告（Xツイート風スペルカード）→ 溜めて予兆を出す。
-    private void Cast()
+    internal void ObserveCycleAttack(BossCharacterTechnique technique)
     {
-        _castTarget = PlayerPos();
-        var sp = _spells[_spellSequence++ % _spells.Length];
-        Color tint = sp.shape == AreaStrike.Shape.BeamSeg ? ReadLineTint : _tint;
-        (GetTree().GetFirstNodeInGroup("hud") as Hud)?.AnnounceSpell(_disp, _handle, sp.name, tint);
-        _pendShape = sp.shape;
-        _pendArt = _key == "rei" && sp.name == "切り抜きの線" ? AreaStrike.Art.ClipLine : AreaStrike.Art.None;
-        _pending = true;
-        _areaWaves = Training ? 1 : 4;
-        _fireT = Training ? _fireDelay : 0.2;
-    }
-
-    // 難易度で同時に出る数が増える（弾幕に上乗せするため控えめ：弱1/中2/強3/ルナ5）。
-    private int DiffCount() => (GetNodeOrNull<GameManager>("/root/Game")?.Difficulty ?? GameManager.Diff.Normal) switch
-    {
-        GameManager.Diff.Easy => 1,
-        GameManager.Diff.Hard => 3,
-        GameManager.Diff.Lunatic => 5,
-        _ => 2,
-    };
-    // 予兆時間の難易度補正（易しいほど長く＝避ける猶予が増える）。
-    // public: ボス側の自前テレグラフギミック（こはる「五徳の十字火」等）も同じ補正で予兆尺を組む。
-    public float WarnMul() => (GetNodeOrNull<GameManager>("/root/Game")?.Difficulty ?? GameManager.Diff.Normal) switch
-    {
-        GameManager.Diff.Hard => 0.85f,
-        GameManager.Diff.Lunatic => 0.72f,
-        _ => 1f,
-    };
-
-    // この一斉射ぶんの配置（重なり回避用）。
-    private readonly System.Collections.Generic.List<(AreaStrike.Shape shape, Vector2 c, float hw, float hh)> _placed = new();
-
-    private void SpawnTelegraphs()
-    {
-        _placed.Clear();
-        if (!GameManager.LunaticActive)
+        _owner ??= (Enemy)GetParent();
+        _attack = technique;
+        if (technique.TechniqueKind == BossTechniqueKind.Finale)
         {
-            SpawnLearnedTelegraphs();
-            return;
+            _finalePending = false;
+            FinaleCompleted = false;
         }
-        int n = DiffCount();
-        float wm = WarnMul();
-        for (int i = 0; i < n; i++)
+        technique.Ended += ended =>
         {
-            // 技の形状が決まっていなければ（ミナ）プロファイルの全形状から拾う＝“全テレグラフ同時”。
-            var shape = _pendShape ?? _shapes[_rng.RandiRange(0, _shapes.Length - 1)];
-            // 1枚目は自機の現在地にアンカー（rei/koharu）。予兆は固定 1.2s×WarnMul＝必ず逃げ切れる尺。
-            bool anchor = i == 0;
-            double warn = anchor ? 1.2 * wm
-                                 : _rng.RandfRange((float)_warnMin, (float)_warnMax) * wm;
-
-            // Crossing read lines intentionally overlap; later lines keep the staggered warning.
-            if (shape == AreaStrike.Shape.BeamSeg)
-            {
-                Vector2 through = anchor ? PlayerPos()
-                    : new Vector2(_rng.RandfRange(L + W * 0.30f, L + W * 0.85f), _rng.RandfRange(T + H * 0.25f, T + H * 0.75f));
-                SpawnReadLine(through, (i % 2 == 0 ? -1f : 1f) * ReadLineDeg, warn + 0.35 * i);
-                continue;
-            }
-
-            // アンカー枚は重なり回避なしで必ず置く（自機の頭上が最優先。以降のランダム枚が避ける側）。
-            if (anchor)
-            {
-                var g = AnchorGeo(shape, PlayerPos());
-                AddStrike(shape, g.c, g.hw, g.hh, warn);
-                continue;
-            }
-
-            // 重ならない配置を最大16回トライ。置けなければスキップ＝過密を自然に防ぐ。
-            for (int tryI = 0; tryI < 16; tryI++)
-            {
-                var g = RandGeo(shape);
-                if (OverlapsAny(shape, g.c, g.hw, g.hh)) continue;
-                AddStrike(shape, g.c, g.hw, g.hh, warn);
-                break;
-            }
-        }
+            if (ended.TechniqueKind != BossTechniqueKind.Finale) return;
+            LastChainSafe = ended.LastPosition;
+            FinaleCompleted = ended.Completed;
+            _finalePending = !ended.Completed && !_owner.IsPurified;
+        };
     }
-
-    private void SpawnLearnedTelegraphs()
+    public float WarnMul() => GameManager.Instance!.Difficulty switch
+    { GameManager.Diff.Hard => 0.9f, GameManager.Diff.Lunatic => 0.8f, _ => 1f };
+    internal static bool HasRemainingShots(SceneTree tree) => tree.GetNodesInGroup("enemy_bullets").OfType<Bullet>().Any(b => b.Active);
+    public override void _ExitTree()
     {
-        var shape = _pendShape ?? _shapes[(_spellSequence - 1 + _shapes.Length) % _shapes.Length];
-        var anchor = AnchorGeo(shape, _castTarget);
-        float gap = Training ? 18 : GameManager.Instance!.Difficulty == GameManager.Diff.Hard ? 8 : 10;
-        for (int i = 0; i < 3; i++)
-        {
-            int lane = i == 0 ? 0 : i == 1 ? -1 : 1;
-            double warn = 1.2 * WarnMul() + i * 0.2;
-            if (shape == AreaStrike.Shape.BeamSeg)
-            {
-                Vector2 side = Vector2.FromAngle(Mathf.DegToRad(-ReadLineDeg)).Orthogonal();
-                SpawnReadLine(_castTarget + side * (lane * (ReadLineHalfThick * 2 + gap)), -ReadLineDeg, warn);
-            }
-            else
-            {
-                Vector2 offset = shape == AreaStrike.Shape.BeamH
-                    ? Vector2.Down * (lane * (anchor.hh * 2 + gap))
-                    : Vector2.Right * (lane * (anchor.hw * 2 + gap));
-                AddStrike(shape, anchor.c + offset, anchor.hw, anchor.hh, warn);
-            }
-        }
-    }
-
-    // 軸形状の AreaStrike を1枚生成して World へ置く（重なり判定用の _placed にも記録）。
-    private void AddStrike(AreaStrike.Shape shape, Vector2 c, float hw, float hh, double warn)
-    {
-        if (GetTree().GetFirstNodeInGroup("player") is Player player)
-        {
-            Vector2 offset = player.GlobalPosition - c;
-            float escape = shape == AreaStrike.Shape.Circle ? hw - offset.Length()
-                : Mathf.Min(hw - Mathf.Abs(offset.X), hh - Mathf.Abs(offset.Y));
-            if (escape > 0) warn = System.Math.Max(warn, (escape + 6) / player.SlowestMoveSpeed + 0.5);
-        }
-        var z = new AreaStrike();
-        z.Configure(shape, hw, hh, warn, _tint, _hot, MotifFor(shape));
-        if (shape == AreaStrike.Shape.BeamH) z.SetArt(_pendArt);
-        // 発生源を結びつけ、着弾前にボスが浄化されたら予兆ごと消えるようにする（残留着弾を断つ）。
-        if (_owner != null) z.SetOwner(_owner);
-        _world.AddChild(z);
-        z.GlobalPosition = c;
-        _areaStrikes.Add(z);
-        _placed.Add((shape, c, hw, hh));
-    }
-
-    // 自機を中心に広く塞ぎ、逃げる距離に応じた予告時間を AddStrike で確保する。
-    private (Vector2 c, float hw, float hh) AnchorGeo(AreaStrike.Shape shape, Vector2 p)
-    {
-        switch (shape)
-        {
-            case AreaStrike.Shape.BeamH: return (new Vector2(Field.CenterX, p.Y), W / 2f, HorizontalHalfHeight);
-            case AreaStrike.Shape.BeamV: return (new Vector2(p.X, Field.CenterY), ThreatRadius * 0.65f, H / 2f);
-            case AreaStrike.Shape.Circle: return (p, ThreatRadius, ThreatRadius);
-            default: // Rect
-            {
-                return (p, ThreatRadius * 1.3f, ThreatRadius * 0.8f);
-            }
-        }
-    }
-
-    private const float ReadLineDeg = 26f;
-    private const float ReadLineLen = 460f;
-    private const float ReadLineHalfThick = 6f;
-    private static readonly Color ReadLineTint = new("d6443f");
-    private static readonly Color ReadLineHot = new("ff8a7a");
-    private void SpawnReadLine(Vector2 through, float deg, double warn)
-    {
-        float a = Mathf.DegToRad(deg);
-        var dir = new Vector2(Mathf.Cos(a), Mathf.Sin(a));
-        var z = new AreaStrike();
-        z.ConfigureBeam(dir, ReadLineLen, ReadLineHalfThick, warn, ReadLineTint, ReadLineHot, AreaStrike.Motif.Screen);
-        z.SetArt(AreaStrike.Art.ReadReceipt);
-        if (_owner != null) z.SetOwner(_owner);
-        _world.AddChild(z);
-        z.GlobalPosition = through - dir * (ReadLineLen * 0.5f);
-        _areaStrikes.Add(z);
-    }
-
-    // 形状ごとの候補配置（自機の起点＝左側はやや空け、中央〜右に寄せる＝フェアな逃げ場）。
-    private (Vector2 c, float hw, float hh) RandGeo(AreaStrike.Shape shape)
-    {
-        switch (shape)
-        {
-            // サイズは盤面（Field）の実寸に合わせて小さめ（自機が避けられる大きさ）。
-            case AreaStrike.Shape.BeamH: // 横ビーム（全幅・細め）
-                return (new Vector2(Field.CenterX, _rng.RandfRange(T + 22f, B - 22f)), W / 2f, HorizontalHalfHeight);
-            case AreaStrike.Shape.BeamV: // 縦カラム（全高・細め）
-                return (new Vector2(_rng.RandfRange(L + W * 0.30f, L + W * 0.92f), Field.CenterY), _rng.RandfRange(5f, 8f), H / 2f);
-            case AreaStrike.Shape.Circle:
-            {
-                float rad = _rng.RandfRange(15f, 24f);
-                return (new Vector2(_rng.RandfRange(L + W * 0.28f, L + W * 0.9f), _rng.RandfRange(T + rad, B - rad)), rad, rad);
-            }
-            default: // Rect
-            {
-                float w = _rng.RandfRange(32f, 56f), h = _rng.RandfRange(28f, 50f);
-                return (new Vector2(_rng.RandfRange(L + W * 0.30f, L + W * 0.88f), _rng.RandfRange(T + h / 2f, B - h / 2f)), w / 2f, h / 2f);
-            }
-        }
-    }
-
-    // 重なり判定：同方向の予測線（横×横／縦×縦）と、面どうし（円/矩形）は重ねない。
-    // 横ビーム×縦カラムの交差や、線×面は“別物として読める”ので許可する（過剰に弾かない）。
-    private bool OverlapsAny(AreaStrike.Shape s, Vector2 c, float hw, float hh)
-    {
-        const float gap = 8f;
-        bool sH = s == AreaStrike.Shape.BeamH, sV = s == AreaStrike.Shape.BeamV;
-        bool sArea = s == AreaStrike.Shape.Circle || s == AreaStrike.Shape.Rect;
-        foreach (var p in _placed)
-        {
-            bool pH = p.shape == AreaStrike.Shape.BeamH, pV = p.shape == AreaStrike.Shape.BeamV;
-            bool pArea = p.shape == AreaStrike.Shape.Circle || p.shape == AreaStrike.Shape.Rect;
-            if (sH && pH) { if (Mathf.Abs(c.Y - p.c.Y) < hh + p.hh + gap) return true; }
-            else if (sV && pV) { if (Mathf.Abs(c.X - p.c.X) < hw + p.hw + gap) return true; }
-            else if (sArea && pArea)
-            {
-                if (Mathf.Abs(c.X - p.c.X) < hw + p.hw + gap && Mathf.Abs(c.Y - p.c.Y) < hh + p.hh + gap) return true;
-            }
-        }
-        return false;
+        if (Active) _attack!.Cancel();
     }
 }

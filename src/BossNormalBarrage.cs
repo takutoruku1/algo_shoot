@@ -16,7 +16,7 @@ public partial class BossNormalBarrage : Node2D
     private int _tier;
     private readonly List<Vector2> _passages = new();
     private int _passed;
-    private float _moveSpeed, _pitch, _minimumMargin;
+    private float _moveSpeed, _pitch, _minimumMargin, _laneSpeed, _clearanceTime;
     private float _akariDistance, _akariMargin;
     public bool Finished { get; private set; }
     internal int Pattern { get; private set; }
@@ -33,7 +33,8 @@ public partial class BossNormalBarrage : Node2D
     private int Waves => _tier == 0 ? (_charged ? 4 : 3) : _edge.HasValue ? (_charged ? 8 : 6)
         : AkariPressure ? (_charged ? 14 : 10) : (_charged ? 11 : 8);
     private int VisualPattern => _edge.HasValue ? 1 : Geometry;
-    private float PassageRadius => ((_tier < 2 ? 8f : 4f) - (_charged ? 1 : 0)) * (AkariPressure ? 0.5f : 1);
+    private float PassageRadius => (_tier == 0 ? 8f : AkariPressure ? (_tier == 1 ? 6f : 5f)
+        : _tier == 1 ? 8f : 6f) - (_charged ? 1 : 0);
     private float Margin => Mathf.Max(_minimumMargin,
         PassageRadius + (_job == Job.Magic ? 24 : _job == Job.Heal && _tier > 0 ? 10 : 7));
 
@@ -70,7 +71,9 @@ public partial class BossNormalBarrage : Node2D
         _charged = _boss.HasEvolved || _signature;
         var player = (Player)GetTree().GetFirstNodeInGroup("player");
         _target = player.GlobalPosition;
-        _horizontal = _edge.HasValue ? _edge is BossEdgeVolley.Edge.Left or BossEdgeVolley.Edge.Right : Geometry != 1;
+        // Rei's fan needs the long axis to split before entering the protected target area.
+        _horizontal = _edge.HasValue ? _edge is BossEdgeVolley.Edge.Left or BossEdgeVolley.Edge.Right
+            : Geometry != 1 || _job == Job.Magic;
         _direction = _horizontal ? (_target.X < Field.CenterX ? Vector2.Left : Vector2.Right)
             : (_target.Y < Field.CenterY ? Vector2.Up : Vector2.Down);
         if (_edge.HasValue) _direction = _edge switch
@@ -95,9 +98,10 @@ public partial class BossNormalBarrage : Node2D
         float radius = (_charged ? BulletPool.BossChargeRadius : BulletPool.BossRadius) * (_job == Job.Magic ? 1.5f : 1);
         var footprint = BulletFootprint.Texture(art.Cropped, art.Pivot - art.Region.Position, Bullet.BossArtSize(radius, _charged));
         _pitch = footprint.Bounds.Size.Y + Player.HitRadius * 2 + (_tier < 2 ? 2 : 1);
+        if (_tier > 0) _pitch /= 1.5f;
         _akariMargin = Mathf.Max(Mathf.Abs(footprint.Bounds.Position.Y), Mathf.Abs(footprint.Bounds.End.Y))
             + Player.HitRadius + PassageRadius;
-        if (_tier > 0) _minimumMargin = footprint.Radius + Player.HitRadius + Mathf.Sqrt(18) + (_job == Job.Heal ? 2 : 0);
+        if (_tier > 0) _minimumMargin = footprint.Radius + Player.HitRadius + PassageRadius + (_job == Job.Heal ? 4 : 0);
         _passages.Add(Passage);
         float step = _job == Job.Magic ? 48 : AkariPressure ? 24 : 32;
         int turn = offset > 0 ? 1 : -1;
@@ -172,12 +176,15 @@ public partial class BossNormalBarrage : Node2D
                 Job.Melee => _charged ? 100 : 88, Job.Heal => _charged ? 72 : 60,
                 Job.Magic => _charged ? 72 : 62, _ => _charged ? 100 : 82,
             }) * GameManager.Instance.BulletSpeedMul;
+            _laneSpeed = speed;
+            _clearanceTime = (footprint.Radius + Player.HitRadius + PassageRadius
+                + (_job == Job.Magic ? 18 : _job == Job.Heal ? 6 : 0)) / (speed * (_job == Job.Magic ? 0.81f : 1));
             float distance = Geometry == 0 ? Math.Abs((_target - _origin).Dot(_direction))
                 : Math.Min(_target.DistanceTo(_origin), Passage.DistanceTo(_origin)) - (Geometry == 2 ? (_charged ? 76 : 68) : 10);
             double approach = Math.Max(0, distance - footprint.Radius - Player.HitRadius - 4) / speed;
             if (_job == Job.Melee) approach += _charged ? 1.2 : 1.05;
             // Flight and charging already give reaction time; do not add the full warning again.
-            _clock = Math.Max(0.1, _warning - approach - 0.12);
+            _clock = Math.Max(_tier == 1 ? 0.55 : 0.45, _warning - approach - 0.12);
             if (AkariPressure && _edge.HasValue && _akariDistance < 64) _clock = _warning;
         }
         string[] names = _job switch
@@ -270,12 +277,13 @@ public partial class BossNormalBarrage : Node2D
             float gap = _horizontal ? passage.Y : passage.X;
             if (_job == Job.Magic)
             {
+                float spacing = _tier == 0 ? 44 : 44 / 1.5f;
                 for (int side = -1; side <= 1; side += 2)
                     for (int row = 0; ; row++)
                     {
                         float offset = _tier == 0 || wave == 0
-                            ? row == 0 ? Margin : Math.Abs(anchor - gap) + (row - 1) * 44
-                            : Math.Max(Margin, Math.Abs(anchor - gap)) + row * 44;
+                            ? row == 0 ? Margin : Math.Abs(anchor - gap) + (row - 1) * spacing
+                            : Math.Max(Margin, Math.Abs(anchor - gap)) + row * spacing;
                         float lane = gap + side * offset;
                         Vector2 position = _horizontal ? new Vector2(_origin.X, lane) : new Vector2(lane, _origin.Y);
                         if (!Field.Rect.HasPoint(position)) break;
@@ -295,6 +303,7 @@ public partial class BossNormalBarrage : Node2D
         int density = Math.Max(1, _tier);
         int count = _job == Job.Magic ? (Geometry == 1 ? 5 + density * 2 : 10 + density * 2)
             : Geometry == 1 ? 15 + density * 4 : 24 + density * 6;
+        if (_tier > 0) count = Mathf.RoundToInt(count * 1.5f) | (_job == Job.Magic && Geometry == 1 ? 1 : 0);
         float spread = Geometry == 1 ? Mathf.DegToRad(120) : Mathf.Tau;
         if (_tier > 0 && _job != Job.Magic)
             count = Math.Max(count, Mathf.CeilToInt(spread * passage.DistanceTo(_origin) / _pitch) | 1);
@@ -328,7 +337,8 @@ public partial class BossNormalBarrage : Node2D
         if (separation >= (_tier == 0 ? 88 : 36) || separation > _boss.GlobalPosition.DistanceTo(player.GlobalPosition)) _boss.GlobalPosition = next;
         // Include split descendants: changing the cue early can send the player into the trailing fragments.
         while (_passed < _wave && GetTree().GetNodesInGroup("enemy_bullets").OfType<Bullet>()
-            .Where(b => b.Active && b.BossBarrageId == GetInstanceId() && b.BossBarrageWave == _passed).All(PastCurrentGap))
+            .Where(b => b.Active && b.BossBarrageId == GetInstanceId()
+                && (_job == Job.Magic ? b.BossBarrageWave <= _passed : b.BossBarrageWave == _passed)).All(PastCurrentGap))
         {
             _passed++;
             if (_tier > 0) _cuePulse = 0.6;
@@ -336,10 +346,13 @@ public partial class BossNormalBarrage : Node2D
         if (_wave < Waves && _clock <= 0)
         {
             var pool = GetNode<BulletPool>("/root/Pool");
+            float chargeSpeed = 0, rampSeconds = 0;
+            List<(Bullet Bullet, Vector2 Origin)>? splitShots = _job == Job.Magic && _tier > 0 && _wave + 1 < Waves ? new() : null;
             foreach (var shot in Volley())
             {
                 var bullet = pool.SpawnBossShot(_boss.ShotCenter, shot.Direction, _job, _charged,
                     Geometry == 2 ? BossShotStyle.Ring : BossShotStyle.Aimed);
+                if (AkariPressure) { chargeSpeed = bullet.Velocity.Length(); rampSeconds = bullet.AccelRampSeconds; }
                 bullet.UseBossPatternVisual(_job, VisualPattern);
                 bullet.BossBarrageWave = _wave;
                 bullet.BossBarrageId = GetInstanceId();
@@ -353,12 +366,38 @@ public partial class BossNormalBarrage : Node2D
                     bullet.Velocity = bullet.Velocity.Rotated((Geometry == 2 ? 1 : -1) * 0.1f);
                 }
                 bullet.DeployBossFormation(shot.Position, edgeLaunch: true, warnedLaunch: _edge.HasValue);
+                splitShots?.Add((bullet, shot.Position));
             }
             _wave++;
-            float travel = _wave < Waves ? _passages[_wave - 1].DistanceTo(_passages[_wave]) / _moveSpeed : 0;
+            float distance = _wave < Waves ? _passages[_wave - 1].DistanceTo(_passages[_wave]) : 0;
+            float travel = distance / _moveSpeed;
+            float crossing = _clearanceTime;
+            if (AkariPressure)
+            {
+                float FlightTime(float flightDistance)
+                {
+                    if (flightDistance <= chargeSpeed * 0.25f) return Mathf.Max(0, flightDistance) / chargeSpeed;
+                    flightDistance -= chargeSpeed * 0.25f;
+                    float rampDistance = (chargeSpeed + (_laneSpeed - chargeSpeed) / 3) * rampSeconds;
+                    if (flightDistance >= rampDistance) return 0.25f + rampSeconds + (flightDistance - rampDistance) / _laneSpeed;
+                    float low = 0, high = rampSeconds;
+                    for (int i = 0; i < 12; i++)
+                    {
+                        float time = (low + high) * 0.5f;
+                        float travelled = chargeSpeed * time + (_laneSpeed - chargeSpeed) * time * time * time / (3 * rampSeconds * rampSeconds);
+                        if (travelled < flightDistance) low = time; else high = time;
+                    }
+                    return 0.25f + high;
+                }
+                float clearance = _clearanceTime * _laneSpeed
+                    + distance * Mathf.Sin(AkariAngles().Max(angle => Mathf.Abs(angle)));
+                float approach = _akariDistance - (Geometry == 0 ? 0 : 8);
+                crossing = FlightTime(approach + clearance) - FlightTime(approach - clearance);
+            }
             _clock = _tier == 0 ? (_job == Job.Melee ? 0.8 : 0.7)
-                : AkariPressure ? Math.Max(_edge.HasValue && _akariDistance < 64 ? 1.9 : 1.32, travel + 0.90)
-                : Math.Max(_job == Job.Magic ? 2.2 : 1.6, travel + 0.85);
+                : Math.Max(AkariPressure ? (_edge.HasValue && _akariDistance < 64 ? 1.9 : _tier == 1 ? 1.55 : 1.4)
+                    : _job == Job.Magic ? 2.2 : 1.6, travel + (_tier == 1 ? 0.4 : 0.3) + crossing + 0.12);
+            if (splitShots != null) _clock = Math.Max(_clock, SplitWaveInterval(splitShots, travel));
         }
         // The next windup starts while the last wave exits; its live bullets keep their own sequence ID.
         if (_wave == Waves && (_tier > 0 ? _passed == Waves
@@ -366,13 +405,68 @@ public partial class BossNormalBarrage : Node2D
         QueueRedraw();
     }
 
+    private float SplitWaveInterval(List<(Bullet Bullet, Vector2 Origin)> fresh, float travel)
+    {
+        Vector2 from = _passages[_wave - 1], to = _passages[_wave];
+        bool Crosses(Vector2 position, Vector2 forward, float clearance, out float near, out float far)
+        {
+            Vector2 a = from - position, b = to - position;
+            near = Mathf.Min(a.Dot(forward), b.Dot(forward)) - clearance;
+            far = Mathf.Max(a.Dot(forward), b.Dot(forward)) + clearance;
+            return far > 0 && Mathf.Min(a.Cross(forward), b.Cross(forward)) <= clearance
+                && Mathf.Max(a.Cross(forward), b.Cross(forward)) >= -clearance;
+        }
+        float ExitAfter(Bullet bullet, Vector2 position, bool newShot)
+        {
+            float offset = bullet.PendingFormationSplitOffset;
+            float clearance = bullet.CollisionRadius + Player.HitRadius + PassageRadius + offset
+                + (!newShot && bullet.LeadIn ? 12 : 0);
+            if (!Crosses(position, bullet.Velocity.Normalized(), clearance, out _, out float distance)) return 0;
+            float speed = bullet.Velocity.Length();
+            int splits = offset > 6 ? 2 : offset > 0 ? 1 : 0;
+            float time = newShot || bullet.LeadIn ? 0.32f : 0;
+            if (!newShot) return time + distance / (speed * Mathf.Pow(0.9f, splits)) + splits * 0.12f;
+            for (int split = 0; split < 2; split++)
+            {
+                float leg = Mathf.Min(distance, split == 0 ? 42 : 32);
+                time += leg / speed;
+                distance -= leg;
+                if (distance <= 0) return time;
+                time += 0.12f;
+                speed *= 0.9f;
+            }
+            return time + distance / speed;
+        }
+        float lastExit = 0.32f;
+        foreach (var shot in fresh) lastExit = Mathf.Max(lastExit, ExitAfter(shot.Bullet, shot.Origin, true));
+        foreach (var bullet in GetTree().GetNodesInGroup("enemy_bullets").OfType<Bullet>()
+            .Where(b => b.Active && b.BossBarrageId == GetInstanceId() && b.BossBarrageWave < _wave - 1))
+            lastExit = Mathf.Max(lastExit, ExitAfter(bullet, bullet.GlobalPosition, false));
+        float firstEntry = float.PositiveInfinity;
+        foreach (var shot in Volley())
+            if (Crosses(shot.Position, shot.Direction, _minimumMargin + 18, out float distance, out _))
+                firstEntry = Mathf.Min(firstEntry, 0.12f + Mathf.Max(0, distance) / _laneSpeed);
+        return lastExit + travel + (_tier == 1 ? 0.4f : 0.3f) + 0.12f - firstEntry;
+    }
+
     private bool PastCurrentGap(Bullet bullet)
     {
         if (bullet.LeadIn) return false;
         Vector2 gap = _passages[_passed];
-        if (AkariPressure) return (bullet.GlobalPosition - gap).Dot(bullet.Velocity.Normalized()) > 10;
-        return Geometry == 0 ? (bullet.GlobalPosition - gap).Dot(_direction) > 10
-            : bullet.GlobalPosition.DistanceTo(_origin) > gap.DistanceTo(_origin) + 10;
+        float clearance = (bullet.Footprint?.Radius ?? bullet.Radius) + Player.HitRadius + PassageRadius
+            + (_job == Job.Magic ? bullet.PendingFormationSplitOffset : bullet.Homing ? 6f : 0);
+        if (_passed + 1 < Waves)
+        {
+            Vector2 forward = bullet.Velocity.Normalized();
+            Vector2 from = gap - bullet.GlobalPosition;
+            Vector2 to = _passages[_passed + 1] - bullet.GlobalPosition;
+            float sideFrom = from.Cross(forward), sideTo = to.Cross(forward);
+            if (Mathf.Min(sideFrom, sideTo) > clearance || Mathf.Max(sideFrom, sideTo) < -clearance) return true;
+            return Mathf.Max(from.Dot(forward), to.Dot(forward)) < -clearance;
+        }
+        if (AkariPressure) return (bullet.GlobalPosition - gap).Dot(bullet.Velocity.Normalized()) > clearance;
+        return Geometry == 0 ? (bullet.GlobalPosition - gap).Dot(_direction) > clearance
+            : bullet.GlobalPosition.DistanceTo(_origin) > gap.DistanceTo(_origin) + clearance;
     }
 
     public void Cancel()
@@ -414,9 +508,11 @@ public partial class BossNormalBarrage : Node2D
             DrawLine(edge - along * 9, edge - along * 9 - cross * side * 4, new Color(safe, alpha), 1.1f, true);
             DrawLine(edge + along * 9, edge + along * 9 - cross * side * 4, new Color(safe, alpha), 1.1f, true);
         }
-        if (_wave == 0)
+        float cueDuration = _tier == 1 ? 0.55f : 0.45f;
+        if (_wave < Waves && (_wave == 0 || _clock <= cueDuration))
         {
-            float charge = Mathf.Clamp((float)(_elapsed / _warning), 0, 1);
+            float charge = _wave == 0 ? Mathf.Clamp((float)(_elapsed / _warning), 0, 1)
+                : 1f - Mathf.Clamp((float)(_clock / cueDuration), 0, 1);
             foreach (var shot in Volley())
             {
                 DrawCircle(shot.Position, 2 + charge, new Color(ink, 0.7f));

@@ -60,7 +60,7 @@ public class CharacterStoryTalk
         var hud = _hud();
         if (hud == null) { Finish(null); return; }   // 会話枠が消えた＝待ち続けずに戦闘へ戻す
         bool z = Pad.AdvanceHeld();
-        bool zEdge = z && !_zHeld;
+        bool zEdge = z && !_zHeld && !Pad.UiBlocked(this);
         _zHeld = z;
         _lineT += delta;
         if (zEdge && !hud.DialogRevealed)

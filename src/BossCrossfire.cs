@@ -1,6 +1,7 @@
 using Godot;
 using System;
 using System.Collections.Generic;
+using System.Linq;
 
 public partial class BossCrossfire : Node2D
 {
@@ -11,7 +12,7 @@ public partial class BossCrossfire : Node2D
     private Vector2 _from, _target;
     private readonly List<Vector2> _origins = new();
     private double _time, _clock, _warning;
-    private float _pitch, _flash;
+    private float _pitch, _flash, _pairSpacing;
     private int _burst;
     private bool _sweep, _horizontal, _weave, _pincer, _diagonal;
     private int _firstSide;
@@ -33,7 +34,7 @@ public partial class BossCrossfire : Node2D
     private bool CrossPressure => _tier >= 2 && !_pincer && !_sweep;
     internal double WarningRemaining => _clock;
     internal bool WarningVisible => GameManager.ShowAttackTelegraphs && !Finished && !Hud.BubblePaused && !Interrupted
-        && _time >= 0.2 && _wave < _waves && _clock <= _warning;
+        && _time >= 0.2 && _wave < _waves && (_clock <= _warning || _relocate > 0);
     internal bool Recovering => _sweep && _relocate > 0 && _relocate > _relocateDuration - (_job switch
         { Job.Melee => 1.2, Job.Heal => _horizontal ? 2.4 : 4.0, Job.Magic => 4.0, _ => _horizontal ? 1.5 : 2.0 });
 
@@ -65,6 +66,7 @@ public partial class BossCrossfire : Node2D
             _ => 3 + 2 * Math.Min(_tier, 2),
         };
         var shape = BulletPool.BossHitShape(_job, _charged);
+        _pairSpacing = shape.Bounds.Size.X + 2;
         _pitch = shape.Bounds.Size.Y + BulletPool.BossLaneGap + (_tier >= 1 ? (_tier == 3 ? 1f : 2f) : 6f);
         if (_tier >= 1 && _job == Job.Heal) _pitch += 1;
         if (_job == Job.Magic) _pitch = _tier == 0 ? 76 : 60;
@@ -199,7 +201,11 @@ public partial class BossCrossfire : Node2D
             _moveFrom.Clear();
             _moveFrom.AddRange(_origins);
             // The paired lanes share one aim; re-aim only when the emitters change sides.
-            if (_wave % PincerBeats == 0 && (_job != Job.Tank || _tier != 3 || _wave % 6 == 0)) AcquireTarget();
+            if (_wave % PincerBeats == 0)
+            {
+                if (_job != Job.Tank || _tier != 3 || _wave % 6 == 0) AcquireTarget();
+                _clock = Math.Max(_clock, AimWarning());
+            }
             PlaceOrigins();
             _relocate = _relocateDuration = _clock;
             _bossDestination = new Vector2(_target.X < Field.CenterX ? Field.Right - 48 : Field.Left + 48,
@@ -228,22 +234,22 @@ public partial class BossCrossfire : Node2D
             PlaceOrigins();
             _clock = _sweep ? TransferWarning() + (_job switch { Job.Melee => 1.2, Job.Heal => 1.0, Job.Magic => 1.5, _ => 0.5 })
                 : _job switch { Job.Melee => 2.0, Job.Heal => 1.7, Job.Magic => 2.6, _ => _charged ? 2.7 : 2.25 };
-            if (_tier >= 2) _clock = _tier == 3 ? 0.8 : 1.0;
-            if (_sweep && _job == Job.Heal && _tier >= 2) _clock = _tier == 3 ? 1.2 : 1.6;
+            if (!_sweep) _clock = Math.Max(_clock, AimWarning());
             _relocate = _relocateDuration = _clock;
             _bossDestination = new Vector2(_target.X < Field.CenterX ? Field.Right - 48 : Field.Left + 48,
                 _target.Y < Field.CenterY ? Field.Bottom - 44 : Field.Top + 44);
         }
-        else if (_sweep && _tier >= 2 && _job != Job.Heal && _wave % 2 == 0)
-        {
-            AcquireTarget();
-        }
-        else if (!_sweep && !_weave && (_tier == 0 || _job != Job.Heal)
-            && (_job != Job.Tank || _tier == 0))
+        else if (!_sweep && !_weave && _tier == 0)
         {
             AcquireTarget();
         }
         QueueRedraw();
+    }
+
+    private double AimWarning()
+    {
+        float speed = (GetTree().GetFirstNodeInGroup("player") as Player)?.SlowestMoveSpeed ?? 48;
+        return _pitch / speed + 0.35;
     }
 
     private double TransferWarning()
@@ -258,7 +264,7 @@ public partial class BossCrossfire : Node2D
         var pool = GetNode<BulletPool>("/root/Pool");
         for (int source = 0; source < _origins.Count; source++)
         {
-            foreach (var shot in Volley(source))
+            foreach (var shot in VolleyPlan(source))
             {
                 var bullet = pool.SpawnBossShot(_origins[source], shot.Direction, _job, _charged);
                 if (shot.Centered) bullet.BossAimTarget = _target;
@@ -266,7 +272,7 @@ public partial class BossCrossfire : Node2D
                 if (bullet.Homing)
                 {
                     Vector2 offset = shot.Position - _target;
-                    bullet.FormationHomingOffset = offset - shot.Direction * offset.Dot(shot.Direction);
+                    bullet.FormationHomingOffset = offset - shot.Direction * offset.Dot(shot.Direction) + shot.PairOffset;
                 }
                 bullet.DeployBossFormation(shot.Position, edgeLaunch: _pincer || _sweep || _tier >= 1);
             }
@@ -274,6 +280,31 @@ public partial class BossCrossfire : Node2D
     }
 
     internal IEnumerable<(Vector2 Position, Vector2 Direction, bool Centered)> Volley(int source)
+    {
+        foreach (var shot in VolleyPlan(source))
+            yield return (shot.Position, shot.Direction, shot.Centered);
+    }
+
+    private IEnumerable<(Vector2 Position, Vector2 Direction, bool Centered, Vector2 PairOffset)> VolleyPlan(int source)
+    {
+        int lane = source;
+        var slots = BaseVolley(source).ToArray();
+        var paired = _job is Job.Heal or Job.Tank ? slots.OrderByDescending(shot =>
+            Math.Abs((shot.Position - _target).Cross(shot.Direction))).Take((slots.Length + 1) / 2)
+            .Select(shot => shot.Position).ToHashSet() : null;
+        foreach (var shot in slots)
+        {
+            yield return (shot.Position, shot.Direction, shot.Centered, Vector2.Zero);
+            // Pair along the existing lane so the escape gaps and final trailing shot stay unchanged.
+            if (_tier >= 1 && (paired?.Contains(shot.Position) ?? lane++ % 2 == 0))
+            {
+                Vector2 offset = shot.Direction * _pairSpacing;
+                yield return (shot.Position + offset, shot.Direction, shot.Centered, offset);
+            }
+        }
+    }
+
+    private IEnumerable<(Vector2 Position, Vector2 Direction, bool Centered)> BaseVolley(int source)
     {
         Vector2 origin = _origins[source];
         if (!SourceActive(source, _wave)) yield break;
@@ -444,7 +475,8 @@ public partial class BossCrossfire : Node2D
             {
                 DrawLine(position - side * 3, position + aim * 4, ink, 1.2f, true);
                 DrawLine(position + side * 3, position + aim * 4, ink, 1.2f, true);
-                float charge = 1 - Mathf.Clamp((float)(_clock / _warning), 0, 1);
+                double warning = _relocate > 0 ? Math.Max(_warning, _relocateDuration) : _warning;
+                float charge = 1 - Mathf.Clamp((float)(_clock / warning), 0, 1);
                 foreach (var shot in Volley(source))
                 {
                     Vector2 direction = shot.Direction;
