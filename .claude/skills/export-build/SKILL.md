@@ -5,68 +5,8 @@ description: Build and package this Godot/.NET game as a distributable single Wi
 
 # export-build — Windows exe + zip 書き出し
 
-このプロジェクト（Godot 4.6.3 mono / C#・.NET 8）を、**インストール不要の単体 exe**（pck と .NET ランタイムを内蔵）として書き出し、配布用 zip にまとめる手順。
+実行前に、プロジェクト直下の [AGENTS.md](../../../AGENTS.md) にある「Windows exe・配布zipの出力ルール」を必ず全文読む。版番号、命名、説明書、単体exe、zip、検証、報告の規則はそこを唯一の正本とする。
 
-## 前提（初回のみ。通常は導入済み）
-- エクスポートテンプレート `4.6.3.stable.mono` が `%APPDATA%\Godot\export_templates\4.6.3.stable.mono\` に入っていること。
-  無ければ公式から取得：`https://github.com/godotengine/godot-builds/releases/download/4.6.3-stable/Godot_v4.6.3-stable_mono_export_templates.tpz` を DL → zip 展開 → `templates\*` を上記フォルダへ。
-- `export_presets.cfg` にプリセット **"Windows Desktop"** があること（embed_pck=true / dotnet/embed_build_outputs=true ＝単体exe）。`.gitignore` 済みなので消さない。
-- `build/` は `.gitignore` 済み（巨大な exe をコミットしない）。
+このスキルからのみ呼ばれた場合も、AGENTS.mdを読まずに書き出さない。ルールを変更するときはAGENTS.mdを更新し、ここに別の命名例や固定の現在バージョンを重複して持たせない。
 
-## バージョン番号（2026-09-07 ユーザー決定・厳守）
-
-- 形式は **メジャー.マイナー**、マイナーは**小数点以下3桁**（`2.001`）。
-- **exe を出力し直すたびに 1 ずつ増やす**（2.001 → 2.002 → 2.003 …）。
-- 現在値は `build/VERSION.txt` に置く。**書き出す前に読み、書き出したら増やして保存する**。
-- **ファイル名は `build/refrain_<版>.exe` と `build/refrain_<版>.zip`**（例 `refrain_2.014.exe`。2026-09-23 ユーザー指示で `algo_shoot_v<版>` から変更。`v` は付けない）。エクスポート直後の中間名 `build/algo_shoot.exe` はそのままでよく、最終成果物だけをこの名前にする。
-- zip の中の exe も同じ版名にする（`refrain_2.014.exe`）。readme「■ 起動」のファイル名も合わせる。
-- メジャーを上げるのはユーザーの指示があったときだけ。勝手に上げない。
-
-## 変数
-- Godot 実行ファイル（mono・エディタ兼用）:
-  `C:\Users\takut\AppData\Local\Microsoft\WinGet\Packages\GodotEngine.GodotEngine.Mono_Microsoft.Winget.Source_8wekyb3d8bbwe\Godot_v4.6.3-stable_mono_win64\Godot_v4.6.3-stable_mono_win64.exe`
-  ※見つからなければ `Get-ChildItem "$env:LOCALAPPDATA\Microsoft\WinGet\Packages" -Recurse -Filter "Godot_v*mono*win64.exe"` で探す。
-- プロジェクト: `d:\dev\algo_shoot`
-- 出力 exe: `build\algo_shoot.exe`（約183MB）
-- 出力 zip: `build\algo_shoot_windows.zip`（約74MB）
-
-## 手順
-
-1. **C# ビルドが通ることを確認**（任意だがおすすめ）:
-   ```
-   dotnet build   # 0 Error(s) を確認
-   ```
-
-2. **リソースをインポート → リリース書き出し**（PowerShell 1コール）:
-   ```powershell
-   $godot = "C:\Users\takut\AppData\Local\Microsoft\WinGet\Packages\GodotEngine.GodotEngine.Mono_Microsoft.Winget.Source_8wekyb3d8bbwe\Godot_v4.6.3-stable_mono_win64\Godot_v4.6.3-stable_mono_win64.exe"
-   & $godot --path d:\dev\algo_shoot --headless --import 2>&1 | Select-Object -Last 1
-   New-Item -ItemType Directory -Force -Path "d:\dev\algo_shoot\build" | Out-Null
-   & $godot --headless --path d:\dev\algo_shoot --export-release "Windows Desktop" "d:\dev\algo_shoot\build\algo_shoot.exe" 2>&1 | Select-Object -Last 3
-   "exit=$LASTEXITCODE"   # 0 なら成功（末尾に [ DONE ] savepack が出る）
-   ```
-
-3. **zip にまとめる**（操作説明 `はじめにお読みください.txt` を同梱）:
-   - `build\はじめにお読みください.txt` が無ければ Write ツールで作る（操作一覧・難易度・起動方法。本文に `/` や `←→` を含めても OK だが、PowerShell の here-string ではなく **Write ツール**で書くこと。インラインの here-string はサンドボックスに弾かれることがある）。
-   ```powershell
-   $exe = "d:\dev\algo_shoot\build\algo_shoot.exe"
-   $readme = "d:\dev\algo_shoot\build\はじめにお読みください.txt"
-   $zip = "d:\dev\algo_shoot\build\algo_shoot_windows.zip"
-   Compress-Archive -Path $exe,$readme -DestinationPath $zip -CompressionLevel Optimal -Force
-   "exe MB: $([math]::Round((Get-Item $exe).Length/1MB,1))"
-   "zip MB: $([math]::Round((Get-Item $zip).Length/1MB,1))"
-   ```
-
-4. **起動確認**（任意・軽く）:
-   ```powershell
-   $p = Start-Process "d:\dev\algo_shoot\build\algo_shoot.exe" -PassThru
-   Start-Sleep -Seconds 6; "running: $(-not $p.HasExited)"; Stop-Process -Id $p.Id -Force
-   ```
-
-5. ユーザーへ報告：exe と zip のパス・サイズ、配布は zip を渡せば良い旨（インストール不要・Windows 64bit・コントローラ対応）。
-
-## 注意・つまずき
-- 失敗の典型：エクスポートテンプレ未導入（→ 前提を確認）。`--export-release` は **テンプレ名がバージョン一致**していること。
-- `Remove-Item` を含む PowerShell がサンドボックスに弾かれることがある。zip 上書きは `Compress-Archive -Force` で行い、`Remove-Item` を避ける。
-- 大きいファイルなので `build/` はコミットしない（`.gitignore` 済み）。
-- `.NET 8 SDK` が必要（dotnet がこのプロジェクトをビルドできること）。
+エディタがPATHに無ければ、インストール済みのGodot .NETエディタを探してバージョンを確認する。既存のexport_presets.cfgと同じ版のテンプレートを使用し、正本に記載された順序で版更新・ビルド・インポート・書き出し・起動確認・zip作成を完了する。
