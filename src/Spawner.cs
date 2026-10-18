@@ -156,14 +156,21 @@ public partial class Spawner : Node
             GameManager.Diff.Lunatic => 128, _ => 60,
         };
         // A volley stays whole; wait for the previous pattern to leave instead of clipping its bullets.
-        if (GetTree().GetNodesInGroup("enemy_bullets").Count >= budget * Mathf.Lerp(0.7f, 1f, Intensity) * AttackDensity) return false;
+        // Completed volleys can exceed the budget, especially the longer LUNATIC sequences.
+        float density = AttackDensity * (game.Difficulty switch
+        {
+            GameManager.Diff.Easy => 0.5f,
+            GameManager.Diff.Lunatic => 0.3f,
+            _ => 1f / 3f,
+        });
+        if (GetTree().GetNodesInGroup("enemy_bullets").Count >= budget * Mathf.Lerp(0.7f, 1f, Intensity) * density) return false;
         _attackCooldown = (game.Difficulty switch
         {
             GameManager.Diff.Hard => Mathf.Lerp(0.42f, 0.30f, Intensity),
             GameManager.Diff.Lunatic => Mathf.Lerp(0.34f, 0.24f, Intensity),
             GameManager.Diff.Normal => Mathf.Lerp(0.65f, 0.48f, Intensity),
             _ => Mathf.Lerp(1.5f, 0.95f, Intensity) * game.DanmakuIntervalMul,
-        }) / AttackDensity;
+        }) / density;
         return true;
     }
 

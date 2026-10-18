@@ -7,7 +7,7 @@ using System.Threading.Tasks;
 
 public partial class BossTechniqueVideo : Node
 {
-    private const BindingFlags Private = BindingFlags.Instance | BindingFlags.NonPublic;
+    private const BindingFlags Private = BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public;
     private static FieldInfo FieldOf(object obj, string name)
     {
         for (var type = obj.GetType(); type != null; type = type.BaseType)
@@ -36,6 +36,7 @@ public partial class BossTechniqueVideo : Node
 
     public override async void _Ready()
     {
+        if (OS.GetCmdlineUserArgs().Contains("--easy") || OS.GetCmdlineUserArgs().Any(arg => arg.StartsWith("--difficulty="))) { await RunEasy(); return; }
         try
         {
             if (!OS.GetUserDataDir().Replace('\\', '/').Contains("/build/qa_story/"))
@@ -123,7 +124,7 @@ public partial class BossTechniqueVideo : Node
                 if (_boss is not BossMina) Write(_boss, "_beatsFired", Math.Min(phase, 3));
                 if (phase == 4 && _boss is not BossMina) Write(_boss, "_finale", true);
                 Call(_boss, "ApplySpell");
-                int hp = Mathf.RoundToInt(_boss.TotalBars * Enemy.BarHp * new[] { 1f, .76f, .54f, .32f, .14f }[phase]);
+                int hp = Mathf.RoundToInt(_boss.TotalBars * _boss.BarHp * new[] { 1f, .76f, .54f, .32f, .14f }[phase]);
                 Write(_boss, "_hp", hp);
                 _hud.UpdateBossBar(_boss.CurrentBarIndex, _boss.TotalBars, _boss.CurrentBarFrac);
                 string title = _boss is BossMina ? BossMina.PhaseName(phase)
@@ -191,6 +192,7 @@ public partial class BossTechniqueVideo : Node
 
     public override void _PhysicsProcess(double delta)
     {
+        if (_easyMode) { TickEasyPilot(delta); return; }
         if (!_running) return;
         _pilot.Update(delta, shoot: false, bombs: false, dodge: false);
         Input.FlushBufferedEvents();

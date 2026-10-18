@@ -81,7 +81,8 @@ public partial class AreaSpellCaster : Node2D
             _clock = 0;
             return;
         }
-        if (Suppressed && !_finalePending || _owner.AnimalTechniqueActive || _owner.AnimalTechniquePending) return;
+        if (_owner.GaugeAttackResolving || Suppressed && !_finalePending || _owner.AnimalTechniqueActive || _owner.AnimalTechniquePending) return;
+        if (_owner.UsesEasyTechniqueSlots && !_finalePending) return;
         if (!_pending && !_finalePending) _clock += GameManager.EnemyDelta(delta);
         if (_clock >= _interval) _pending = true;
         if (_owner.CrossfireActive || _owner.DodgeWaveActive || HasRemainingShots(GetTree())) return;

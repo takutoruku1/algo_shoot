@@ -18,7 +18,6 @@ public partial class Epilogue : Node2D
     private double _reveal;        // タイプライター表示済み文字数（＝現在ページ内）
     private DialogueBox.TypeCursor _typeCursor;   // 送り音（1文字ごとのピッ）をどこまで鳴らしたか
     private GameManager? _game;    // 文字送り速度（MsgCharsPerSec）を本編設定と共有
-    private bool _musicStarted;    // E5b のオルゴールを実際に鳴らしたか（未調達なら false＝停止も呼ばない）
 
     // 撮影モード（--shot）か。スタッフロールのスキップを止めるためだけに見る（ChoiceOverlay と同じ作法）。
     private static bool ShotHold
@@ -183,13 +182,8 @@ public partial class Epilogue : Node2D
     {
         TextureFilter = TextureFilterEnum.Linear;
         _font = UiKit.Zen; // 非ピクセル（滑らかゴシック）
-        // E5b はオルゴール（未調達＝null なら無音のまま）。主題（BgmMenu）が戻るのは E6 の1行目。
-        //   MusicOnce＝1周で無音に落ちる再生。台本の「…………。」の行では下で明示的に止める。
-        if (Audio.Instance != null && Audio.Instance.BgmEpilogueWalk != null)
-        {
-            Audio.Instance.MusicOnce(Audio.Instance.BgmEpilogueWalk, 2.0f);
-            _musicStarted = true;
-        }
+        // 返事が届いた場面の旋律を、帰還後の会話へ巻き戻さずにつなぐ。
+        Audio.Instance?.Music(Audio.Instance.BgmFinalResolve, 2.0f);
         BuildSky();
         _zHeld = Pad.AdvanceHeld();
         _game = GetNodeOrNull<GameManager>("/root/Game");
@@ -340,13 +334,6 @@ public partial class Epilogue : Node2D
                     else
                     {
                         _lineT = 0; _reveal = 0; _line++; _page = 0; _pagedKey = -1;
-                        // 台本の「…………。」を送り切ったところで曲を完全停止（無音）。残り2行は無音のまま。
-                        //   曲が未調達で最初から鳴っていないときは呼ばない（Music() が空の Tween を作る）。
-                        //   フェードは 0.9 秒＝ぶつ切りにせず、しかし次の行を読み始める前に無音へ着く長さ
-                        //   （行送りの最短間隔 0.25 秒＋次行のタイプ時間より短く収まる）。
-                        //   StopMusicOnce＝MusicOnce の Finished フックを解いてから止める（曲尾まで
-                        //   行かない停止なので OneShot が残る。Audio.StopMusicOnce のコメント参照）。
-                        if (_line == SilenceLine && _musicStarted) { Audio.Instance?.StopMusicOnce(0.9f); _musicStarted = false; }
                         if (_line >= _gaze.Count) StartFilm();
                     }
                 }
@@ -363,8 +350,8 @@ public partial class Epilogue : Node2D
                 if (_t >= rollEnd || rollSkip)
                 {
                     _phase = PhEnd; _t = 0; _line = 0; _lineT = 0; _reveal = 0; _pagedKey = -1;
-                    // 主題（温かいメニューBGM）が戻る。終わりの余韻に主題が戻って一周する。
-                    if (Audio.Instance != null) Audio.Instance.Music(Audio.Instance.BgmMenu, 2.0f);
+                    // みんなのその後を見届けたあと、回復の主題を最後の対話へ戻す。
+                    Audio.Instance?.Music(Audio.Instance.BgmFinalResolve, 2.5f);
                 }
                 break;
             case PhEnd:    // E6 END（最後の下書き選択 → 受け → END → タイトルへ）
@@ -398,16 +385,8 @@ public partial class Epilogue : Node2D
         QueueRedraw();
     }
 
-    // 台本で「…………。」＝曲を完全停止する行（見上げ8行目）を送り切った直後の index。
-    //   行の追加で番号がずれないよう実行時に引く。見つからなければ -1（＝停止しない）。
-    private int SilenceLine
-    {
-        get { int i = _gaze.FindIndex(d => d.Text == "…………。"); return i < 0 ? -1 : i + 1; }
-    }
-
     private void StartFilm()
     {
-        if (_musicStarted) { Audio.Instance?.StopMusicOnce(0); _musicStarted = false; }
         _phase = PhFilm;
         _t = 0;
         _line = 0;
@@ -420,11 +399,6 @@ public partial class Epilogue : Node2D
             QueueRedraw();
         }};
         AddChild(_film);
-    }
-
-    public override void _ExitTree()
-    {
-        if (_musicStarted) Audio.Instance?.StopMusicOnce(0.3f);
     }
 
     private Texture2D _skyDawn = null!, _rest = null!, _goodbye = null!;

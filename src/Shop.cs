@@ -35,7 +35,6 @@ public partial class Shop : Node2D
 
     private Texture2D? _playerShot;
 
-    // フォーカス＝列のインデックス（0..13）。
     private int _sel;
     // 詳細パネルのボタンのフォーカス（0＝強化する／1＝ためし撃ち）。←→ で切り替え、Z で押す。
     private int _act;
@@ -55,7 +54,6 @@ public partial class Shop : Node2D
     private double _exitDelayT;
     private string _pendingExitDest = "";
 
-    // マウス：段のカード（id=0..13）とフッタのボタン（負の予約帯）をホットスポットで拾う。
     private const int HsBack = -100;  // フッタ もどる
     private const int HsBuy = -101;   // 詳細パネルの「買う」ボタン
     private const int HsTrain = -102;
@@ -74,8 +72,7 @@ public partial class Shop : Node2D
     public override void _Ready()
     {
         _game = GetNodeOrNull<GameManager>("/root/Game")!;
-        // ショップ専用曲「シンプルスタイル」（2026-09-14〜。従来は BgmMenu の使い回し）。
-        //   ハブより硬く電子的な音色で「移動した感」を耳に出す。周回で何十回も入るので平坦な曲を選んである。
+        // ハブから買い物へ移っても拠点の主題を途切れさせない。
         if (Audio.Instance != null) Audio.Instance.Music(Audio.Instance.BgmShop);
         _playerShot = ResourceLoader.Load<Texture2D>(_game.JobDef.PlayerTexturePath);
         _accountIcon = ResourceLoader.Load<Texture2D>(CompanionDialogue.AccountPortrait(_game.SelectedJob));
@@ -318,7 +315,7 @@ public partial class Shop : Node2D
     private void DrawHeader()
     {
         UiKit.Box(this, new Rect2(48, 22, 44, 44), Owned, 8);
-        DrawUpgradeMark("n_power_2x", new Vector2(70, 44), Surface, 1.3f);
+        DrawUpgradeMark("n_charge", new Vector2(70, 44), Surface, 1.3f);
         UiKit.Text(this, UiKit.ZenBlack, new Vector2(108, 25), "強化ショップ", 28, Ink);
 
         UiKit.FaceAvatar(this, new Vector2(600, 44), 20, _accountIcon,
@@ -510,7 +507,7 @@ public partial class Shop : Node2D
     private static Color UpgradeColor(string id) => id switch
     {
         "n_life_1" or "n_life_2" or "n_hitbox" => new Color("efa1b6"),
-        "n_bomb_1" or "n_power_2x" or "n_charge" or "n_lines" or "n_rate_2x" or "n_pierce" => new Color("e8ce96"),
+        "n_bomb_1" or "n_charge" or "n_lines" or "n_pierce" => new Color("e8ce96"),
         _ => Owned,
     };
 
@@ -547,7 +544,7 @@ public partial class Shop : Node2D
             if (id == "n_slow") { L(0, -5, 0, 0); L(0, 0, 4, 2); }
             else { L(-13, 0, -6, 0); L(6, 0, 13, 0); L(0, -13, 0, -6); L(0, 6, 0, 13); }
         }
-        else if (id is "n_lines" or "n_rate_2x")
+        else if (id == "n_lines")
         {
             L(-8, -8, 8, -8); L(-8, 0, 8, 0); L(-8, 8, 8, 8);
         }
@@ -583,7 +580,6 @@ public partial class Shop : Node2D
                 int cur = g?.StartBombs ?? 4;
                 return (owned ? $"ボム {cur - 1}" : $"ボム {cur}", $"ボム {(owned ? cur : cur + 1)}");
             }
-            case "n_power_2x":  return ("弾の火力 ×1", "弾の火力 ×2");
             // 効果の文面に「→」を混ぜない（表示側が値と値を矢印でつなぐので、二重の矢印になって読めなくなる）。
             // 溜め打ちは最初から使える（2026-09-25）＝この段が売るのは「もう一段」。
             //   左右とも「何秒ためて、どれだけの一発が出るか」を並べる（秒と倍率は ChargeTier が正典）。
@@ -596,7 +592,6 @@ public partial class Shop : Node2D
             }
             case "n_move_15x":  return ($"移動速度 {75 * g.JobDef.MoveMul:0.0}", $"移動速度 {112.5f * g.JobDef.MoveMul:0.0}");
             case "n_slow":      return ("未習得", "敵の時間 ×0.35 / 1.5秒\n再使用 20秒");
-            case "n_rate_2x":   return ("発射間隔 ×1.0", "発射間隔 ×0.5");
             case "n_pierce":    return ("弾は1体で消える", "どの撃ち方でも 敵1体を貫く");
             case "n_option":    return ("オプション なし", "オプション 1基\n威力 ×0.5 で同時射撃");
             default:            return ("—", Def(i).Desc);

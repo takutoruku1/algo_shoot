@@ -54,6 +54,7 @@ public partial class MinaBossTechnique : BossCharacterTechnique
     private int Density => Tier == 0 ? 6 : 6 + Tier * 6;
     private float Speed => 42 + Tier * 7;
     private static readonly Color MemoryInk = new("efabd9");
+    protected override bool UsesCustomHazardArt => Kind == BossTechniqueKind.Area;
 
     protected override void Start()
     {
@@ -62,6 +63,11 @@ public partial class MinaBossTechnique : BossCharacterTechnique
             Mathf.Clamp(_anchor.Y, 60, Field.Bottom - 60));
         _axis = _anchor.X < Field.CenterX ? Vector2.Left : Vector2.Right;
         _initialBoss = Boss.GlobalPosition;
+        if (Kind == BossTechniqueKind.Area)
+        {
+            StartEasyMemory();
+            return;
+        }
         _warning = WarnFor(65, 1.6);
         _next = _warning;
         _id = Kind switch
@@ -137,6 +143,11 @@ public partial class MinaBossTechnique : BossCharacterTechnique
 
     protected override void Step(double delta)
     {
+        if (Kind == BossTechniqueKind.Area)
+        {
+            StepEasyMemory();
+            return;
+        }
         switch (_id)
         {
             case 0: SlidingCache(); break;
@@ -798,8 +809,803 @@ public partial class MinaBossTechnique : BossCharacterTechnique
         if (t > duration + .2) Finish();
     }
 
+    private sealed class MinaEasyMemoryCue
+    {
+        public string Key = "", Group = "";
+        public int Mode, Round, Index;
+        public double StartsAt, FiresAt, EndsAt;
+        public double CompletesAt => StartsAt + 1.2;
+        public Vector2[] Points = Array.Empty<Vector2>();
+        public Rect2[] Bounds = Array.Empty<Rect2>();
+        public Vector2 Size, Card, CardReserved;
+        public float Radius, Speed;
+        public bool Cancelled;
+        public double? CancelledAt;
+        public bool Fired, Energized, Transferred, Exited;
+        public int Predecessor = -1, Successor = -1;
+        public int ReleaseCue = -1, HeldMemory = -1, ReceivedFrom = -1;
+        public float Mass;
+        public float ReceivedMomentum;
+        public double ArrivesAt;
+        public double? ObservedFireAt, TransferredAt, ObservedExitAt;
+        public double? InitialStartsAt, InitialEndsAt;
+        public Vector2 Position, PriorPosition;
+        public bool CurrentRowCard, CardAccessVerified, CardStartBodyOverlap;
+        public Vector2[] CardAccessPath = Array.Empty<Vector2>();
+        public double CardTravelSeconds;
+    }
+    private readonly List<MinaEasyMemoryCue> _easyMemoryCues = new();
+    private readonly HashSet<int> _easyReadRounds = new();
+    private readonly bool[] _easyRecordState = new bool[35];
+    private int _easyRoundsCreated;
+    private Vector2 _easyConnectionPull;
+    private CircleShape2D? _easyCardProbe;
+    private int EasyRounds => Variant switch { 0 => 3, 1 => 3 + Tier, 2 => 1, 3 => 4 + Tier, _ => 1 };
+    private double EasyRoundInterval => Variant switch { 0 => 5.4, 1 => 5.2, 2 => 0, 3 => 4.4, _ => 6.4 };
+    private IReadOnlyList<MinaEasyMemoryCue> EasyCueGeometry => _easyMemoryCues;
+    internal override IEnumerable<BossEasyCue> EasyCues => Kind == BossTechniqueKind.Area
+        ? _easyMemoryCues.Select(c => new BossEasyCue(c.Key, c.StartsAt, c.FiresAt,
+            EasyMemoryProgress(c), c.Fired, c.Cancelled))
+        : base.EasyCues;
+
+    private float EasyMemoryProgress(MinaEasyMemoryCue cue)
+        => Mathf.Clamp((float)((Time - cue.StartsAt - .4) / .8), 0, 1);
+
+    private bool EasyMemorySegmentEnded(MinaEasyMemoryCue cue)
+        => cue.Mode == 4 ? cue.Exited || cue.ReleaseCue >= 0 && _easyMemoryCues[cue.ReleaseCue].Energized
+            : cue.Mode == 7 ? cue.Exited : Time >= cue.EndsAt;
+
+    private void StartEasyMemory()
+    {
+        if (Kind != BossTechniqueKind.Area || Variant is < 0 or > 4)
+            throw new InvalidOperationException("Mina uses one distinct Area technique per AttackPhase; retired Normal, Edge and Extra slots are not aliases.");
+        _id = 4 + Variant;
+        _warning = 3.2;
+        var identity = Variant switch
+        {
+            0 => ("抱えた声の順送り", "mina.unfolding-burden", "重い記憶から解凍される。広がり終える頁の短い端を回る"),
+            1 => ("未送信、既読の返事", "mina.acknowledged-rows", "手の届く下書きを既読にする。届いた返事の行には着弾しない"),
+            2 => ("拍手の檻・二重の扉", "mina.traveling-airlock", "前後の扉の間を保ち、開いてゆく保護室について進む"),
+            3 => ("閉じない配信・残る世代", "mina.inherited-records", "今いる区画も次の種になる。次の記録が生まれない隣の区画へ移る"),
+            _ => ("つなぎ直す帰り道", "mina.connected-homeward-relay", "短く引いて張りを固定する。受渡した記憶は危険なまま止まるので、通った後ろへ戻らない"),
+        };
+        Identify(identity.Item1, identity.Item2, identity.Item3);
+        for (int i = 0; i < 35; i++) _easyRecordState[i] = (i % 7 + 2 * (i / 7)) % 3 == 0;
+    }
+
+    private void StepEasyMemory()
+    {
+        if (Variant == 4 && _easyRoundsCreated == 0)
+        {
+            _easyConnectionPull = (Player.GlobalPosition - _anchor).LimitLength(48);
+            if (Time < .8) return;
+        }
+        while (_easyRoundsCreated < EasyRounds && Time >= _easyRoundsCreated * EasyRoundInterval)
+        {
+            int round = _easyRoundsCreated++;
+            PrepareEasyMemoryRound(round, Variant == 4 ? Time : round * EasyRoundInterval);
+        }
+        if (Variant == 4) StepEasyMemoryHandoffs();
+        foreach (var cue in _easyMemoryCues)
+        {
+            if (cue.Mode == 7 && Time < cue.StartsAt && cue.InitialStartsAt is double preview
+                && cue.InitialEndsAt is double previewEnd && Time >= preview && Time < previewEnd)
+            {
+                float progress = Mathf.Clamp((float)((Time - preview - .4) / .8), 0, 1);
+                if (progress > 0) EasyMemoryPathHazards(cue.Points, cue.Radius, progress, false);
+                continue;
+            }
+            if (cue.Mode == 1 && !cue.Cancelled && Time < cue.FiresAt
+                && !_easyReadRounds.Contains(cue.Round) && Player.GlobalPosition.DistanceTo(cue.Card) <= 14)
+            {
+                cue.Cancelled = true;
+                cue.CancelledAt = Time;
+                _easyReadRounds.Add(cue.Round);
+            }
+            if (cue.Cancelled || Time < cue.StartsAt || EasyMemorySegmentEnded(cue)) continue;
+            if (cue.Mode is 4 or 7 ? !cue.Energized : Time < cue.FiresAt)
+            {
+                float progress = EasyMemoryProgress(cue);
+                if (progress <= 0) continue;
+                if (cue.Mode is 0 or 1 or 3 or 5)
+                    foreach (var bounds in cue.Bounds)
+                        Box(new Rect2(bounds.Position, new Vector2(bounds.Size.X * progress, bounds.Size.Y)), false, progress);
+                else if (cue.Mode is 4 or 7)
+                    EasyMemoryPathHazards(cue.Points, cue.Radius, progress, false);
+                else
+                    foreach (var bounds in cue.Bounds)
+                        Box(new Rect2(bounds.Position, new Vector2(bounds.Size.X * progress, bounds.Size.Y)), false, progress);
+                continue;
+            }
+            float age = (float)(Time - cue.FiresAt);
+            switch (cue.Mode)
+            {
+                case 0:
+                    Box(EasyBurdenPageBounds(cue, age), true);
+                    break;
+                case 1:
+                case 3:
+                case 5:
+                    foreach (var bounds in cue.Bounds) Box(bounds, true);
+                    break;
+                case 2:
+                    foreach (var bounds in EasyRoomPressure(EasyRoomProtectedBounds(cue, Time - cue.FiresAt))) Box(bounds, true);
+                    break;
+                case 4:
+                case 7:
+                    if (cue.Exited) continue;
+                    Line(cue.PriorPosition, cue.Position, cue.Radius, true);
+                    break;
+            }
+            if (!cue.Fired) cue.ObservedFireAt = Time;
+            cue.Fired = true;
+        }
+        bool relayDrained = Variant != 4 || _easyMemoryCues.All(cue => cue.Exited);
+        if (_easyRoundsCreated == EasyRounds && _easyMemoryCues.All(c => Time >= c.EndsAt) && relayDrained) Finish();
+    }
+
+    private void PrepareEasyMemoryRound(int round, double start)
+    {
+        Vector2 reserved = Player.GlobalPosition;
+        if (Variant == 0)
+        {
+            float[] rows = { 24, Mathf.Clamp(reserved.Y, 82, 134), Field.Bottom - 24 };
+            int direction = round % 2 == 0 ? 1 : -1;
+            for (int row = 0; row < 3; row++)
+                for (int load = 0; load < 4 + Tier; load++)
+                {
+                    float height = row == 1 ? 62 : 52;
+                    Vector2 from = new(direction > 0 ? Field.Left - 20 : Field.Right + 20, rows[row]);
+                    Vector2 to = new(direction > 0 ? Field.Right + 20 : Field.Left - 20, rows[row]);
+                    double fire = start + 3.2 + (2 - row) * .42 + load * (.38 - Tier * .035);
+                    _easyMemoryCues.Add(new MinaEasyMemoryCue
+                    {
+                        Key = $"burden:{round}:{row}:{load}", Group = $"burden:{round}:{row}", Mode = 0,
+                        Round = round, Index = row, StartsAt = start, FiresAt = fire,
+                        EndsAt = fire + from.DistanceTo(to) / (43 + Tier * 6), Points = new[] { from, to },
+                        Bounds = new[] { new Rect2(Field.Left, rows[row] - height * .5f, Field.Width, height).Intersection(Field.Rect) },
+                        Size = new Vector2(8, height), Speed = 43 + Tier * 6,
+                    });
+                }
+        }
+        else if (Variant == 1)
+        {
+            float rowHeight = Field.Height / 4;
+            int current = Mathf.Clamp((int)((reserved.Y - Field.Top) / rowHeight), 0, 3);
+            int answered = (current + 1 + round) % 4;
+            for (int row = 0; row < 4; row++)
+            {
+                var card = EasyAccessibleDraftCard(reserved, row, row == current);
+                _easyMemoryCues.Add(new MinaEasyMemoryCue
+                {
+                    Key = $"draft:{round}:{row}", Group = $"draft:{round}:{row}", Mode = 1,
+                    Round = round, Index = row, StartsAt = start, FiresAt = start + 3.2, EndsAt = start + 6 + Tier * .15,
+                    Card = card.Card, CardReserved = reserved,
+                    Bounds = new[] { new Rect2(Field.Left, Field.Top + row * rowHeight, Field.Width, rowHeight) },
+                    Cancelled = row == answered, CancelledAt = row == answered ? start : null,
+                    CurrentRowCard = row == current, CardAccessPath = card.Path, CardAccessVerified = card.Verified,
+                    CardStartBodyOverlap = card.InitialOverlap, CardTravelSeconds = card.Seconds,
+                });
+            }
+        }
+        else if (Variant == 2)
+        {
+            var half = new Vector2(52 - Tier * 3, 42 - Tier * 2);
+            Vector2 home = reserved.Clamp(Field.Rect.Position + half, Field.Rect.End - half);
+            Vector2[] path = { home, new(home.X, Field.Top + half.Y), new(Field.Left + half.X, Field.Top + half.Y),
+                new(Field.Right - half.X, Field.Top + half.Y), new(Field.Right - half.X, Field.Bottom - half.Y),
+                new(Field.Left + half.X, Field.Bottom - half.Y), new(home.X, Field.Bottom - half.Y), home };
+            path = path.Where((point, index) => index == 0 || point.DistanceTo(path[index - 1]) > 1).ToArray();
+            double travel = 0;
+            for (int i = 1; i < path.Length; i++) travel += Math.Max(2.4, path[i - 1].DistanceTo(path[i]) / (30 + Tier * 5)) + .8;
+            var room = new MinaEasyMemoryCue
+            {
+                Key = "airlock:room", Group = "airlock:room", Mode = 2, StartsAt = start,
+                FiresAt = start + 3.2, EndsAt = start + 3.2 + travel, Points = path, Size = half * 2,
+                Bounds = new[] { Field.Rect }, Speed = 30 + Tier * 5,
+            };
+            _easyMemoryCues.Add(room);
+            var doors = EasyAirlockDoors(room);
+            for (int index = 0; index < doors.Length; index++)
+            {
+                var door = doors[index];
+                Rect2 passage = door.Entry.Merge(door.Exit);
+                Rect2[] closing = EasyRoomPressure(door.Exit).Select(bounds => bounds.Intersection(passage))
+                    .Where(bounds => bounds.Size.X > 0 && bounds.Size.Y > 0).ToArray();
+                _easyMemoryCues.Add(new MinaEasyMemoryCue
+                {
+                    Key = $"airlock:rear-door:{index}", Group = $"airlock:rear-door:{index}", Mode = 5,
+                    Index = index, StartsAt = door.ClosesAt - 3.2, FiresAt = door.ClosesAt, EndsAt = door.ClosesAt + .4,
+                    Bounds = closing, Card = door.Entry.GetCenter(), Points = new[] { door.Entry.GetCenter(), door.Exit.GetCenter() },
+                });
+            }
+        }
+        else if (Variant == 3)
+        {
+            var next = new bool[35];
+            for (int i = 0; i < 35; i++)
+            {
+                int x = i % 7, y = i / 7, neighbors = 0;
+                for (int dy = -1; dy <= 1; dy++)
+                    for (int dx = -1; dx <= 1; dx++)
+                        if ((dx != 0 || dy != 0) && x + dx >= 0 && x + dx < 7 && y + dy >= 0 && y + dy < 5
+                            && _easyRecordState[(y + dy) * 7 + x + dx]) neighbors++;
+                next[i] = round == 0 ? _easyRecordState[i]
+                    : neighbors is >= 2 and <= 4 && (x + y + round) % 3 != 0;
+            }
+            int playerX = Mathf.Clamp((int)((reserved.X - Field.Left) / (Field.Width / 7)), 0, 6);
+            int playerY = Mathf.Clamp((int)((reserved.Y - Field.Top) / (Field.Height / 5)), 0, 4);
+            next[playerY * 7 + playerX] = true;
+            Array.Copy(next, _easyRecordState, 35);
+            for (int i = 0; i < 35; i++)
+            {
+                if (!next[i]) continue;
+                var cell = new Rect2(Field.Left + i % 7 * Field.Width / 7, Field.Top + i / 7 * Field.Height / 5,
+                    Field.Width / 7, Field.Height / 5).Grow(-1);
+                _easyMemoryCues.Add(new MinaEasyMemoryCue
+                {
+                    Key = $"generation:{round}:{i}", Group = $"generation:{round}:{i}", Mode = 3,
+                    Round = round, Index = i, StartsAt = start, FiresAt = start + 3.2, EndsAt = start + 5.8 + Tier * .18,
+                    Bounds = new[] { cell }, Card = cell.GetCenter(),
+                });
+            }
+        }
+        else
+        {
+            Vector2 margin = Vector2.One * 28;
+            Vector2 target = reserved.Clamp(Field.Rect.Position + margin, Field.Rect.End - margin);
+            Vector2 drift = _easyConnectionPull * .22f;
+            Vector2 opposite = new(target.X < Field.CenterX ? Field.Right - 28 : Field.Left + 28,
+                target.Y < Field.CenterY ? Field.Bottom - 28 : Field.Top + 28);
+            Vector2[][] networks = {
+                new[] { new Vector2(Field.Left - 28, 28), target, opposite,
+                    new Vector2(Field.CenterX, target.Y < Field.CenterY ? 28 : Field.Bottom - 28), new Vector2(Field.Right + 28, 108) },
+                new[] { new Vector2(Field.Right - 28, Field.Top - 28), new Vector2(Field.Left + 28, Field.Bottom - 28),
+                    target, new Vector2(Field.Right - 28, Field.CenterY), new Vector2(Field.Left - 28, 28) },
+                new[] { new Vector2(Field.Right + 28, Field.Bottom - 28), new Vector2(Field.Left + 28, 28),
+                    new Vector2(Field.Right - 28, 28), new Vector2(Field.Left + 28, Field.Bottom - 28),
+                    new Vector2(Field.Right + 28, Field.Bottom + 28) },
+            };
+            for (int chain = 0; chain < networks.Length; chain++)
+            {
+                var network = networks[chain];
+                for (int node = 1; node < network.Length - 1; node++)
+                    if (network[node] != target)
+                        network[node] = (network[node] + drift).Clamp(Field.Rect.Position + margin, Field.Rect.End - margin);
+                for (int node = 1; node < network.Length - 1; node++)
+                    if (network[node - 1].DistanceTo(network[node]) < 48)
+                    {
+                        if (network[node] == target && node > 1) network[node - 1] = opposite;
+                        else network[node] = new Vector2(network[node - 1].X < Field.CenterX ? Field.Right - 28 : Field.Left + 28,
+                            network[node - 1].Y < Field.CenterY ? Field.Bottom - 28 : Field.Top + 28);
+                    }
+                int chainStart = _easyMemoryCues.Count;
+                double fire = start + .65 * chain + 3.2;
+                float speed = 52 + Tier * 7 + _easyConnectionPull.Length() * .5f;
+                float[] masses = { 1, 1.25f, 1.5f, 1.1f };
+                for (int node = 0; node < network.Length - 1; node++)
+                {
+                    float radius = 10 + (masses[node] - 1) * 3;
+                    Vector2 direction = network[node].DirectionTo(network[node + 1]);
+                    float nextRadius = node + 1 < masses.Length ? 10 + (masses[node + 1] - 1) * 3 : 0;
+                    Vector2 contact = node + 1 < masses.Length ? network[node + 1] - direction * (radius + nextRadius) : network[node + 1];
+                    double arrival = fire + network[node].DistanceTo(contact) / speed;
+                    _easyMemoryCues.Add(new MinaEasyMemoryCue
+                    {
+                        Key = $"handoff:{chain}:{node}", Group = $"handoff:{chain}:{node}", Mode = 4,
+                        Round = chain, Index = node, StartsAt = start + .65 * chain, FiresAt = fire,
+                        ArrivesAt = arrival, Points = new[] { network[node], contact }, Radius = radius,
+                        Mass = masses[node], Speed = speed, Position = network[node], PriorPosition = network[node],
+                        Predecessor = node == 0 ? -1 : chainStart + node - 1,
+                        Successor = node + 1 == masses.Length ? -1 : chainStart + node + 1,
+                    });
+                    fire = arrival + .32;
+                    if (node + 1 < masses.Length)
+                        speed = Mathf.Clamp(speed * masses[node] / masses[node + 1] + _easyConnectionPull.Length() * .08f, 48 + Tier * 5, 88 + Tier * 7);
+                }
+            }
+            double drained = _easyMemoryCues.Where(cue => cue.Successor < 0).Max(cue => cue.ArrivesAt);
+            var held = _easyMemoryCues.Where(cue => cue.Successor >= 0).OrderByDescending(cue => cue.Speed * cue.Mass).ToArray();
+            for (int rank = 0; rank < held.Length; rank++)
+            {
+                var memory = held[rank];
+                Vector2 direction = memory.Points[1].DirectionTo(memory.Points[0]);
+                Vector2 exit = EasyMemoryRecoilExit(memory.Points[1], direction, memory.Radius);
+                double release = drained + .2 + rank * .24;
+                float speed = 50 + (memory.Speed * memory.Mass - 48) * .3f;
+                int heldIndex = _easyMemoryCues.IndexOf(memory);
+                memory.ReleaseCue = _easyMemoryCues.Count;
+                memory.EndsAt = release;
+                _easyMemoryCues.Add(new MinaEasyMemoryCue
+                {
+                    Key = $"release:{memory.Round}:{memory.Index}", Group = $"release:{memory.Round}:{memory.Index}", Mode = 7,
+                    Round = memory.Round, Index = memory.Index, StartsAt = release - 3.2, FiresAt = release,
+                    Points = new[] { memory.Points[1], exit }, Radius = memory.Radius, Speed = speed, Mass = memory.Mass,
+                    Position = memory.Points[1], PriorPosition = memory.Points[1], HeldMemory = heldIndex,
+                    InitialStartsAt = memory.StartsAt, InitialEndsAt = memory.StartsAt + 3.2,
+                    ArrivesAt = release + memory.Points[1].DistanceTo(exit) / speed,
+                    EndsAt = release + memory.Points[1].DistanceTo(exit) / speed + .02,
+                });
+            }
+            foreach (var terminal in _easyMemoryCues.Where(cue => cue.Mode == 4 && cue.Successor < 0))
+                terminal.EndsAt = terminal.ArrivesAt + .02;
+        }
+    }
+
+    private bool EasyDraftBodyHit(Vector2 position)
+    {
+        _easyCardProbe ??= new CircleShape2D { Radius = Player.HitRadius };
+        if (Boss.CollisionLayer == 0 || !Boss.Monitorable) return false;
+        foreach (uint owner in Boss.GetShapeOwners())
+        {
+            if (Boss.IsShapeOwnerDisabled(owner)) continue;
+            Transform2D transform = Boss.GlobalTransform * Boss.ShapeOwnerGetTransform(owner);
+            for (int shape = 0; shape < Boss.ShapeOwnerGetShapeCount(owner); shape++)
+                if (Boss.ShapeOwnerGetShape(owner, shape).Collide(transform, _easyCardProbe, new Transform2D(0, position))) return true;
+        }
+        return false;
+    }
+
+    private (Vector2 Card, Vector2[] Path, double Seconds, bool Verified, bool InitialOverlap) EasyAccessibleDraftCard(
+        Vector2 reserved, int row, bool current)
+    {
+        float height = Field.Height / 4;
+        float top = Field.Top + row * height + 8, bottom = Field.Top + (row + 1) * height - 8;
+        float[] ys = Math.Abs(reserved.Y - top) >= Math.Abs(reserved.Y - bottom)
+            ? new[] { top, bottom } : new[] { bottom, top };
+        float away = reserved.X <= Boss.GlobalPosition.X ? -1 : 1;
+        float x = Mathf.Clamp(reserved.X + away * 42, Field.Left + 20, Field.Right - 20);
+        bool initialOverlap = EasyDraftBodyHit(reserved);
+        // At an edge the inset can reverse the offset; keep a visible edge lane and the opposite row end available.
+        float[] xs = { x, Mathf.Clamp(reserved.X + away * 42, Field.Left + 6, Field.Right - 6),
+            Mathf.Clamp(reserved.X - away * 42, Field.Left + 20, Field.Right - 20) };
+        foreach (float cardX in xs.Distinct())
+            foreach (float cardY in ys)
+            {
+                Vector2 card = new(cardX, cardY);
+                if (EasyDraftBodyHit(card) || card.DistanceTo(reserved) <= 16) continue;
+                if (!current || initialOverlap) return (card, Array.Empty<Vector2>(), 0, false, initialOverlap);
+                float detourX = EasyDraftDetourX(reserved, card, away);
+                Vector2[][] paths = { new[] { reserved, card },
+                    new[] { reserved, new Vector2(detourX, reserved.Y), new Vector2(detourX, card.Y), card } };
+                foreach (var path in paths)
+                {
+                    var accessible = new List<Vector2> { reserved };
+                    float walked = 0;
+                    bool blocked = false, touched = false;
+                    for (int segment = 1; segment < path.Length && !blocked && !touched; segment++)
+                    {
+                        float length = path[segment - 1].DistanceTo(path[segment]);
+                        int steps = Math.Max(1, (int)Math.Ceiling(length / .5f));
+                        for (int sample = 1; sample <= steps; sample++)
+                        {
+                            Vector2 at = path[segment - 1].Lerp(path[segment], sample / (float)steps);
+                            if (EasyDraftBodyHit(at)) { blocked = true; break; }
+                            walked += length / steps;
+                            if (at.DistanceTo(card) > 13) continue;
+                            accessible.Add(at);
+                            touched = true;
+                            break;
+                        }
+                        if (!blocked && !touched) accessible.Add(path[segment]);
+                    }
+                    double seconds = walked / Player.SlowestMoveSpeed;
+                    if (!blocked && touched && seconds <= 2)
+                        return (card, accessible.ToArray(), seconds, true, false);
+                }
+            }
+        return (new Vector2(x, ys[0]), Array.Empty<Vector2>(), 0, false, initialOverlap);
+    }
+
+    private float EasyDraftDetourX(Vector2 from, Vector2 card, float away)
+    {
+        float x = away < 0 ? Math.Min(from.X, card.X) : Math.Max(from.X, card.X);
+        foreach (uint owner in Boss.GetShapeOwners())
+        {
+            if (Boss.IsShapeOwnerDisabled(owner)) continue;
+            Transform2D transform = Boss.GlobalTransform * Boss.ShapeOwnerGetTransform(owner);
+            for (int shape = 0; shape < Boss.ShapeOwnerGetShapeCount(owner); shape++)
+            {
+                Rect2 bounds = transform * Boss.ShapeOwnerGetShape(owner, shape).GetRect();
+                x = away < 0 ? Math.Min(x, bounds.Position.X - Player.HitRadius - .5f)
+                    : Math.Max(x, bounds.End.X + Player.HitRadius + .5f);
+            }
+        }
+        return Mathf.Clamp(x, Field.Left, Field.Right);
+    }
+
+    private static Rect2 EasyBurdenPageBounds(MinaEasyMemoryCue cue, float age)
+    {
+        Vector2 at = cue.Points[0].MoveToward(cue.Points[1], age * cue.Speed);
+        float opening = Mathf.SmoothStep(0, 1, Mathf.Clamp((age - .45f) / 1.1f, 0, 1));
+        Vector2 size = new(Mathf.Lerp(28, cue.Size.X, opening), Mathf.Lerp(8, cue.Size.Y, opening));
+        return new Rect2(at - size * .5f, size);
+    }
+
+    private static (Rect2 Entry, Rect2 Exit, double OpensAt, double ClosesAt)[] EasyAirlockDoors(MinaEasyMemoryCue cue)
+    {
+        var doors = new List<(Rect2, Rect2, double, double)>();
+        double elapsed = 0;
+        for (int i = 1; i < cue.Points.Length; i++)
+        {
+            double move = Math.Max(2.4, cue.Points[i - 1].DistanceTo(cue.Points[i]) / cue.Speed);
+            doors.Add((new Rect2(cue.Points[i - 1] - cue.Size * .5f, cue.Size),
+                new Rect2(cue.Points[i] - cue.Size * .5f, cue.Size), cue.FiresAt + elapsed + .4, cue.FiresAt + elapsed + .4 + move));
+            elapsed += .8 + move;
+        }
+        return doors.ToArray();
+    }
+
+    private static Rect2 EasyRoomProtectedBounds(MinaEasyMemoryCue cue, double age)
+    {
+        double at = cue.FiresAt + age;
+        var doors = EasyAirlockDoors(cue);
+        foreach (var door in doors)
+        {
+            if (at < door.OpensAt) return door.Entry;
+            if (at < door.ClosesAt) return door.Entry.Merge(door.Exit);
+            if (at < door.ClosesAt + .4) return door.Exit;
+        }
+        return doors[^1].Exit;
+    }
+
+    private static IEnumerable<Rect2> EasyRoomPressure(Rect2 protectedRoom)
+    {
+        var room = protectedRoom.Intersection(Field.Rect);
+        if (room.Position.Y > Field.Top) yield return new Rect2(Field.Left, Field.Top, Field.Width, room.Position.Y - Field.Top);
+        if (room.End.Y < Field.Bottom) yield return new Rect2(Field.Left, room.End.Y, Field.Width, Field.Bottom - room.End.Y);
+        if (room.Position.X > Field.Left) yield return new Rect2(Field.Left, room.Position.Y, room.Position.X - Field.Left, room.Size.Y);
+        if (room.End.X < Field.Right) yield return new Rect2(room.End.X, room.Position.Y, Field.Right - room.End.X, room.Size.Y);
+    }
+
+    private void StepEasyMemoryHandoffs()
+    {
+        foreach (var cue in _easyMemoryCues.Where(cue => cue.Mode == 4))
+        {
+            cue.PriorPosition = cue.Position;
+            if (cue.Predecessor < 0 && Time >= cue.FiresAt) cue.Energized = true;
+            if (!cue.Energized || cue.Exited || cue.Transferred) continue;
+            cue.Position = cue.Points[0].MoveToward(cue.Points[1], Math.Max(0, (float)(Time - cue.FiresAt)) * cue.Speed);
+            if (Time < cue.ArrivesAt) continue;
+            if (cue.Successor < 0)
+            {
+                cue.Exited = !Field.Rect.Grow(cue.Radius).HasPoint(cue.Position);
+                if (cue.Exited) cue.ObservedExitAt = Time;
+                continue;
+            }
+            var receiver = _easyMemoryCues[cue.Successor];
+            bool touching = cue.Position.DistanceTo(receiver.Points[0]) <= cue.Radius + receiver.Radius + .01f;
+            if (!touching || Time < cue.ArrivesAt + .32) continue;
+            cue.Transferred = true;
+            cue.TransferredAt = Time;
+            receiver.ReceivedFrom = _easyMemoryCues.IndexOf(cue);
+            receiver.ReceivedMomentum = cue.Speed * cue.Mass;
+            receiver.Speed = Mathf.Clamp(receiver.ReceivedMomentum / receiver.Mass + _easyConnectionPull.Length() * .08f, 48 + Tier * 5, 88 + Tier * 7);
+            receiver.Energized = true;
+        }
+        bool drained = _easyMemoryCues.Where(cue => cue.Mode == 4 && cue.Successor < 0).All(cue => cue.Exited);
+        foreach (var cue in _easyMemoryCues.Where(cue => cue.Mode == 7))
+        {
+            cue.PriorPosition = cue.Position;
+            if (Time >= cue.FiresAt && drained && _easyMemoryCues[cue.HeldMemory].Transferred)
+                cue.Energized = true;
+            if (!cue.Energized || cue.Exited) continue;
+            cue.Position = cue.Points[0].MoveToward(cue.Points[1], Math.Max(0, (float)(Time - cue.FiresAt)) * cue.Speed);
+            var held = _easyMemoryCues[cue.HeldMemory];
+            held.PriorPosition = held.Position;
+            held.Position = cue.Position;
+            if (Time >= cue.ArrivesAt)
+            {
+                cue.Exited = !Field.Rect.Grow(cue.Radius).HasPoint(cue.Position);
+                if (cue.Exited)
+                {
+                    cue.ObservedExitAt = Time;
+                    held.Exited = true;
+                    held.ObservedExitAt = Time;
+                }
+            }
+        }
+    }
+
+    private static Vector2 EasyMemoryRecoilExit(Vector2 from, Vector2 direction, float radius)
+    {
+        float distance = float.PositiveInfinity;
+        if (direction.X > 0) distance = Math.Min(distance, (Field.Right + radius + 24 - from.X) / direction.X);
+        if (direction.X < 0) distance = Math.Min(distance, (Field.Left - radius - 24 - from.X) / direction.X);
+        if (direction.Y > 0) distance = Math.Min(distance, (Field.Bottom + radius + 24 - from.Y) / direction.Y);
+        if (direction.Y < 0) distance = Math.Min(distance, (Field.Top - radius - 24 - from.Y) / direction.Y);
+        return from + direction * distance;
+    }
+
+    private void EasyMemoryPathHazards(Vector2[] points, float radius, float progress, bool live)
+    {
+        float remaining = 0;
+        for (int i = 1; i < points.Length; i++) remaining += points[i - 1].DistanceTo(points[i]);
+        remaining *= progress;
+        for (int i = 1; i < points.Length && remaining > 0; i++)
+        {
+            float length = points[i - 1].DistanceTo(points[i]);
+            Line(points[i - 1], points[i - 1].MoveToward(points[i], Math.Min(length, remaining)), radius, live, progress);
+            remaining -= length;
+        }
+    }
+
+    private void DrawEasyMemory()
+    {
+        var warning = new Color("ff7d88", .58f);
+        var live = new Color("fff0d9");
+        var seen = new HashSet<string>();
+        if (Variant == 4 && _easyMemoryCues.Count == 0)
+        {
+            Vector2 pulled = _anchor + _easyConnectionPull;
+            DrawLine(_anchor, pulled, new Color(MemoryInk, .4f), .8f, true);
+            DrawEasyMemoryPort(_anchor, new Color(MemoryInk, .5f));
+            DrawMemoryEnvelope(pulled, new Vector2(8, 5), new Color("dcecf1"));
+        }
+        foreach (var cue in _easyMemoryCues.OrderBy(c => c.Fired ? 1 : 0))
+        {
+            if (cue.Mode == 7 && Time < cue.StartsAt && cue.InitialStartsAt is double preview
+                && cue.InitialEndsAt is double previewEnd && Time >= preview && Time < previewEnd)
+            {
+                if (GameManager.ShowAttackTelegraphs)
+                {
+                    float progress = Mathf.Clamp((float)((Time - preview - .4) / .8), 0, 1);
+                    if (progress > 0) DrawEasyMemoryRoute(cue.Points, progress, new Color(warning, .24f), cue.Radius);
+                }
+                continue;
+            }
+            if (Time < cue.StartsAt || EasyMemorySegmentEnded(cue)) continue;
+            if (cue.Mode is 4 or 7 ? !cue.Energized : Time < cue.FiresAt)
+            {
+                if (!GameManager.ShowAttackTelegraphs || !seen.Add(cue.Group)) continue;
+                float progress = EasyMemoryProgress(cue);
+                if (cue.Cancelled)
+                {
+                    foreach (var bounds in cue.Bounds) DrawEasyMemoryBox(bounds, new Color("72dfff", .65f), false);
+                    DrawMemoryEnvelope(cue.Card, new Vector2(10, 7), new Color("aee6ed"));
+                    DrawLine(cue.Card + new Vector2(-5, 0), cue.Card + new Vector2(-1, 4), new Color("aee6ed"), 1, true);
+                    DrawLine(cue.Card + new Vector2(-1, 4), cue.Card + new Vector2(7, -5), new Color("aee6ed"), 1, true);
+                    continue;
+                }
+                if (cue.Mode is 0 or 1 or 3 or 5)
+                {
+                    foreach (var bounds in cue.Bounds)
+                        if (progress > 0) DrawEasyMemoryBox(new Rect2(bounds.Position,
+                            new Vector2(bounds.Size.X * progress, bounds.Size.Y)), warning, false);
+                    Vector2 origin = cue.Mode == 0
+                        ? new Vector2(Mathf.Clamp(cue.Points[0].X, Field.Left + 3, Field.Right - 3), cue.Points[0].Y)
+                        : cue.Mode == 1 ? new Vector2(cue.Card.X, cue.Bounds[0].Position.Y + 3) : cue.Bounds[0].Position + Vector2.One * 3;
+                    DrawEasyMemoryOrigin(origin);
+                    if (cue.Mode == 0 && progress > 0)
+                        DrawEasyMemoryRoute(cue.Points, progress, warning);
+                    if (cue.Mode == 1) DrawMemoryEnvelope(cue.Card, new Vector2(10, 7), warning);
+                    if (cue.Mode == 3) DrawMemoryEnvelope(cue.Card, new Vector2(7, 5), new Color(MemoryInk, .72f));
+                }
+                else if (cue.Mode == 2)
+                {
+                    if (progress > 0)
+                        DrawEasyMemoryBox(new Rect2(Field.Rect.Position,
+                            new Vector2(Field.Width * progress, Field.Height)), new Color(warning, .32f), false);
+                    DrawEasyMemoryOrigin(Field.Rect.Position + Vector2.One * 3);
+                    if (progress > 0) DrawEasyMemoryRoute(cue.Points, progress, new Color("d7e8ec", .38f), directionMarks: false);
+                    foreach (var at in cue.Points)
+                        DrawEasyMemoryBox(new Rect2(at - cue.Size * .5f, cue.Size), new Color("d7e8ec", .25f * progress), false);
+                }
+                else
+                {
+                    DrawEasyMemoryOrigin(cue.Points[0].Clamp(Field.Rect.Position + Vector2.One * 3, Field.Rect.End - Vector2.One * 3));
+                    if (progress > 0) DrawEasyMemoryRoute(cue.Points, progress, warning, cue.Radius);
+                    if (cue.Mode == 4 && cue.Predecessor >= 0)
+                    {
+                        DrawEasyMemoryPort(cue.Points[0], new Color("dfc4df", .72f));
+                        DrawMemoryEnvelope(cue.Points[0], new Vector2(7, 5), new Color(MemoryInk, .45f));
+                    }
+                    if (cue.Mode == 4 && cue.Successor >= 0)
+                        DrawEasyMemoryPort(_easyMemoryCues[cue.Successor].Points[0], warning);
+                }
+                continue;
+            }
+            if (cue.Cancelled) continue;
+            float age = (float)(Time - cue.FiresAt);
+            if (cue.Mode == 0)
+            {
+                var bounds = EasyBurdenPageBounds(cue, age);
+                DrawEasyMemoryBox(bounds, live, true);
+                if (Field.Rect.Grow(-3).HasPoint(bounds.GetCenter()))
+                    DrawMemoryEnvelope(bounds.GetCenter(), bounds.Size * .36f, new Color(MemoryInk));
+            }
+            else if (cue.Mode is 1 or 3 or 5)
+            {
+                foreach (var bounds in cue.Bounds) DrawEasyMemoryBox(bounds, live, true);
+                if (cue.Mode != 5) DrawMemoryEnvelope(cue.Card, new Vector2(8, 5), new Color(MemoryInk));
+            }
+            else if (cue.Mode == 2)
+            {
+                var room = EasyRoomProtectedBounds(cue, Time - cue.FiresAt);
+                foreach (var bounds in EasyRoomPressure(room)) DrawEasyMemoryBox(bounds, live, true);
+                DrawRect(room, new Color("fff0d9"), false, 1.2f, true);
+                foreach (var door in EasyAirlockDoors(cue))
+                    if (Time >= door.OpensAt - .4 && Time <= door.ClosesAt + .4)
+                    {
+                        DrawEasyMemoryPort(door.Entry.GetCenter(), new Color("efb8d7", .55f));
+                        DrawEasyMemoryPort(door.Exit.GetCenter(), new Color("fff0d9"));
+                    }
+            }
+            else
+            {
+                Vector2 at = cue.Position;
+                DrawEasyMemorySweep(cue.PriorPosition, at, cue.Radius, new Color("e79ad7", .85f));
+                if (Field.Rect.Grow(-8).HasPoint(at)) DrawMemoryEnvelope(at, new Vector2(7, 5), live);
+                if (cue.Transferred && cue.ReleaseCue >= 0)
+                    DrawRect(new Rect2(at - Vector2.One * (cue.Radius - 2), Vector2.One * (cue.Radius - 2) * 2),
+                        new Color("fff0d9"), false, .8f, true);
+                if (cue.TransferredAt is double transferred && Time - transferred < .2)
+                    DrawEasyMemoryPort(at, new Color("fff7e8"));
+            }
+        }
+    }
+
+    private void DrawEasyMemoryBox(Rect2 bounds, Color ink, bool live)
+    {
+        bounds = bounds.Intersection(Field.Rect);
+        if (bounds.Size.X <= 0 || bounds.Size.Y <= 0) return;
+        DrawRect(bounds, new Color(live ? new Color("e87dc4") : ink, live ? .15f : .025f));
+        if (live)
+        {
+            DrawRect(bounds, new Color("3e183d"), false, 2.5f, true);
+            DrawRect(bounds, ink, false, 1.1f, true);
+        }
+        else
+        {
+            DrawDashedLine(bounds.Position, new Vector2(bounds.End.X, bounds.Position.Y), ink, .7f, 3, true);
+            DrawDashedLine(new Vector2(bounds.End.X, bounds.Position.Y), bounds.End, ink, .7f, 3, true);
+            DrawDashedLine(bounds.End, new Vector2(bounds.Position.X, bounds.End.Y), ink, .7f, 3, true);
+            DrawDashedLine(new Vector2(bounds.Position.X, bounds.End.Y), bounds.Position, ink, .7f, 3, true);
+        }
+    }
+
+    private void DrawEasyMemoryOrigin(Vector2 at)
+    {
+        Vector2[] shape = { at + new Vector2(0, -3.8f), at + new Vector2(3.8f, 3.2f), at + new Vector2(-3.8f, 3.2f), at + new Vector2(0, -3.8f) };
+        DrawPolyline(shape, new Color("ff8991"), 1, true);
+        DrawLine(at + Vector2.Up * 1.5f, at, new Color("fff0e8"), .9f, true);
+        DrawCircle(at + Vector2.Down * 1.8f, .55f, new Color("fff0e8"));
+    }
+
+    private void DrawEasyMemoryDisc(Vector2 center, float radius, Color fill)
+    {
+        for (float y = Math.Max(Field.Top, Mathf.Floor(center.Y - radius)); y < Math.Min(Field.Bottom, center.Y + radius); y++)
+        {
+            float dy = y + .5f - center.Y;
+            if (Math.Abs(dy) > radius) continue;
+            float chord = Mathf.Sqrt(radius * radius - dy * dy);
+            float left = Math.Max(Field.Left, center.X - chord), right = Math.Min(Field.Right, center.X + chord);
+            if (right > left) DrawRect(new Rect2(left, y, right - left, Math.Min(1, Field.Bottom - y)), fill);
+        }
+        for (int i = 0; i < 48; i++)
+        {
+            Vector2 a = center + Vector2.FromAngle(i * Mathf.Tau / 48) * radius;
+            Vector2 b = center + Vector2.FromAngle((i + 1) * Mathf.Tau / 48) * radius;
+            if (EasyMemoryVisibleSegment(a, b) is { } visible)
+                DrawLine(visible.A, visible.B, new Color("ff6e78"), 1.1f, true);
+        }
+    }
+
+    private void DrawEasyMemorySweep(Vector2 from, Vector2 to, float radius, Color fill)
+    {
+        if (from == to) { DrawEasyMemoryDisc(to, radius, fill); return; }
+        Vector2 side = from.DirectionTo(to).Orthogonal() * radius;
+        Vector2[] body = { from + side, to + side, to - side, from - side };
+        for (float y = Math.Max(Field.Top, Mathf.Floor(Math.Min(from.Y, to.Y) - radius));
+            y < Math.Min(Field.Bottom, Math.Max(from.Y, to.Y) + radius); y++)
+        {
+            float scan = y + .5f, left = float.PositiveInfinity, right = float.NegativeInfinity;
+            float dy = scan - from.Y;
+            if (Math.Abs(dy) <= radius)
+            {
+                float chord = Mathf.Sqrt(radius * radius - dy * dy);
+                left = from.X - chord; right = from.X + chord;
+            }
+            for (int edge = 0; edge < body.Length; edge++)
+            {
+                Vector2 a = body[edge], b = body[(edge + 1) % body.Length];
+                if ((a.Y > scan) == (b.Y > scan)) continue;
+                float x = a.X + (b.X - a.X) * (scan - a.Y) / (b.Y - a.Y);
+                left = Math.Min(left, x); right = Math.Max(right, x);
+            }
+            void Span(float a, float b)
+            {
+                a = Math.Max(Field.Left, a); b = Math.Min(Field.Right, b);
+                if (b > a) DrawRect(new Rect2(a, y, b - a, Math.Min(1, Field.Bottom - y)), fill);
+            }
+            dy = scan - to.Y;
+            if (Math.Abs(dy) <= radius)
+            {
+                float chord = Mathf.Sqrt(radius * radius - dy * dy);
+                Span(left, Math.Min(right, to.X - chord));
+                Span(Math.Max(left, to.X + chord), right);
+            }
+            else Span(left, right);
+        }
+        DrawEasyMemoryDisc(to, radius, fill);
+        var edgeInk = new Color("ff6e78");
+        void Edge(Vector2 a, Vector2 b)
+        {
+            if (EasyMemoryVisibleSegment(a, b) is { } visible) DrawLine(visible.A, visible.B, edgeInk, 1.1f, true);
+        }
+        Edge(from + side, to + side);
+        Edge(from - side, to - side);
+        float angle = (to - from).Angle() + Mathf.Pi / 2;
+        for (int step = 0; step < 24; step++)
+            Edge(from + Vector2.FromAngle(angle + Mathf.Pi * step / 24) * radius,
+                from + Vector2.FromAngle(angle + Mathf.Pi * (step + 1) / 24) * radius);
+    }
+
+    private void DrawEasyMemoryPort(Vector2 at, Color ink)
+    {
+        DrawRect(new Rect2(at - Vector2.One * 4, Vector2.One * 8), new Color("1d1933", .85f), true);
+        DrawRect(new Rect2(at - Vector2.One * 4, Vector2.One * 8), ink, false, .9f, true);
+        DrawLine(at + new Vector2(-2, -2), at + new Vector2(2, 2), ink, .8f, true);
+        DrawLine(at + new Vector2(-2, 2), at + new Vector2(2, -2), ink, .8f, true);
+    }
+
+    private void DrawEasyMemoryRoute(Vector2[] points, float progress, Color ink, float radius = 0, bool directionMarks = true)
+    {
+        float remaining = 0;
+        for (int i = 1; i < points.Length; i++) remaining += points[i - 1].DistanceTo(points[i]);
+        remaining *= progress;
+        for (int i = 1; i < points.Length && remaining > 0; i++)
+        {
+            float length = points[i - 1].DistanceTo(points[i]);
+            Vector2 end = points[i - 1].MoveToward(points[i], Math.Min(remaining, length));
+            Vector2 direction = points[i - 1].DirectionTo(end), side = new(-direction.Y, direction.X);
+            void Segment(Vector2 a, Vector2 b)
+            {
+                if (EasyMemoryVisibleSegment(a, b) is { } visible)
+                    DrawDashedLine(visible.A, visible.B, ink, .7f, 3, true);
+            }
+            Segment(points[i - 1], end);
+            if (radius > 0)
+            {
+                Segment(points[i - 1] + side * radius, end + side * radius);
+                Segment(points[i - 1] - side * radius, end - side * radius);
+                if (Field.Rect.Grow(-radius).HasPoint(end)) DrawArc(end, radius, 0, Mathf.Tau, 28, new Color(ink, .3f), .5f, true);
+            }
+            for (float distance = 18; directionMarks && distance < Math.Min(remaining, length); distance += 58)
+            {
+                Vector2 at = points[i - 1] + direction * distance;
+                if (!Field.Rect.Grow(-4).HasPoint(at)) continue;
+                DrawLine(at - direction * 2.5f + side * 2.2f, at, ink, .8f, true);
+                DrawLine(at - direction * 2.5f - side * 2.2f, at, ink, .8f, true);
+            }
+            remaining -= length;
+        }
+    }
+
+    private static (Vector2 A, Vector2 B)? EasyMemoryVisibleSegment(Vector2 from, Vector2 to)
+    {
+        Vector2 delta = to - from;
+        float enter = 0, exit = 1;
+        bool Trim(float direction, float distance)
+        {
+            if (direction == 0) return distance >= 0;
+            float at = distance / direction;
+            if (direction < 0) enter = Math.Max(enter, at);
+            else exit = Math.Min(exit, at);
+            return enter <= exit;
+        }
+        if (!Trim(-delta.X, from.X - Field.Left) || !Trim(delta.X, Field.Right - from.X)
+            || !Trim(-delta.Y, from.Y - Field.Top) || !Trim(delta.Y, Field.Bottom - from.Y)) return null;
+        return (from + delta * enter, from + delta * exit);
+    }
+
     protected override void DrawTechnique()
     {
+        if (Kind == BossTechniqueKind.Area)
+        {
+            DrawEasyMemory();
+            return;
+        }
         if (!GameManager.ShowAttackTelegraphs) return;
         DrawMemoryCues();
         if (_id == 10)

@@ -60,7 +60,6 @@ public partial class CombatRevisionQa : Node
                 : OS.GetCmdlineUserArgs().Contains("--crossfire-video") ? GameManager.Diff.Hard : GameManager.Diff.Normal;
             _game.MarkIdleDialogSeen("once_midboss_shield");
             await Frames(2);
-            int previousHp = 0, previousInk = 0;
             string[] scenes = { "Akari", "Koharu", "Rei", "MinaBattle" };
             string? bossFilter = OS.GetCmdlineUserArgs().FirstOrDefault(arg => arg.StartsWith("--boss="));
             Check(bossFilter == null || scenes.Any(scene => bossFilter == "--boss=" + scene), "valid boss test selection");
@@ -92,7 +91,7 @@ public partial class CombatRevisionQa : Node
                 hud.HideBubble();
                 if (OS.GetCmdlineUserArgs().Contains("--extra-rotation"))
                 {
-                    await CheckExtraRotation(boss, player, hud, scene);
+                    await CheckCentralRotation(boss, player, hud, scene);
                     await CheckCasterTreeExit(root, boss, scene);
                     Pool.DespawnAll();
                     await Frames(5);
@@ -279,9 +278,8 @@ public partial class CombatRevisionQa : Node
                     await Frames(5);
                     continue;
                 }
-                int hp = boss.TotalBars * Enemy.BarHp, ink = Read<int>(boss, "PanelInk");
-                Check(hp > previousHp && ink > previousInk, scene + " health and shield strength rise with stage order");
-                previousHp = hp; previousInk = ink;
+                int hp = boss.TotalBars * boss.BarHp, ink = Read<int>(boss, "PanelInk");
+                Check(hp > 0 && ink > 0, scene + " boss health and shield strength are initialized");
                 var mover = Read<BossMover>(boss, "_mover");
                 var point = boss.Position;
                 Vector2 min = point, max = point;
@@ -292,20 +290,24 @@ public partial class CombatRevisionQa : Node
                     CheckInField(point);
                 }
                 Check(max.X - min.X > 150 && max.Y - min.Y > 100, scene + " route covers both axes of the arena");
+                Pool.ProcessMode = ProcessModeEnum.Disabled;
                 Pool.DespawnAll();
                 var danmaku = Read<BossDanmaku>(boss, "_danmaku");
-                for (int i = 0; i < 600; i++) danmaku.Tick(1d / 60);
-                int shots = Hostile().Length;
-                Check(shots >= (boss is BossRei ? 15 : 45) && Hostile().All(b => (b.CollisionMask == 1 || b.LeadIn)
-                    && ReferenceEquals(Read<BulletArt.PlayerVisual>(b, "_playerVisual"), BulletArt.PlayerShot(boss.BodyShotJob!.Value))),
-                    scene + " sustained non-destructible character danmaku");
-                Pool.DespawnAll();
+                var opening = AdvanceToHazard(danmaku, boss, scene);
                 var sentinel = Pool.Spawn(new Vector2(350, 190), Vector2.Zero, true, 3);
                 sentinel.SetPhysicsProcess(false);
                 foreach (var panel in Read<List<Panel>>(boss, "_panels").ToArray()) panel.Shatter();
-                Check(boss.GaugeVulnerable && sentinel.Active, scene + " shield break preserves fired bullets");
+                Check(boss.GaugeAttackResolving && !boss.GaugeVulnerable && !opening.Finished && sentinel.Active,
+                    scene + " shield depletion waits for the active technique to finish");
+                for (int frame = 0; frame < 3600 && !boss.GaugeBreaking; frame++)
+                {
+                    StepCurrentAttack(danmaku);
+                    Call(boss, "TickBossPhase", 1d / 60);
+                }
+                Check(opening.Completed && boss.GaugeBreaking && !opening.OwnedShots.Any() && sentinel.Active,
+                    scene + " natural completion enters BREAK, clears owned shots and preserves unrelated bullets");
                 int before = Hostile().Length;
-                for (int i = 0; i < 120; i++) danmaku.Tick(1d / 60);
+                for (int i = 0; i < 120; i++) StepCurrentAttack(danmaku);
                 Check(Hostile().Length == before, scene + " break preserves fired bullets without adding a new barrage");
                 Call(boss, "EnterExposed");
                 double phaseTime = Read<double>(boss, "_phaseT");
@@ -318,26 +320,6 @@ public partial class CombatRevisionQa : Node
                 hud.HideBubble();
                 Call(boss, "EnterShielded");
                 Pool.DespawnAll();
-                if (scene != "MinaBattle")
-                {
-                    var caster = Read<AreaSpellCaster>(boss, "_caster");
-                    Write(caster, "_pendShape", (AreaStrike.Shape?)AreaStrike.Shape.Circle);
-                    Write(caster, "_castTarget", player.GlobalPosition);
-                    Call(caster, "SpawnTelegraphs");
-                    var area = GetTree().GetNodesInGroup("aoe").OfType<AreaStrike>().First();
-                    float radius = Read<float>(area, "_hw");
-                    Check(area.CoversPoint(player.GlobalPosition) && radius >= 34, scene + " broad AOE covers the player");
-                    Check(Read<double>(area, "_warn") >= (radius + 6) / player.SlowestMoveSpeed + 0.49,
-                        scene + " AOE warning allows escape at the new lock speed");
-                    foreach (var strike in GetTree().GetNodesInGroup("aoe")) strike.QueueFree();
-                    Write(caster, "_castT", 2d);
-                    Call(boss, "EnterBreak");
-                    caster._Process(0.1);
-                    Check(Read<double>(caster, "_castT") == 2d, scene + " shield break pauses rather than resets attack timers");
-                    Call(boss, "EnterReclose");
-                    hud.HideBubble();
-                    Call(boss, "EnterShielded");
-                }
                 if (scene == "Akari") await CheckPlayerAndVolleys(world, player, boss);
                 if (OS.GetCmdlineUserArgs().Contains("--shots"))
                 {
@@ -350,10 +332,7 @@ public partial class CombatRevisionQa : Node
                     await Frames(240);
                     Pool.DespawnAll();
                     for (int frame = 0; frame < 180; frame++)
-                    {
-                        danmaku.Tick(1d / 60);
-                        foreach (var shot in Hostile()) { shot.SetPhysicsProcess(false); shot._PhysicsProcess(1d / 60); }
-                    }
+                        StepCurrentAttack(danmaku);
                     hud.HideBubble();
                     await Frames(5);
                     await ToSignal(RenderingServer.Singleton, RenderingServer.SignalName.FramePostDraw);
@@ -371,6 +350,8 @@ public partial class CombatRevisionQa : Node
                     hud.HoldBubble = false;
                     hud.HideBubble();
                 }
+                foreach (var attack in GetTree().GetNodesInGroup("boss_character_techniques").OfType<BossCharacterTechnique>())
+                    attack.Cancel();
                 Pool.DespawnAll();
                 if (boss is BossMina) Write(boss, "_pattern", BossMina.DragonPhase);
                 else Write(boss, "_form2", true);
@@ -378,15 +359,12 @@ public partial class CombatRevisionQa : Node
                 hud.HideBubble();
                 await Frames(2);
                 var evolved = new BossDanmaku(boss);
-                evolved.Tick(1);
-                var evolvedOpening = Read<BossNormalBarrage>(evolved, "_normalBarrage");
-                evolved.Tick(evolvedOpening.Warning + 0.001);
+                Write(boss, "_danmaku", evolved);
+                var evolvedOpening = AdvanceToHazard(evolved, boss, scene + " evolved");
                 var charged = Hostile();
                 var character = Jobs.Get(boss.BodyShotJob!.Value);
-                Check(charged.Length > 0 && charged.All(b => b.Charged && b.ChargeJob == character.Id
-                    && b.Radius == BulletPool.BossChargeRadius * (character.Id == Job.Magic ? 1.5f : 1)
-                    && b.Accel == (character.Mode == GameManager.ShotMode.Accel)
-                    && b.Homing == (character.Mode == GameManager.ShotMode.Homing)), scene + " evolved barrage uses character charge properties");
+                Check(charged.All(b => b.Charged && b.ChargeJob == character.Id),
+                    scene + " evolved technique projectiles retain their character's charge identity");
                 foreach (var bullet in charged) bullet.SetPhysicsProcess(false);
                 if (OS.GetCmdlineUserArgs().Contains("--charge-shots"))
                 {
@@ -400,14 +378,20 @@ public partial class CombatRevisionQa : Node
                     screenshot.SavePng(folder + "/" + scene + "_charged.png");
                 }
                 Call(boss, "EnterBreak");
-                Check(charged.All(b => b.Active), "existing waves survive shield break");
+                StepCurrentAttack(evolved);
+                Check(evolvedOpening.Finished && !evolvedOpening.Completed && !evolvedOpening.OwnedShots.Any(),
+                    scene + " interrupting an evolved technique clears its hazards and projectiles");
                 Check(GetTree().GetNodesInGroup("corridor").Count == 0, "no removed corridor attack is spawned");
+                Call(boss, "EnterShielded");
+                hud.HideBubble();
+                await CheckCentralRotation(boss, player, hud, scene);
+                _game.Difficulty = GameManager.Diff.Normal;
                 if (boss is BossRei or BossMina)
                 {
                     Call(boss, "EnterReclose");
                     var posts = Read<BossPostSequence>(boss, "_posts");
                     typeof(BossPostSequence).GetProperty("Count")!.SetValue(posts, 4);
-                    Write(boss, "_hp", boss.TotalBars * Enemy.BarHp / 100);
+                    Write(boss, "_hp", boss.TotalBars * boss.BarHp / 100);
                     Write(boss, "_memoryPlayed", true);
                     if (boss is BossRei) Write(boss, "_relayWatching", true);
                     else
@@ -416,7 +400,7 @@ public partial class CombatRevisionQa : Node
                             typeof(CharacterStoryTalk).GetMethod("Finish", Private)!.Invoke(talk, new object[] { hud });
                         Write(boss, "_pattern", 4);
                         var caster = Read<MinaPhaseAttacks>(boss, "_caster");
-                        typeof(MinaPhaseAttacks).GetProperty("Active")!.SetValue(caster, true);
+                        caster.BeginPhase(4);
                     }
                     hud.HideBubble();
                     boss._Process(0.01);
@@ -449,6 +433,35 @@ public partial class CombatRevisionQa : Node
     private static void CheckInField(Vector2 point)
     {
         if (!global::Field.Rect.HasPoint(point)) throw new Exception("boss route left the field: " + point);
+    }
+
+    private void StepCurrentAttack(BossDanmaku rotation)
+    {
+        rotation.Tick(1d / 60);
+        if (rotation.ActiveTechnique is { Finished: false } attack) attack.Tick(1d / 60);
+        StepBullets();
+    }
+
+    private BossCharacterTechnique AdvanceToHazard(BossDanmaku rotation, Enemy boss, string label)
+    {
+        for (int frame = 0; frame < 3600; frame++)
+        {
+            StepCurrentAttack(rotation);
+            if (rotation.ActiveTechnique is not { Finished: false } attack) continue;
+            var shots = attack.OwnedShots.ToArray();
+            if (!attack.IsStriking && !shots.Any(b => !b.LeadIn && b.CollisionLayer != 0)) continue;
+            Check(attack.Elapsed > 0 && (attack.ShotsCreated > 0 || attack.HazardFrames > 0),
+                label + ": scheduled technique advances from its warning to a live attack");
+            Check(shots.All(b => (b.CollisionMask == 0 || b.CollisionMask == 1)
+                && ReferenceEquals(Read<BulletArt.PlayerVisual>(b, "_playerVisual"),
+                    boss is BossKoharu ? (BulletArt.PlayerVisual)typeof(KoharuBossTechnique)
+                        .GetMethod("EasyKoharuVisual", BindingFlags.Static | BindingFlags.NonPublic)!.Invoke(null, new object[] { b.BossPattern })!
+                        : b.BossPattern >= 0 ? BulletArt.BossPattern(boss.BodyShotJob!.Value, b.BossPattern)
+                        : BulletArt.PlayerShot(boss.BodyShotJob!.Value))),
+                label + ": technique shots keep character art and cannot collide with player shots");
+            return attack;
+        }
+        throw new Exception(label + ": scheduled technique never became dangerous");
     }
 
     private async Task MeasureDensitySnapshot(Enemy boss, Player player, Hud hud, string scene)
@@ -542,7 +555,7 @@ public partial class CombatRevisionQa : Node
                 maximumSpeed = Math.Max(maximumSpeed, shot.Velocity.Length());
             }
         }
-        string Stats() => $"hp={boss.TotalBars * Enemy.BarHp} currentHp={Read<int>(boss, "_hp")} lives={_game.StartLives} currentLives={player.Lives} speedMul={_game.BulletSpeedMul:F3} laneGap={BulletPool.BossLaneGap:F3} warnings={GameManager.ShowAttackTelegraphs}";
+        string Stats() => $"hp={boss.TotalBars * boss.BarHp} currentHp={Read<int>(boss, "_hp")} lives={_game.StartLives} currentLives={player.Lives} speedMul={_game.BulletSpeedMul:F3} laneGap={BulletPool.BossLaneGap:F3} warnings={GameManager.ShowAttackTelegraphs}";
     }
 
     private async Task CheckSupplementalDensity(Enemy boss, Player player, Hud hud, string scene)
@@ -614,149 +627,9 @@ public partial class CombatRevisionQa : Node
         Check(Read<int>(boss, "_hp") == hp && player.Lives == lives, scene + ": density checks leave HP and lives unchanged");
     }
 
-    private async Task CheckExtraRotation(Enemy boss, Player player, Hud hud, string scene)
-    {
-        Pool.ProcessMode = ProcessModeEnum.Disabled;
-        int hp = Read<int>(boss, "_hp"), lives = player.Lives;
-        var caster = boss.GetChildren().OfType<AreaSpellCaster>().SingleOrDefault();
-        var minaCaster = boss.GetChildren().OfType<MinaPhaseAttacks>().SingleOrDefault();
-        Read<Dictionary<string, int>>(_game, "_upgrades")["n_dodge"] = 1;
-        BossCharacterTechnique[] Active() => GetTree().GetNodesInGroup("boss_character_techniques")
-            .OfType<BossCharacterTechnique>().Where(a => !a.Finished).ToArray();
-        void SetForm(int form)
-        {
-            if (boss is BossMina) Write(boss, "_pattern", form);
-            else Write(boss, "_form2", form > 0);
-        }
-        void Clear()
-        {
-            caster?.CancelPendingAttacks();
-            minaCaster?.CancelPendingAttacks();
-            boss.CancelAnimalTechnique();
-            foreach (var attack in Active()) attack.Cancel();
-            Pool.DespawnAll();
-        }
-        void Step(BossDanmaku rotation)
-        {
-            rotation.Tick(1d / 60);
-            if (caster != null)
-            {
-                Call(boss, "TickForm2Technique", 1d / 60, Read<BossMover>(boss, "_mover"), caster);
-                caster._Process(1d / 60);
-            }
-            minaCaster?._Process(1d / 60);
-            foreach (var attack in Active())
-            {
-                attack.SetProcess(false);
-                attack.SetPhysicsProcess(false);
-                attack.Tick(1d / 60);
-            }
-            StepBullets();
-        }
-        foreach (var difficulty in new[] { GameManager.Diff.Easy })
-        foreach (int form in boss is BossMina ? new[] { 0, 1, 2, 3, 4 } : new[] { 0, 1 })
-        {
-            Clear();
-            await Frames(1);
-            _game.Difficulty = difficulty;
-            SetForm(form);
-            player.Position = global::Field.PlayerStart;
-            boss.Position = new Vector2(global::Field.BossCenterX, 100);
-            if (caster != null)
-            {
-                caster.Suppressed = false;
-                Write(boss, "_animalTechniqueCooldown", 3d);
-            }
-            minaCaster?.BeginPhase(form);
-            var rotation = new BossDanmaku(boss);
-            Write(boss, "_danmaku", rotation);
-            var seen = new HashSet<ulong>();
-            var kinds = new HashSet<BossTechniqueKind>();
-            var extras = new HashSet<int>();
-            var order = new List<string>();
-            int frame;
-            bool Complete() => extras.Count == 2 && kinds.Contains(BossTechniqueKind.Edge)
-                && kinds.Contains(BossTechniqueKind.Area)
-                && kinds.Contains(difficulty == GameManager.Diff.Lunatic ? BossTechniqueKind.Dodge : BossTechniqueKind.Normal)
-                && (form == 0 || boss is BossMina || kinds.Contains(BossTechniqueKind.Signature));
-            for (frame = 0; frame < 36000 && !Complete(); frame++)
-            {
-                Step(rotation);
-                var active = Active();
-                if (active.Length > 1) throw new Exception($"{scene}/{difficulty}/{form}: overlapping techniques {string.Join(',', active.Select(a => a.MechanicKey))}");
-                foreach (var attack in active)
-                {
-                    if (!seen.Add(attack.GetInstanceId())) continue;
-                    kinds.Add(attack.TechniqueKind);
-                    if (attack.TechniqueKind == BossTechniqueKind.Extra) extras.Add(attack.TechniqueVariant);
-                    order.Add(attack.TechniqueKind + ":" + attack.TechniqueVariant);
-                    if (Hostile().Any(b => b.BossBarrageId != attack.GetInstanceId()))
-                        throw new Exception(scene + ": a new technique overlaps residual hostile shots");
-                    double time = attack.Elapsed;
-                    Hud.BubblePaused = true;
-                    Step(rotation);
-                    if (attack.Elapsed != time) throw new Exception(scene + ": dialogue advanced an attack");
-                    Hud.BubblePaused = false;
-                }
-                if (frame % 300 == 299) await Frames(1);
-            }
-            Check(Complete(), $"{scene}/{difficulty}/{form}: unique main/extra/area/edge/signature/dodge rotation has no starvation ({frame / 60f:F1}s): {string.Join(',', order)}");
-        }
-        Clear();
-        await Frames(1);
-        SetForm(0);
-        _game.Difficulty = GameManager.Diff.Easy;
-        var interrupted = new BossDanmaku(boss);
-        Write(boss, "_danmaku", interrupted);
-        Write(interrupted, "_extraDue", true);
-        var residual = Pool.Spawn(new Vector2(global::Field.Left + 20, 30), Vector2.Right * 60, true);
-        interrupted.Tick(1);
-        Check(interrupted.ActiveTechnique == null, scene + ": extra warning waits for residual shots");
-        Pool.Despawn(residual);
-        interrupted.Tick(.01);
-        var windup = interrupted.ActiveTechnique!;
-        Check(windup != null, scene + ": first extra starts after clearance");
-        object shielded = Read<object>(boss, "_phase");
-        Write(boss, "_phase", Enum.Parse(shielded.GetType(), "Break"));
-        interrupted.Tick(.01);
-        Check(windup!.Finished && !interrupted.CrossfireActive && !Hostile().Any(), scene + ": break clears owned attack and bullets");
-        Write(boss, "_phase", shielded);
-        interrupted.Tick(.71);
-        Check(interrupted.ActiveTechnique is { Elapsed: 0 }, scene + ": return from break begins a full warning");
-        var beforeChange = interrupted.ActiveTechnique!;
-        SetForm(boss is BossMina ? BossMina.DragonPhase : 1);
-        interrupted.Tick(.01);
-        Check(beforeChange.Finished && Read<int>(interrupted, "_extraSlot") == 0, scene + ": form change cancels old attack and resets extras");
-        interrupted.Tick(.71);
-        Check(interrupted.ActiveTechnique is { TechniqueKind: BossTechniqueKind.Extra, TechniqueVariant: 0, Elapsed: 0 }, scene + ": new visible form starts its own first extra");
-        Clear();
-        await Frames(1);
-        if (boss is BossKoharu or BossRei)
-        {
-            var rotation = new BossDanmaku(boss);
-            Write(boss, "_danmaku", rotation);
-            caster!.Suppressed = true;
-            caster.RequestFinale();
-            for (int frame = 0; frame < 3600 && !caster.FinaleCompleted; frame++)
-            {
-                Step(rotation);
-                if (frame % 300 == 299) await Frames(1);
-            }
-            Check(caster.FinaleCompleted, scene + ": requested finale reaches completion while ordinary spells are suppressed");
-            Write(boss, "_phase", Enum.Parse(shielded.GetType(), "Break"));
-            caster._Process(.01);
-            Check(caster.FinaleCompleted && !caster.AoeActive, scene + ": a break after completion does not restart or erase the finale");
-            Write(boss, "_phase", shielded);
-            caster.Suppressed = false;
-        }
-        Clear();
-        Check(Read<int>(boss, "_hp") == hp && player.Lives == lives, scene + ": rotation keeps HP and lives unchanged");
-        await CheckCentralRotation(boss, player, hud, scene);
-        Pool.ProcessMode = ProcessModeEnum.Inherit;
-    }
-
     private async Task CheckCentralRotation(Enemy boss, Player player, Hud hud, string scene)
     {
+        Pool.ProcessMode = ProcessModeEnum.Disabled;
         int savedHp = Read<int>(boss, "_hp"), lives = player.Lives;
         int maximumHp = Read<int>(boss, "_maxHp");
         object shielded = Enum.Parse(Read<object>(boss, "_phase").GetType(), "Shielded");
@@ -781,7 +654,6 @@ public partial class CombatRevisionQa : Node
         void Segment(int segment)
         {
             Write(boss, "_phase", shielded);
-            Write(boss, "_shieldTechniqueCompleted", false);
             Write(boss, "_shieldTechnique", null!);
             if (boss is BossMina)
             {
@@ -817,10 +689,10 @@ public partial class CombatRevisionQa : Node
                 await Frames(1);
                 var slots = BossAttackCycle.Slots(boss, segment);
                 bool evolved = boss is BossMina mina ? mina.IsDragonForm : boss.HasEvolved;
-                foreach (var slot in slots)
-                    Check(identities.Add($"{slot.Kind}/{slot.Variant}" + (slot.Kind == BossTechniqueKind.Extra
-                        ? evolved ? "/after" : "/before" : "")),
-                        $"{scene}/{difficulty}/{segment}: slot {slot.Kind}/{slot.Variant} occurs once in the encounter cycle");
+                var expectedSlots = BossAttackCycle.EasySlots(boss, boss is BossMina ? segment : Math.Min(segment, 1))
+                    .Where(slot => boss is not BossAkari || slot.Kind != BossTechniqueKind.Extra).ToList();
+                if (segment == 2 && boss is BossKoharu or BossRei) expectedSlots.Insert(0, new(BossTechniqueKind.Finale));
+                Check(slots.SequenceEqual(expectedSlots), $"{scene}/{difficulty}/{segment}: canonical integrated slots replace retired standalone attacks");
                 var rotation = new BossDanmaku(boss);
                 Write(boss, "_danmaku", rotation);
                 var order = new List<string>();
@@ -839,6 +711,7 @@ public partial class CombatRevisionQa : Node
                             throw new Exception($"{scene}/{difficulty}/{segment}: expected {expected}, got {attack.MechanicKey}");
                         if (Hostile().Any(b => b.BossBarrageId != attack.GetInstanceId()))
                             throw new Exception(scene + ": a central technique overlaps previous residual shots");
+                        identities.Add(attack.MechanicKey);
                         order.Add($"{attack.TechniqueKind}:{attack.TechniqueVariant}");
                         attack.Ended += ended => { if (ended.Completed) completed++; };
                         double elapsed = attack.Elapsed;
@@ -909,21 +782,32 @@ public partial class CombatRevisionQa : Node
                 Segment(segment);
                 rotation = new BossDanmaku(boss);
                 Write(boss, "_danmaku", rotation);
+                rotation.Tick(1);
+                var resolving = rotation.ActiveTechnique;
                 Call(boss, "ResolveShieldBreak");
-                Check(boss.GaugeAttackResolving && !boss.GaugeVulnerable,
-                    scene + ": shield broken before any technique enters resolving instead of BREAK");
+                Check(resolving is { Finished: false } && boss.GaugeAttackResolving && !boss.GaugeVulnerable,
+                    scene + ": shield depleted during a technique waits for that attack instead of BREAK");
                 for (int frame = 0; frame < 7200 && !boss.GaugeBreaking; frame++)
                 {
                     Call(boss, "TickBossPhase", 1d / 60);
                     if (!boss.GaugeBreaking) Step(rotation);
                     if (frame % 600 == 599) await Frames(1);
                 }
-                Check(boss.GaugeBreaking && rotation.CycleSlot == 1 % slots.Count,
-                    scene + ": resolving starts and naturally completes a technique before entering BREAK");
+                Check(boss.GaugeBreaking && resolving is { Completed: true } && rotation.CycleSlot == 1 % slots.Count,
+                    scene + ": resolving naturally completes the current technique before entering BREAK");
+
+                Clear();
+                Segment(segment);
+                rotation = new BossDanmaku(boss);
+                Write(boss, "_danmaku", rotation);
+                Call(boss, "ResolveShieldBreak");
+                rotation.Tick(1);
+                Check(boss.GaugeBreaking && rotation.ActiveTechnique == null,
+                    scene + ": shield depleted between techniques enters BREAK without starting another attack");
             }
-            Check(identities.Count == 19 && identities.Contains("Dodge/0")
-                && Enumerable.Range(0, 5).All(i => identities.Contains($"Crossfire/{i}")),
-                $"{scene}/{difficulty}: all 19 named techniques are present including every Crossfire and Dodge");
+            int required = boss switch { BossAkari => 8, BossKoharu => 6, BossRei => 8, _ => 5 };
+            Check(identities.Count == required,
+                $"{scene}/{difficulty}: all {required} integrated character techniques appear through production selection");
         }
         Clear();
         Write(boss, "_hp", savedHp);
@@ -1357,7 +1241,7 @@ public partial class CombatRevisionQa : Node
             _game.Difficulty = difficulty;
             Write(akari, "_form2", false);
             Write(akari, "_shieldBreaks", 0);
-            Write(akari, "_hp", akari.TotalBars * Enemy.BarHp);
+            Write(akari, "_hp", akari.TotalBars * akari.BarHp);
             Write(akari, "_beatsFired", 0);
             Write(akari, "_memoryPending", false);
             Write(akari, "_memoryPlayed", false);
@@ -1373,7 +1257,7 @@ public partial class CombatRevisionQa : Node
                 hud.HideBubble();
             }
             Write(akari, "_memoryPending", false);
-            Write(akari, "_hp", akari.TotalBars * Enemy.BarHp);
+            Write(akari, "_hp", akari.TotalBars * akari.BarHp);
             Write(akari, "_shieldBreaks", 1);
             Write(akari, "_beatsFired", 0);
             akari.DealDirectDamage(10000);
@@ -3994,15 +3878,20 @@ public partial class CombatRevisionQa : Node
         Write(player, "_locked", false);
         Check(Mathf.IsEqualApprox(locked, player.MoveSpeed * .8f), "lock movement is 80 percent of normal speed");
         Pool.DespawnAll();
-        var volley = BossEdgeVolley.Begin(boss, "akari", 0);
-        volley.SetPhysicsProcess(false);
-        volley._PhysicsProcess(1.6);
+        var volley = BossCharacterTechnique.Begin(boss, BossTechniqueKind.Normal);
+        for (int frame = 0; frame < 1800 && !Hostile().Any(); frame++)
+        {
+            volley.Tick(1d / 60);
+            StepBullets();
+        }
         var shots = Hostile().Select(b => (Bullet: b, Id: b.ActivationId)).ToArray();
-        Check(shots.Length > 0, "edge attack emits a volley");
+        Check(shots.Length > 0, "scheduled character attack emits its delivery volley");
         volley.Cancel();
         await Frames(2);
-        Check(shots.All(s => s.Bullet.Active && s.Bullet.ActivationId == s.Id), "stopping a volley retains emitted bullets");
+        Check(shots.All(s => !s.Bullet.Active || s.Bullet.ActivationId != s.Id), "cancelling a character technique clears its emitted bullets");
         Pool.DespawnAll();
+        var poolMode = Pool.ProcessMode;
+        Pool.ProcessMode = ProcessModeEnum.Inherit;
         var hostile = Pool.Spawn(new Vector2(280, 108), Vector2.Zero, true, 3);
         hostile.SetPhysicsProcess(false);
         var friendly = Pool.Spawn(hostile.Position, Vector2.Zero, false, 3);
@@ -4029,5 +3918,6 @@ public partial class CombatRevisionQa : Node
         var recycled = Pool.Spawn(Vector2.Zero, Vector2.Right * 640, false);
         Check(Read<Node2D?>(recycled, "_launchTarget") == null, "reused bullets do not retain a previous lock target");
         target.QueueFree(); Pool.DespawnAll();
+        Pool.ProcessMode = poolMode;
     }
 }

@@ -75,7 +75,7 @@ public partial class PlayerJobQa : Node
                 GetTree().CurrentScene = training;
                 game.TrainingSetAllUpgrades(false);
                 game.TrainingSetUpgrade("n_dodge", true);   // 全外しで n_dodge も落ちる＝回避の検査に要るので付け直す
-                Call(training, "RebuildPlayer");
+                Call(training, "ResetTrial");
                 await Frames(3);
                 var player = Read<Player>(training, "_player");
                 var sprite = player.GetNode<Sprite2D>("Sprite");
@@ -99,7 +99,7 @@ public partial class PlayerJobQa : Node
                 await Frames(18);
                 bool fired = false;
                 foreach (var node in pool.GetChildren()) if (node is Bullet bullet && bullet.Active) fired = true;
-                Check(fired || dummy.Hp < TrainingDummy.DummyMaxHp, $"{character} fires shots");
+                Check(fired || Read<long>(training, "_shotDamage") > 0, $"{character} fires shots");
                 await Shot($"{character}_play");
 
                 player.GlobalPosition = new Vector2(Field.CenterX, 108);
@@ -152,7 +152,7 @@ public partial class PlayerJobQa : Node
                 Write(player, "_locked", false);
                 await Frames(3);
                 Check(sprite.Texture.ResourcePath == job.PlayerTexturePath, $"{character} returns to its own idle pose");
-                Call(training, "RebuildPlayer");
+                Call(training, "ResetTrial");
                 await Frames(3);
                 Check(Read<Player>(training, "_player").CharacterId == character, $"{character} survives a training rebuild");
                 CheckMarker(Read<Player>(training, "_player"), character);

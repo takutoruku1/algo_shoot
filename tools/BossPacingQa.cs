@@ -20,12 +20,21 @@ public partial class BossPacingQa : Node
         GD.Print($"[BossPacingQA] PASS {message}");
     }
     private BulletPool Pool => GetNode<BulletPool>("/root/Pool");
+    private static bool InFinale(Enemy boss) => boss switch
+    {
+        BossMina mina => mina.EncounterPhase == 4,
+        BossAkari => Read<bool>(boss, "_lowHpRallied"),
+        BossRei => Read<bool>(boss, "_rallied"),
+        BossKoharu => Read<bool>(boss, "_finale"),
+        _ => false,
+    };
 
     public override async void _Ready()
     {
         try
         {
             Check(OS.GetUserDataDir().Replace('\\', '/').Contains("/build/qa_story/"), "isolated saves");
+            typeof(Settings).GetProperty(nameof(Settings.PauseWhenUnfocused))!.GetSetMethod(true)!.Invoke(null, new object[] { false });
             var game = GetNode<GameManager>("/root/Game");
             game.ResetPersistent();
             game.AutoSaveEnabled = false;
@@ -44,7 +53,8 @@ public partial class BossPacingQa : Node
             var stages = args.Contains("--cameo") ? new[] { "Akari", "Koharu", "Rei" }
                 : args.Contains("--final-stages") ? new[] { "Rei", "MinaBattle" }
                 : new[] { "Akari", "Koharu", "Rei", "MinaBattle" };
-            foreach (bool powered in new[] { false, true })
+            if (args.Contains("--health")) await AuditHealth(game);
+            else foreach (bool powered in new[] { false, true })
             {
                 if (!powered && args.Contains("--powered-only")) continue;
                 foreach (var job in jobs)
@@ -69,8 +79,81 @@ public partial class BossPacingQa : Node
         }
     }
 
+    private async Task AuditHealth(GameManager game)
+    {
+        foreach (var difficulty in Enum.GetValues<GameManager.Diff>())
+        {
+            game.Difficulty = difficulty;
+            foreach (string id in new[] { "Akari", "Koharu", "Rei", "MinaBattle", "Hikage" })
+            {
+                var root = GD.Load<PackedScene>($"res://{(id == "Hikage" ? "Akari" : id)}.tscn").Instantiate<Node2D>();
+                GetTree().Root.AddChild(root);
+                GetTree().CurrentScene = root;
+                var stage = (Node)root.GetType().GetProperty("Stage")!.GetValue(root)!;
+                stage.SetProcess(false);
+                root.GetNode<Player>("World/Player").SetPhysicsProcess(false);
+                root.GetNode<Hud>("Hud").HideBubble();
+                var world = root.GetNode<Node2D>("World");
+                Enemy boss = id switch
+                {
+                    "Akari" => new BossAkari(), "Koharu" => new BossKoharu(), "Rei" => new BossRei(),
+                    "MinaBattle" => new BossMina(), _ => new BossHikage(),
+                };
+                boss.ProcessMode = ProcessModeEnum.Disabled;
+                world.AddChild(boss);
+                int hp = (id switch
+                {
+                    "Akari" => new[] { 300, 375, 450, 525 },
+                    "Koharu" or "Hikage" => new[] { 400, 500, 600, 700 },
+                    "Rei" => new[] { 500, 625, 750, 875 },
+                    _ => new[] { 600, 750, 900, 1050 },
+                })[(int)difficulty];
+                Check(Read<int>(boss, "_maxHp", typeof(Enemy)) == hp && Read<int>(boss, "_hp", typeof(Enemy)) == hp,
+                    $"{difficulty}/{id}: initialized HP {hp}, without technique-repeat inflation");
+                int barHp = new[] { 100, 125, 150, 175 }[(int)difficulty];
+                Check(boss.BarHp == barHp && boss.CurrentBarIndex == boss.TotalBars - 1 && boss.CurrentBarFrac == 1,
+                    $"{difficulty}/{id}: full HP bar uses {barHp} HP");
+                Write(boss, "_hp", hp - barHp, typeof(Enemy));
+                Check(boss.CurrentBarIndex == boss.TotalBars - 2 && boss.CurrentBarFrac == 1,
+                    $"{difficulty}/{id}: draining one scaled bar advances exactly one bar");
+                Write(boss, "_hp", 1, typeof(Enemy));
+                Check(boss.CurrentBarIndex == 0 && Mathf.IsEqualApprox(boss.CurrentBarFrac, 1f / barHp),
+                    $"{difficulty}/{id}: last HP is visible in the final bar");
+                if (difficulty != GameManager.Diff.Lunatic && boss.GetNodeOrNull<BossPostSequence>("PostSequence") is { } sequence)
+                {
+                    typeof(BossPostSequence).GetProperty("Count")!.SetValue(sequence, 4);
+                    Write(boss, "_hp", Mathf.RoundToInt(hp * 0.01f), typeof(Enemy));
+                    Check(sequence.Pending, $"{difficulty}/{id}: final post is reachable at its rounded HP floor");
+                }
+                game.Difficulty = difficulty == GameManager.Diff.Easy ? GameManager.Diff.Lunatic : GameManager.Diff.Easy;
+                Check(boss.BarHp == barHp && Read<int>(boss, "_maxHp", typeof(Enemy)) == hp,
+                    $"{difficulty}/{id}: existing encounter keeps its initialized HP scale");
+                game.Difficulty = difficulty;
+                boss.QueueFree();
+                await Frames(2);
+                if (id is "Akari" or "Koharu" or "Rei")
+                {
+                    game.MarkIdleDialogSeen("once_midboss_shield");
+                    Write(stage, "_cameoIntroDone", true);
+                    Write(stage, "_stepStarted", false);
+                    Call(stage, "Step_BossCameo", null, 0d);
+                    var cameo = world.GetChildren().OfType<CameoBoss>().Single();
+                    cameo.ProcessMode = ProcessModeEnum.Disabled;
+                    int midHp = new[] { 200, 250, 300, 350 }[(int)difficulty];
+                    Check(Read<int>(cameo, "_maxHp", typeof(Enemy)) == midHp && Read<int>(cameo, "_hp", typeof(Enemy)) == midHp,
+                        $"{difficulty}/{id} midboss: stage-spawned HP {midHp}");
+                }
+                root.QueueFree();
+                await Frames(4);
+                Pool.DespawnAll();
+                Hud.BubblePaused = false;
+            }
+        }
+    }
+
     private async Task Encounter(GameManager game, string id, bool powered, Job job)
     {
+        Check(Mathf.IsEqualApprox(Engine.TimeScale, 1), "previous encounter released its hitstop");
         var args = OS.GetCmdlineUserArgs();
         game.Difficulty = args.Contains("--easy") ? GameManager.Diff.Easy
             : args.Contains("--hard") ? GameManager.Diff.Hard
@@ -123,6 +206,7 @@ public partial class BossPacingQa : Node
             await Shields(game, boss, player, hud, id, powered, charged);
             hud.HoldBubble = false;
             hud.HideBubble();
+            while (Engine.TimeScale < 0.99) await Frames(1);
             root.QueueFree();
             await Frames(5);
             Pool.DespawnAll();
@@ -137,6 +221,8 @@ public partial class BossPacingQa : Node
         string previousPhase = "";
         for (int frame = 0; frame < 90000 && !boss.IsPurified; frame++)
         {
+            if (frame % 1800 == 0)
+                GD.Print($"[BossPacingQA] STATUS {id}/{game.Difficulty} frame={frame} hp={boss.HpRatio:F3} state={Read<object>(boss, "_phase", typeof(Enemy))} timeScale={Engine.TimeScale:F2} talking={Hud.BubblePaused}");
             // Cinematics are exercised by story QA; this benchmark measures only live combat.
             foreach (var group in new[] { "storyfilm", "mina_phase_scene", "boss_draft" })
             {
@@ -154,7 +240,7 @@ public partial class BossPacingQa : Node
                 if (post.IsQueuedForDeletion() && posts < 5 && boss is not BossMina)
                 {
                     Check(boss.HpRatio == hp, "post effect adds no health");
-                    if (posts == 4) Check(Read<bool>(boss, "_finale"), "final attack begins before the original draft");
+                    if (posts == 4) Check(InFinale(boss), "final phase begins before the original draft");
                 }
             }
             bool playing = !Hud.BubblePaused && !hud.CinematicMode && boss.Visible
@@ -172,7 +258,7 @@ public partial class BossPacingQa : Node
                 }
                 phaseLength += 1d / 60;
                 if (phase == "Shielded") shield += 1d / 60;
-                bool inFinale = boss is BossMina mina ? mina.EncounterPhase == 4 : Read<bool>(boss, "_finale");
+                bool inFinale = InFinale(boss);
                 if (phase == "Break" && previousPhase != phase)
                 {
                     breaks++;
@@ -199,7 +285,7 @@ public partial class BossPacingQa : Node
                             GameManager.ShotMode.Spread => game.SpreadRateMul,
                             GameManager.ShotMode.Accel => 1f, _ => game.RapidRateMul,
                         };
-                        fire = 0.13 * game.FireIntervalMul * mode;
+                        fire = 0.13 * mode;
                     }
                 }
             }
@@ -213,6 +299,7 @@ public partial class BossPacingQa : Node
         Check(breaks >= 1, $"{id}/{powered}: body damage requires a shield break without forcing an extra final break");
         hud.HoldBubble = false;
         hud.HideBubble();
+        while (Engine.TimeScale < 0.99) await Frames(1);
         root.QueueFree();
         await Frames(5);
         Pool.DespawnAll();
@@ -272,7 +359,7 @@ public partial class BossPacingQa : Node
                                 GameManager.ShotMode.Spread => game.SpreadRateMul,
                                 GameManager.ShotMode.Accel => 1f, _ => game.RapidRateMul,
                             };
-                            fire = .13 * game.FireIntervalMul * mode;
+                            fire = .13 * mode;
                         }
                     }
                 }
@@ -317,7 +404,7 @@ public partial class BossPacingQa : Node
                 if (mode == "route")
                 {
                     if (id == "MinaBattle") { Write(stage, "_wave", 2); Call(stage, "StartEchoWave"); }
-                    else Call(stage, "StartMidwaveSpawner", null, 0.7f);
+                    else Call(stage, "StartMidwaveSpawner", null, 0, 0.7f);
                     var spawner = stage.GetChildren().OfType<Spawner>().Single();
                     Read<RandomNumberGenerator>(spawner, "_rng").Seed = 934;
                     spawner.SpawnLimit = 0;

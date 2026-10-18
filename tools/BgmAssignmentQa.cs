@@ -9,9 +9,9 @@ using System.Threading.Tasks;
 //   耳で確かめられないもの（音色・良し悪し）は見ない。**配線として正しいか**だけを機械的に見る:
 //     ① audio/bgm_*.ogg が実在し、Audio の各スロットが**合成フォールバックに落ちていない**
 //        （インポート漏れ・ファイル名の打ち間違いは、実行すると無警告で合成音に化けるので必ず検出する）
-//     ② ループ設定（ループする曲＝Loop true／エピローグのオルゴールだけ Loop false）
+//     ② ループ設定（エンディング映像からロールまでの専用曲だけ Loop false）
 //     ③ StageBgm() / StoryBgm() のマップが意図どおり（FINAL の "mina" を含む）
-//     ④ 同じ音源ファイルを2つ以上のスロットが使っていないか（＝「重複」の検出）
+//     ④ 同じ主題を予定した場面で共有し、それ以外の曲を誤って流用していないか
 //     ⑤ FINAL の道中（残響の三波）で曲が鳴っている（2026-09-27 に 7 秒→70 秒へ延びた区間）
 //     ⑥ ルナティックでもボステーマが**こもったままにならない**
 //        （投稿の割り込みを畳む難易度なので、札の数で開くローパスが開かずに固定される事故）
@@ -29,10 +29,8 @@ public partial class BgmAssignmentQa : Node
 
     // 合成のままで正しいスロット（設計意図。BGM/acquisition_list.md §1 の #12）。
     private static readonly string[] SynthSlots = { "BgmStage", "BgmBoss" };
-    // 曲が無ければ null で通してよいスロット（無い曲を代わりの音で埋めない枠）。
-    private static readonly string[] NullableSlots = { "BgmEpilogueWalk" };
     // ループしない曲（.import が loop=false）。
-    private static readonly string[] OneShotSlots = { "BgmEpilogueWalk" };
+    private static readonly string[] OneShotSlots = { "BgmEndingFilm" };
 
     public override async void _Ready()
     {
@@ -74,11 +72,9 @@ public partial class BgmAssignmentQa : Node
         foreach (var f in slots)
         {
             var stream = f.GetValue(_audio) as AudioStream;
-            bool nullable = NullableSlots.Contains(f.Name);
             if (stream == null)
             {
-                Check($"{f.Name}: 曲がある", nullable, "null（曲が読めていない）");
-                if (nullable) GD.Print($"[bgmqa] --  {f.Name} は null（未調達を許す枠）");
+                Check($"{f.Name}: 曲がある", false, "null（曲が読めていない）");
                 continue;
             }
 
@@ -114,36 +110,29 @@ public partial class BgmAssignmentQa : Node
             }
         }
 
-        // ④ 同じ音源を複数スロットが使っていないか（ユーザー指摘の「重複」）。
-        //    専用曲が来るまで既存曲を流用している2枠だけは既知の例外として許す。どちらも
-        //    「到達不能になった曲の再配置」か「合成プレースホルダの置き換え」で、専用曲を置けば自動で解消する。
-        var reuse = new (string slot, string borrowed, string own)[]
+        var sharedThemes = new Dictionary<string, string[]>
         {
-            // FINAL 道中 ← ヒカゲ戦（TutorialEnabled=false で到達不能＝再配置）
-            ("BgmFinalRoute", "res://audio/bgm_boss_hikage.ogg", "res://audio/bgm_final_route.ogg"),
-            // F4 カットシーン ← プロローグ（作品の両端で呼応させる意図的な再来）
-            ("BgmFinalCutscene", "res://audio/bgm_prologue.ogg", "res://audio/bgm_final_cutscene.ogg"),
+            ["res://audio/bgm_menu_mina.ogg"] = new[] { "BgmMenu", "BgmShop" },
+            ["res://audio/bgm_prologue.ogg"] = new[] { "BgmPrologue", "BgmFinalCutscene" },
+            ["res://audio/bgm_final_resolve.ogg"] = new[] { "BgmFinalResolve", "BgmStoryAkariAfter", "BgmStoryKoharuAfter", "BgmStoryReiAfter" },
+            ["res://audio/bgm_gameover.ogg"] = new[] { "BgmGameOver", "BgmStoryMina" },
+            ["res://audio/bgm_stage_akari.ogg"] = new[] { "BgmStageAkari", "BgmTraining" },
         };
         foreach (var (path, users) in byPath.Where(kv => kv.Value.Count > 1))
-        {
-            var hit = reuse.FirstOrDefault(r => r.borrowed == path && users.Contains(r.slot)
-                                                && !ResourceLoader.Exists(r.own));
-            bool known = hit.slot != null && users.Count == 2;
-            Check($"重複していない: {path}", known, $"使っているのは {string.Join(" / ", users)}");
-            if (known) GD.Print($"[bgmqa] --  {path} は {hit.slot} が流用中（{hit.own} を置けば解消）");
-        }
-        foreach (var (slot, _, own) in reuse)
-        {
-            if (!ResourceLoader.Exists(own)) continue;
-            var stream = typeof(Audio).GetField(slot)!.GetValue(_audio) as AudioStream;
-            Check($"{slot} は専用曲を読んでいる", stream?.ResourcePath == own,
-                  $"読んでいるのは {Describe(stream)}");
-        }
+            Check($"主題を意図した場面だけで共有する: {path}",
+                  sharedThemes.TryGetValue(path, out var expected) && new HashSet<string>(users).SetEquals(expected),
+                  $"使用枠={string.Join(" / ", users)}");
+        foreach (var (path, expected) in sharedThemes)
+            Check($"主題の再登場先がそろっている: {path}",
+                  byPath.TryGetValue(path, out var users) && new HashSet<string>(users).SetEquals(expected),
+                  $"予定枠={string.Join(" / ", expected)}");
 
         // ③ ステージ→道中曲のマップ。
         CheckSame("StageBgm(rei)", _audio.StageBgm("rei"), _audio.BgmStageRei);
         CheckSame("StageBgm(akari)", _audio.StageBgm("akari"), _audio.BgmStageAkari);
         CheckSame("StageBgm(koharu)", _audio.StageBgm("koharu"), _audio.BgmStageKoharu);
+        Check("FINAL 道中は専用の戦闘曲を使う", _audio.BgmFinalRoute.ResourcePath == "res://audio/bgm_final_route.ogg",
+              $"再生対象={_audio.BgmFinalRoute.ResourcePath}");
         CheckSame("StageBgm(tutorial)", _audio.StageBgm("tutorial"), _audio.BgmStageW0);
         CheckSame("StageBgm(mina)＝FINAL 道中", _audio.StageBgm("mina"), _audio.BgmFinalRoute);
         CheckSame("StageBgm(未知)＝合成へ", _audio.StageBgm("???"), _audio.BgmStage);
@@ -222,12 +211,30 @@ public partial class BgmAssignmentQa : Node
             await CloseStage(root);
         }
 
-        // ⑦ F4（Final のカットシーン）＝作品の頂点。ここが合成の短いループのままになっていないか。
-        //    あわせて「頭 → 絶句（CueSilenceLine）」の尺を実測する。
-        //    ★測り方の仮定（読む人へ）: 手動送りの場面なので、**AUTO 送り**（全文表示後 1.0 秒で次へ）と
-        //      既定の文字送り 48 字/秒を仮定した値。人間が読むと必ずこれより長い＝下限値である。
-        //      下書き選択は AUTO の対象外なので、沈黙 20 秒の自動送信がそのまま入る（台本どおり）。
+        foreach (var id in new[] { "koharu", "rei" })
+        {
+            foreach (var difficulty in new[] { GameManager.Diff.Normal, GameManager.Diff.Lunatic })
+            {
+                var expected = id == "koharu" ? _audio.BgmBossKoharu : _audio.BgmBossRei;
+                string scene = id == "koharu" ? "res://Koharu.tscn" : "res://Rei.tscn";
+                var (root, stage) = await OpenStage(scene, game, difficulty, GameManager.StageEntry.Boss, false);
+                bool spawned = await Until(() => Now() == expected, 4000);
+                Check($"{id}/{difficulty}: ボス曲に切り替わる", spawned, $"再生中={Describe(Now())}");
+                var boss = Field(stage, "_boss") as Node;
+                var posts = boss == null ? null : Field(boss, "_posts") as BossPostSequence;
+                Check($"{id}/{difficulty}: 投稿の音楽制御がある", posts != null, "BossPostSequence が無い");
+                if (posts != null)
+                {
+                    _audio.Music(_audio.StoryBgm(id, false), 0);
+                    posts.ResumeMusic();
+                    CheckSame($"{id}/{difficulty}: 回想後の曲の復帰", Now(), expected);
+                }
+                await CloseStage(root);
+            }
+        }
+
         await MeasureFinalCutscene();
+        await EndingMusicChecks();
 
         // ⑧ 設定画面は**タイトルの曲を継続する**（薄いサブ画面は親の曲を引き継ぐ設計）。
         //    タイトル → 設定 で曲が入れ替わらないこと。
@@ -255,61 +262,109 @@ public partial class BgmAssignmentQa : Node
         Engine.TimeScale = 1;
     }
 
-    // ───────── ⑦ F4 カットシーンの尺と曲 ─────────
-    //   合成 BgmBoss（BuildBgmBoss＝1.6秒×4小節）の周回数を数字で出すための実測。
-    private const double SynthBossLoopSec = 6.4;
-
     private async Task MeasureFinalCutscene()
     {
         var game = GetNode<GameManager>("/root/Game");
         _audio.StopMusic(0);
         await Frames(2);
         double savedScale = Engine.TimeScale;
-        Engine.TimeScale = 12;                       // 実時間を縮めるだけ（delta は素直に 12 倍される）
-        game.AutoAdvanceDialog = true;               // 手動送りの代わり＝全文表示後 1.0 秒で次へ
-        game.MsgCharsPerSec = 48;                    // 既定の文字送り
+        Engine.TimeScale = 12;
+        game.AutoAdvanceDialog = true;
+        game.MsgCharsPerSec = 48;
 
         var final = GD.Load<PackedScene>("res://Final.tscn").Instantiate();
         GetTree().Root.AddChild(final);
         GetTree().CurrentScene = final;
         await Frames(4);
-
         CheckSame("F4 の頭の曲＝BgmFinalCutscene", Now(), _audio.BgmFinalCutscene);
-        Check("F4 の曲が合成プレースホルダではない",
-              Now() is AudioStreamOggVorbis or AudioStreamMP3,
-              $"合成のまま: {Describe(Now())}");
+        Check("F4 の曲が実音源", Now() is AudioStreamOggVorbis or AudioStreamMP3,
+              $"再生中={Describe(Now())}");
 
-        double toChoice = await RunUntil(() => Field(final, "_choice") != null, 60000);
+        double toSilence = await RunUntil(() => ReadBool(final, "_cueSilenceDone"), 4000);
+        Check("F4: 選択前の無音キューに到達する", toSilence >= 0, "到達しない");
+        Check("F4: 選択前に無音になる", Now() == null, $"再生中={Describe(Now())}");
+        double toChoice = await RunUntil(() => Field(final, "_choice") != null, 4000);
         Check("F4: 下書き選択まで進む", toChoice >= 0, "選択が出ない");
-        double choiceOpen = await RunUntil(() => Field(final, "_choice") == null, 60000);
-        Check("F4: 選択が決まる（沈黙20秒の自動送信）", choiceOpen >= 0, "決まらない");
-        double toSilence = await RunUntil(() => ReadBool(final, "_cueSilenceDone"), 60000);
-        Check("F4: 絶句（CueSilenceLine）まで到達する", toSilence >= 0, "到達しない");
+        await Frames(30);
+        Check("F4: 選択待ちの間は無音を保つ", Now() == null, $"再生中={Describe(Now())}");
 
-        // 落差の検証：絶句で「完全無音」になり、次の行で挿入曲が立つ。
-        Check("F4: 絶句で完全無音になる", Now() == null, $"鳴っている: {Describe(Now())}");
-        double toResolve = await RunUntil(() => ReadBool(final, "_cueResolveDone"), 60000);
-        Check("F4: 解決の行まで到達する", toResolve >= 0, "到達しない");
+        // AUTO は選択肢を確定しないため、通常の決定入力で解決曲への遷移を検証する。
+        Input.ActionPress("ui_accept");
+        await Frames(2);
+        Input.ActionRelease("ui_accept");
+        double choiceOpen = await RunUntil(() => Field(final, "_choice") == null, 600);
+        Check("F4: 決定入力で選択を確定する", choiceOpen >= 0, "確定しない");
+        double toResolve = await RunUntil(() => ReadBool(final, "_cueResolveDone"), 4000);
+        Check("F4: 解決曲のキューに到達する", toResolve >= 0, "到達しない");
         await Frames(4);
         CheckSame("F4: 無音のあと挿入曲（BgmFinalResolve）が立つ", Now(), _audio.BgmFinalResolve);
 
-        double withChoice = toChoice + choiceOpen + toSilence;
-        double instant = toChoice + toSilence;   // 選択を即決した場合の下限
-        GD.Print($"[bgmqa] 実測: F4 の頭 → 絶句 = {withChoice:0.0}s"
-                 + $"（うち下書き選択 {choiceOpen:0.0}s／選択を即決すると {instant:0.0}s）"
-                 + $" ＝ 旧 合成 BgmBoss（{SynthBossLoopSec}s ループ）なら"
-                 + $" {withChoice / SynthBossLoopSec:0.0} 周（即決でも {instant / SynthBossLoopSec:0.0} 周）");
-        GD.Print("[bgmqa] 仮定: AUTO 送り（全文表示後 1.0 秒）・文字送り 48 字/秒。"
-                 + "人間の手動送りでは必ずこれより長い＝下限値。");
-
         GetTree().CurrentScene = null;
         final.QueueFree();
-        Engine.TimeScale = savedScale;   // 畳む処理は等速で回す（極端な delta のまま解放しない）
+        Engine.TimeScale = savedScale;
         await Frames(24);
         game.AutoAdvanceDialog = false;
         _audio.StopMusic(0);
         await Frames(4);
     }
+
+    private async Task EndingMusicChecks()
+    {
+        var game = GetNode<GameManager>("/root/Game");
+        game.AutoAdvanceDialog = false;
+        _audio.Music(_audio.BgmFinalResolve, 0);
+        await Frames(12);
+        var before = ActiveMusicPlayer();
+        double position = before.GetPlaybackPosition();
+        var epilogue = GD.Load<PackedScene>("res://Epilogue.tscn").Instantiate<Epilogue>();
+        GetTree().Root.AddChild(epilogue);
+        GetTree().CurrentScene = epilogue;
+        await Frames(4);
+        CheckSame("帰還後も回復の主題を継続する", Now(), _audio.BgmFinalResolve);
+        Check("帰還時に曲を頭へ巻き戻さない", ActiveMusicPlayer() == before
+              && before.GetPlaybackPosition() + 0.02 >= position, "再生プレイヤーまたは再生位置が戻った");
+        Check("帰還後の会話は読む長さによらずループできる",
+              _audio.BgmFinalResolve is AudioStreamOggVorbis { Loop: true }, "ループしない");
+
+        typeof(Epilogue).GetMethod("StartFilm", Priv)!.Invoke(epilogue, null);
+        await Frames(4);
+        CheckSame("エンディング映像で専用曲を立ち上げる", Now(), _audio.BgmEndingFilm);
+        var filmPlayer = ActiveMusicPlayer();
+        var film = (EndingFilm)Field(epilogue, "_film")!;
+        var statics = BindingFlags.Static | BindingFlags.NonPublic;
+        float lineHeight = (float)typeof(Epilogue).GetField("RollLineH", statics)!.GetValue(null)!;
+        float rollSpeed = (float)typeof(Epilogue).GetField("RollSpeed", statics)!.GetValue(null)!;
+        double rollDuration = (216 + ((string[])Field(epilogue, "_roll")!).Length * lineHeight + 24) / rollSpeed;
+        double sequenceDuration = EndingFilm.Duration + rollDuration;
+        GD.Print($"[bgmqa] 映像＋ロール={sequenceDuration:0.00}s / 曲={_audio.BgmEndingFilm.GetLength():0.00}s");
+        Check("映像とスタッフロールを曲の長さが覆う", _audio.BgmEndingFilm.GetLength() >= sequenceDuration,
+              "曲がロール途中で終わる");
+        GetTree().Paused = true;
+        await Frames(6);
+        Check("ポーズや会話ログでは映像と一緒に曲を止める", filmPlayer.StreamPaused,
+              "映像を止めても曲だけ進んでしまう");
+        GetTree().Paused = false;
+        await Frames(6);
+        Check("ポーズを閉じると同じ演奏を再開する", !filmPlayer.StreamPaused && filmPlayer.Playing
+              && ActiveMusicPlayer() == filmPlayer, "再生が再開しない、または再生先が変わった");
+        typeof(EndingFilm).GetMethod("Complete", Priv)!.Invoke(film, null);
+        await Frames(4);
+        Check("映像終了後にスタッフロールへ進む", ReadInt(epilogue, "_phase") == 2, "PhRoll ではない");
+        CheckSame("スタッフロールで同じ演奏を継続する", Now(), _audio.BgmEndingFilm);
+        Check("スタッフロールで曲を再スタートしない", ActiveMusicPlayer() == filmPlayer, "再生先が変わった");
+
+        typeof(Epilogue).GetField("_t", Priv)!.SetValue(epilogue, rollDuration + 0.1);
+        await Frames(4);
+        Check("ロール終了後に最後の会話へ進む", ReadInt(epilogue, "_phase") == 3, "PhEnd ではない");
+        CheckSame("最後の会話で回復の主題が戻る", Now(), _audio.BgmFinalResolve);
+        Check("一度再生の終了通知を解除する", Field(_audio, "_oncePlayer") == null, "接続が残った");
+        filmPlayer.EmitSignal(AudioStreamPlayer.SignalName.Finished);
+        CheckSame("前の曲の終了通知で最後の会話を無音にしない", Now(), _audio.BgmFinalResolve);
+        await CloseStage(epilogue);
+    }
+
+    private AudioStreamPlayer ActiveMusicPlayer()
+        => (AudioStreamPlayer)Field(_audio, (bool)Field(_audio, "_useA")! ? "_musicA" : "_musicB")!;
 
     private static object? Field(Node node, string name)
         => node.GetType().GetField(name, Priv)?.GetValue(node);

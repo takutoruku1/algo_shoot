@@ -41,9 +41,8 @@ public partial class FinalRouteQa : Node
 
     // ---- 判定のしきい値 ----
     private const double GapLimit = 2.0;        // 道中の「敵ゼロ」の最長（作者指示：2 秒以内）
-    // Twice as many enemies at 0.8 times the spawn interval gives roughly 1.6 times the route duration.
-    private const double FinalRouteMin = 60.0;
-    private const double FinalRouteMax = 180.0;
+    private const double FinalRouteMin = 30.0;
+    private const double FinalRouteMax = 90.0;
     // FINAL のザコ戦秒 ÷ あかり面のザコ戦秒。狙いは 0.6〜0.8（実測 0.74）。湧き間隔の乱数ぶれ（±0.8〜1.2）を見て幅を持たせる。
     private const double RatioMin = 0.55;
     private const double RatioMax = 0.95;

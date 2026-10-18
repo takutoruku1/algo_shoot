@@ -58,7 +58,9 @@ public partial class PlayerShotQa : Node
         try
         {
             Check(OS.GetUserDataDir().Replace('\\', '/').Contains("/build/qa_story/"), "isolated saves");
-            _out = ProjectSettings.GlobalizePath("res://build/qa_story/player_shots");
+            typeof(Settings).GetProperty(nameof(Settings.PauseWhenUnfocused))!.GetSetMethod(true)!.Invoke(null, new object[] { false });
+            string? output = OS.GetCmdlineUserArgs().FirstOrDefault(arg => arg.StartsWith("--output="));
+            _out = ProjectSettings.GlobalizePath(output == null ? "res://build/qa_story/player_shots" : output[9..]);
             DirAccess.MakeDirRecursiveAbsolute(_out);
             _game = GetNode<GameManager>("/root/Game");
             _pool = GetNode<BulletPool>("/root/Pool");
@@ -132,12 +134,17 @@ public partial class PlayerShotQa : Node
         // Keep keyboard control selected while recording, regardless of the desktop mouse position.
         Input.ParseInputEvent(new InputEventKey { Keycode = Key.Z, Pressed = true });
         Input.FlushBufferedEvents();
-        var target = new TrainingDummy { Position = new Vector2(300, 108) };
+        int damage = 0, hitCount = 0;
+        var target = new TrainingDummy
+        {
+            Position = new Vector2(300, 108),
+            OnDamaged = (amount, bomb) => { damage += amount; hitCount++; },
+        };
         root.World.AddChild(target);
         await Frames(24);
         for (int take = 0; take < 2; take++)
         {
-            int hp = target.Hp;
+            int before = damage, hitsBefore = hitCount;
             Input.ParseInputEvent(new InputEventKey { Keycode = Key.Z, Pressed = true });
             await Frames(54);
             Check(root.Player.ChargeFull, "demo reaches full charge using live input");
@@ -147,8 +154,8 @@ public partial class PlayerShotQa : Node
             await Frames(44);
             var expected = ChargeStats(job.Id);
             int hits = job.Id == Job.Heal ? expected.ways : 1;
-            Check(target.Hp == hp - expected.damage * hits,
-                $"live physics applies charged damage exactly once (before={hp}, after={target.Hp}, player={root.Player.Position}, target={target.Position})");
+            Check(damage > before && hitCount - hitsBefore == hits,
+                $"live physics applies charged damage exactly once (damage={damage - before}, hits={hitCount - hitsBefore}, player={root.Player.Position}, target={target.Position})");
         }
         Input.ParseInputEvent(new InputEventKey { Keycode = Key.Z, Pressed = false });
         root.QueueFree();
@@ -306,11 +313,6 @@ public partial class PlayerShotQa : Node
         Check(Read<int>(enemy, "_hp") == hp - 3, "charge respects the remaining boss window budget");
         _pool.DespawnAll();
         Call(enemy, "EnterExposed");
-        _game.TrainingSetUpgrade("n_power_2x", true);
-        charge = Fire();
-        Check(charge.Damage == expected.damage * 2, "charge inherits purchased power upgrades");
-        _game.TrainingSetUpgrade("n_power_2x", false);
-        _pool.DespawnAll();
         charge = Fire();
         charge.Damage = 120;
         hp = Read<int>(enemy, "_hp");
@@ -385,7 +387,6 @@ public partial class PlayerShotQa : Node
             if (tier > 0) shot.MakeCharged(_game.SelectedJob, tier);
             panelHit.Invoke(shield, new object[] { shot });
             int cost = owner == ordinary ? 10 : tier == 0 ? 2 : tier == ChargeTier.First ? 3 : 5;
-            if (owner != ordinary && _game.ShotPowerMul > 1) cost += tier == 0 ? 1 : tier == ChargeTier.First ? 2 : 3;
             Check(shield.Ink == 20 - cost, $"shield damage: boss={owner == enemy} tier={tier} cost={cost}");
             shield.QueueFree();
             _pool.DespawnAll();
@@ -621,7 +622,7 @@ public partial class PlayerShotQa : Node
                 foreach (bool upgrade in new[] { false, true })
                 {
                     _game.TrainingSetUpgrade("n_lines", upgrade);
-                    int count = 2 + power + (upgrade ? 1 : 0);
+                    int count = 2 + (upgrade ? 1 : 0);
                     float gap = count == 2 || (job == Job.Melee && count == 3) ? 8f : 6f;
                     for (int heading = 0; heading < 8; heading++)
                     {
@@ -643,9 +644,14 @@ public partial class PlayerShotQa : Node
                         int frames = job == Job.Melee ? Mathf.CeilToInt(_game.AccelChargeDelay * 60f) + 2 : 2;
                         for (int frame = 0; frame < frames; frame++)
                             foreach (var shot in shots) shot._PhysicsProcess(1.0 / 60.0);
-                        Check(shots.All(b => b.Active && !b.AccelCharging && b.Velocity.Normalized().DistanceTo(direction) < 0.001f)
-                            && Enumerable.Range(1, count - 1).All(i => Mathf.Abs(shots[i].GlobalPosition.DistanceTo(shots[i - 1].GlobalPosition) - gap) < 0.001f),
-                            $"{label}: parallel spacing survives flight and acceleration");
+                        if (job == Job.Melee)
+                            Check(shots.All(b => b.Active && !b.AccelCharging
+                                && b.Velocity.Normalized().DistanceTo(b.GlobalPosition.DirectionTo(target.GlobalPosition)) < 0.001f),
+                                $"{label}: accelerated shots converge on the locked target");
+                        else
+                            Check(shots.All(b => b.Active && b.Velocity.Normalized().DistanceTo(direction) < 0.001f)
+                                && Enumerable.Range(1, count - 1).All(i => Mathf.Abs(shots[i].GlobalPosition.DistanceTo(shots[i - 1].GlobalPosition) - gap) < 0.001f),
+                                $"{label}: parallel spacing survives flight");
                     }
                 }
             }

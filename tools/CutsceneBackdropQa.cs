@@ -1,5 +1,7 @@
 using Godot;
 using System;
+using System.Collections.Generic;
+using System.Linq;
 using System.Reflection;
 using System.Threading.Tasks;
 
@@ -36,12 +38,21 @@ public partial class CutsceneBackdropQa : Node
         try
         {
             Check(OS.GetUserDataDir().Replace('\\', '/').Contains("/build/qa_story/"), "isolated user data");
+            typeof(Settings).GetProperty(nameof(Settings.PauseWhenUnfocused))!.SetValue(null, false);
             DisplayServer.WindowSetMode(DisplayServer.WindowMode.Windowed);
             DisplayServer.WindowSetSize(new Vector2I(1280, 720));
             _out = ProjectSettings.GlobalizePath("res://build/qa_story/backdrop/shots");
             DirAccess.MakeDirRecursiveAbsolute(_out);
 
             var game = GetNode<GameManager>("/root/Game");
+            if (OS.GetCmdlineUserArgs().Contains("--visual-transitions"))
+            {
+                DisplayServer.WindowSetFlag(DisplayServer.WindowFlags.NoFocus, true);
+                DisplayServer.WindowSetPosition(new Vector2I(-16000, -16000));
+                await CheckVisualTransitions(game);
+                GetTree().Quit();
+                return;
+            }
             game.SelectedEntry = GameManager.StageEntry.Boss;
             game.MsgCharsPerSec = 300;
             game.AutoAdvanceDialog = false;
@@ -135,6 +146,150 @@ public partial class CutsceneBackdropQa : Node
             GetTree().Paused = false;
             GetTree().Quit(1);
         }
+    }
+
+    private async Task CheckVisualTransitions(GameManager game)
+    {
+        game.AutoSaveEnabled = false;
+        game.AutoAdvanceDialog = false;
+        game.SelectedJob = Job.Tank;
+        var failures = new List<string>();
+        void Verify(bool condition, string label)
+        {
+            if (!condition) failures.Add(label);
+            GD.Print($"[BackdropQA] {(condition ? "PASS" : "FAIL")} {label}");
+        }
+        var root = new Node2D();
+        var background = new ColorRect { Size = new Vector2(384, 216), Color = new Color(.7f, .05f, .6f) };
+        var world = new Node2D();
+        var crying = new Sprite2D
+        {
+            Texture = GD.Load<Texture2D>("res://char/v3/boss_akari_body_cry_v2.png"),
+            Position = new Vector2(210, 95), Scale = Vector2.One * .18f,
+        };
+        var hud = new Hud();
+        await Frames(1);
+        GetTree().Root.AddChild(root);
+        root.AddChild(background);
+        root.AddChild(world);
+        world.AddChild(crying);
+        root.AddChild(hud);
+        hud.SetProcess(false);
+        async Task<Image> Capture()
+        {
+            hud.GetNode<HudCanvas>("HudCanvas").QueueRedraw();
+            await ToSignal(RenderingServer.Singleton, RenderingServer.SignalName.FramePostDraw);
+            return GetViewport().GetTexture().GetImage();
+        }
+        async Task CheckOcclusion(string label)
+        {
+            background.Show(); crying.Show();
+            using var visible = await Capture();
+            background.Hide(); crying.Hide();
+            using var hidden = await Capture();
+            Verify(PictureDifference(visible, hidden) < .001f, label + " hides the battle and crying body");
+            visible.SavePng($"{_out}/{label}.png");
+            background.Show(); crying.Show();
+        }
+        Action<Hud, Node, bool, Action>[] play = {
+            AkariStoryFilm.Play, KoharuStoryFilm.Play, ReiStoryFilm.Play, MinaStoryFilm.Play,
+        };
+        string[] ids = { "akari", "koharu", "rei", "mina" };
+        for (int boss = 0; boss < play.Length; boss++)
+        {
+            game.SelectedJob = ids[boss] == "mina" ? Job.Magic : Job.Tank;
+            foreach (bool aftermath in new[] { false, true })
+            {
+                string label = ids[boss] + (aftermath ? "_after" : "_memory");
+                bool complete = false;
+                play[boss](hud, world, aftermath, () => complete = true);
+                var film = (StoryFilm)GetTree().GetFirstNodeInGroup("storyfilm");
+                film.SetProcess(false);
+                film._Process(.2);
+                await CheckOcclusion(label + "_fade_in");
+                film._Process(1);
+                film._Process(1);
+                using (var first = await Capture()) StoryFilmQa.CheckFrame(film, first);
+                var lines = Read<Array>(film, "_lines", typeof(StoryFilm));
+                int shot = Read<int>(film, "_shot", typeof(StoryFilm));
+                for (int line = 0; line < lines.Length; line++)
+                {
+                    var value = lines.GetValue(line)!;
+                    int next = (int)value.GetType().GetProperty("Shot")!.GetValue(value)!;
+                    if (next == shot) continue;
+                    using var before = await Capture();
+                    Write(film, "_line", line, typeof(StoryFilm));
+                    Call(film, "ShowLine", typeof(StoryFilm));
+                    using var switched = await Capture();
+                    Verify(PictureDifference(before, switched) < .003f,
+                        $"{label} shot {shot}->{next}: no one-frame flash or pan reset");
+                    switched.SavePng($"{_out}/{label}_shot_{next}_switch.png");
+                    foreach (double step in new[] { 1.0 / 60, .18, .22, .4 })
+                    {
+                        film._Process(step);
+                        using var frame = await Capture();
+                        frame.SavePng($"{_out}/{label}_shot_{next}_{Read<double>(film, "_blendT", typeof(StoryFilm)):F2}.png");
+                    }
+                    using var settled = await Capture();
+                    StoryFilmQa.CheckFrame(film, settled);
+                    shot = next;
+                }
+                Call(film, "BeginLeave", typeof(StoryFilm));
+                film._Process(.2);
+                await CheckOcclusion(label + "_fade_out");
+                await WaitUntil(() => !Pad.UiBlocked(film), 120);
+                film._Process(1);
+                await Frames(25);
+                Check(complete && !hud.CinematicMode && world.ProcessMode == ProcessModeEnum.Inherit,
+                    label + " restores combat after completion");
+            }
+            var story = BossPostStory.Get(ids[boss]);
+            bool draftComplete = false;
+            BossDraftScene.Play(hud, world, story, () => draftComplete = true);
+            var draft = (BossDraftScene)GetTree().GetFirstNodeInGroup("boss_draft");
+            draft.SetProcess(false);
+            draft._Process(.2);
+            await CheckOcclusion(ids[boss] + "_draft_fade_in");
+            draft._Process(4);
+            for (int line = 0; line < story.Lines.Length; line++)
+            {
+                Write(draft, "_line", line);
+                Call(draft, "ShowLine");
+                hud.RevealDialogNow();
+                string expected = story.Id == "mina" ? BossMina.CostumePath(4, "idle") : story.Lines[line].face;
+                Verify(Read<Texture2D>(draft, "_face").ResourcePath == expected,
+                    $"{ids[boss]} draft line {line}: portrait matches the current dialogue");
+            }
+            await CheckOcclusion(ids[boss] + "_draft_shown");
+            Write(draft, "_leaving", true);
+            hud.HideBubble();
+            draft._Process(.2);
+            await CheckOcclusion(ids[boss] + "_draft_fade_out");
+            await WaitUntil(() => !Pad.UiBlocked(draft), 120);
+            draft._Process(1);
+            await Frames(25);
+            Check(draftComplete && !hud.CinematicMode && world.ProcessMode == ProcessModeEnum.Inherit,
+                ids[boss] + " draft restores combat");
+        }
+        root.QueueFree();
+        await Frames(2);
+        Check(failures.Count == 0, "visual transitions: " + string.Join("; ", failures));
+        GD.Print("[BackdropQA] VISUAL TRANSITIONS ALL PASS");
+    }
+
+    private static float PictureDifference(Image first, Image second)
+    {
+        float error = 0;
+        int samples = 0;
+        for (int y = first.GetHeight() / 6; y < first.GetHeight() * 2 / 3; y += 7)
+            for (int x = first.GetWidth() / 10; x < first.GetWidth() * 9 / 10; x += 7)
+            {
+                var a = first.GetPixel(x, y);
+                var b = second.GetPixel(x, y);
+                error += Math.Abs(a.R - b.R) + Math.Abs(a.G - b.G) + Math.Abs(a.B - b.B);
+                samples++;
+            }
+        return error / samples;
     }
 
     // レターボックスの帯（上 y<64/720 ・下 y>=516/720 を実画面比で）の平均輝度。

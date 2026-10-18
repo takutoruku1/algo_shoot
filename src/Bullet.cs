@@ -1,5 +1,6 @@
 using Godot;
 using System.Collections.Generic;
+using System.Linq;
 
 // 弾形。前6種は敵弾用（RefrainHTML/Refrain Danmaku v3 の弾形）。言葉弾は Bullet.Word で別扱い。
 // Dart/Petal/Seeker は自機の発射パターン識別用。描画素材は発射時のキャラクターで決める。
@@ -28,6 +29,7 @@ public partial class Bullet : Area2D
     public Vector2 Velocity;
     public bool IsEnemy;
     public int Damage;
+    internal int ShotPowerPercent = 100;
     public bool Active;
     public ulong ActivationId { get; private set; }
     public bool Grazed;  // グレイズ済みか（重複加点防止）
@@ -400,6 +402,26 @@ public partial class Bullet : Area2D
         RefreshFootprint();
         QueueRedraw();
     }
+
+    internal void UseBossIllustration(BulletArt.PlayerVisual art)
+    {
+        _playerVisual = art;
+        Material = _illustrationMaterial ??= new ShaderMaterial
+        {
+            Shader = new Shader { Code = @"
+shader_type canvas_item;
+render_mode unshaded;
+void fragment() {
+    if (texture(TEXTURE, UV).a < 0.6) discard;
+}" },
+        };
+        RefreshFootprint();
+        _illustrationEdges = _footprint!.Contours.Select(contour => contour.Append(contour[0]).ToArray()).ToArray();
+        QueueRedraw();
+    }
+
+    private static ShaderMaterial? _illustrationMaterial;
+    private Vector2[][]? _illustrationEdges;
 
     private const string BossShotShader = @"
 shader_type canvas_item;
@@ -788,13 +810,16 @@ void fragment() {
         BulletShape shape = BulletShape.Orb, Color? tint = null, bool homing = false, bool backwardHoming = false)
     {
         ActivationId++;
+        Scale = Vector2.One;
         Velocity = vel;
         IsEnemy = isEnemy;
         _playerVisual = isEnemy ? null : BulletArt.PlayerShot(GameManager.Instance!.SelectedJob);
+        _illustrationEdges = null;
         TextureFilter = isEnemy ? TextureFilterEnum.ParentNode : TextureFilterEnum.LinearWithMipmaps;
         // 自機の通常弾だけ加算ブレンド＝縁取りの無い光条（敵弾は通常ブレンド＝暗い縁取りが立つ）。
         Material = isEnemy ? EnemyMaterial : PlayerGlow;
         Damage = damage;
+        ShotPowerPercent = 100;
         Radius = radius;
         Active = true;
         _overheadCast = null;
@@ -1006,6 +1031,7 @@ void fragment() {
         var nb = pool.Spawn(GlobalPosition, dir * 320f, isEnemy: false, 2.6f,
             Mathf.Max(1, Mathf.RoundToInt(Damage * 0.4f)), Shape);
         nb.Chain = Chain - 1; // Lv2 は2回まで連鎖（威力は跳ねるたび×0.4）
+        nb.ShotPowerPercent = ShotPowerPercent;
     }
 
     // 「キミ弾」のグレイズ軟化（あかり）：一度だけ減速×GrazeSoftenMul＋淡色化。
@@ -1389,6 +1415,25 @@ void fragment() {
     private void DrawBossProjectile(float r)
     {
         var art = _playerVisual!;
+        if (_illustrationEdges != null)
+        {
+            float outlineScale = 1 / Mathf.Max(GlobalTransform.X.Length(), GlobalTransform.Y.Length());
+            if (LeadIn || CollisionLayer == 0)
+            {
+                foreach (var edge in _illustrationEdges)
+                    for (int i = 1; i < edge.Length; i++)
+                        DrawDashedLine(edge[i - 1], edge[i], new Color("829aa8"), .55f * outlineScale, 1.5f * outlineScale, true);
+                return;
+            }
+            float illustrationSize = BossArtSize(r, Charged);
+            float illustrationScale = illustrationSize / Mathf.Max(art.Region.Size.X, art.Region.Size.Y);
+            var illustrationRect = new Rect2((art.Region.Position - art.Pivot) * illustrationScale, art.Region.Size * illustrationScale);
+            DrawTextureRectRegion(art.Texture, illustrationRect, art.Region);
+            foreach (var edge in _illustrationEdges) DrawPolyline(edge, new Color("24111c"), 2.0f * outlineScale, true);
+            foreach (var edge in _illustrationEdges) DrawPolyline(edge, new Color("ff4567"), 1.2f * outlineScale, true);
+            foreach (var edge in _illustrationEdges) DrawPolyline(edge, new Color("fff4ed"), .4f * outlineScale, true);
+            return;
+        }
         if (AccelCharging)
         {
             float p = Mathf.Clamp(_age / _accelDelay, 0, 1);

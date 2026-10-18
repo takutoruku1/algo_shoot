@@ -100,6 +100,7 @@ public partial class Hud : CanvasLayer
 
     // スペル宣言（Xツイート風オーバーレイ：Refrain Danmaku v3 spellOverlay）
     private string _spellName = "";
+    private bool _spellCompact;
     private string _spellWho = "";
     private string _spellHandle = "";
     private Color _spellCol = Colors.White;
@@ -708,9 +709,10 @@ public partial class Hud : CanvasLayer
     }
 
     // スペル発動を X のスペル宣言ツイート風に告知（弾幕パターン切替時に各ボスから呼ぶ）。
-    public void AnnounceSpell(string who, string handle, string spellName, Color col, bool impact = true, double duration = SpellShowDur)
+    public void AnnounceSpell(string who, string handle, string spellName, Color col, bool impact = true, double duration = SpellShowDur, bool compact = false)
     {
         _spellWho = who; _spellHandle = handle; _spellName = spellName;
+        _spellCompact = compact;
         _spellCol = col; _spellTimer = _spellDuration = duration;
         _spellGlow = 1.0; // 発動の瞬間に立つ加算グロー（宣言まわりだけ・短命）。弾の視認は侵さない。
         if (!impact) return;
@@ -902,7 +904,7 @@ public partial class Hud : CanvasLayer
         //（作者指摘：文字枠が自機と弾を隠す）。居ない場面（保険）だけ従来どおりここ＝最前面に描く。
         bool sunk = Bubbles != null;
         if (!sunk && _cutinTimer > 0 && _cutinTex != null) DrawSpellCutin(ci);
-        if (!sunk && _spellTimer > 0) DrawSpellCard(ci);
+        if ((!sunk || _spellCompact) && _spellTimer > 0) DrawSpellCard(ci);
         DrawShotMode(ci);
         DrawPowerups(ci);
         if (_focusHas) DrawFocusChip(ci);
@@ -939,7 +941,7 @@ public partial class Hud : CanvasLayer
     {
         if (CinematicMode) return;
         UiKit.BeginDesign(ci);
-        if (_spellTimer > 0) DrawSpellCard(ci);
+        if (!_spellCompact && _spellTimer > 0) DrawSpellCard(ci);
         if (_cutinTimer > 0 && _cutinTex != null) DrawSpellCutin(ci);
         if (_dlgText.Length > 0) DrawDialog(ci);
         if (_bossLineTimer > 0 && _bossLine.Length > 0) DrawBossLine(ci);
@@ -1245,6 +1247,21 @@ public partial class Hud : CanvasLayer
     private void DrawSpellCard(CanvasItem ci)   // CanvasItem＝HudCanvas（保険）と BubbleLayer（通常）の両方から描ける
     {
         double age = _spellDuration - _spellTimer;
+
+        if (_spellCompact)
+        {
+            float alpha = Mathf.Min(1, Mathf.Min((float)age / .12f, (float)_spellTimer / .25f));
+            const float width = Field.PanelW - 76f - PanelX;
+            int size = 13;
+            while (size > 8 && UiKit.TextW(UiKit.ZenBold, _spellName, size) > width - 12) size--;
+            var rect = new Rect2(76, 62, width, 18);
+            var ink = new Color("b3e4eb");
+            UiKit.Box(ci, rect, new Color(.035f, .06f, .09f, .80f * alpha), 4,
+                new Color(ink, .55f * alpha), .8f);
+            UiKit.Text(ci, UiKit.ZenBold, rect.Position + new Vector2(6, 1), _spellName, size,
+                new Color(ink, alpha));
+            return;
+        }
 
         // ── 三段のリズム：ポップイン（アンティシペーション→オーバーシュート）→ ホールド → フォロースルー ──
         float a;        // 不透明度

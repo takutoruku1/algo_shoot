@@ -7,6 +7,7 @@ public partial class PageShard : Enemy
     private const float DriftSpeed = 28f;
     private float _campX;
     private float _vy;
+    protected override float PanelHpMul => GameManager.Instance?.RoadHpMul ?? 1f;
 
     protected override void OnEnemyReady()
     {

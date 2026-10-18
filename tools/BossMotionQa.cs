@@ -56,6 +56,10 @@ public partial class BossMotionQa : Node
             await Frames(3);
             _transformPreview = OS.GetCmdlineUserArgs().Contains("--transform-preview");
             bool preview = _transformPreview || OS.GetCmdlineUserArgs().Contains("--preview");
+            if (OS.GetCmdlineUserArgs().Contains("--story-only"))
+                await CheckTransformationStory();
+            else
+            {
             if (!preview || _transformPreview)
             {
                 foreach (Enemy boss in new Enemy[] { new BossAkari(), new BossKoharu(), new BossRei() })
@@ -208,6 +212,7 @@ public partial class BossMotionQa : Node
                 await Frames(3);
                 Check(mina.Visible && !_root.Hud.CinematicMode && _root.World.ProcessMode == ProcessModeEnum.Inherit,
                     "interrupted reveal restores visibility and processing");
+            }
             }
             }
             _root.QueueFree();
@@ -377,9 +382,10 @@ public partial class BossMotionQa : Node
         float hp = boss.HpRatio;
         boss.DealDirectDamage(9999);
         Check(boss.HpRatio == hp, "reveal rejects damage");
+        var fx = (BossTransformation)GetTree().GetFirstNodeInGroup("boss_transform");
+        await FinishTransformationDialogue(fx, boss.GetType().Name + "_before");
         await Frames(45);
         await Shot(boss.GetType().Name + "_gather");
-        var fx = GetTree().GetFirstNodeInGroup("boss_transform");
         if (checkPause)
         {
             double time = Read<double>(fx, "_time");
@@ -396,9 +402,138 @@ public partial class BossMotionQa : Node
         await Shot(boss.GetType().Name + "_reveal");
         await Frames(30);
         await Shot(boss.GetType().Name + "_settle");
-        for (int i = 0; i < 200 && boss.Transforming; i++) await Frames(1);
+        for (int i = 0; i < 200 && Read<double>(fx, "_time") < BossTransformation.Duration; i++) await Frames(1);
+        await FinishTransformationDialogue(fx, boss.GetType().Name + "_after", after: true);
+        await Frames(2);
         Check(!boss.Transforming && boss.Visible && !_root.Hud.CinematicMode && _root.World.ProcessMode == ProcessModeEnum.Inherit,
             $"reveal restores processing (active={boss.Transforming}, visible={boss.Visible}, cinematic={_root.Hud.CinematicMode}, world={_root.World.ProcessMode})");
+    }
+
+    private async Task FinishTransformationDialogue(BossTransformation fx, string? capture = null, bool after = false)
+    {
+        var talk = Read<CharacterStoryTalk>(fx, "_dialogue");
+        int line = 0;
+        while (talk.Active && line < 6)
+        {
+            Check(Read<List<string>>(_root.Hud, "_dlgPages").Count == 1,
+                "each beat fits a single page: " + Read<string>(_root.Hud, "_dlgText").Replace('\n', ' '));
+            while (!_root.Hud.DialogRevealed) _root.Hud.RevealDialogNow();
+            if (after && line == 1)
+            {
+                var expected = _game.SelectedJob != Job.Tank ? Hud.LineKind.Companion
+                    : Read<UnfolderKind>(fx, "_style") == UnfolderKind.Mina ? Hud.LineKind.Boy : Hud.LineKind.Mina;
+                Check(Read<Hud.LineKind>(_root.Hud, "_dlgKind") == expected, "reply uses the active character");
+            }
+            if (capture != null) await Shot(capture + "_" + line);
+            Input.ActionRelease("ui_accept");
+            fx._Process(0);
+            Input.ActionPress("ui_accept");
+            fx._Process(.3);
+            Input.ActionRelease("ui_accept");
+            line++;
+        }
+        Check(!talk.Active && line == (after ? 2 : 3), "dialogue completes in the intended order");
+    }
+
+    private async Task CheckTransformationStory()
+    {
+        foreach (Job job in Enum.GetValues<Job>())
+        foreach (Enemy boss in new Enemy[] { new BossAkari(), new BossKoharu(), new BossRei(), new BossMina() })
+        {
+            _game.SelectedJob = job;
+            _game.Difficulty = GameManager.Diff.Lunatic;
+            Spawn(boss);
+            if (boss is BossMina)
+            {
+                Call(boss, "BeginPhaseTransition");
+                Call(boss, "CompletePhaseTransition");
+                Call(boss, "TickSwapAnim", 1d);
+                Call(boss, "BeginPhaseTransition");
+            }
+            _game.Difficulty = job switch
+            {
+                Job.Tank => GameManager.Diff.Easy,
+                Job.Melee => GameManager.Diff.Normal,
+                _ => GameManager.Diff.Hard,
+            };
+            Input.ActionPress("ui_accept");
+            if (boss is BossMina) Call(boss, "CompletePhaseTransition");
+            else Call(boss, "AdvanceForm2");
+            var fx = (BossTransformation)GetTree().GetFirstNodeInGroup("boss_transform");
+            fx.SetProcess(false);
+            await Frames(2);
+            string opening = Read<string>(_root.Hud, "_dlgText");
+            fx._Process(20);
+            Check(Read<double>(fx, "_time") == 0 && opening == Read<string>(_root.Hud, "_dlgText"),
+                "held fire and elapsed time cannot skip the lead-in");
+            Input.ActionRelease("ui_accept");
+            fx._Process(0);
+            Check(_root.World.ProcessMode == ProcessModeEnum.Disabled && _game.ProcessMode == ProcessModeEnum.Disabled
+                && Hud.BubblePaused && !_root.Player.IsPhysicsProcessing(), "dialogue suspends combat, player and clocks");
+            float hp = boss.HpRatio;
+            boss.DealDirectDamage(9999);
+            Check(boss.HpRatio == hp, "dialogue rejects damage");
+            bool capture = boss is BossMina ? job == Job.Magic : job == Job.Tank;
+            string label = boss.GetType().Name + "_story";
+            await FinishTransformationDialogue(fx, capture ? label + "_before" : null);
+            fx._Process(.8);
+            if (capture) await Shot(label + "_gather");
+            fx._Process(.6);
+            if (capture) await Shot(label + "_impact");
+            fx._Process(1.61);
+            Check(Read<CharacterStoryTalk>(fx, "_dialogue").Active && boss.Transforming && !boss.Visible,
+                "new form stays in the scene until its response is read");
+            await FinishTransformationDialogue(fx, capture ? label + "_after" : null, after: true);
+            await Frames(2);
+            Check(boss.Visible && !boss.Transforming && !_root.Hud.CinematicMode && !Hud.BubblePaused
+                && !_root.Hud.HoldBubble && !_root.Hud.BattleMemoryTempo && _root.Player.IsPhysicsProcessing()
+                && _root.World.ProcessMode == ProcessModeEnum.Inherit && _game.ProcessMode != ProcessModeEnum.Disabled,
+                $"{boss.GetType().Name}/{job}: conversation restores battle");
+            if (boss is BossMina mina) Check(!mina.Transitioning, "dragon callback arms the next phase");
+            boss.QueueFree();
+            await Frames(2);
+        }
+        var probe = new BossAkari();
+        _game.Difficulty = GameManager.Diff.Normal;
+        Spawn(probe);
+        int completed = 0;
+        foreach (int step in new[] { 0, 1, 2 })
+        {
+            var fx = BossTransformation.Play(probe, BossTransformation.Frame.Capture(probe.GetNode<Sprite2D>("Body")), () => completed++);
+            fx.SetProcess(false);
+            await Frames(2);
+            if (step > 0) await FinishTransformationDialogue(fx);
+            if (step == 2) fx._Process(BossTransformation.Duration);
+            fx.QueueFree();
+            await Frames(2);
+            Check(completed == 0 && probe.Visible && !_root.Hud.CinematicMode && !Hud.BubblePaused
+                && !_root.Hud.HoldBubble && !_root.Hud.BattleMemoryTempo
+                && _root.World.ProcessMode == ProcessModeEnum.Inherit && _root.Player.IsPhysicsProcessing(),
+                $"interruption at step {step} restores state without completing the transition");
+        }
+        foreach (bool auto in new[] { true, false })
+        {
+            _game.AutoAdvanceDialog = auto;
+            Hud.SkipLatched = !auto;
+            var fx = BossTransformation.Play(probe, BossTransformation.Frame.Capture(probe.GetNode<Sprite2D>("Body")), () => completed++);
+            fx.SetProcess(false);
+            await Frames(2);
+            for (int i = 0; i < 100 && !fx.IsQueuedForDeletion(); i++)
+            {
+                _root.Hud._Process(2);
+                fx._Process(2);
+            }
+            Check(fx.IsQueuedForDeletion(), auto ? "AUTO finishes the entire scene" : "SKIP finishes the entire scene");
+            await Frames(2);
+        }
+        Check(completed == 2, "completion callback runs once per completed scene");
+        _game.AutoAdvanceDialog = false;
+        Hud.SkipLatched = false;
+        _game.Difficulty = GameManager.Diff.Lunatic;
+        Call(probe, "AdvanceForm2");
+        Check(probe.HasEvolved && !probe.Transforming && !Hud.BubblePaused, "Lunatic keeps its uninterrupted transition");
+        probe.QueueFree();
+        await Frames(2);
     }
 
     private async Task Frames(int count)

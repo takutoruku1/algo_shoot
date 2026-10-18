@@ -1,63 +1,55 @@
 using System.Collections.Generic;
+using System.Linq;
 
 internal static class BossAttackCycle
 {
     internal readonly record struct Slot(BossTechniqueKind Kind, int Variant = 0);
 
-    private static readonly Slot[] AkariBefore = {
-        new(BossTechniqueKind.Normal, 0), new(BossTechniqueKind.Area, 0),
-        new(BossTechniqueKind.Normal, 1), new(BossTechniqueKind.Edge),
-        new(BossTechniqueKind.Extra, 0), new(BossTechniqueKind.Normal, 2),
-        new(BossTechniqueKind.Area, 1), new(BossTechniqueKind.Normal, 3),
-        new(BossTechniqueKind.Extra, 1), new(BossTechniqueKind.Normal, 4),
+    internal static readonly Slot[] EasyAkariSlots = {
+        new(BossTechniqueKind.Normal, 0), new(BossTechniqueKind.Normal, 2),
+        new(BossTechniqueKind.Crossfire, 2), new(BossTechniqueKind.Normal, 1),
+        new(BossTechniqueKind.Extra, 0), new(BossTechniqueKind.Edge),
+        new(BossTechniqueKind.Area, 0), new(BossTechniqueKind.Extra, 1),
+        new(BossTechniqueKind.Area, 1), new(BossTechniqueKind.Crossfire, 3),
+        new(BossTechniqueKind.Extra, 0), new(BossTechniqueKind.Extra, 1),
     };
-    private static readonly Slot[] AkariAfter = {
-        new(BossTechniqueKind.Crossfire, 0), new(BossTechniqueKind.Signature),
-        new(BossTechniqueKind.Crossfire, 1), new(BossTechniqueKind.Extra, 0),
-        new(BossTechniqueKind.Crossfire, 2), new(BossTechniqueKind.Dodge),
-        new(BossTechniqueKind.Crossfire, 3), new(BossTechniqueKind.Extra, 1),
-        new(BossTechniqueKind.Crossfire, 4),
+    private static readonly Slot[] Akari = EasyAkariSlots.Where(slot => slot.Kind != BossTechniqueKind.Extra).ToArray();
+    private static readonly Slot[] EasyReiBefore = {
+        new(BossTechniqueKind.Normal, 0), new(BossTechniqueKind.Normal, 1),
+        new(BossTechniqueKind.Area, 0), new(BossTechniqueKind.Extra, 0),
+        new(BossTechniqueKind.Normal, 2),
     };
-    private static readonly Slot[] KoharuBefore = {
-        new(BossTechniqueKind.Area, 1), new(BossTechniqueKind.Normal, 1),
-        new(BossTechniqueKind.Area, 0), new(BossTechniqueKind.Normal, 0),
-        new(BossTechniqueKind.Edge), new(BossTechniqueKind.Extra, 0),
-        new(BossTechniqueKind.Normal, 2), new(BossTechniqueKind.Area, 2),
-        new(BossTechniqueKind.Extra, 1),
+    private static readonly Slot[] EasyKoharuBefore = {
+        new(BossTechniqueKind.Normal, 0), new(BossTechniqueKind.Normal, 1),
+        new(BossTechniqueKind.Area, 1), new(BossTechniqueKind.Normal, 2),
     };
-    private static readonly Slot[] KoharuAfter = {
-        new(BossTechniqueKind.Crossfire, 0), new(BossTechniqueKind.Crossfire, 1),
-        new(BossTechniqueKind.Signature), new(BossTechniqueKind.Crossfire, 2),
-        new(BossTechniqueKind.Extra, 0),
+    private static readonly Slot[] EasyKoharuAfter = {
+        new(BossTechniqueKind.Extra, 0), new(BossTechniqueKind.Area, 1),
+        new(BossTechniqueKind.Normal, 2), new(BossTechniqueKind.Normal, 0),
+        new(BossTechniqueKind.Normal, 1),
+    };
+    private static readonly Slot[] EasyReiAfter = {
+        new(BossTechniqueKind.Signature), new(BossTechniqueKind.Normal, 1),
+        new(BossTechniqueKind.Area, 0), new(BossTechniqueKind.Extra, 1),
+        new(BossTechniqueKind.Normal, 0), new(BossTechniqueKind.Normal, 2),
+    };
+    private static readonly Slot[][] EasyMina = {
+        new Slot[] { new(BossTechniqueKind.Area, 0) },
+        new Slot[] { new(BossTechniqueKind.Area, 1) },
+        new Slot[] { new(BossTechniqueKind.Area, 2) },
+        new Slot[] { new(BossTechniqueKind.Area, 3) },
+        new Slot[] { new(BossTechniqueKind.Area, 4) },
     };
     private static readonly Slot[] KoharuFinale = {
-        new(BossTechniqueKind.Finale), new(BossTechniqueKind.Crossfire, 3),
-        new(BossTechniqueKind.Extra, 1), new(BossTechniqueKind.Crossfire, 4),
-        new(BossTechniqueKind.Dodge),
-    };
-    private static readonly Slot[] ReiBefore = {
-        new(BossTechniqueKind.Normal, 0), new(BossTechniqueKind.Area, 2),
-        new(BossTechniqueKind.Extra, 1), new(BossTechniqueKind.Normal, 1),
-        new(BossTechniqueKind.Area, 0), new(BossTechniqueKind.Extra, 0),
+        new(BossTechniqueKind.Finale), new(BossTechniqueKind.Extra, 0),
         new(BossTechniqueKind.Area, 1), new(BossTechniqueKind.Normal, 2),
-        new(BossTechniqueKind.Edge),
-    };
-    private static readonly Slot[] ReiAfter = {
-        new(BossTechniqueKind.Signature), new(BossTechniqueKind.Crossfire, 0),
-        new(BossTechniqueKind.Extra, 0), new(BossTechniqueKind.Crossfire, 1),
-        new(BossTechniqueKind.Crossfire, 2),
+        new(BossTechniqueKind.Normal, 0), new(BossTechniqueKind.Normal, 1),
     };
     private static readonly Slot[] ReiFinale = {
-        new(BossTechniqueKind.Finale), new(BossTechniqueKind.Extra, 1),
-        new(BossTechniqueKind.Crossfire, 3), new(BossTechniqueKind.Dodge),
-        new(BossTechniqueKind.Crossfire, 4),
-    };
-    private static readonly Slot[][] Mina = {
-        new Slot[] { new(BossTechniqueKind.Area, 0), new(BossTechniqueKind.Normal, 0), new(BossTechniqueKind.Extra, 0), new(BossTechniqueKind.Normal, 1) },
-        new Slot[] { new(BossTechniqueKind.Area, 1), new(BossTechniqueKind.Normal, 2), new(BossTechniqueKind.Extra, 1), new(BossTechniqueKind.Edge) },
-        new Slot[] { new(BossTechniqueKind.Area, 2), new(BossTechniqueKind.Crossfire, 0), new(BossTechniqueKind.Extra, 0), new(BossTechniqueKind.Crossfire, 1) },
-        new Slot[] { new(BossTechniqueKind.Area, 3), new(BossTechniqueKind.Crossfire, 2), new(BossTechniqueKind.Extra, 1), new(BossTechniqueKind.Crossfire, 3) },
-        new Slot[] { new(BossTechniqueKind.Area, 4), new(BossTechniqueKind.Crossfire, 4), new(BossTechniqueKind.Dodge) },
+        new(BossTechniqueKind.Finale), new(BossTechniqueKind.Signature),
+        new(BossTechniqueKind.Normal, 1), new(BossTechniqueKind.Area, 0),
+        new(BossTechniqueKind.Extra, 1), new(BossTechniqueKind.Normal, 0),
+        new(BossTechniqueKind.Normal, 2),
     };
     private static readonly Slot[] Cameo = { new(BossTechniqueKind.Cameo, 0), new(BossTechniqueKind.Cameo, 1) };
 
@@ -71,10 +63,18 @@ internal static class BossAttackCycle
 
     internal static IReadOnlyList<Slot> Slots(Enemy boss, int segment) => boss switch
     {
-        BossMina => Mina[segment],
+        BossMina => EasyMina[segment],
         CameoBoss => Cameo,
-        BossAkari => segment == 0 ? AkariBefore : AkariAfter,
-        BossKoharu => segment == 0 ? KoharuBefore : segment == 1 ? KoharuAfter : KoharuFinale,
-        _ => segment == 0 ? ReiBefore : segment == 1 ? ReiAfter : ReiFinale,
+        BossAkari => Akari,
+        BossKoharu => segment == 0 ? EasyKoharuBefore : segment == 1 ? EasyKoharuAfter : KoharuFinale,
+        _ => segment == 0 ? EasyReiBefore : segment == 1 ? EasyReiAfter : ReiFinale,
+    };
+
+    internal static IReadOnlyList<Slot> EasySlots(Enemy boss, int segment) => boss switch
+    {
+        BossAkari => EasyAkariSlots,
+        BossMina => EasyMina[segment],
+        BossRei => segment == 0 ? EasyReiBefore : EasyReiAfter,
+        _ => segment == 0 ? EasyKoharuBefore : EasyKoharuAfter,
     };
 }

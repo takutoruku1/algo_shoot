@@ -151,14 +151,18 @@ public partial class GameManager : Node
     public static float DifficultyShardMulFor(Diff d) => d switch { Diff.Easy => 0.8f, Diff.Hard => 1.3f, Diff.Lunatic => 1.6f, _ => 1f };
     public float DifficultyShardMul => DifficultyShardMulFor(Difficulty);
 
-    // ボスHPバー本数（言葉のシールド＋無防備窓リワーク）。1本=BarHp(=100)で、総HP=本数×BarHp。
-    // 難易度で本数が増える＝堅くなる（弾数調整とは別軸の「殴る回数」調整）。
-    public int DiffBarBonus(bool finalBoss) =>
-        (Difficulty switch { Diff.Hard => 5, Diff.Lunatic => 6, _ => 4 }) + (finalBoss ? 2 : 0);
+    public int DiffBarBonus(bool finalBoss) => 4 + (finalBoss ? 2 : 0);
+    public float BossHpMul => Difficulty switch
+    {
+        Diff.Normal => 1.25f, Diff.Hard => 1.5f, Diff.Lunatic => 1.75f, _ => 1f,
+    };
+    public float RoadHpMul => Difficulty switch
+    {
+        Diff.Normal => 1.25f, Diff.Hard => 1.5f, Diff.Lunatic => 1.75f, _ => 1f,
+    };
 
-    // ルナティック解禁条件（①-9）：フォロワーが一定 or 一本道 #5「火力 2倍」を持っている。
     public const int LunaticFollowerReq = 200;
-    public bool IsLunaticUnlocked => Followers >= LunaticFollowerReq || Has("n_power_2x");
+    public bool IsLunaticUnlocked => Followers >= LunaticFollowerReq;
 
     // ───── 回避 ─────
     //   回避（Space / L3 / 右クリック）は 2026-09-22 からショップの段 #2「回避」（n_dodge）で覚える
@@ -503,7 +507,6 @@ public partial class GameManager : Node
     // ステージ完了：クリア報酬を計上し、クリア済に記録。ハブ帰還前に各ステージから呼ぶ。
     public void CompleteStage(string id)
     {
-        RegisterStageClear();
         _cleared.Add(id);
         if (System.Array.Exists(Stages, stage => stage.Id == id))
         {
@@ -515,6 +518,7 @@ public partial class GameManager : Node
             else _companionClears.Remove(id);
         }
         JustClearedStageId = id; // ハブで帰還会話＆自動投稿を再生する
+        RegisterStageClear();
     }
 
     // ─── 周回（同ステージ再プレイ）報酬の逓減（①-7）───
@@ -623,7 +627,7 @@ public partial class GameManager : Node
     // 今回のラン(ステージ)で稼いだインプレ。HUD表示「🔥 +N」用。ResetRun で 0。
     public long RunImpression { get; private set; }
 
-    // 恒久強化の所持（id → 0/1）。一本道14段はすべて買い切り＝値は 0 か 1 しか取らない。
+    // 恒久強化の所持（id → 0/1）。すべて買い切り＝値は 0 か 1 しか取らない。
     // セーブ移行（MigrateUpgradesIfLegacy）で丸ごと差し替えるため readonly にはしない。
     private Dictionary<string, int> _upgrades = new();
 
@@ -641,7 +645,6 @@ public partial class GameManager : Node
         public string ParentId = "";
     }
 
-    // ───── 一本道14段（ショップ作り直し・2026-09-13／回避を段に加えて 13→14 段・2026-09-22）─────
     //   分岐・排他・振り直しを全廃し、「上から順にしか買えない」1列だけにした。ノード名＝効果そのもの
     //   ＝詳細の地の文を読ませなくても何が起きるか分かる（Desc は「いま → 買うと」の材料としてだけ持つ）。
     //   ・順序は ParentId が直前の段を指すことで担保する（IsParentMet ＝ 直前の段の所持）。
@@ -663,15 +666,13 @@ public partial class GameManager : Node
         new() { Id = "n_dodge",    Name = "回避",                  Desc = "一瞬無敵になって弾を抜ける",             MaxLevel = 1, BaseCost =  200, ParentId = "n_life_1" },
         new() { Id = "n_dodge_cd", Name = "回避強化", Desc = "回避が早く戻り、距離も伸びる",         MaxLevel = 1, BaseCost =  300, ParentId = "n_dodge" },
         new() { Id = "n_bomb_1",   Name = "ボム +1",               Desc = "はじまりのボムが1つ増える",             MaxLevel = 1, BaseCost =  450, ParentId = "n_dodge_cd" },
-        new() { Id = "n_power_2x", Name = "火力 2倍",          Desc = "撃った光の威力が2倍になる",             MaxLevel = 1, BaseCost =  700, ParentId = "n_bomb_1" },
-        new() { Id = "n_life_2",   Name = "ハート +1",             Desc = "はじまりの♥がもう1つ増える",           MaxLevel = 1, BaseCost =  900, ParentId = "n_power_2x" },
+        new() { Id = "n_life_2",   Name = "ハート +1",             Desc = "はじまりの♥がもう1つ増える",           MaxLevel = 1, BaseCost =  900, ParentId = "n_bomb_1" },
         new() { Id = "n_charge",   Name = "溜め打ち 二段",         Desc = "もう一段ためると、重く大きい一発になる", MaxLevel = 1, BaseCost = 1200, ParentId = "n_life_2" },
         new() { Id = "n_hitbox",   Name = "当たり判定 半分",       Desc = "被弾判定の半径が半分になる",            MaxLevel = 1, BaseCost = 1500, ParentId = "n_charge" },
         new() { Id = "n_lines",    Name = "ライン +1",           Desc = "撃ち方ごとに光の筋が1本増える",         MaxLevel = 1, BaseCost = 1800, ParentId = "n_hitbox" },
         new() { Id = "n_move_15x", Name = "移動速度 1.5倍",        Desc = "移動が1.5倍速くなる",                   MaxLevel = 1, BaseCost = 2200, ParentId = "n_lines" },
         new() { Id = "n_slow",     Name = "集中モード",    Desc = "敵の時間だけ遅くする",                  MaxLevel = 1, BaseCost = 2600, ParentId = "n_move_15x" },
-        new() { Id = "n_rate_2x",  Name = "連射速度 2倍",          Desc = "発射間隔が半分になる",                  MaxLevel = 1, BaseCost = 3000, ParentId = "n_slow" },
-        new() { Id = "n_pierce",   Name = "貫通",      Desc = "どの撃ち方でも弾が敵1体を貫通する",     MaxLevel = 1, BaseCost = 3500, ParentId = "n_rate_2x" },
+        new() { Id = "n_pierce",   Name = "貫通",      Desc = "どの撃ち方でも弾が敵1体を貫通する",     MaxLevel = 1, BaseCost = 3500, ParentId = "n_slow" },
         new() { Id = "n_option",   Name = "オプション +1",         Desc = "追従オプションが1基つく（威力×0.5）",   MaxLevel = 1, BaseCost = 4000, ParentId = "n_pierce" },
     };
 
@@ -698,7 +699,6 @@ public partial class GameManager : Node
 
     public int GetUpgradeLevel(string id) => _upgrades.TryGetValue(id, out var v) ? v : 0;
 
-    // ───── セーブ移行（旧70ノード／旧MaxLv方式 → 一本道14段）─────
     //   方針は「没収ゼロ」：旧セーブが強化に投じた総額を決定的に再計算し、その金額で新列の先頭から
     //   買えるだけ自動所持させる（差額は返金しない＝旧価格でどこまで積めたかが、そのまま新列の到達段になる）。
     //   ・旧MaxLv方式（"fire_rate":3 のように Lv 値を持つ）は「Lv n＝その鎖の先頭 n 段を買った」とみなし、
@@ -764,11 +764,12 @@ public partial class GameManager : Node
         ["veil_light"]    = new[] { "veil_1", "veil_2" },
     };
 
-    // 旧IDが混じっていれば一本道14段へ読み替える（LoadFromSlot の _upgrades 復元直後に呼ぶ）。
     //   移行した段数は MigratedNodeCount に控える（ショップ／QAログが「何段引き継いだか」を見せる用）。
     public int MigratedNodeCount { get; private set; } = -1; // -1＝このロードでは移行が走らなかった
     private void MigrateUpgradesIfLegacy()
     {
+        if (_upgrades.Remove("n_power_2x", out int power) && power > 0) Impression += 700;
+        if (_upgrades.Remove("n_rate_2x", out int rate) && rate > 0) Impression += 3000;
         long paid = 0;
         bool legacy = false;
         foreach (var kv in _upgrades)
@@ -919,11 +920,6 @@ public partial class GameManager : Node
     //   （旧実装の 連射×1.3／移動×0.9 は、手触りそのものを鈍らせて理由も見えない＝いちばん質の悪い罰だった）。
     public float TotalImpressionMul => DifficultyImpressionMul * FollowerImpressionMul * UpgradeImpressionMul * (BurningThisRun ? 0.6f : 1f);
 
-    // ── 強化効果アクセサ（一本道14段。所持しているかどうかの1/0だけで決まる）──
-    // #5 弾の火力2倍。威力式の最終段で掛ける倍率（Player.Fire）。旧 ShotDamageBonus（加算）は廃止。
-    public int ShotPowerMul => Has("n_power_2x") ? 2 : 1;
-    // #12 連射速度2倍＝発射間隔 ×0.5。炎上による間隔弱体は撤廃した（収入0.6倍だけが罰）。
-    public float FireIntervalMul => Has("n_rate_2x") ? 0.5f : 1f;
     // #10 移動速度1.5倍（低速移動の廃止＝2026-09-13 により、速度は1本になった）。炎上による移動弱体も撤廃。
     public float MoveSpeedMul => Has("n_move_15x") ? 1.5f : 1f;
     // #8 当たり判定 半分（HitRadius 2.0px → 1.0px）。
@@ -957,10 +953,7 @@ public partial class GameManager : Node
     public float DodgeCooldown => Has("n_dodge_cd") ? 0.65f : 0.80f;
     public float DodgeDistance => Has("n_dodge_cd") ? 76f : 64f;
 
-    // 窓キャップ（Enemy.ExposedDamageCap）のテンポ還元。火力に投資するほど1窓で通せる量が増える＝
-    //   「強くなったのに窓の中で手が空く」を作らない。基準180＋火力3段ぶん（各+35）。
-    internal const int MaximumExposedDamageCap = 285;
-    public int ExposedDamageCap => 180 + 35 * ((Has("n_power_2x") ? 1 : 0) + (Has("n_lines") ? 1 : 0) + (Has("n_rate_2x") ? 1 : 0));
+    public int ExposedDamageCap => 180 + (Has("n_lines") ? 35 : 0);
 
     // ── 旧ノードが消えたぶんの既定値（買えなくなった軸は「旧ノードを買い切った値」で固定する）──
     //   ＝一本道化で強化軸が消えても、撃ち味そのものは旧・最終段のまま。弱体化ゼロ（査読確定・§9）。

@@ -35,8 +35,68 @@ public partial class BossTransformation : Node2D
     private Action? _completed;
     private double _time;
     private bool _restored, _visible, _suppressed, _revealed, _charged;
+    private CharacterStoryTalk? _dialogue;
     private readonly Vector2[] _trail = new Vector2[25];
     private readonly Color[] _trailColors = new Color[25];
+
+    private static string[] LeadIn(UnfolderKind style) => style switch
+    {
+        UnfolderKind.Akari => new[]
+        {
+            "……消したはずなのに。\n言えなかった言葉が、まだこんなに。",
+            "笑って見送りたかったのに……。\n行かないで、追いかけたいって、あふれてくる。",
+            "封筒が、身体に……。\nこの手が届かないなら、追いつける姿に……！",
+        },
+        UnfolderKind.Koharu => new[]
+        {
+            "腕、もう上がらないのに……。\nみんなは続けてるから、まだ振らなきゃ。",
+            "一度でも止まったら、好きじゃないって思われる。\nここに、いられなくなる。",
+            "ペンライトが、身体に……。\nこの光も脚も、追いつくまで止まらないで！",
+        },
+        UnfolderKind.Rei => new[]
+        {
+            "……笑って話してるのに、まだ人が減る。\nわたしが、つまらないから……？",
+            "見てもらうために、何度も作り直した顔なのに。\nこれでも、足りないの……？",
+            "飾りが、羽みたいに……。\n画面いっぱいに広がれば、目を離せないでしょ？",
+        },
+        UnfolderKind.Mina => new[]
+        {
+            "……預かった苦しさが、あふれてきます。\nもう、この身体には収まりません。",
+            "誰かに渡せば、その方まで苦しませてしまう。\nわたくしが、抱えていなければ。",
+            "……もっと、大きく。\n皆さまを守れる身体に、なれば……！",
+        },
+        _ => throw new ArgumentOutOfRangeException(nameof(style)),
+    };
+
+    private static string FirstWords(UnfolderKind style) => style switch
+    {
+        UnfolderKind.Akari => "……尾の先まで、消せなかった言葉が。\n待って、今度こそ追いつくから……！",
+        UnfolderKind.Koharu => "……手を振らなくても、角が光ってる。\nこの脚なら、まだついていけるよね？",
+        UnfolderKind.Rei => "ほら、羽を広げれば、画面いっぱい。\n……もう、見えないなんて言わせない。",
+        UnfolderKind.Mina => "……この翼の内側なら、全部守れます。\nどうか、こちらへ来ないで。",
+        _ => throw new ArgumentOutOfRangeException(nameof(style)),
+    };
+
+    private static string Reply(UnfolderKind style, Job job) => (style, job) switch
+    {
+        (UnfolderKind.Akari, Job.Tank) => "封筒が、追いかける狐の尾に……。\nあかりさん、その一通を聞かせてください。",
+        (UnfolderKind.Akari, Job.Melee) => "狐になってまで、追いかけたかったんだね。\nあたしの中のその気持ち、今度は聞くよ。",
+        (UnfolderKind.Akari, Job.Heal) => "狐の尾、ぜんぶ封筒なんだ……。\n追いついて伝えたい言葉、あたしも聞きたい。",
+        (UnfolderKind.Akari, Job.Magic) => "封筒を尾にして、追いかける狐にまで……。\n追いついたら、何て伝えるつもり？",
+        (UnfolderKind.Koharu, Job.Tank) => "その脚も、光る角も、追いつくために……。\nそれほど、休むのが怖かったのですね。",
+        (UnfolderKind.Koharu, Job.Melee) => "鹿の脚なら、休まなくて済むって……？\nそんなに、置いていかれるのが怖かったんだ。",
+        (UnfolderKind.Koharu, Job.Heal) => "鹿になれば、ずっと走れるって思ったんだ。\nあたし、そんなに止まるのが怖かったんだね。",
+        (UnfolderKind.Koharu, Job.Magic) => "その角、ペンライトの光なのね。\nわたしについてくるために、そこまで……。",
+        (UnfolderKind.Rei, Job.Tank) => "見てほしいという願いが、その翼に……。\nレイさん、飾りの奥の声も聞こえています。",
+        (UnfolderKind.Rei, Job.Melee) => "見てもらいたくて、鳥の姿にまで……。\n羽の陰に隠れなくても、ここから見てるよ。",
+        (UnfolderKind.Rei, Job.Heal) => "その翼、みんなに見つけてもらうためなんだね。\nあたし、小さい声だって聞いてるよ。",
+        (UnfolderKind.Rei, Job.Magic) => "鳥の姿にまで作り替えて、目を引くのね。\n誰もいなくなるのが怖いのは、知ってるわ。",
+        (UnfolderKind.Mina, Job.Tank) => "龍になってまで、ひとりで抱えるのか。\nミナ、僕の声まで締め出さないで。",
+        (UnfolderKind.Mina, Job.Melee) => "龍になったら、もっと抱えられるって……？\nその翼で、あたしたちまで遠ざけないで。",
+        (UnfolderKind.Mina, Job.Heal) => "大きな龍になっても、抱えるのはひとりなの？\n翼の外に追い出さないで、一緒に持ちたいよ。",
+        (UnfolderKind.Mina, Job.Magic) => "全部抱えるために、龍の姿を選んだのね。\nその翼で、わたしたちまで遠ざけないで。",
+        _ => throw new ArgumentOutOfRangeException(nameof(job)),
+    };
 
     public static BossTransformation Play(Enemy boss, Frame before, Action? completed = null)
     {
@@ -186,7 +246,55 @@ public partial class BossTransformation : Node2D
             };
             AddChild(_crack);
         }
+        BeginDialogue(after: false);
+    }
+
+    private void BeginDialogue(bool after)
+    {
+        ZIndex = -10;
+        _front.Visible = false;
+        _hud.SetCinematicMode(true, dialogueBubble: true);
+        var (name, face) = _style switch
+        {
+            UnfolderKind.Akari => ("あかり", "res://char/v3/akari_face.png"),
+            UnfolderKind.Koharu => ("こはる", "res://char/v3/koharu_face_pale.png"),
+            UnfolderKind.Rei => ("レイ", CompanionDialogue.ReiAvatarPortrait),
+            _ => ("ミナ", "res://char/mina_worried.png"),
+        };
+        int speaker = (int)(_style == UnfolderKind.Mina ? Hud.LineKind.Mina : Hud.LineKind.Other);
+        var lines = Array.ConvertAll(LeadIn(_style), text => (speaker, text, face));
+        if (after)
+        {
+            var responder = _game.SelectedJob == Job.Tank
+                ? (_style == UnfolderKind.Mina ? Hud.LineKind.Boy : Hud.LineKind.Mina)
+                : Hud.LineKind.Companion;
+            lines = new[]
+            {
+                (speaker, FirstWords(_style), ""),
+                ((int)responder, Reply(_style, _game.SelectedJob), responder == Hud.LineKind.Mina ? "res://char/mina_face.png" : ""),
+            };
+        }
+        _dialogue = CharacterStoryTalk.Start(lines, () => _hud,
+            (hud, who, text, portrait) => hud.ShowDialog((Hud.LineKind)who, text, portrait, name),
+            after ? Complete : BeginMorph);
+        QueueRedraw();
+        _front.QueueRedraw();
+    }
+
+    private void BeginMorph()
+    {
+        ZIndex = 30;
+        _front.Visible = true;
+        _hud.SetCinematicMode(true);
         Audio.Instance?.Se(Audio.Instance.SfxCalm, -15, _style == UnfolderKind.Mina ? .55f : .85f);
+        QueueRedraw();
+    }
+
+    private void Complete()
+    {
+        Restore();
+        QueueFree();
+        _completed?.Invoke();
     }
 
     // _Ready から遅延で呼ばれる World の停止（理由は _Ready のコメント）。
@@ -222,6 +330,11 @@ public partial class BossTransformation : Node2D
         {
             Restore();
             QueueFree();
+            return;
+        }
+        if (_dialogue is { Active: true })
+        {
+            _dialogue.Update(delta);
             return;
         }
         _time += delta;
@@ -265,13 +378,17 @@ public partial class BossTransformation : Node2D
         QueueRedraw();
         _front.QueueRedraw();
         if (_time < Duration) return;
-        Restore();
-        QueueFree();
-        _completed?.Invoke();
+        _time = Duration;
+        BeginDialogue(after: true);
     }
 
     public override void _Draw()
     {
+        if (_dialogue is { Active: true })
+        {
+            DrawRect(new Rect2(0, 0, Field.Right, Field.Bottom), new Color(.015f, .018f, .03f, .4f));
+            return;
+        }
         float t = (float)_time;
         float fade = Envelope;
         var center = _after.Position;
@@ -504,6 +621,9 @@ public partial class BossTransformation : Node2D
         if (IsInstanceValid(_game)) _game.ProcessMode = _gameMode;
         if (IsInstanceValid(_hud))
         {
+            _hud.HoldBubble = false;
+            _hud.BattleMemoryTempo = false;
+            _hud.HideBubble();
             _hud.SetCinematicMode(false);
             _hud.SuppressCallouts = _suppressed;
         }

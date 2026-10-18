@@ -265,9 +265,9 @@ public partial class StageMina : Node
     //   ・難易度で長さは変えない（数も強度も共通）。弾の数・速さ・湧き間隔・同時数は難易度側（GameManager）の担当。
     private static readonly (int count, float intensity)[] EchoWaves =
     {
-        (36, 0.35f),   // A: 残響が滲み出す
-        (44, 0.60f),   // B: 間隔が詰まる
-        (52, 0.85f),   // C: ボス直前の山（最大密度）
+        (18, 0.35f),   // A: 残響が滲み出す
+        (22, 0.60f),   // B: 間隔が詰まる
+        (26, 0.85f),   // C: ボス直前の山（最大密度）
     };
     private static int EchoTotal
     {

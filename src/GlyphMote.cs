@@ -8,6 +8,7 @@ public partial class GlyphMote : Enemy
     private const float MoveSpeed = 50f;
     private float _campX;   // この位置まで来たら居座る（倒さない限り画面外に出ない）
     private float _vy;      // 居座り中の上下往復
+    protected override float PanelHpMul => GameManager.Instance?.RoadHpMul ?? 1f;
 
     // かつては「弾を撃つ本体を無害化する」ためのスイッチだったが、GlyphMote自体は
     // 発射ロジックを持たず常に非発火（下のPanelsFire=falseの通り）。現状は挙動に差はないが、

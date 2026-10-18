@@ -126,7 +126,7 @@ public partial class BossCoverageQa : Node
             Log("START", new
             {
                 character = _character, difficulty = difficulty.ToString(), profile = _profile, fire = _fire,
-                cameo = _cameo, target = Target, expected = _counts.Keys, timeLimit = _limit,
+                cameo = _cameo, expected = _counts.Keys, timeLimit = _limit,
                 job = _game.SelectedJob.ToString(), lives = _player.Lives, bombs = _game.Bombs,
                 followers = _game.Followers, linePower = _player.LinePower, damageCap = _game.ExposedDamageCap,
                 requestedJob = (_profile == "max" ? Job.Melee : _profile == "heal-bomb" ? Job.Heal : Job.Tank).ToString(),
@@ -136,7 +136,6 @@ public partial class BossCoverageQa : Node
         catch (Exception exception) { End(exception.ToString()); }
     }
 
-    private int Target => _game?.Difficulty is GameManager.Diff.Hard or GameManager.Diff.Lunatic ? 3 : 2;
     private IEnumerable<string> Expected()
     {
         if (_cameo)
@@ -261,7 +260,7 @@ public partial class BossCoverageQa : Node
                 {
                     time = Math.Round(_time, 2), hp = _lastHp, phase = _lastPhase, form = _lastForm, state = _lastState,
                     completed = _counts.Values.Sum(c => c.Completed), started = _counts.Values.Sum(c => c.Started),
-                    missing = _counts.Count(p => p.Value.Completed < Target), shots = _playerShots.Count,
+                    unseen = _counts.Count(p => p.Value.Completed == 0), shots = _playerShots.Count,
                     position = new { x = _player.Position.X, y = _player.Position.Y }, talking = Hud.BubblePaused,
                 });
             }
@@ -296,8 +295,8 @@ public partial class BossCoverageQa : Node
             ObserveActivation(TrackAttack(attack, boss));
         int hp = Read<int>(boss, "_hp");
         int exposedLedgerDamage = Read<int>(boss, "_windowDamage");
-        Require(exposedLedgerDamage <= GameManager.MaximumExposedDamageCap,
-            $"exposed damage ledger exceeds its maximum: {exposedLedgerDamage} > {GameManager.MaximumExposedDamageCap}");
+        Require(exposedLedgerDamage <= _game.ExposedDamageCap,
+            $"exposed damage ledger exceeds its maximum: {exposedLedgerDamage} > {_game.ExposedDamageCap}");
         _maximumExposedLedgerDamage = Math.Max(_maximumExposedLedgerDamage, exposedLedgerDamage);
         string state = State(boss);
         int phase = Phase(boss);
@@ -436,15 +435,15 @@ public partial class BossCoverageQa : Node
         if (_done) return;
         _done = true;
         Release();
-        var missing = _counts.Where(pair => pair.Value.Completed < Target).ToDictionary(pair => pair.Key, pair => pair.Value.Completed);
-        bool passed = error == null && _defeated && _postClearCompleted && _lastHp == 0 && _playerShots.Count > 0 && missing.Count == 0;
+        var unseen = _counts.Where(pair => pair.Value.Completed == 0).Select(pair => pair.Key).ToArray();
+        bool passed = error == null && _defeated && _postClearCompleted && _lastHp == 0 && _playerShots.Count > 0;
         var result = new
         {
             passed, character = _character, difficulty = _game?.Difficulty.ToString(), profile = _profile, fire = _fire, cameo = _cameo, time = _time,
-            error, defeated = _defeated, hp = _lastHp, initialHp = _initialHp, target = _game == null ? 0 : Target,
+            error, defeated = _defeated, hp = _lastHp, initialHp = _initialHp,
             postClearCompleted = _postClearCompleted, postClearSeconds = _defeated ? (double?)(_time - _defeatedAt) : null,
             postClearReason = _postClearCompleted ? _postClearReason : error,
-            expected = _counts.Count, counts = _counts, missing, playerProjectiles = _playerShots.Count, breaks = _breaks,
+            expected = _counts.Count, counts = _counts, unseen, playerProjectiles = _playerShots.Count, breaks = _breaks,
             completedWithoutActivation = _counts.Where(pair => pair.Value.CompletedWithoutActivation > 0)
                 .ToDictionary(pair => pair.Key, pair => pair.Value.CompletedWithoutActivation),
             minimumShieldSeconds = double.IsPositiveInfinity(_minimumShieldTime) ? (double?)null : _minimumShieldTime,

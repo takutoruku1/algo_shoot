@@ -38,6 +38,7 @@ public partial class BossPostsQa : Node
         try
         {
             Check(OS.GetUserDataDir().Replace('\\', '/').Contains("/build/qa_story/"), "isolated saves");
+            typeof(Settings).GetProperty(nameof(Settings.PauseWhenUnfocused))!.GetSetMethod(true)!.Invoke(null, new object[] { false });
             var game = GetNode<GameManager>("/root/Game");
             game.AutoSaveEnabled = false;
             game.ResetPersistent();
@@ -94,6 +95,8 @@ public partial class BossPostsQa : Node
         Call(boss, "TickEntrance", 100d);
         Call(boss, "TickSwapAnim", 1d);
         Write(boss, "_memoryPlayed", true);
+        Write(boss, "_form2", true);
+        if (boss is BossAkari) Write(boss, "_shieldBreaks", 3);
         if (boss is BossMina)
         {
             Write(boss, "_pattern", 4);
@@ -113,7 +116,7 @@ public partial class BossPostsQa : Node
         }
         else
         {
-            int hp = boss.TotalBars * Enemy.BarHp;
+            int hp = boss.TotalBars * boss.BarHp;
             boss.DealDirectDamage(Mathf.RoundToInt(hp * 0.1f));
             sequence._PhysicsProcess(0);
             var card = (BossPost)GetTree().GetFirstNodeInGroup("boss_post");
@@ -174,6 +177,7 @@ public partial class BossPostsQa : Node
         hud.HoldBubble = false;
         hud.HideBubble();
         Pool.DespawnAll();
+        while (Engine.TimeScale < 0.99) await Frames(1);
         root.QueueFree();
         await Frames(5);
         Check(GetTree().GetNodesInGroup("boss_post").Count == 0 && GetTree().GetNodesInGroup("boss_realm").Count == 0, label + " retry leaves no effects behind");

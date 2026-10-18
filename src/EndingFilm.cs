@@ -69,7 +69,7 @@ public partial class EndingFilm : Node2D
             GD.Load<Texture2D>(dir + "bg_ep_dawn_v2.png"),
         };
         _inputArmed = !SkipHeld();
-        Audio.Instance?.Music(Audio.Instance.BgmMenu, 2.5f);
+        Audio.Instance?.MusicOnce(Audio.Instance.BgmEndingFilm, 2.5f);
     }
 
     public override void _Process(double delta)

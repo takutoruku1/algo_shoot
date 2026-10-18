@@ -21,9 +21,13 @@ public partial class ShopStyleQa : Node
         try
         {
             Check(OS.GetUserDataDir().Replace('\\', '/').Contains("/build/qa_story/"), "isolated save data");
+            typeof(Settings).GetProperty(nameof(Settings.PauseWhenUnfocused))!.GetSetMethod(true)!.Invoke(null, new object[] { false });
             var game = GetNode<GameManager>("/root/Game");
             game.ResetPersistent();
             game.AutoSaveEnabled = false;
+            CheckRemovedUpgrades(game);
+            int chargeIndex = Array.FindIndex(GameManager.Upgrades, def => def.Id == "n_charge");
+            int lastIndex = GameManager.Upgrades.Length - 1;
             DisplayServer.WindowSetMode(DisplayServer.WindowMode.Windowed);
             DisplayServer.WindowSetSize(new Vector2I(1280, 720));
             await Frames(2);
@@ -32,7 +36,7 @@ public partial class ShopStyleQa : Node
                 game.TrainingSetAllUpgrades(false);
                 game.TrainingSetImpression(2480);
                 game.SelectedJob = job.Id;
-                for (int i = 0; i < 6; i++) game.TrainingSetUpgrade(GameManager.Upgrades[i].Id, true);
+                for (int i = 0; i < chargeIndex; i++) game.TrainingSetUpgrade(GameManager.Upgrades[i].Id, true);
                 var shop = GD.Load<PackedScene>("res://Shop.tscn").Instantiate<Shop>();
                 GetTree().Root.AddChild(shop);
                 GetTree().CurrentScene = shop;
@@ -47,7 +51,7 @@ public partial class ShopStyleQa : Node
                     break;
                 }
                 Check(Read<Texture2D>(shop, "_playerShot").ResourcePath == job.PlayerTexturePath, $"{job.CharacterId} uses current player art");
-                Check(Read<int>(shop, "_sel") == 6, "starts on next upgrade");
+                Check(Read<int>(shop, "_sel") == chargeIndex, "starts on next upgrade");
                 await Shot(job.CharacterId);
                 for (int i = 0; i < GameManager.Upgrades.Length; i++)
                 {
@@ -63,7 +67,7 @@ public partial class ShopStyleQa : Node
                     Check(UiKit.WrapLines(UiKit.ZenBold, pair.now, 18, 284).Count <= 2 && UiKit.WrapLines(UiKit.ZenBold, pair.after, 18, 284).Count <= 2,
                         $"{job.CharacterId} upgrade {i} effect fits");
                 }
-                Write(shop, "_sel", 6);
+                Write(shop, "_sel", chargeIndex);
                 Call(shop, "ShowShopTalk", CompanionDialogue.Menu.ShopEnter, new[] { "急がなくて結構ですよ。ここは、時間が減りませんので。" });
                 await Frames(24);
                 Check(UiKit.WrapLines(UiKit.ZenBold, Read<string>(shop, "_toast"), 16, 638).Count <= 3, "dialogue fits separate bottom area");
@@ -80,21 +84,21 @@ public partial class ShopStyleQa : Node
                 Check(game.GetUpgradeLevel("n_charge") == 0 && game.Impression == 0, "insufficient funds does not purchase");
                 await Shot(job.CharacterId + "_unaffordable");
                 game.TrainingSetImpression(100000);
-                Write(shop, "_sel", 13);
+                Write(shop, "_sel", lastIndex);
                 Call(shop, "OnConfirm");
                 Check(game.GetUpgradeLevel("n_option") == 0 && game.Impression == 100000, "locked upgrade cannot bypass order");
                 await Frames(3);
                 await Shot(job.CharacterId + "_locked");
-                Write(shop, "_sel", 6);
+                Write(shop, "_sel", chargeIndex);
                 Call(shop, "OnConfirm");
-                Check(game.Impression == 98800 && game.GetUpgradeLevel("n_charge") == 1 && Read<int>(shop, "_sel") == 7, "purchase debits exact cost and advances focus");
+                Check(game.Impression == 98800 && game.GetUpgradeLevel("n_charge") == 1 && Read<int>(shop, "_sel") == chargeIndex + 1, "purchase debits exact cost and advances focus");
                 await Frames(8);
                 await Shot(job.CharacterId + "_purchase");
-                Write(shop, "_sel", 6);
+                Write(shop, "_sel", chargeIndex);
                 Call(shop, "OnConfirm");
                 Check(game.Impression == 98800, "owned upgrade cannot be repurchased");
                 game.TrainingSetAllUpgrades(true);
-                Write(shop, "_sel", 13);
+                Write(shop, "_sel", lastIndex);
                 Write(shop, "_toastT", 0.0);
                 await Frames(3);
                 Check(!Read<bool>(shop, "_buyBtnActive"), "completed state cannot purchase");
@@ -131,6 +135,39 @@ public partial class ShopStyleQa : Node
     private async Task Frames(int count)
     {
         for (int i = 0; i < count; i++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+    }
+
+    private async Task WaitForScene<T>() where T : Node
+    {
+        ulong deadline = Time.GetTicksMsec() + 15000;
+        while ((GetTree().CurrentScene is not T || LoadingScreen.IsActive) && Time.GetTicksMsec() < deadline)
+            await Frames(1);
+    }
+
+    private static void CheckRemovedUpgrades(GameManager game)
+    {
+        Check(GameManager.GetUpgradeDef("n_power_2x") == null && GameManager.GetUpgradeDef("n_rate_2x") == null,
+            "retired power and fire-rate upgrades cannot be purchased");
+        game.TrainingSetImpression(100000);
+        Check(!game.TryPurchase("n_power_2x") && !game.TryPurchase("n_rate_2x") && game.Impression == 100000,
+            "retired upgrade IDs do not debit currency");
+        foreach (var def in GameManager.Upgrades)
+            Check(game.TryPurchase(def.Id), "remaining purchase chain reaches " + def.Id);
+        var owned = Read<System.Collections.Generic.Dictionary<string, int>>(game, "_upgrades");
+        owned["n_power_2x"] = 1;
+        owned["n_rate_2x"] = 1;
+        game.TrainingSetImpression(100);
+        Check(game.SaveToSlot(0) && game.LoadFromSlot(0), "old purchase fixture saves and loads");
+        Check(game.Impression == 3800 && game.GetUpgradeLevel("n_power_2x") == 0 && game.GetUpgradeLevel("n_rate_2x") == 0,
+            "removed purchases refund their original 3700 cost");
+        Check(GameManager.Upgrades.All(def => game.Has(def.Id)), "remaining purchased upgrades survive migration");
+        Check(game.SaveToSlot(0) && game.LoadFromSlot(0) && game.Impression == 3800,
+            "saving and reloading does not refund twice");
+        game.ResetPersistent();
+        game.TrainingSetImpression(500);
+        Check(game.SaveToSlot(0) && game.LoadFromSlot(0) && game.Impression == 500,
+            "saves without retired purchases receive no refund");
+        game.ResetPersistent();
     }
 
     private static void Click(Shop shop, Rect2 rect, int id)
@@ -193,7 +230,7 @@ public partial class ShopStyleQa : Node
         shop._Process(1.0 / 60);
         Check(shop.Action == 0, "left returns focus to the purchase button");
         Click(shop, Read<Rect2>(shop, "_trainBtnRect"), -102);
-        await Frames(5);
+        await WaitForScene<TrainingRoot>();
         Check(GetTree().CurrentScene is TrainingRoot, "training button opens practice");
         GetTree().ChangeSceneToFile("res://Shop.tscn");
         await Frames(5);
@@ -203,7 +240,7 @@ public partial class ShopStyleQa : Node
         Click(shop, Read<Rect2>(shop, "_backBtnRect"), -100);
         Check(Read<bool>(shop, "_exitPending"), "home button keeps farewell dialogue");
         Write(shop, "_exitDelayT", 0.0);
-        await Frames(5);
+        await WaitForScene<Hub>();
         Check(GetTree().CurrentScene is Hub, "home button returns to smartphone home");
         GetTree().CurrentScene.QueueFree();
         await Frames(3);
@@ -212,7 +249,8 @@ public partial class ShopStyleQa : Node
     private async Task Shot(string name)
     {
         await ToSignal(RenderingServer.Singleton, RenderingServer.SignalName.FramePostDraw);
-        string dir = ProjectSettings.GlobalizePath("res://build/qa_story/shop_style/shots");
+        string? output = OS.GetCmdlineUserArgs().FirstOrDefault(arg => arg.StartsWith("--output="));
+        string dir = ProjectSettings.GlobalizePath(output == null ? "res://build/qa_story/shop_style/shots" : output[9..]);
         DirAccess.MakeDirRecursiveAbsolute(dir);
         using var image = GetViewport().GetTexture().GetImage();
         Check(image.SavePng($"{dir}/{name}.png") == Error.Ok, $"screenshot {name}");

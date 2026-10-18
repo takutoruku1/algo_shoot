@@ -219,7 +219,7 @@ public partial class EnemyRosterQa : Node
         hud.HoldBubble = false;
         hud.HideBubble();
         await Frames(3);
-        Call(stage, "StartMidwaveSpawner", 0.7f);
+        Call(stage, "StartMidwaveSpawner", 0, 0.7f);
         var spawner = stage.GetNode<Spawner>("Spawner");
         spawner.SetProcess(false);
         Read<RandomNumberGenerator>(spawner, "_rng").Seed = 934;

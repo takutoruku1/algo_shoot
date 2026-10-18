@@ -5,6 +5,8 @@ using System.Linq;
 
 public enum BossTechniqueKind { Normal, Edge, Signature, Area, Finale, Crossfire, Dodge, Extra, Cameo }
 
+internal readonly record struct BossEasyCue(string Key, double StartsAt, double FiresAt, float Progress, bool Live, bool Cancelled = false);
+
 public abstract partial class BossCharacterTechnique : Node2D, IAoeHazard
 {
     protected Enemy Boss = null!;
@@ -17,6 +19,7 @@ public abstract partial class BossCharacterTechnique : Node2D, IAoeHazard
     protected int Variant;
     protected double Time, PreviousTime;
     private readonly List<(Vector2 A, Vector2 B, float Radius, bool Live, float Progress, int Shape)> _hazards = new();
+    protected IReadOnlyList<(Vector2 A, Vector2 B, float Radius, bool Live, float Progress, int Shape)> HazardShapes => _hazards;
     private readonly List<(Vector2 Position, string Text)> _hints = new();
     public bool Finished { get; private set; }
     public bool Completed { get; private set; }
@@ -29,6 +32,9 @@ public abstract partial class BossCharacterTechnique : Node2D, IAoeHazard
     internal double Elapsed => Time;
     internal int ShotsCreated { get; private set; }
     internal int HazardFrames { get; private set; }
+    internal int NaturalEndRemainingShots { get; private set; } = -1;
+    internal int NaturalEndLiveHazards { get; private set; } = -1;
+    internal virtual IEnumerable<BossEasyCue> EasyCues => Array.Empty<BossEasyCue>();
     internal Vector2 LastPosition { get; set; }
     internal IEnumerable<Bullet> OwnedShots => GetTree().GetNodesInGroup("enemy_bullets")
         .OfType<Bullet>().Where(b => b.Active && b.BossBarrageId == GetInstanceId());
@@ -70,13 +76,14 @@ public abstract partial class BossCharacterTechnique : Node2D, IAoeHazard
         if (Kind == BossTechniqueKind.Dodge) AddToGroup("boss_dodge_waves");
         Start();
         Boss.OnTechniqueStarted(this);
-        Boss.AnnounceTechnique(SpellName, 2);
+        Boss.AnnounceTechnique(SpellName, 2, compact: UsesCustomHazardArt);
         Step(0);
         QueueRedraw();
     }
 
     protected abstract void Start();
     protected abstract void Step(double delta);
+    protected virtual bool UsesCustomHazardArt => false;
     protected virtual void DrawTechnique() { }
     protected void Identify(string name, string mechanicKey, string counterplay)
     {
@@ -100,6 +107,11 @@ public abstract partial class BossCharacterTechnique : Node2D, IAoeHazard
     {
         shot.BossBarrageId = GetInstanceId();
         shot.BossBarrageWave = 0;
+        if (Boss is BossAkari or BossKoharu or BossRei or BossMina)
+        {
+            shot.ZIndex = 3;
+            shot.ZAsRelative = false;
+        }
         ShotsCreated++;
     }
     protected void Line(Vector2 a, Vector2 b, float halfWidth, bool live, float progress = 1)
@@ -170,6 +182,9 @@ public abstract partial class BossCharacterTechnique : Node2D, IAoeHazard
     }
     protected void Finish()
     {
+        if ((Boss is BossAkari or BossKoharu or BossRei or BossMina or CameoBoss) && OwnedShots.Any()) return;
+        NaturalEndRemainingShots = OwnedShots.Count();
+        NaturalEndLiveHazards = _hazards.Count(h => h.Live);
         Completed = true;
         Cancel();
     }
@@ -195,6 +210,11 @@ public abstract partial class BossCharacterTechnique : Node2D, IAoeHazard
     public sealed override void _Draw()
     {
         if (Finished) return;
+        if (UsesCustomHazardArt)
+        {
+            DrawTechnique();
+            return;
+        }
         foreach (var h in _hazards)
         {
             var edge = h.Live ? new Color("ff7568") : new Color("ffe0a0");

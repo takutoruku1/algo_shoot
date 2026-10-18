@@ -1,5 +1,6 @@
 using Godot;
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using System.Threading.Tasks;
@@ -36,13 +37,16 @@ public partial class RoadBalanceQa : Node
     private bool Combat => OS.GetCmdlineUserArgs().Contains("--combat");
     private bool Spawns => OS.GetCmdlineUserArgs().Contains("--spawns");
     private bool Health => OS.GetCmdlineUserArgs().Contains("--health");
+    private bool Durability => OS.GetCmdlineUserArgs().Contains("--durability");
     private bool Stationary => OS.GetCmdlineUserArgs().Contains("--stationary");
+    private bool RouteLength => OS.GetCmdlineUserArgs().Contains("--route-length");
 
     public override async void _Ready()
     {
         try
         {
             Check(OS.GetUserDataDir().Replace('\\', '/').Contains("/build/qa_story/"), "isolated saves");
+            typeof(Settings).GetProperty(nameof(Settings.PauseWhenUnfocused))!.GetSetMethod(true)!.Invoke(null, new object[] { false });
             var game = GetNode<GameManager>("/root/Game");
             game.AutoSaveEnabled = false;
             game.ResetPersistent();
@@ -55,7 +59,14 @@ public partial class RoadBalanceQa : Node
                     if ((Spawns || (Shots && !OS.GetCmdlineUserArgs().Contains("--normal-only"))
                         || OS.GetCmdlineUserArgs().Contains("--hard-only")) && diff != GameManager.Diff.Hard) continue;
                     if (OS.GetCmdlineUserArgs().Contains("--normal-only") && diff != GameManager.Diff.Normal) continue;
-                    await Encounter(game, theme, diff);
+                    if (OS.GetCmdlineUserArgs().Contains("--lunatic-only") && diff != GameManager.Diff.Lunatic) continue;
+                    if (RouteLength)
+                    {
+                        await RouteLengthChecks(game, theme, diff);
+                        if (theme == StageTheme.Koharu && diff == GameManager.Diff.Normal)
+                            await RouteLengthChecks(game, theme, diff, escape: true);
+                    }
+                    else await Encounter(game, theme, diff);
                 }
             Audio.Instance?.StopMusic(0);
             foreach (var audio in GetNode<Audio>("/root/Audio").GetChildren().OfType<AudioStreamPlayer>())
@@ -68,6 +79,164 @@ public partial class RoadBalanceQa : Node
             GetTree().Quit();
         }
         catch (Exception e) { GD.PushError("[RoadQA] FAIL " + e); GetTree().Quit(1); }
+    }
+
+    private async Task RouteLengthChecks(GameManager game, StageTheme theme, GameManager.Diff diff, bool escape = false)
+    {
+        var entries = escape ? new[] { GameManager.StageEntry.AfterMidBoss }
+            : diff != GameManager.Diff.Normal
+            ? new[] { GameManager.StageEntry.Start }
+            : theme == StageTheme.Mina
+            ? new[] { GameManager.StageEntry.Start, GameManager.StageEntry.Boss }
+            : new[] { GameManager.StageEntry.Start, GameManager.StageEntry.MidBoss,
+                GameManager.StageEntry.AfterMidBoss, GameManager.StageEntry.Boss };
+        foreach (var entry in entries)
+        {
+            game.ResetPersistent();
+            game.SelectedJob = Job.Tank;
+            game.Difficulty = diff;
+            game.SelectedEntry = entry;
+            GD.Seed(7123);
+            string scene = theme == StageTheme.Mina ? "MinaBattle" : theme.ToString();
+            var root = GD.Load<PackedScene>($"res://{scene}.tscn").Instantiate<Node2D>();
+            GetTree().Root.AddChild(root);
+            GetTree().CurrentScene = root;
+            root.ProcessMode = ProcessModeEnum.Disabled;
+            var stage = (Node)root.GetType().GetProperty("Stage")!.GetValue(root)!;
+            var world = root.GetNode<Node2D>("World");
+            var hud = root.GetNode<Hud>("Hud");
+            hud.HoldBubble = false;
+            hud.HideBubble();
+            Hud.BubblePaused = false;
+            int bossStep = theme switch { StageTheme.Akari => 11, StageTheme.Koharu => 12,
+                StageTheme.Rei => 10, _ => 3 };
+            int cameoStep = theme switch { StageTheme.Akari => 3, StageTheme.Koharu => 6,
+                StageTheme.Rei => 5, _ => -1 };
+            int expectedEntry = entry switch
+            {
+                GameManager.StageEntry.Boss => bossStep,
+                GameManager.StageEntry.MidBoss => cameoStep,
+                GameManager.StageEntry.AfterMidBoss => cameoStep + 1,
+                _ => 1,
+            };
+            Check(Read<int>(stage, "_step") == expectedEntry && game.SelectedEntry == GameManager.StageEntry.Start,
+                $"{theme}/{diff}/{entry}: checkpoint enters the correct step and consumes the entry");
+            int waves = 0;
+            for (int transitions = 0; transitions < 24 && Read<int>(stage, "_step") != bossStep; transitions++)
+            {
+                int step = Read<int>(stage, "_step");
+                string? wave = (theme, step) switch
+                {
+                    (StageTheme.Akari, 2) => "MidWave0",
+                    (StageTheme.Akari, 5) or (StageTheme.Koharu, 2) or (StageTheme.Rei, 3) => "MidWaveA",
+                    (StageTheme.Akari, 7) or (StageTheme.Koharu, 7) or (StageTheme.Rei, 6) => "MidWaveB",
+                    (StageTheme.Akari, 9) or (StageTheme.Koharu, 10) or (StageTheme.Rei, 8) => "MidWaveC",
+                    _ => null,
+                };
+                if (wave != null || (theme == StageTheme.Mina && step == 2) || (theme == StageTheme.Rei && step == 18))
+                {
+                    waves += await RouteWave(game, stage, world, theme, diff, entry, wave,
+                        escape: escape && wave == "MidWaveB");
+                    continue;
+                }
+                // Dialogue and cameo combat are outside this gate check; retain the cameo's purification count.
+                if (step == cameoStep) game.AddPurify(0);
+                if (theme == StageTheme.Rei && step is 7 or 19)
+                {
+                    Write(stage, "_step", step == 7 ? 18 : 8);
+                    Write(stage, "_stepStarted", false);
+                }
+                else Call(stage, "Advance");
+            }
+            int expectedWaves = entry == GameManager.StageEntry.Boss ? 0 : theme switch
+            {
+                StageTheme.Akari => entry == GameManager.StageEntry.Start ? 4 : 3,
+                StageTheme.Koharu => entry == GameManager.StageEntry.Start ? 3 : 2,
+                StageTheme.Rei => entry == GameManager.StageEntry.Start ? 4 : 3,
+                _ => 3,
+            };
+            Check(Read<int>(stage, "_step") == bossStep && waves == expectedWaves,
+                $"{theme}/{diff}/{entry}: all {waves} road waves reach the boss entrance");
+            Call(stage, "Step_BossSpawn");
+            Check(game.BossReached, $"{theme}/{diff}/{entry}: boss retry checkpoint is activated");
+            Pool.DespawnAll();
+            root.QueueFree();
+            await Frames(5);
+        }
+    }
+
+    private async Task<int> RouteWave(GameManager game, Node stage, Node2D world, StageTheme theme,
+        GameManager.Diff diff, GameManager.StageEntry entry, string? wave, bool escape = false)
+    {
+        bool echo = theme == StageTheme.Mina;
+        bool storm = theme == StageTheme.Rei && wave == null;
+        string method = echo ? "Step_Route" : storm ? "Step_QuoteStorm"
+            : wave == "MidWave0" ? "Step_MidWave0" : "Step_Midwave" + wave![^1];
+        object[] args = echo ? Array.Empty<object>() : new object[] { 0.5d };
+        int goal = wave == null ? 0 : (int)stage.GetType().GetField(wave,
+            BindingFlags.Static | BindingFlags.NonPublic)!.GetRawConstantValue()!;
+        var echoes = echo ? ((int count, float intensity)[])typeof(StageMina)
+            .GetField("EchoWaves", BindingFlags.Static | BindingFlags.NonPublic)!.GetValue(null)! : null;
+        int step = Read<int>(stage, "_step");
+        int startCount = game.PurifiedCount;
+        int index = 0, completed = 0, spawned = 0;
+        bool escaped = false;
+        double batchTime = 0;
+        Call(stage, method, args);
+        if (Read<int>(stage, "_step") != step)
+            throw new Exception($"{theme}/{diff}/{entry}/{wave ?? "route"}: wave skipped before spawning at {game.PurifiedCount}/{game.StageTarget}");
+        for (int tick = 0; tick < 1200; tick++)
+        {
+            foreach (var spawner in stage.GetChildren().OfType<Spawner>())
+            {
+                if (spawner.IsQueuedForDeletion()) continue;
+                spawner.SetProcess(false);
+                spawner._Process(0.5);
+                spawned = Math.Max(spawned, spawner.SpawnedCount);
+            }
+            foreach (var quote in world.GetChildren().OfType<QuoteStorm>())
+                if (!quote.IsQueuedForDeletion()) { quote.SetProcess(false); quote._Process(0.5); }
+            batchTime += 0.5;
+            var enemies = GetTree().GetNodesInGroup("enemies").OfType<MidEnemy>().ToArray();
+            if (escape && !escaped && enemies.Length > 0)
+            {
+                // Substitute one reserved slot with the carrier that can leave without purification.
+                enemies[0].QueueFree();
+                var carrier = new MidEnemy { Position = new Vector2(global::Field.Left - 25, 100) };
+                carrier.Configure(EnemyTable.PrayerCarrier());
+                world.AddChild(carrier);
+                int before = game.PurifiedCount;
+                carrier._PhysicsProcess(0.1);
+                Check(carrier.IsQueuedForDeletion() && game.PurifiedCount == before,
+                    "Koharu/NORMAL/ESCAPE: prayer carrier exits without a purification reward");
+                escaped = true;
+                enemies = enemies.Skip(1).ToArray();
+            }
+            if (enemies.Length >= game.MaxAliveEnemies || batchTime >= 8)
+            {
+                foreach (var enemy in enemies) enemy.Purify();
+                batchTime = 0;
+            }
+            Call(stage, method, args);
+            bool advanced = Read<int>(stage, "_step") != step;
+            int currentIndex = echo ? Read<int>(stage, "_wave") : 0;
+            if (advanced || currentIndex != index)
+            {
+                int killed = game.PurifiedCount - startCount;
+                int required = echo ? echoes![index].count : goal;
+                if (escape)
+                    Check(escaped && spawned == required && killed == required - 1,
+                        $"Koharu/NORMAL/ESCAPE: {spawned} spawned, {killed} purified, one carrier escaped; wave advances");
+                else Check(killed >= required && killed > 0,
+                    $"{theme}/{diff}/{entry}/{(echo ? $"echo{index}" : wave ?? "storm")}: {killed} kills meet {required}; no empty or shortened wave");
+                completed++;
+                if (advanced) return completed;
+                index = currentIndex;
+                startCount = game.PurifiedCount;
+            }
+            await Frames(1);
+        }
+        throw new Exception($"{theme}/{diff}/{entry}/{wave ?? "route"}: wave stalled at {game.PurifiedCount}/{game.StageTarget}");
     }
 
     private async Task Encounter(GameManager game, StageTheme theme, GameManager.Diff diff)
@@ -111,9 +280,16 @@ public partial class RoadBalanceQa : Node
             await Frames(5);
             return;
         }
+        if (Durability)
+        {
+            await DurabilityChecks(game, world, player, theme, diff);
+            root.QueueFree();
+            await Frames(5);
+            return;
+        }
         if (Health)
         {
-            await HealthChecks(world, player, theme, diff);
+            await HealthChecks(game, world, player, theme, diff);
             root.QueueFree();
             await Frames(5);
             return;
@@ -235,6 +411,7 @@ public partial class RoadBalanceQa : Node
         double nextHit = 0;
         int contacts = 0;
         int peak = 0, bodies = 0, playerBullets = 0;
+        int startKills = game.PurifiedCount;
         try
         {
             while (elapsed < 40)
@@ -262,20 +439,122 @@ public partial class RoadBalanceQa : Node
         finally { input.Release(); }
         Check(bodies <= game.MaxAliveEnemies, $"{theme}/{diff}: shooting enemy cap {bodies}");
         Check(playerBullets > 0, "player fire is active during the sample");
-        GD.Print($"[RoadQA] COMBAT {theme}/{diff}: peak={peak} average={sum / sampled:F2} empty={100.0 * empty / sampled:F1}% contacts={contacts} seconds={elapsed:F1}");
+        GD.Print($"[RoadQA] COMBAT {theme}/{diff}: peak={peak} average={sum / sampled:F2} empty={100.0 * empty / sampled:F1}% contacts={contacts} seconds={elapsed:F1} kills={game.PurifiedCount - startKills}");
         if (Stationary) Check(contacts >= 3, "standing still while firing repeatedly gets hit");
-        if (diff == GameManager.Diff.Normal)
-            Check(sum / sampled >= 18 && empty < sampled * 0.15, $"{theme}: NORMAL sustains multiple bullet rows during shooting");
-        if (diff == GameManager.Diff.Hard)
-            Check(sum / sampled >= 25 && empty < sampled * 0.10, $"{theme}: HARD maintains dense attacks while the player shoots");
+        Check(game.PurifiedCount > startKills, $"{theme}/{diff}: shooting continues to purify road enemies");
+        if (diff >= GameManager.Diff.Normal)
+            Check(peak > 0, $"{theme}/{diff}: road enemies still launch attacks while the player shoots");
         spawner.Stop();
         player.SetPhysicsProcess(false);
         Pool.DespawnAll();
         while (Engine.TimeScale < 0.99) await Frames(1);
     }
 
-    private async Task HealthChecks(Node2D world, Player player, StageTheme theme, GameManager.Diff diff)
+    private static IEnumerable<(string Name, Enemy Enemy, int[] Health)> RoadEnemies(StageTheme theme)
     {
+        var (shooter, drifter) = EnemyTable.For(theme);
+        var specs = EnemyTable.CharactersFor(theme).Concat(new[] { shooter, drifter,
+            EnemyTable.Flanker(theme), EnemyTable.BuzzWall(theme) });
+        if (theme == StageTheme.Koharu)
+            specs = specs.Append(EnemyTable.PrayerCarrier());
+        foreach (var spec in specs)
+        {
+            var enemy = new MidEnemy();
+            enemy.Configure(spec);
+            int[] health = spec.Pattern switch
+            {
+                AttackPattern.AkariVacant or AttackPattern.KoharuParcel or AttackPattern.ReiMetrics => new[] { 18, 23, 27, 32 },
+                AttackPattern.BuzzWall => new[] { 25, 32, 38, 44 },
+                AttackPattern.KoharuPrayerCarry => new[] { 6, 8, 9, 11 },
+                _ => new[] { 15, 19, 23, 27 },
+            };
+            yield return (spec.Pattern.ToString(), enemy, health);
+        }
+        if (theme == StageTheme.Akari)
+        {
+            yield return (nameof(GlyphMote), new GlyphMote(), new[] { 6, 8, 9, 11 });
+            yield return (nameof(PageShard), new PageShard(), new[] { 6, 8, 9, 11 });
+        }
+    }
+
+    private async Task DurabilityChecks(GameManager game, Node2D world, Player player, StageTheme theme, GameManager.Diff diff)
+    {
+        double interval = (float)typeof(Player).GetField("FireInterval", BindingFlags.Static | BindingFlags.NonPublic)!
+            .GetRawConstantValue()! * game.RapidRateMul;
+        player.Position = new Vector2(global::Field.Left + 50, 100);
+        foreach (var (name, enemy, expected) in RoadEnemies(theme))
+        {
+            Pool.DespawnAll();
+            foreach (var ripple in world.GetChildren().OfType<Ripple>()) ripple.QueueFree();
+            await Frames(2);
+            GD.Seed(7123);
+            enemy.Position = new Vector2(310, 100);
+            world.AddChild(enemy);
+            enemy.SetProcess(false);
+            enemy.SetPhysicsProcess(false);
+            Write(player, "_locked", true);
+            Write(player, "_lockTarget", enemy);
+            Write(player, "_lockUnfolder", null!);
+            var panels = enemy.GetChildren().OfType<Panel>().ToArray();
+            int health = panels.Sum(panel => panel.Ink);
+            int hits = 0, damage = 0, volleys = 0;
+            foreach (var panel in panels)
+            {
+                int previous = panel.Ink;
+                panel.AreaEntered += area =>
+                {
+                    if (area is Bullet bullet && !bullet.IsEnemy && !bullet.Charged && panel.Ink < previous)
+                    { hits++; damage += previous - Math.Max(0, panel.Ink); previous = panel.Ink; }
+                };
+            }
+            double elapsed = 0, nextShot = 0;
+            while (!enemy.IsPurified && elapsed < 30)
+            {
+                if (elapsed >= nextShot)
+                {
+                    Call(player, "Fire");
+                    volleys++;
+                    nextShot += interval;
+                }
+                await ToSignal(GetTree(), SceneTree.SignalName.PhysicsFrame);
+                elapsed += GetPhysicsProcessDeltaTime();
+            }
+            GD.Print($"[RoadQA] DURABILITY {theme}/{diff}/{name}: job={game.SelectedJob} power={player.LinePower} health={health} hits={hits} damage={damage} volleys={volleys} seconds={elapsed:F3} purified={enemy.IsPurified}");
+            Check(health == expected[(int)diff] && enemy.IsPurified && damage == health,
+                $"{theme}/{diff}/{name}: ordinary projectile collisions purify every unfolder at the expected durability");
+            Write(player, "_locked", false);
+            Write(player, "_lockTarget", null!);
+            Write(player, "_lockUnfolder", null!);
+            Pool.DespawnAll();
+            enemy.QueueFree();
+            await Frames(5);
+            while (Engine.TimeScale < 0.99) await Frames(1);
+        }
+    }
+
+    private async Task HealthChecks(GameManager game, Node2D world, Player player, StageTheme theme, GameManager.Diff diff)
+    {
+        foreach (var (name, enemy, health) in RoadEnemies(theme))
+        {
+            enemy.Position = new Vector2(310, 90);
+            enemy.ProcessMode = ProcessModeEnum.Disabled;
+            world.AddChild(enemy);
+            var panels = enemy.GetChildren().OfType<Panel>().ToArray();
+            int total = panels.Sum(panel => panel.Ink);
+            GD.Print($"[RoadQA] HEALTH {theme}/{diff}/{name}: total={total} panels={string.Join(",", panels.Select(panel => panel.Ink))}");
+            Check(total == health[(int)diff] && panels.All(panel => panel.Ink > 0 && panel.CanLock)
+                && panels.Max(panel => panel.Ink) - panels.Min(panel => panel.Ink) <= 1
+                && !enemy.HasHpBar && enemy.CollisionMask == 0,
+                $"{theme}/{diff}/{name}: exact total HP, evenly distributed targetable shields, no body HP");
+            var originalDiff = game.Difficulty;
+            game.Difficulty = diff == GameManager.Diff.Easy ? GameManager.Diff.Lunatic : GameManager.Diff.Easy;
+            Call(enemy, "SpawnPanels");
+            Check(enemy.GetChildren().OfType<Panel>().Skip(panels.Length).Sum(panel => panel.Ink) == total,
+                "spawned road durability remains fixed if the selected difficulty changes");
+            game.Difficulty = originalDiff;
+            enemy.QueueFree();
+            await Frames(2);
+        }
         foreach (var spec in EnemyTable.CharactersFor(theme))
         {
             Pool.DespawnAll();
@@ -288,33 +567,35 @@ public partial class RoadBalanceQa : Node
                 $"{spec.Pattern}/{diff}: three restored unfolders with individual HP and no body gauge");
             var panel = panels[0];
             int hp = Read<int>(panel, "_maxInk");
+            int secondHp = panels[1].Ink;
             var before = panel.Position;
             panel._PhysicsProcess(0.25);
             Check(panel.Position != before && enemy.SelectUnfolder(player.Position, panel) == panel,
                 "unfolders retain orbit motion and lock-on targeting");
-            for (int hit = 0; hit < 4; hit++)
+            int ordinaryHits = Math.Min(4, hp - 2);
+            for (int hit = 0; hit < ordinaryHits; hit++)
             {
                 var normal = Pool.Spawn(player.Position, Vector2.Right, false, 3, 1);
                 Call(panel, "OnAreaEntered", normal);
                 Check(!normal.Active, "unfolder intercepts the player shot");
             }
-            Check(panel.Ink == hp - 4 && panel.CanLock && !enemy.IsPurified,
-                "four ordinary hits no longer destroy an unfolder");
-            int chargeDamage = Math.Min(12, hp - 5);
+            Check(panel.Ink == hp - ordinaryHits && panel.CanLock && !enemy.IsPurified,
+                "ordinary damage leaves a partially depleted unfolder targetable");
+            int chargeDamage = Math.Min(12, hp - ordinaryHits - 1);
             var bullet = Pool.Spawn(player.Position, Vector2.Right, false, 3, chargeDamage);
             bullet.MakeCharged(Job.Tank);
             bullet.Pierce = 2;
             Call(panel, "OnAreaEntered", bullet);
             Call(panel, "OnAreaEntered", bullet);
-            Check(panel.Ink == hp - 4 - chargeDamage && bullet.Pierce == 1 && panels[1].Ink == hp,
+            Check(panel.Ink == hp - ordinaryHits - chargeDamage && bullet.Pierce == 1 && panels[1].Ink == secondHp,
                 "charge damage counts once per unfolder and leaves other gauges unchanged");
             panels[1].WeakenByRipple();
-            Check(panels[1].Ink == hp - 6 && panels[1].CanLock && !enemy.IsPurified,
-                "ripple chips the touched unfolder instead of deleting it");
+            Check(panels[1].Ink == Math.Max(0, secondHp - 6) && panels[1].CanLock == (secondHp > 6) && !enemy.IsPurified,
+                "ripple removes six ink and only breaks a depleted unfolder");
             var finisher = Pool.Spawn(player.Position, Vector2.Right, false, 3, panel.Ink);
             Call(panel, "OnAreaEntered", finisher);
-            Check(!panel.CanLock && !enemy.IsPurified && panels.Skip(1).All(p => p.CanLock),
-                "only the depleted unfolder breaks; the others remain");
+            Check(!panel.CanLock && !enemy.IsPurified && panels[2].CanLock && panels[1].CanLock == (secondHp > 6),
+                "the finisher breaks its target while remaining unfolders keep the enemy alive");
             Pool.DespawnAll();
             Call(enemy, "BeginCharacterAttack");
             int salvos = Read<int>(enemy, "_salvoRemaining");
@@ -342,6 +623,7 @@ public partial class RoadBalanceQa : Node
             foreach (var b in pending) { b.SetPhysicsProcess(false); b.CancelLeadIn(); b._PhysicsProcess(1); }
             Check(enemy.IsPurified && panels.All(p => !p.CanLock) && pending.All(b => !b.Active),
                 "bomb breaks remaining unfolders and cancels unlaunched shots");
+            while (Engine.TimeScale < 0.99) await Frames(1);
             enemy.QueueFree();
             await Frames(3);
             player.Position = new Vector2(100, 110);

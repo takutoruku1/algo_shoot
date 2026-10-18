@@ -2956,11 +2956,8 @@ public partial class Hub : Node2D
         UiKit.Text(this, UiKit.ZenBold, new Vector2(x + 33f, mid - 12f), tr.Name, 17, new Color(open ? UiKit.White : UiKit.Text4, alpha));
         if (!open)
         {
-            // 実装（GameManager.IsLunaticUnlocked）はフォロワー200 か 威力Lv4（n_power_2x）のどちらでも解放する。
-            // ユーザー指示の文言は「フォロワー200以上で解放」だが、Lv4 の道を落とすと表示が嘘になるため
-            // 主条件を前に出し、もう一方は括弧で添える（簡潔さは保ちつつ両方が分かる）。
             UiKit.Text(this, UiKit.Zen, new Vector2(x + 110f, mid - 8f),
-                $"フォロワー{GameManager.LunaticFollowerReq}以上で解放（威力Lv4でも可）",
+                $"フォロワー{GameManager.LunaticFollowerReq}以上で解放",
                 12, new Color(UiKit.Text4, alpha), HorizontalAlignment.Right, w - 126f);
             return;
         }

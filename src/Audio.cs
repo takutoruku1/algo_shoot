@@ -118,34 +118,13 @@ public partial class Audio : Node
     //   ロード失敗時は従来の合成 BgmStage にフォールバック（他の道中と同じ作法）。
     public AudioStream BgmStageW0 = null!;
 
-    // Final の「音楽的解決」＝挿入歌枠（設計 §1-3「感情の節目で帰ってくる」/ §7「無音→挿入歌の一点投入」）。
-    //   ミナの反転号令の直前で BgmBoss を切って完全無音にし、「返事は、ありませんでした。」の
-    //   一行と同時にこの曲を ppp で立ち上げる。沈黙→曲の入りの落差が決定打。
-    //   実音源＝res://audio/bgm_final_resolve.ogg（原曲 Morning_Light_on_Glass 29.4秒の末尾フェードを
-    //   トリムした 0..27.0秒・-3dB・頭40ms/尻120msの極小フェード・loop=true）。
-    //   歌唱は用意できないためインスト＝主旋律が「声」を担う（挿入歌の器はこの1枠のみ＝一点投入）。
-    //   「朝の光がガラスに」＝帰還の白／ミナ（ガラスの音色）の朝。BgmMenu と同じ温かい長調圏なので
-    //   Epilogue の BgmMenu へ自然に橋渡しされる。ボーカル入り実音源が来たらこのファイルを差し替えるだけ。
-    //   ロード失敗時は従来のコード合成 BuildBgmFinalResolve()（主題 M.I.N.A. の解決変奏）にフォールバック。
+    // 回復の主題を各ボスの後日談からミナの帰還まで共有する。
     public AudioStream BgmFinalResolve = null!;
 
-    // エピローグ E5b「見上げる／歩く」のオルゴール。
-    //   台本 08 E5b 演出の指定：オルゴール音色・夜→明け方の静けさ・泣かせにかからない・
-    //   ループ不要（一度きりで終わってよい）・70〜90秒。
-    //   **採用済み＝「夕べの星」（甘茶の音楽工房・2026-09-08 ユーザー決定）**。
-    //   res://audio/bgm_epilogue_walk.ogg（原曲 157.4s → 0..74.65s・-3.7dB＝-17.6 LUFS・import loop=false）。
-    //   選定の経緯は BGM/candidates.md ⑬、切り出しとライセンスの根拠は BGM/acquisition_list.md §6.1。
-    //   ※ファイルが無ければ null のまま＝E5b は無音で通る（Epilogue 側が null を受けて何も鳴らさない）。
-    //     合成フォールバックは置かない＝「無い曲を代わりの音で埋めない」（LoadBgmEpilogueWalk 参照）。
-    //   再生は MusicOnce()＝1周で無音に落ちる（台本の「…………。」で完全停止する扱いは Epilogue 側）。
-    public AudioStream? BgmEpilogueWalk;
+    // 映像からスタッフロールまでを一つの演奏でつなぐため、一度だけ流す。
+    public AudioStream BgmEndingFilm = null!;
 
-    // 非戦闘画面の個別曲（2026-09-14）。従来ここは全部 BgmMenu の使い回しだった。
-    //   「画面の顔が変わる場所だけ」固有曲にする方針で6枠を割り、BgmMenu はハブ専用曲になった。
-    //   設定・記録・あそびかたは**意図的に親画面の曲を継続**する（曲を持たせない＝オーバーレイだから）。
-    //   6曲とも甘茶の音楽工房・ライセンス実音源（loop=true）。ロード失敗時は BgmMenu へ落ちる。
-    //   ラウドネスは BgmMenu と同じ -17.7 LUFS に揃えてあり、MusicTargetDb() でも 0dB 扱いにする。
-    //   出所・加工内容は各 Load*() のコメントと BGM/acquisition_list.md §6 が正。
+    // ショップはハブの曲を保ち、練習は道中の主題を小さく鳴らす。
     public AudioStream BgmTitle = null!;
     public AudioStream BgmPrologue = null!;
     public AudioStream BgmShop = null!;
@@ -153,15 +132,7 @@ public partial class Audio : Node
     public AudioStream BgmCredits = null!;
     public AudioStream BgmGameOver = null!;
 
-    // ボス戦の回想（StoryFilm）専用曲（2026-09-14②）。**ユーザー実機指摘「ボス戦の回想シーンに
-    //   BGM入ってないよ」への対応**。原因は StoryFilm._Ready() の StopMusic() で曲を落としたまま
-    //   Restore() が戻さないこと（memory は呼び出し側がボス曲を張り直すが、aftermath は誰も戻さず
-    //   クリア会話まで無音が続いていた）。
-    //   回想は memory（戦闘中・過去の傷・**モノクロ**）と aftermath（撃破後・癒えた未来・**カラー**）の
-    //   対で、シェーダの grayscale=!_aftermath がその対を持っている＝**音も同じ対で割る**。
-    //   キャラ4人×2状態＝8枠のうち**7枠に固有曲**を当て、**ミナの aftermath だけ意図的に無音**
-    //   （直後の Final が「無音→挿入歌」の一点投入を持つため。BGM/candidates.md ㉖）。
-    //   7曲とも甘茶の音楽工房・-17.7 LUFS・loop=true。MusicTargetDb() では 0dB 扱い（メニュー一族と同じ）。
+    // 傷の回想は個別のピアノ曲、後日談は全員が同じ回復の主題へ帰る。
     public AudioStream BgmStoryRei = null!,   BgmStoryReiAfter = null!;
     public AudioStream BgmStoryAkari = null!, BgmStoryAkariAfter = null!;
     public AudioStream BgmStoryKoharu = null!, BgmStoryKoharuAfter = null!;
@@ -194,62 +165,10 @@ public partial class Audio : Node
     //   出所・加工内容は LoadBgmBossHikage() のコメント参照。
     public AudioStream BgmBossHikage = null!;
 
-    // FINAL の道中（残響の三波）＝ミナの内側を進む区間の曲（2026-09-29 追加）。
-    //   経緯: 2026-09-27 に FINAL の道中が「残響3体・実測 6.7 秒」から「三波66体・実測 64〜71 秒
-    //   （ルナティック 43〜48 秒）」へ延びた（StageMina.EchoWaves）。それまでこの区間は
-    //   StageMina._Ready の StopMusic から BossMina の BgmBossMina までの“数秒の無音”で、
-    //   F1 導入（タイトルカード＋壊れた声）を沈黙に委ねる意図の一部だった。尺が10倍になった結果、
-    //   **戦闘している70秒が丸ごと無音**になっていた＝意図した余白ではなく穴（style §7 は
-    //   「無音は決定打の直前に置く」であって、戦闘区間を無音にする話ではない）。
-    //   ★F1 導入の沈黙はそのまま残し、**道中（Step_Route）の頭から**この曲を立てる。
-    //   曲: 未調達の間は res://audio/bgm_boss_hikage.ogg（PeriTune「Frozen Forest」CC BY 4.0）を
-    //   **別インスタンスで**流用する。ヒカゲ戦（W0 中ボス）は GameManager.TutorialEnabled=false で
-    //   到達不能＝この曲は現行の導線では一度も鳴らないスロットなので、重複ではなく**再配置**になる。
-    //   選定根拠（BGM/acquisition_list.md §3-⑩ の記録と突き合わせ）:
-    //     ・「氷・ガラス系シンセ+ピアノ」… ミナのライトモチーフの音色指定（澄んだガラス/グロッケン）と一致
-    //     ・「冷たいが敵意ではない」… 残響はミナ自身の声＝倒す敵ではなく祓う対象（世界観の整合）
-    //     ・「平坦な持久曲」… 66体の弾幕の下で SE（被弾・浄化）を潰さない（style §5）
-    //     ・86.4 秒・公式ループ版… 道中 64〜71 秒を1周で賄い、継ぎ目が無い（style §9）
-    //   別インスタンス（CacheMode.Ignore）にしている理由は2つ:
-    //     ①MusicTargetDb が BgmBossHikage と区別できる（どちらも実音源なので現状は同じ -10dB だが、
-    //       専用曲を入れたときに片方だけ音量を動かせる）
-    //     ②_Process の汚染 LowPass の対象（inStage）に **入れない**。FINAL は Contamination=1.0 で
-    //       道中の頭は Warmth=0＝murk=1.0＝カットオフ 800Hz まで落ちる設定で、この値は本作で
-    //       一度も鳴ったことがない（ボス戦中は Warmth≈0.99 で murk≈0.70＝6.9kHz）。
-    //       高域に芯のある曲を 800Hz で潰すのは未試聴で踏み込みすぎるので、まずは素で鳴らす。
-    //       （濁らせたくなったら _Process の inStage に `|| _currentMusic == BgmFinalRoute` を足すだけ）
-    //   専用曲を採るときは res://audio/bgm_final_route.ogg を置くだけで自動的にそちらが鳴る。
+    // 導入の沈黙後に戦闘曲を立て、救出へ急ぐ切迫感を保つため汚染LowPassの対象外にする。
     public AudioStream BgmFinalRoute = null!;
 
-    // F4（Final のカットシーン）＝作品の頂点を読ませる区間の曲（2026-09-29 追加）。
-    //   経緯: ここは `src/Final.cs` の _Ready から **合成 BgmBoss（BuildBgmBoss＝1.6秒×4小節＝6.4秒の
-    //   正弦波ループ）** を流していた。もともと「実音源へ差し替えるまでの置き」で、BossMina.cs の
-    //   「（Final/ヒカゲの汎用 BgmBoss は据え置き）」は**差し替えの積み残しの記録**である
-    //   （ヒカゲ側はその後 Frozen Forest が入り、Final だけ取り残された）。
-    //   実測（tools/BgmAssignmentQa。AUTO 送り＝全文表示後1.0秒・文字送り48字/秒を仮定した**下限値**）:
-    //   頭 → CueSilenceLine が **34.7 秒**（うち下書き選択の沈黙20秒自動送信が 20.5 秒。
-    //   選択を即決すると 14.3 秒）＝ 6.4 秒ループが **2.2〜5.4 周**。人間の手動送りでは必ずこれより長い。
-    //   周回数そのものより、**他の全場面が実音源で固めてある中でここだけ正弦波の合成ループ**という
-    //   非対称が問題（FINAL 道中が無音だったのと同じ、差し替えの巻き添えで開いた穴）。
-    //   静かなテキスト場面は音が剥き出しになるので、6.4 秒ごとに同じ音形が戻るのは特に目立つ。
-    //   曲: 未調達の間は res://audio/bgm_prologue.ogg（甘茶「オーヴⅡ」）を **別インスタンスで**流用する。
-    //   選定根拠（BGM/candidates.md ⑮ の記録と突き合わせ）:
-    //     ・「Prologue は**テキストが主役**。旋律のある曲を敷くと文字と競合する。アンビエントで
-    //       **世界の底の音**だけを鳴らすのが正しい」＝採用理由がそのまま F4 の条件（F4 も独自レンダラの
-    //       テキスト主役カットシーン・手動送り）
-    //     ・**LRA 2.0（全候補中2位の平坦さ）／旋律が立たない**＝山を作らないので、CueSilenceLine の
-    //       StopMusic が「盛り上がりの途中でぶつ切り」にならず、**消した落差が素直に出る**
-    //       （ここを殺さないことが絶対条件。§7 無音→挿入歌の一点投入）
-    //     ・148.0 秒＝F4 の大半を1周で賄う（ループも焼いてある）
-    //     ・呼応: プロローグ（ミナが起動した場所の音）が頂点で戻る。しかも F4 には
-    //       「四百十四件。……わたくしが、生まれる前から、ここにあった声です。」＝**起動ログ 414 を
-    //       数字だけ回収する行**がある。言葉の回収と音の回収が同じ行で重なる（style §1）
-    //   ★ MusicTargetDb では **0dB 側**に入れる（メニュー一族と同じ土俵）。挿入曲 BgmFinalResolve も
-    //     0dB なので、無音を挟んだ前後で音量の段差が出ない。道中曲の -10dB を乗せると沈んでしまう。
-    //   ★ 汚染 LowPass（_Process の inStage）には **入れない**。F4 は Contamination=1.0 だが
-    //     画のほうに濁り（MurkVignette）が無いカットシーンで、音だけ濁らせると画と合わない。
-    //     無音は StopMusic 一つの所作で作るほうが落差が立つ（濁りパッドの消え際と二重にしない）。
-    //   専用曲を採るときは res://audio/bgm_final_cutscene.ogg を置くだけで自動的にそちらが鳴る。
+    // 序盤の旋律を返事の直前に戻し、未送信の言葉を思い出させる。
     public AudioStream BgmFinalCutscene = null!;
 
     // 改心の「解決音（完）」。OnCryStart で戦闘BGMから温かくクロスフェードして鳴らす一節。
@@ -312,20 +231,20 @@ public partial class Audio : Node
         // 非戦闘画面の個別曲。フォールバックが BgmMenu を参照するので必ず BgmMenu の後に読む。
         BgmTitle    = LoadBgmTitle();
         BgmPrologue = LoadBgmPrologue();
-        BgmShop     = LoadBgmShop();
+        BgmShop     = BgmMenu;
         BgmTraining = LoadBgmTraining();
         BgmCredits  = LoadBgmCredits();
         BgmGameOver = LoadBgmGameOver();
+        BgmFinalResolve = LoadBgmFinalResolve();
         // ボス戦の回想（StoryFilm）。これらも BgmMenu フォールバックなので BgmMenu の後に読む。
         BgmStoryRei         = LoadBgmStoryRei();
-        BgmStoryReiAfter    = LoadBgmStoryReiAfter();
+        BgmStoryReiAfter    = BgmFinalResolve;
         BgmStoryAkari       = LoadBgmStoryAkari();
-        BgmStoryAkariAfter  = LoadBgmStoryAkariAfter();
+        BgmStoryAkariAfter  = BgmFinalResolve;
         BgmStoryKoharu      = LoadBgmStoryKoharu();
-        BgmStoryKoharuAfter = LoadBgmStoryKoharuAfter();
-        BgmStoryMina        = LoadBgmStoryMina();
-        BgmFinalResolve = LoadBgmFinalResolve();
-        BgmEpilogueWalk = LoadBgmEpilogueWalk();
+        BgmStoryKoharuAfter = BgmFinalResolve;
+        BgmStoryMina        = BgmGameOver;
+        BgmEndingFilm = LoadBgmEndingFilm();
         BgmBossRei    = LoadBgmBossRei();
         BgmBossAkari  = LoadBgmBossAkari();
         BgmBossKoharu = LoadBgmBossKoharu();
@@ -333,7 +252,7 @@ public partial class Audio : Node
         BgmBossHikage = LoadBgmBossHikage();
         // FINAL 道中と F4 カットシーン。最終フォールバックが BgmBoss なので必ず BgmBoss の後に読む。
         BgmFinalRoute    = LoadBgmFinalRoute();
-        BgmFinalCutscene = LoadBgmFinalCutscene();
+        BgmFinalCutscene = BgmPrologue;
         RedeemRei    = BuildRedeem(0);
         RedeemAkari  = BuildRedeem(1);
         RedeemKoharu = BuildRedeem(2);
@@ -449,45 +368,30 @@ public partial class Audio : Node
     }
 
     // ───────── BGM ─────────
-    // 実マスタリング音源かどうかで「再生ターゲット音量」を出し分ける。
-    //   合成BGM（AudioStreamWav）＝従来どおり 0dB。
-    //   実音源（mp3/ogg をロードした AudioStreamMP3 / AudioStreamOggVorbis）＝StageBgmRealDb 下げる。
-    //   ※ロード失敗時のフォールバックは AudioStreamWav なので自動的に「合成扱い＝下げない」。
-    //   BgmMenu（実音源 ogg）はユーザー指摘外（道中）なので対象外に除外し、やり過ぎない。
-    //   将来 akari/koharu の道中実音源が来ても mp3/ogg なら自動でこのオフセットに乗る。
+    // 公式音源を再圧縮せず、場面ごとの音量と原盤のラウドネス差を再生時に補正する。
     private float MusicTargetDb(AudioStream? stream)
     {
         if (stream == null) return 0f;
-        if (stream == BgmMenu) return 0f; // メニュー実音源は今回対象外
+        if (stream == BgmMenu) return 0f;
+        if (stream == BgmPrologue) return -7.30f;
+        if (stream == BgmFinalResolve) return -5.97f;
+        if (stream == BgmGameOver) return -7.09f;
+        if (stream == BgmEndingFilm) return -7.15f;
+        if (stream == BgmTraining) return -18.49f;
+        // 公式ループを再圧縮せず、原盤の音量差だけを再生時に補正する。
+        float sourceGainDb = stream == BgmStageAkari ? -6.49f
+            : stream == BgmStageKoharu ? -5.14f
+            : stream == BgmStageRei ? -5.75f
+            : stream == BgmBossKoharu ? -2.49f
+            : stream == BgmBossRei ? -5.29f
+            : stream == BgmFinalRoute ? -5.93f : 0f;
         if (stream == BgmBossAkari || stream == BgmBossKoharu || stream == BgmBossRei
-            || stream == BgmBossMina || stream == BgmBossHikage) return StageBgmRealDb + 3f;
-        // 挿入歌（Final の解決）は BgmMenu と同じ 0dB＝無音から ppp で立ち上がったのち満ちて、
-        //   Epilogue の BgmMenu（0dB）へ同じ土俵・同じ和声圏で段差なく橋渡しする。
-        if (stream == BgmFinalResolve) return 0f;
-        // F4 のカットシーン曲も同じ 0dB。**無音を挟んで直後に BgmFinalResolve（0dB）が来る**ので、
-        //   ここだけ実音源として -10dB を乗せると、沈黙の前後で土俵が変わって落差の意味が濁る。
-        //   音源側（オーヴⅡ＝-17.7 LUFS）は BgmMenu と同じラウドネスに揃っているので 0dB が正。
-        if (stream == BgmFinalCutscene) return 0f;
-        // E5b のオルゴール（夕べの星）も同じ理由で 0dB。カットシーン専用の一点物で、
-        //   鳴り終わった無音のあと E6 で BgmMenu が戻る＝BgmMenu と同じ土俵に置かないと段差が出る。
-        //   音源側を BgmMenu と同じ -17.6 LUFS へマスタリング済みなので、ここで下げると逆に沈む。
-        if (stream == BgmEpilogueWalk) return 0f;
-        // 非戦闘画面の個別曲（2026-09-14 導入の6枠）も BgmMenu と同じ 0dB 扱い。
-        //   音源側を BgmMenu と同じ -17.7 LUFS へ揃えてあるので、ここで実音源として
-        //   StageBgmRealDb(-10dB) を乗せると、ハブ↔タイトル/ショップ等の行き来で音量が跳ねる。
-        //   「メニュー一族は同じ土俵」という BgmMenu の原則をそのまま拡張したもの。
-        if (stream == BgmTitle || stream == BgmPrologue || stream == BgmShop
-            || stream == BgmTraining || stream == BgmCredits || stream == BgmGameOver) return 0f;
-        // 回想（StoryFilm）の7曲も同じ -17.7 LUFS に揃えてあるので 0dB 扱い。
-        //   ここを -10dB にすると、ボス曲（-10dB 適用済みで実効が揃っている）から回想へ移った瞬間に
-        //   回想だけが沈んで聞こえる。回想はカットシーン＝台詞を読ませる場なので、
-        //   メニュー一族と同じ土俵（0dB）に置くのが正しい。
-        if (stream == BgmStoryRei || stream == BgmStoryReiAfter
-            || stream == BgmStoryAkari || stream == BgmStoryAkariAfter
-            || stream == BgmStoryKoharu || stream == BgmStoryKoharuAfter
-            || stream == BgmStoryMina) return 0f;
+            || stream == BgmBossMina || stream == BgmBossHikage) return StageBgmRealDb + 3f + sourceGainDb;
+        // 既存のタイトル・クレジット・回想曲は音源側が -17.7 LUFS に調整済み。
+        if (stream == BgmTitle || stream == BgmCredits || stream == BgmStoryRei
+            || stream == BgmStoryAkari || stream == BgmStoryKoharu) return 0f;
         bool isReal = stream is AudioStreamMP3 || stream is AudioStreamOggVorbis;
-        return isReal ? StageBgmRealDb : 0f;
+        return isReal ? StageBgmRealDb + sourceGainDb : 0f;
     }
 
     // クロスフェードでループ曲を差し替える。同じ曲なら何もしない。stream=null で停止。
@@ -499,6 +403,7 @@ public partial class Audio : Node
         var nxt = _useA ? _musicB : _musicA;
         if (cur.Stream == stream && cur.Playing) return;
 
+        CancelOnceHook();
         _currentMusic = stream; // ステージ判定（BgmStage/BgmBoss なら濁し有効）に使う
         if (stream != BgmBossAkari) StopAkariLayers();
         if (stream != _postTheme) _postTheme = null;
@@ -511,6 +416,7 @@ public partial class Audio : Node
 
         if (stream != null)
         {
+            nxt.ProcessMode = ProcessModeEnum.Inherit;
             nxt.Bus = "Music";
             nxt.Stream = stream;
             nxt.VolumeDb = SilentDb;
@@ -547,7 +453,7 @@ public partial class Audio : Node
     //   「鳴っていれば触らない／単体起動で無音のときだけ自分で立てる」を書くために使う。
     public bool HasMusic => _currentMusic != null;
 
-    // ───────── 1周だけ鳴らして無音に落ちる再生（Epilogue E5b のオルゴール）─────────
+    // ───────── 1周だけ鳴らす再生（エンディング映像〜スタッフロール）─────────
     //   Music() はループ前提（曲尾で止めずに鳴らしっぱなし）なので、「1周で終わって無音」を
     //   別経路で持つ。やることは Music() と同じクロスフェード起動＋
     //   (a) ogg/mp3 のループ焼きをこの再生に限って外す（Loop=false）
@@ -558,6 +464,7 @@ public partial class Audio : Node
     public void MusicOnce(AudioStream? stream, float fade = 1.0f)
     {
         if (Muted || stream == null) return;
+        CancelOnceHook();
         if (stream is AudioStreamOggVorbis ogg) ogg.Loop = false;
         else if (stream is AudioStreamMP3 mp3) mp3.Loop = false;
         else if (stream is AudioStreamWav wav) wav.LoopMode = AudioStreamWav.LoopModeEnum.Disabled;
@@ -565,6 +472,8 @@ public partial class Audio : Node
         // Music() が _useA を反転させた後なので、いま鳴らし始めたのは反転前の「次」＝現在の cur。
         var p = _useA ? _musicA : _musicB;
         if (p.Stream != stream) return;
+        // 映像やロールをポーズした時間だけ、有限尺の曲も止める。
+        p.ProcessMode = ProcessModeEnum.Pausable;
         // ワンショット専用の一度きり接続（多重接続と、次の曲での誤発火を避ける）。
         _onceCb = Callable.From(OnMusicOnceFinished);
         _oncePlayer = p;
@@ -572,16 +481,10 @@ public partial class Audio : Node
                   (uint)GodotObject.ConnectFlags.OneShot);
     }
 
-    // ワンショット接続の持ち主。曲尾まで行かず途中で止めた場合（E5b の「…………。」での
-    //   StopMusic）は Finished が飛ばないので OneShot が解けず、その AudioStreamPlayer に
-    //   接続が残る。次の曲でその player が再利用され、その曲が鳴り終わったときに
-    //   OnMusicOnceFinished が誤発火して _currentMusic を落とす（＝汚染連動の LowPass が
-    //   効かなくなる）ので、明示停止のときはここで外す。
+    // 途中で別曲へ移ると Finished は来ないため、プレイヤー再利用前に接続を解除する。
     private AudioStreamPlayer? _oncePlayer;
     private Callable _onceCb;
 
-    // ワンショットの途中停止（曲尾を待たずに無音へ落とす）。E5b の「…………。」で使う。
-    //   Finished が飛ばない経路なので、残った OneShot 接続を自分で解いてから止める。
     public void StopMusicOnce(float fade = 0.5f)
     {
         CancelOnceHook();
@@ -640,13 +543,7 @@ public partial class Audio : Node
         Music(redeem, fade: 0.8f);
     }
 
-    // ───────── Final の挿入歌（設計 §7「無音→挿入歌」一点投入）─────────
-    //   Final.cs から「返事は、ありませんでした。」の表示と同時に呼ぶ。直前で StopMusic 済み＝無音から立ち上げる。
-    //   ppp で始め、ゆっくり（既定 4.0s）クロスフェードイン＝無音→曲の入りのタイミングは Final.cs の
-    //   行キュー（CueSilenceLine→CueResolveLine）が握る。ここは器＝呼ばれた瞬間に立ち上げるだけ。
-    //   実音源 bgm_final_resolve.ogg（インスト挿入歌＝主旋律が「声」）。BgmMenu と同じ和声圏・同じ 0dB なので
-    //   Epilogue の BgmMenu へ自然に溶ける（Epilogue 側 Music(BgmMenu) がそのまま橋渡し）。
-    //   汚染LowPassの対象外（_currentMusic 判定に含めない）ので、こもらず晴れて鳴る。
+    // 返事が届く瞬間に、各ボスの後日談と同じ回復の主題を立ち上げる。
     public void PlayFinalResolve(float fade = 4.0f)
     {
         if (Muted) return;
@@ -1289,28 +1186,11 @@ public partial class Audio : Node
         return w;
     }
 
-    // ───────── BgmMenu のロード（ライセンス実音源 → 失敗時は合成へフォールバック）─────────
-    //   タイトル/ハブ/ショップ/設定/難易度選択/Prologue/Epilogue/Records で Music(BgmMenu) が鳴らす曲。
-    //   res://audio/bgm_menu_mina.ogg＝「巡る思い出」（蒲鉾さちこ／DOVA-SYNDROME・クレジット任意）。
-    //   原曲 94.0秒の末尾減衰をトリムした 0..92.0秒・+1.5dB（ピーク-3dB化）・頭40ms/尻120ms 極小フェード。
-    //   静かな尾章→静かな冒頭で自然にループする。出所と規約記録は BGM/acquisition_list.md §6。
-    //   ogg は import 設定 loop=true でループを焼いてあるが、念のため
-    //   AudioStreamOggVorbis.Loop も明示する（Music() は曲尾で止めず鳴らしっぱなしにするため）。
-    //   ロード失敗（インポート未済・差し替えミス等）の場合は従来のコード合成 BuildBgmMenu() に戻す。
-    // ───────── BgmEpilogueWalk のロード（未調達＝ファイルが無ければ null）─────────
-    //   E5b のオルゴール＝「夕べの星」（甘茶の音楽工房・クレジット任意→config/credits.ini に記載）。
-    //   2026-09-08 ユーザー決定で採用（BGM/candidates.md ⑬・取得記録は BGM/acquisition_list.md §6）。
-    //   原曲 157.4秒は Intro+A+B / A'+B' / coda の二部構成なので、**1周目の終わり＝A が再開する直前**
-    //   （110BPM の 34小節目 74.65秒）で切ってある。フェードアウトではなく曲想の切れ目＝台本の
-    //   「…………。」での完全停止と噛み合う（切った先が余韻の谷なので、止めても曲を裁断した音がしない）。
-    //   加工: 0..74.65秒・-3.7dB（-17.6 LUFS＝BgmMenu の -17.7 LUFS に合わせた）・頭40ms/尻250msフェード。
-    //   **ループしない曲**なので .import は loop=false（既存10曲の loop=true と唯一違う点）。
-    //   合成フォールバックは置かない＝「無い曲を代わりの音で埋めない」（沈黙のほうが台本の意図に近い）。
-    private AudioStream? LoadBgmEpilogueWalk()
+    private AudioStream LoadBgmEndingFilm()
     {
-        const string path = "res://audio/bgm_epilogue_walk.ogg";
-        if (!ResourceLoader.Exists(path)) return null;   // 未調達＝無音で通す（警告も出さない）
-        return ResourceLoader.Load<AudioStream>(path);
+        var stream = GD.Load<AudioStreamOggVorbis>("res://audio/bgm_ending_film.ogg");
+        stream.Loop = false;
+        return stream;
     }
 
     private AudioStream LoadBgmMenu()
@@ -1322,12 +1202,7 @@ public partial class Audio : Node
         return BuildBgmMenu();
     }
 
-    // ───────── BgmStageRei のロード（ライセンス実音源 → 失敗時は合成 BgmStage へフォールバック）─────────
-    //   res://audio/bgm_stage_rei.ogg＝「SO-001」（watson／MusMus・クレジット必須「BGM:MusMus」→ config/credits.ini）。
-    //   機械的・無機質・冷たいエレクトロニカ＝レイ道中「監視される廊下」のスペック一致枠。
-    //   原曲 138.75秒の末尾減衰をトリムした 0..136.0秒・-5.1dB（強リミッター原盤＋vorbis超過分込みで
-    //   ピーク-3dB帯へ）・頭40ms/尻120ms 極小フェード。出所と規約記録は BGM/acquisition_list.md §6。
-    //   ロード失敗（インポート未済・差し替えミス等）の場合は従来の合成 BgmStage に戻す（事故防止）。
+    // PeriTune「Irregular」：配信への焦りを電子音の強い拍で支える（出典・加工は config/credits.ini）。
     private AudioStream LoadBgmStageRei()
     {
         var s = ResourceLoader.Load<AudioStream>("res://audio/bgm_stage_rei.ogg");
@@ -1337,13 +1212,7 @@ public partial class Audio : Node
         return BgmStage;
     }
 
-    // ───────── BgmStageAkari のロード（ライセンス実音源 → 失敗時は合成 BgmStage へフォールバック）─────────
-    //   res://audio/bgm_stage_akari.ogg＝「6月の雨傘」（甘茶の音楽工房・クレジット任意）。
-    //   梅雨の儚げなピアノ＝あかり道中「雨の教室」の生楽器スペック一致枠。
-    //   原曲 102.35秒の末尾リタルダンド減衰をトリムした 0..97.5秒・-1.3dB（ピーク-3dB化）・
-    //   頭40ms/尻120ms 極小フェード。出所と規約記録は BGM/acquisition_list.md §6。
-    //   ogg は loop を焼いてあるが、念のため AudioStreamOggVorbis.Loop も明示する（Music() は鳴らしっぱなし）。
-    //   実音源なので再生時に MusicTargetDb() の StageBgmRealDb(-10dB) が自動で乗る（突出しない）。
+    // PeriTune「Machinery」：雨のオフィスの圧迫感を冷たい電子音とピアノで保つ（出典・加工は config/credits.ini）。
     private AudioStream LoadBgmStageAkari()
     {
         var s = ResourceLoader.Load<AudioStream>("res://audio/bgm_stage_akari.ogg");
@@ -1353,11 +1222,7 @@ public partial class Audio : Node
         return BgmStage;
     }
 
-    // ───────── BgmStageKoharu のロード（ライセンス実音源 → 失敗時は合成 BgmStage へフォールバック）─────────
-    //   res://audio/bgm_stage_koharu.ogg＝「小さな足あと」（甘茶の音楽工房・クレジット任意）。
-    //   「家庭的で繊細」なストリングス＝こはる道中「台所の温もり」のスペック一致枠。
-    //   原曲 130.38秒の末尾減衰をトリムした 0..126.0秒・-1.9dB（ピーク-3dB化）・頭40ms/尻120ms 極小フェード。
-    //   出所と規約記録は BGM/acquisition_list.md §6。
+    // PeriTune「Crisis」：追い立てられる推し活の道中に、途切れない危機感を置く（出典・加工は config/credits.ini）。
     private AudioStream LoadBgmStageKoharu()
     {
         var s = ResourceLoader.Load<AudioStream>("res://audio/bgm_stage_koharu.ogg");
@@ -1382,14 +1247,7 @@ public partial class Audio : Node
         return BgmStage;
     }
 
-    // ───────── BgmBossRei のロード（ライセンス実音源 → 失敗時は合成 BuildBgmBossRei へフォールバック）─────────
-    //   res://audio/bgm_boss_rei.ogg＝「Falling with You」（のる／DOVA-SYNDROME・クレジット任意。
-    //   個別条件「音楽主体動画への使用禁止」はゲーム組込に非該当）。疾走ピアノ×電子ビート。
-    //   原曲 178.84秒の末尾フェードをトリムした 0..169.0秒・-1.5dB（ピーク-3dB化）・頭40ms/尻120ms
-    //   極小フェード。出所と規約記録は BGM/acquisition_list.md §6。
-    //   ※HP20%の SetMusicSpeed(1.15) 加速はテンポ一定曲なので破綻しない（選定条件に含めた）。
-    //   ogg は loop を焼いてあるが、念のため AudioStreamOggVorbis.Loop も明示する（Music() は鳴らしっぱなし）。
-    //   ロード失敗（インポート未済・差し替えミス等）の場合は従来の合成 BuildBgmBossRei() に戻す（事故防止）。
+    // PeriTune「Rapid4」：電子音・ピアノ・弦の疾走で、レイの焦燥と切なさを押し出す（出典・加工は config/credits.ini）。
     private AudioStream LoadBgmBossRei()
     {
         var s = ResourceLoader.Load<AudioStream>("res://audio/bgm_boss_rei.ogg");
@@ -1417,15 +1275,7 @@ public partial class Audio : Node
         return BuildBgmBossAkari();
     }
 
-    // ───────── BgmBossKoharu のロード（ライセンス実音源 → 失敗時は合成 BuildBgmBossKoharu へフォールバック）─────────
-    //   res://audio/bgm_boss_koharu.ogg＝「切ない戦いが始まりそう」（シンシンワダ／DOVA-SYNDROME・クレジット任意）。
-    //   ピアノ三連符+ストリングス+シンセパッドの「シリアス・寂しい・冷たい」＝こはる戦「冷えた祈り」のスペック一致枠。
-    //   DOVA配布トラック自体が公式ループ版（132.08秒）のため**トリム・端フェードは掛けない**（継ぎ目を壊さない）。
-    //   -5.0dB のゲインのみ（強リミッター原盤＋vorbis超過分込みでピーク-3dB帯へ）。
-    //   出所と規約記録は BGM/acquisition_list.md §6。BgmBossAkari と同じ作法。
-    //   ogg は loop を焼いてあるが、念のため AudioStreamOggVorbis.Loop も明示する（Music() は鳴らしっぱなし）。
-    //   実音源なので再生時に MusicTargetDb() の StageBgmRealDb(-10dB) が自動で乗る（突出しない）。
-    //   ロード失敗（インポート未済・差し替えミス等）の場合は従来の合成 BuildBgmBossKoharu() に戻す（事故防止）。
+    // PeriTune「Obsession」：激しい弦とピアノのワルツで、こはるの離れられない執着を支える（出典・加工は config/credits.ini）。
     private AudioStream LoadBgmBossKoharu()
     {
         var s = ResourceLoader.Load<AudioStream>("res://audio/bgm_boss_koharu.ogg");
@@ -1466,59 +1316,17 @@ public partial class Audio : Node
         return BuildBgmBossHikage();
     }
 
-    // ───────── BgmFinalRoute のロード（FINAL 道中＝残響の三波）─────────
-    //   ①専用曲 res://audio/bgm_final_route.ogg があればそれ（将来の差し替え口。置くだけで鳴る）。
-    //   ②無ければ res://audio/bgm_boss_hikage.ogg（Frozen Forest）を **CacheMode.Ignore で別インスタンス**
-    //     としてロードする。同じファイルでも別リソースになるので、MusicTargetDb と _Process（汚染 LowPass）
-    //     が BgmBossHikage と区別できる＝ヒカゲ戦の扱いを一切変えずに FINAL 道中だけ調整できる。
-    //     流用の根拠は BgmFinalRoute フィールドのコメント（ヒカゲ戦は現行導線から到達不能＝再配置）。
-    //   ③どちらも読めなければ合成 BgmBoss（濁り切った未完）。無音にはしない。
+    // PeriTune「Rapid5」：最終道中を救出へ駆ける戦闘曲にする（出典・加工は config/credits.ini）。
     private AudioStream LoadBgmFinalRoute()
     {
-        const string own = "res://audio/bgm_final_route.ogg";
-        if (ResourceLoader.Exists(own))
-        {
-            var dedicated = ResourceLoader.Load<AudioStream>(own);
-            if (dedicated is AudioStreamOggVorbis dogg) { dogg.Loop = true; return dogg; }
-            if (dedicated != null) return dedicated;
-        }
-        var s = ResourceLoader.Load<AudioStream>("res://audio/bgm_boss_hikage.ogg", "",
-                                                 ResourceLoader.CacheMode.Ignore);
+        var s = ResourceLoader.Load<AudioStream>("res://audio/bgm_final_route.ogg");
         if (s is AudioStreamOggVorbis ogg) { ogg.Loop = true; return ogg; }
         if (s != null) return s;
         GD.PushWarning("BgmFinalRoute: 実音源をロードできず、合成 BgmBoss にフォールバック");
         return BgmBoss;
     }
 
-    // ───────── BgmFinalCutscene のロード（F4＝Final のカットシーン）─────────
-    //   ①専用曲 res://audio/bgm_final_cutscene.ogg があればそれ（将来の差し替え口。置くだけで鳴る）。
-    //   ②無ければ res://audio/bgm_prologue.ogg（オーヴⅡ）を **CacheMode.Ignore で別インスタンス**として読む。
-    //     同じファイルでも別リソースになるので、MusicTargetDb と _Process（汚染 LowPass）が
-    //     BgmPrologue と区別できる＝プロローグの扱いを一切変えずに F4 だけ調整できる。
-    //     流用の根拠は BgmFinalCutscene フィールドのコメント。
-    //   ③どちらも読めなければ従来どおり合成 BgmBoss（＝この変更前の音）。無音にはしない。
-    private AudioStream LoadBgmFinalCutscene()
-    {
-        const string own = "res://audio/bgm_final_cutscene.ogg";
-        if (ResourceLoader.Exists(own))
-        {
-            var dedicated = ResourceLoader.Load<AudioStream>(own);
-            if (dedicated is AudioStreamOggVorbis dogg) { dogg.Loop = true; return dogg; }
-            if (dedicated != null) return dedicated;
-        }
-        var s = ResourceLoader.Load<AudioStream>("res://audio/bgm_prologue.ogg", "",
-                                                 ResourceLoader.CacheMode.Ignore);
-        if (s is AudioStreamOggVorbis ogg) { ogg.Loop = true; return ogg; }
-        if (s != null) return s;
-        GD.PushWarning("BgmFinalCutscene: 実音源をロードできず、合成 BgmBoss にフォールバック");
-        return BgmBoss;
-    }
-
-    // ───────── BgmFinalResolve のロード（Final 挿入歌の実音源 → 失敗時は合成 BuildBgmFinalResolve へフォールバック）─────────
-    //   res://audio/bgm_final_resolve.ogg（原曲 Morning_Light_on_Glass 29.4秒の末尾フェードをトリムした
-    //   0..27.0秒・-3dB・極小フェード・loop=true）を読む。頭からフルレベルで鳴る曲だが、入りは
-    //   PlayFinalResolve(fade:4.0) の ppp クロスフェードが受け持つ＝無音→曲の入りの設計は Final.cs 側のまま。
-    //   ボーカル入りの本挿入歌が来たら、このファイルを置き換えるだけで成立する。
+    // PeriTune「Piano_Refreshing」：回復の主題は読書時間によらず続けられる公式ループを使う。
     private AudioStream LoadBgmFinalResolve()
     {
         var s = ResourceLoader.Load<AudioStream>("res://audio/bgm_final_resolve.ogg");
@@ -1528,18 +1336,6 @@ public partial class Audio : Node
         return BuildBgmFinalResolve();
     }
 
-    // ───────── 非戦闘画面の個別曲（2026-09-14 導入。全て甘茶の音楽工房・クレジット任意）─────────
-    //   それまで非戦闘12画面が BgmMenu（巡る思い出）1本の使い回しだったのを、
-    //   **画面の顔が変わる場所だけ**固有曲へ割った（設計判断は BGM/candidates.md ⑭〜⑲）。
-    //   ・固有曲を持つ＝タイトル / 冒頭 / ショップ / トレーニング / スタッフロール / ゲームオーバー
-    //   ・親の曲を継続＝設定・記録・あそびかた（薄いオーバーレイ or サブ画面。曲を変えると
-    //     「画面が変わった」という嘘になる。特に HowToPlay はシーン遷移すらしない CanvasLayer）
-    //   ・ハブは BgmMenu の定位置（他を割った結果、巡る思い出はハブ専用曲になった）
-    //   6曲とも同一サイト＝同一作曲者に揃えてある（style §1「一つの世界・音色の家族性」）。
-    //   ラウドネスは全曲 -17.7 LUFS へ寄せてあり、BgmMenu（-17.7）と段差なく行き来する。
-    //   そのため MusicTargetDb() でも BgmMenu と同じ 0dB 側に入れる（実音源だからと -10dB を
-    //   乗せるとハブ↔各画面の移動で音量が跳ねる）。全て import loop=true のループ曲。
-    //   ロード失敗時は BgmMenu へフォールバック＝最悪でも従来どおり鳴る（無音にしない）。
     private AudioStream LoadMenuFamily(string path, string slot)
     {
         var s = ResourceLoader.Load<AudioStream>(path);
@@ -1554,52 +1350,26 @@ public partial class Audio : Node
     //   0..161.6秒（末尾フェード開始の直前で切る）・-5.4dB。
     private AudioStream LoadBgmTitle() => LoadMenuFamily("res://audio/bgm_title.ogg", "BgmTitle");
 
-    // 冒頭＝「オーヴⅡ」。Prologue はテキストが主役なので、旋律を立てないアンビエントで
-    //   「世界の底の音」だけを鳴らす（LRA 2.0＝ほぼ平坦）。原曲 155.2秒 → 0..148.0秒・-3.1dB。
+    // PeriTune「Memories」：序盤と終盤で同じ記憶の主題を返す。
     private AudioStream LoadBgmPrologue() => LoadMenuFamily("res://audio/bgm_prologue.ogg", "BgmPrologue");
 
-    // ショップ＝「シンプルスタイル」。ハブより硬く電子的（スペクトル重心が高い）＝「移動した感」が
-    //   耳で出る。周回で何十回も入る画面なので平坦さ優先（LRA 1.5）。原曲 125.0秒 → 0..111.9秒・-3.9dB。
-    private AudioStream LoadBgmShop() => LoadMenuFamily("res://audio/bgm_shop.ogg", "BgmShop");
-
-    // トレーニング＝「プルキンエ・フェノミナン」。この画面は**SEが主役**なので、
-    //   候補中もっとも静かで平坦なものを当てる（style §5「警告音を埋もれさせない」）。
-    //   原曲 119.0秒 → 0..113.0秒・-1.8dB。
-    private AudioStream LoadBgmTraining() => LoadMenuFamily("res://audio/bgm_training.ogg", "BgmTraining");
-
+    private AudioStream LoadBgmTraining()
+    {
+        // 道中の原盤を使い、練習だけSEを聴き取りやすい音量へ下げる。
+        var stream = ResourceLoader.Load<AudioStreamOggVorbis>("res://audio/bgm_stage_akari.ogg", "", ResourceLoader.CacheMode.Ignore);
+        stream.Loop = true;
+        return stream;
+    }
     // スタッフロール＝「帰り道」。一画面に最も長く留まる枠なので尺が要る（150.8秒）。
     //   勝利ファンファーレにせず「作品を見送る」トーン。原曲 166.5秒 → 0..150.8秒・-5.6dB。
     private AudioStream LoadBgmCredits() => LoadMenuFamily("res://audio/bgm_credits.ogg", "BgmCredits");
 
-    // ゲームオーバー＝「悲しみのテクスチャⅠ」。従来は戦闘曲が鳴りっぱなしで「くじけちゃった…」の
-    //   選択が音楽的に無句読点だった。旋律の無いアンビエントで場を鎮め、選択に集中させる役。
-    //   直接的に泣かせないので再挑戦の気持ちを削がない。原曲 120.2秒 → 0..103.5秒・-5.1dB。
+    // PeriTune「Dark_Moon」：ミナの孤独と再挑戦前のためらいを同じ静かな主題で結ぶ。
     private AudioStream LoadBgmGameOver() => LoadMenuFamily("res://audio/bgm_gameover.ogg", "BgmGameOver");
 
-    // ───────── ボス戦の回想（StoryFilm）の曲。memory＝翳り／aftermath＝温度が戻る ─────────
-    //   選定理由は BGM/candidates.md ⑳〜㉖。加工値は BGM/acquisition_list.md §8。
-    //   レイ memory＝「街路灯の明かり」（灯りのついた部屋で一人＝笑顔の練習と十四件の企画メモ）。
-    //     原曲 123.4s → 0..116.3s・-3.2dB。
     private AudioStream LoadBgmStoryRei() => LoadMenuFamily("res://audio/bgm_story_rei.ogg", "BgmStoryRei");
-    //   レイ aftermath＝「放課後の夕空」（好きな本の話を最後までした夕方）。平坦でクリア会話まで保つ。
-    //     原曲 153.1s → 0..148.6s・-3.3dB。
-    private AudioStream LoadBgmStoryReiAfter() => LoadMenuFamily("res://audio/bgm_story_rei_after.ogg", "BgmStoryReiAfter");
-    //   あかり memory＝「霧雨の彼方」。あかりの世界は既に雨（道中＝6月の雨傘／記憶フラッシュSEも雨）なので
-    //     **同じ天気で回想を包む**＝道中から地続きに聞こえる。29行と最長なので 151s の尺。
     private AudioStream LoadBgmStoryAkari() => LoadMenuFamily("res://audio/bgm_story_akari.ogg", "BgmStoryAkari");
-    //   あかり aftermath＝「春の予感」。八年ぶりに送信できた話＝雨から**季節が動く**方向へ抜ける。
-    //     原曲 110.0s → 0..104.3s・-4.8dB。
-    private AudioStream LoadBgmStoryAkariAfter() => LoadMenuFamily("res://audio/bgm_story_akari_after.ogg", "BgmStoryAkariAfter");
-    //   こはる memory＝「ないしょのお話」。曲名がそのまま「誰にも言えなかったこと」。
-    //     LRA 2.1 の平坦さが「淡々と続く日常の中で冷えていく」27行と一致（山を作らない）。
     private AudioStream LoadBgmStoryKoharu() => LoadMenuFamily("res://audio/bgm_story_koharu.ogg", "BgmStoryKoharu");
-    //   こはる aftermath＝「陽だまり」。こはるの主題は台所の灯／温度（ボス戦の未完モチーフ＝
-    //     「温かい旋律が冷えて減衰する」）なので、**冷えた温度が戻る**場面に候補中最も明るい曲を当てる。
-    private AudioStream LoadBgmStoryKoharuAfter() => LoadMenuFamily("res://audio/bgm_story_koharu_after.ogg", "BgmStoryKoharuAfter");
-    //   ミナ memory＝「虚しさと星空」。「……一件、完了。」と件数を数えるだけの18行＝人ではないものの空虚。
-    //     他3人が生楽器なのに対し**ミナだけニューエイジ（人間の楽器で鳴らさない）**＝style §3 の描き分け。
-    private AudioStream LoadBgmStoryMina() => LoadMenuFamily("res://audio/bgm_story_mina.ogg", "BgmStoryMina");
-
     // ───────── 回想の曲を引く（StoryFilm が自分で呼ぶ）─────────
     //   story＝"rei"/"akari"/"koharu"/"mina"、aftermath＝撃破後のカラー回想か。
     //   **ミナの aftermath だけ null を返す＝意図的な無音**（直後の Final が「無音→挿入歌」の

@@ -233,7 +233,7 @@ public partial class BossGauge : Node2D
             DrawPolyline(_shieldCrack, new Color(accent, alpha), 0.65f, true);
         }
 
-        string label = reforming ? "再形成中" : breaking || resolving ? "シールド破壊" : exposed ? "本体に攻撃" : "シールド";
+        string label = reforming ? "再形成中" : resolving ? "攻撃終了待ち" : breaking ? "シールド破壊" : exposed ? "本体に攻撃" : "シールド";
         LastStateLabel = label;
         var style = UiKit.CombatState;
         var labelPosition = (center + new Vector2(8f, 0)) / UiKit.Scale - new Vector2(0, style.LineHeight / 2);

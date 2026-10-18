@@ -39,9 +39,9 @@ public partial class StageKoharu : Node
     // 体数より“密度と変化”で長さを作る（§3 緩急）：3波で圧と構成を変えて間延びさせない。
     private Spawner _spawner = null!;
     private int _waveBase;
-    private const int MidWaveA = 72;
-    private const int MidWaveB = 28;
-    private const int MidWaveC = 32;
+    private const int MidWaveA = 36;
+    private const int MidWaveB = 14;
+    private const int MidWaveC = 16;
     // ボスの“チラ見せ”（カメオ）＝本戦ボスと同じ土台の短いミニボス戦（CameoBoss＝Enemy 派生・シールド制）。
     // こはる＝無力・他責で、弾は“落ちる祈り”。撃破（HP/サイクル削り切り＝改心）まで Stage は進まない。保険退場は廃止。
     private CameoBoss _cameo = null!;
@@ -720,11 +720,11 @@ public partial class StageKoharu : Node
         {
             _stepStarted = true;
             _waveBase = game?.PurifiedCount ?? 0;
-            StartMidwaveSpawner();
+            StartMidwaveSpawner(MidWaveA);
         }
-        // 規定数浄化（or 目標到達）で節目＝スポーン停止＋倒し残しの居座りザコを片付けて進む。
-        // 全滅ハント（60体の中で最後の1体探し）を要求しない＝進行不能を防ぐ。戦闘中の居座りは維持。
-        if (game != null && (game.PurifiedCount - _waveBase >= MidWaveA || game.StageCleared))
+        // 祈り運びを逃しても、規定数の出現と全敵の退場が済んでいれば進める。
+        if (game != null && (game.PurifiedCount - _waveBase >= MidWaveA || game.StageCleared
+            || (_spawner.SpawnedCount >= MidWaveA && GetTree().GetNodesInGroup("enemies").Count == 0)))
         {
             _spawner?.Stop(); _spawner = null!;
             ClearStageEnemies();
@@ -741,12 +741,13 @@ public partial class StageKoharu : Node
         {
             _stepStarted = true;
             _waveBase = game?.PurifiedCount ?? 0;
-            StartMidwaveSpawner(0.35f);
+            StartMidwaveSpawner(MidWaveB, 0.35f);
             // 背景は道中パノラマのまま（BeginRoute）。旧四層にあった「部屋→教室」の層セット切替は、描き込み
             // 背景に教室版が無いので廃止した（2026-09-22）。教室の場面は台詞（ClassTalk）だけで語る。
         }
         // 規定数浄化（or 目標到達）で節目＝スポーン停止＋居座り片付け＋終盤Cへ（全滅ハント不要＝進行不能を防ぐ）。
-        if (game != null && (game.PurifiedCount - _waveBase >= MidWaveB || game.StageCleared))
+        if (game != null && (game.PurifiedCount - _waveBase >= MidWaveB || game.StageCleared
+            || (_spawner.SpawnedCount >= MidWaveB && GetTree().GetNodesInGroup("enemies").Count == 0)))
         {
             _spawner?.Stop(); _spawner = null!;
             ClearStageEnemies();
@@ -763,11 +764,12 @@ public partial class StageKoharu : Node
         {
             _stepStarted = true;
             _waveBase = game?.PurifiedCount ?? 0;
-            StartMidwaveSpawner(0.7f);
+            StartMidwaveSpawner(MidWaveC, 0.7f);
             // 背景は道中Bと同じ道中パノラマのまま。「消えた画面の前の部屋」はボス突入（EnterBoss）の専用画で出す。
         }
         // 規定数浄化（or 目標到達）で節目＝スポーン停止＋居座り片付け＋本ボスへ（全滅ハント不要＝進行不能を防ぐ）。
-        if (game != null && (game.PurifiedCount - _waveBase >= MidWaveC || game.StageCleared))
+        if (game != null && (game.PurifiedCount - _waveBase >= MidWaveC || game.StageCleared
+            || (_spawner.SpawnedCount >= MidWaveC && GetTree().GetNodesInGroup("enemies").Count == 0)))
         {
             _spawner?.Stop(); _spawner = null!;
             ClearStageEnemies();
@@ -776,7 +778,7 @@ public partial class StageKoharu : Node
         }
     }
 
-    private void StartMidwaveSpawner(float startIntensity = 0f)
+    private void StartMidwaveSpawner(int count, float startIntensity = 0f)
     {
         if (_spawner != null) return;
         (GetTree().GetFirstNodeInGroup("stagebg") as StageBackground)?.BeginRoute();
@@ -784,7 +786,7 @@ public partial class StageKoharu : Node
         //   敵がゼロから湧き直すのに自機だけ前の段の位置に残るのが非対称なので、自機も初期位置へ戻す。
         //   ルナティックは除外（理由は StageAkari.StartMidwaveSpawner と同じ＝戦闘を途切れさせない設計）。
         if (!_lunatic) Player?.ReturnToStart();
-        _spawner = new Spawner { Name = "Spawner", World = World, Theme = StageTheme.Koharu, StartIntensity = startIntensity };
+        _spawner = new Spawner { Name = "Spawner", World = World, Theme = StageTheme.Koharu, SpawnLimit = count, StartIntensity = startIntensity };
         AddChild(_spawner);
         _spawner.Begin();
     }

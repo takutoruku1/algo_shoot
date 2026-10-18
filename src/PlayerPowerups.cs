@@ -6,12 +6,22 @@ public partial class Player
     public const int KillsPerPowerDrop = 10;
     public const int KillsPerLifeDrop = 30;
     public int LinePower { get; private set; }
+    internal int ShotPowerPercent => LinePower switch { 1 => 110, 2 => 130, _ => 100 };
     public int SpeedPower { get; private set; }
     public int MaxLives => _game?.StartLives ?? 3;
     public float PowerMoveMultiplier => 1f + SpeedPower * 0.25f;
     private int _powerKills;
     private int _lifeKills;
     private int _nextPowerKind;
+    private int _shotPowerRemainder;
+
+    internal int PoweredShotDamage(Bullet bullet, int damage)
+    {
+        // Carry fractional bonuses across actual hits, including short-lived road enemies.
+        int total = damage * bullet.ShotPowerPercent + _shotPowerRemainder;
+        _shotPowerRemainder = total % 100;
+        return total / 100;
+    }
 
     public int PowerLevel(PowerKind kind) => kind switch
     {
@@ -61,5 +71,6 @@ public partial class Player
     {
         LinePower = 0;
         SpeedPower = 0;
+        _shotPowerRemainder = 0;
     }
 }

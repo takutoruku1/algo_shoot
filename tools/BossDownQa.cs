@@ -14,6 +14,8 @@ public partial class BossDownQa : Node
     private AkariRoot _root = null!;
     private bool _shots;
     private bool _breakShots;
+    private bool _shieldTiming, _shieldVideo;
+    private int _shieldTicks;
     private BulletPool Pool => GetNode<BulletPool>("/root/Pool");
     private static FieldInfo FieldOf(object value, string name)
     {
@@ -47,13 +49,18 @@ public partial class BossDownQa : Node
         {
             Check(OS.GetUserDataDir().Replace('\\', '/').Contains("/build/qa_story/"), "isolated save data");
             _breakShots = OS.GetCmdlineUserArgs().Contains("--break-shots");
+            _shieldTiming = OS.GetCmdlineUserArgs().Contains("--shield-timing");
+            _shieldVideo = OS.GetCmdlineUserArgs().Contains("--shield-video");
+            if (_shieldTiming)
+                typeof(Settings).GetProperty(nameof(Settings.PauseWhenUnfocused))!.GetSetMethod(true)!.Invoke(null, new object[] { false });
             _shots = _breakShots || OS.GetCmdlineUserArgs().Contains("--down-shots");
             var game = GetNode<GameManager>("/root/Game");
             game.AutoSaveEnabled = false;
             game.ResetPersistent();
             game.MarkIdleDialogSeen("once_midboss_shield");
-            game.Difficulty = GameManager.Diff.Normal;
-            if (_shots)
+            game.Difficulty = _shieldVideo ? GameManager.Diff.Easy : GameManager.Diff.Normal;
+            if (_shieldTiming) game.SelectedJob = Job.Heal;
+            if (_shots || _shieldVideo)
             {
                 DirAccess.MakeDirRecursiveAbsolute(ProjectSettings.GlobalizePath(Out));
                 DisplayServer.WindowSetMode(DisplayServer.WindowMode.Windowed);
@@ -74,7 +81,9 @@ public partial class BossDownQa : Node
             _root.GetNode<StageBackground>("StageBackground").EnterBoss();
             await Frames(3);
 
-            foreach (var id in new[] { "akari", "koharu", "rei", "mina", "akari_mid", "koharu_mid", "rei_mid" })
+            if (_shieldTiming) await CheckShieldTiming(game);
+            foreach (var id in _shieldTiming ? Array.Empty<string>()
+                : new[] { "akari", "koharu", "rei", "mina", "akari_mid", "koharu_mid", "rei_mid" })
             {
                 Enemy boss = id switch
                 {
@@ -151,7 +160,7 @@ public partial class BossDownQa : Node
                 await Frames(4);
                 Pool.DespawnAll();
             }
-            if (!_breakShots)
+            if (!_breakShots && !_shieldTiming)
             {
                 Check(_samples.Count == 14, "all fourteen boss and phase down states exercised");
                 if (_shots) await Comparison();
@@ -177,6 +186,196 @@ public partial class BossDownQa : Node
         _root.Hud.HoldBubble = false;
         _root.Hud.HideBubble();
         _root.Hud.SuppressCallouts = false;
+    }
+
+    private static void Require(bool pass, string label)
+    {
+        if (!pass) throw new Exception(label);
+    }
+
+    private static bool Striking(BossCharacterTechnique attack)
+        => attack.IsStriking || attack.OwnedShots.Any(b => !b.LeadIn && b.CollisionLayer != 0);
+
+    private static HashSet<(ulong Instance, ulong Activation)> ShotIds(BossCharacterTechnique attack)
+        => attack.OwnedShots.Select(b => (b.GetInstanceId(), b.ActivationId)).ToHashSet();
+
+    private async Task ShieldFrame(Enemy boss)
+    {
+        const double dt = 1d / 60;
+        boss._PhysicsProcess(dt);
+        foreach (var child in boss.GetChildren())
+        {
+            if (child is AreaSpellCaster caster) caster._Process(dt);
+            if (child is MinaPhaseAttacks mina) mina._Process(dt);
+        }
+        foreach (var attack in boss.GetChildren().OfType<BossCharacterTechnique>().Where(a => !a.Finished).ToArray())
+            attack._PhysicsProcess(dt);
+        foreach (var bullet in Pool.GetChildren().OfType<Bullet>().Where(b => b.Active).ToArray())
+            bullet._PhysicsProcess(dt);
+        foreach (var panel in Read<List<Panel>>(boss, "_panels")) panel._PhysicsProcess(dt);
+        var gauge = boss.GetNode<BossGauge>("BossGauge");
+        gauge._Process(dt);
+        _shieldTicks++;
+        if (_shieldVideo)
+        {
+            await ToSignal(RenderingServer.Singleton, RenderingServer.SignalName.FramePostDraw);
+            var (label, fill) = boss.GaugeAttackResolving ? ("攻撃終了待ち", "resolving")
+                : boss.GaugeBreaking ? ("シールド破壊", "breaking")
+                : boss.GaugeBodyExposed ? ("本体に攻撃", "break")
+                : boss.GaugeReforming ? ("再形成中", "invuln") : ("シールド", "invuln");
+            Require(gauge.LastStateLabel == label && gauge.LastFillKind == fill,
+                $"Rendered shield gauge differs from combat phase: expected {label}/{fill}, got {gauge.LastStateLabel}/{gauge.LastFillKind}");
+        }
+        else if (_shieldTicks % 120 == 0) await Frames(1);
+    }
+
+    private async Task CheckShieldTiming(GameManager game)
+    {
+        var originalPoolMode = Pool.ProcessMode;
+        Pool.ProcessMode = ProcessModeEnum.Disabled;
+        GD.Print("[BossDownQA] Shield timing: stationary invincible player, no shooting, real Panel.Shatter input; "
+            + "production methods advance at 1/60; contact damage and human difficulty are not evaluated.");
+        bool secondOnly = OS.GetCmdlineUserArgs().Contains("--shield-second");
+        var difficulties = _shieldVideo ? new[] { GameManager.Diff.Easy } : Enum.GetValues<GameManager.Diff>();
+        var ids = _shieldVideo ? new[] { "akari", "akari_mid" }
+            : secondOnly ? new[] { "akari_mid", "koharu_mid", "rei_mid" }
+            : new[] { "akari", "koharu", "rei", "mina", "akari_mid", "koharu_mid", "rei_mid" };
+        foreach (var difficulty in difficulties)
+        foreach (string id in ids)
+        foreach (bool evolved in !_shieldVideo && difficulty <= GameManager.Diff.Normal && !id.EndsWith("_mid")
+            ? new[] { false, true } : new[] { false })
+        foreach (int variant in secondOnly ? new[] { 1 } : !_shieldVideo && id.EndsWith("_mid") ? new[] { 0, 1 } : new[] { 0 })
+        foreach (int trigger in _shieldVideo || evolved || variant > 0 ? new[] { 2 } : new[] { 0, 1, 2 })
+        {
+            game.Difficulty = difficulty;
+            ClearDialog();
+            _root.Hud.HideSpellCard();
+            typeof(GameManager).GetProperty(nameof(GameManager.Bombs))!.SetValue(game, 0);
+            Enemy boss = id switch
+            {
+                "akari" => new BossAkari(), "koharu" => new BossKoharu(),
+                "rei" => new BossRei(), "mina" => new BossMina(), _ => Cameo(id),
+            };
+            boss.ProcessMode = ProcessModeEnum.Disabled;
+            _root.World.AddChild(boss);
+            boss.GlobalPosition = new Vector2(Field.BossCenterX, 100);
+            Call(boss, "TickEntrance", 0d);
+            Call(boss, "TickEntrance", 100d);
+            Call(boss, "TickSwapAnim", 1d);
+            if (evolved)
+            {
+                // Use the production form change while omitting the already-tested story interlude.
+                game.Difficulty = GameManager.Diff.Lunatic;
+                if (boss is BossMina)
+                {
+                    Call(boss, "BeginPhaseTransition");
+                    Call(boss, "CompletePhaseTransition");
+                }
+                else Require((bool)Call(boss, "AdvanceForm2")!, id + ": second form setup failed");
+                game.Difficulty = difficulty;
+                Call(boss, "TickSwapAnim", 1d);
+                _root.Player.GlobalPosition = new Vector2(Field.Left + 30, 165);
+                Require(boss.HasEvolved, id + ": evolved shot and technique branch is inactive");
+            }
+            ClearDialog();
+            await Frames(2);
+            if (variant > 0)
+            {
+                var danmaku = Read<BossDanmaku>(boss, "_danmaku");
+                if (boss.UsesTechniqueCycle)
+                {
+                    Write(danmaku, "_cycleSegment", BossAttackCycle.Segment(boss));
+                    Write(danmaku, "_cycleSlot", variant);
+                }
+                else Write(danmaku, "_phrase", variant);
+            }
+            string label = $"{difficulty}/{id}/{(evolved ? "after/" : variant > 0 ? "second/" : "")}{(trigger == 0 ? "idle" : trigger == 1 ? "warning" : "live")}";
+            var cue = _root.Hud.Bubbles!.ShieldBreak;
+            BossCharacterTechnique? attack = null;
+            bool ended = false, completed = false;
+            double endedAt = -1;
+            int finalShots = -1, endShots = -1, endHazards = -1;
+            if (trigger != 0)
+            {
+                for (int frame = 0; frame < 600 && attack == null; frame++)
+                {
+                    await ShieldFrame(boss);
+                    attack = boss.GetChildren().OfType<BossCharacterTechnique>().FirstOrDefault(a => !a.Finished);
+                }
+                Require(attack != null, label + ": ordinary combat did not select a technique");
+                if (variant > 0)
+                    Check(attack!.TechniqueKind == BossTechniqueKind.Cameo && attack.TechniqueVariant == variant,
+                        label + ": ordinary combat selects the second midboss technique");
+                attack!.Ended += endedAttack =>
+                {
+                    ended = true;
+                    completed = endedAttack.Completed;
+                    endedAt = endedAttack.Elapsed;
+                    finalShots = endedAttack.ShotsCreated;
+                    endShots = endedAttack.NaturalEndRemainingShots;
+                    endHazards = endedAttack.NaturalEndLiveHazards;
+                };
+                for (int frame = 0; frame < 7200 && !ended; frame++)
+                {
+                    if (trigger == 1 ? attack.Elapsed >= .25 && !Striking(attack) : Striking(attack)) break;
+                    await ShieldFrame(boss);
+                }
+                Require(!ended && (trigger == 1 ? attack.Elapsed >= .25 && !Striking(attack) : Striking(attack)),
+                    label + ": missing shield trigger window");
+            }
+            int hp = Read<int>(boss, "_hp");
+            int initialShots = attack?.ShotsCreated ?? 0;
+            double triggerAt = attack?.Elapsed ?? 0;
+            var beforeShots = attack == null ? new HashSet<(ulong, ulong)>() : ShotIds(attack);
+            var panels = Read<List<Panel>>(boss, "_panels").ToArray();
+            Require(panels.Length > 0, label + ": no real shield panels");
+            foreach (var panel in panels.Take(panels.Length - 1)) panel.Shatter();
+            Require(!boss.GaugeAttackResolving && !boss.GaugeVulnerable && game.Bombs == 0 && !cue.Active,
+                label + ": shield broke before the final panel");
+            panels[^1].Shatter();
+            Check(Read<List<Panel>>(boss, "_panels").Count == 0, label + ": actual final panel reaches the shield state machine");
+            if (attack != null)
+            {
+                Check(boss.GaugeAttackResolving && !boss.GaugeVulnerable && !ended && game.Bombs == 0
+                    && !cue.Active && !Read<bool>(boss, "_bodyDown") && !boss.GetCollisionMaskValue(2),
+                    label + ": final panel defers break pose, callout, reward and body vulnerability");
+                Check(beforeShots.SetEquals(ShotIds(attack)), label + ": shield exhaustion preserves existing projectiles");
+                int attackCount = boss.GetChildren().OfType<BossCharacterTechnique>().Count(a => !a.Finished);
+                for (int frame = 0; frame < 10800 && !ended; frame++)
+                {
+                    Require(boss.GaugeAttackResolving && !boss.GaugeVulnerable && game.Bombs == 0 && !cue.Active
+                        && !Read<bool>(boss, "_bodyDown") && !boss.GetCollisionMaskValue(2),
+                        label + ": break side effects appeared before natural completion");
+                    Require(boss.GetChildren().OfType<BossCharacterTechnique>().Count(a => !a.Finished) == attackCount,
+                        label + ": another technique started while shield break was pending");
+                    await ShieldFrame(boss);
+                }
+                Check(ended && completed && endedAt > triggerAt,
+                    label + ": the current technique completes naturally after shield exhaustion");
+                Check(endShots == 0 && endHazards == 0,
+                    label + ": natural completion leaves no active projectiles or hazards");
+                Check(finalShots >= initialShots && (trigger != 1 || finalShots > 0 || attack.HazardFrames > 0),
+                    label + ": scheduled attacks continue after the final panel");
+                GD.Print($"[BossDownQA] TIMING {label} trigger={triggerAt:F3} complete={endedAt:F3} shots={initialShots}->{finalShots}");
+            }
+            for (int frame = 0; frame < 3 && !boss.GaugeBreaking; frame++) await ShieldFrame(boss);
+            Check(boss.GaugeBreaking && Read<bool>(boss, "_bodyDown") && cue.Active && game.Bombs == 1,
+                label + ": break animation, callout and reward begin together");
+            Check(Read<int>(boss, "_hp") == hp && !boss.GetCollisionMaskValue(2),
+                label + ": protected body remains undamaged during the break cue");
+            for (int frame = 0; frame < 90 && !boss.GaugeBodyExposed; frame++) await ShieldFrame(boss);
+            Check(boss.GaugeBodyExposed && boss.GetCollisionMaskValue(2) && game.Bombs == 1,
+                label + ": exposure follows the break cue and reward occurs only once");
+            Check(!boss.GetChildren().OfType<BossCharacterTechnique>().Any(a => !a.Finished),
+                label + ": the following technique does not begin during the damage window");
+            if (_shieldVideo)
+                for (int frame = 0; frame < 90; frame++) await ShieldFrame(boss);
+            boss.QueueFree();
+            Pool.DespawnAll();
+            ClearDialog();
+            await Frames(3);
+        }
+        Pool.ProcessMode = originalPoolMode;
     }
 
     private async Task FinishTransformation(Enemy boss)

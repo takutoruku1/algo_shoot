@@ -8,7 +8,7 @@ public partial class MinaPhaseAttacks : Node
     private bool _nextEdge;
     private double _cooldown;
     private bool _active;
-    public bool Active => _boss != null && _boss.UsesTechniqueCycle
+    public bool Active => _boss != null && (_boss.UsesTechniqueCycle || _boss.UsesEasyTechniqueSlots)
         ? _attack != null && IsInstanceValid(_attack) && !_attack.Finished : _active;
     public bool OpenerCompleted { get; private set; }
     public void Configure(BossMina boss, Node world)
@@ -33,7 +33,7 @@ public partial class MinaPhaseAttacks : Node
     }
     public override void _Process(double delta)
     {
-        if (_boss.UsesTechniqueCycle) return;
+        if (_boss.UsesTechniqueCycle || _boss.UsesEasyTechniqueSlots) return;
         if (_boss.IsPurified || _boss.GaugeVulnerable || _boss.GaugeReforming)
         {
             CancelPendingAttacks();
@@ -49,6 +49,7 @@ public partial class MinaPhaseAttacks : Node
             _cooldown = _nextEdge ? 6 : 3;
             return;
         }
+        if (_boss.GaugeAttackResolving) return;
         _cooldown -= GameManager.EnemyDelta(delta);
         if (_cooldown > 0 || _boss.CrossfireActive || _boss.DodgeWaveActive) return;
         _active = true;

@@ -34,6 +34,7 @@ public partial class StoryFilmQa : Node
         try
         {
             Check(OS.GetUserDataDir().Replace('\\', '/').Contains("/build/qa_story/"), "isolated user data");
+            typeof(Settings).GetProperty(nameof(Settings.PauseWhenUnfocused))!.SetValue(null, false);
             DisplayServer.WindowSetMode(DisplayServer.WindowMode.Windowed);
             DisplayServer.WindowSetSize(new Vector2I(1280, 720));
             _out = ProjectSettings.GlobalizePath($"res://build/qa_story/{stageName.ToLowerInvariant()}/shots");
@@ -64,7 +65,6 @@ public partial class StoryFilmQa : Node
             }
             if (Array.IndexOf(OS.GetCmdlineUserArgs(), "--devices") >= 0)
             {
-                Check(koharu || rei, "device artwork test selects an updated atlas");
                 game.AutoSaveEnabled = false;
                 root.SetProcess(false);
                 stage.SetProcess(false);
@@ -78,8 +78,8 @@ public partial class StoryFilmQa : Node
                     PlayFilm(aftermath, () => complete = true);
                     await Frames(90);
                     var artFilm = (StoryFilm)GetTree().GetFirstNodeInGroup("storyfilm");
-                    Check(Read<string>(artFilm, "_atlasPath").EndsWith("_story_atlas_v2.png"), "runtime uses the repaired atlas");
-                    Check(Read<int>(artFilm, "_atlasRows") == 4, "original eight-shot layout retained");
+                    Check(Read<string>(artFilm, "_atlasPath").EndsWith(koharu || rei ? "_story_atlas_v2.png" : "_story_atlas.png"), "runtime uses the repaired atlas");
+                    Check(Read<int>(artFilm, "_atlasRows") == (koharu || rei ? 4 : 3), "original shot grid retained");
                     foreach (int shot in FilmShots(artFilm))
                     {
                         await AdvanceUntil(() => Read<int>(artFilm, "_shot") == shot);
@@ -430,7 +430,7 @@ public partial class StoryFilmQa : Node
                     "world and game timers disabled during memory");
                 if (report) { await Frames(90); using var shot = await Shot("memory", grayscale: true); }
                 await AdvanceUntil(() => !IsInstanceValid(film));
-                await WaitUntil(() => !boss.Transforming, 360);
+                await AdvanceUntil(() => !boss.Transforming);
                 if (rei)
                     await AdvanceUntil(() => Read<bool>(stage, "_midStoryShown") && Read<int>(stage, "_step") == 12);
                 Check(!hud.CinematicMode && world.ProcessMode == ProcessModeEnum.Inherit

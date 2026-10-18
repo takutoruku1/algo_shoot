@@ -42,7 +42,6 @@ public struct CameoTheme
 public partial class CameoBoss : Enemy
 {
     // ───────── スケール調整用の定数（道中ミニボス相当に縮小。本戦ボスより控えめ）─────────
-    // 後で調整しやすいよう、ここ1か所に集約する。総HP = Enemy.BarHp(100) × CameoBars。
     private const int CameoBars = 2;
     private const int CameoPanels = 3;        // 周回パネル枚数（本戦5より少なめ）
     private const int CameoPanelInk = 18;

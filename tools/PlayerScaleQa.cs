@@ -156,7 +156,7 @@ public partial class PlayerScaleQa : Node
         string label = Label(item);
         Check($"{label}：衣装を装備できる", game.EquipCosmetic(item.Id));
         game.SelectedJob = job.Id;
-        Call(training, "RebuildPlayer");
+        Call(training, "ResetTrial");
         await Frames(3);
         var player = Read<Player>(training, "_player");
         var sprite = player.GetNode<Sprite2D>("Sprite");

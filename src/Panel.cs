@@ -161,8 +161,6 @@ public partial class Panel : Area2D
         // Keep charge tiers stronger without letting a high-power projectile erase a boss panel.
         int normalCap = BossStyle && !bullet.Accel ? 1 : 2;
         int cap = !bullet.Charged ? normalCap : bullet.ChargeStage >= ChargeTier.Second ? 5 : 3;
-        if (GameManager.Instance!.ShotPowerMul > 1)
-            cap += bullet.Charged ? bullet.ChargeStage >= ChargeTier.Second ? 3 : 2 : 1;
         return Mathf.Min(cost, cap);
     }
 
@@ -179,8 +177,10 @@ public partial class Panel : Area2D
             if (b.Pierce > 0) b.Pierce--;
             else GetNodeOrNull<BulletPool>("/root/Pool")?.Despawn(b);
             // 集中の光（focus_fire）：パネル越しの撃ち込みも「同じ敵に当て続けている」に数える。
-            (GetTree().GetFirstNodeInGroup("player") as Player)?.NotifyShotHit(_owner);
-            Ink -= InkCost(b);
+            var player = GetTree().GetFirstNodeInGroup("player") as Player;
+            player?.NotifyShotHit(_owner);
+            int cost = InkCost(b);
+            Ink -= player?.PoweredShotDamage(b, cost) ?? cost;
             if (Ink <= 0) Shatter();
             else
             {

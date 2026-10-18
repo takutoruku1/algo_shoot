@@ -120,7 +120,8 @@ internal sealed class AutoplayInput
         _threats.Clear();
         foreach (Node node in _tree.GetNodesInGroup("enemy_bullets"))
             if (node is Bullet bullet && bullet.Active && position.DistanceSquaredTo(bullet.GlobalPosition) < 150f * 150f)
-                _threats.Add((bullet.GlobalPosition, bullet.Velocity * GameManager.EnemyTimeScale, bullet.CollisionRadius));
+                _threats.Add((bullet.GlobalPosition, bullet.Velocity * GameManager.EnemyTimeScale,
+                    bullet.CollisionRadius * Mathf.Max(bullet.GlobalTransform.X.Length(), bullet.GlobalTransform.Y.Length())));
 
         Enemy? nearest = null;
         float nearestDistance = float.MaxValue;

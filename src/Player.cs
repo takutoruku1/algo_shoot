@@ -1034,7 +1034,7 @@ public partial class Player : Area2D
                 GameManager.ShotMode.Accel => 1f, // 加速球は速射（rapid_rate）の対象外＝ショップ説明文どおり連射専用
                 _ => _game?.RapidRateMul ?? 1f,
             };
-            _fireCooldown = FireInterval * (_game?.FireIntervalMul ?? 1f) * modeMul;
+            _fireCooldown = FireInterval * modeMul;
         }
 
         // ボム（X）: 押した瞬間だけ発動
@@ -1271,18 +1271,15 @@ public partial class Player : Area2D
         if (_pool == null)
             return;
 
-        // 銃口（中心からやや前方＝_facing 側）。光の出力強化でダメージ増。
+        // 銃口（中心からやや前方＝_facing 側）。
         // フォロワー由来の火力バフ（FollowerPowerMul・上限+50%）をここで実配線＝拡散力(fol_gain)が“火力の遠回り投資”として生きる。
         Vector2 muzzle = GlobalPosition + ShotDir * 20f;
         // 集中の光（focus_fire）：同じ敵に当て続けた集中ボーナス（+0〜+Lv）を基礎威力へ上乗せ。
         // ジョブの基礎威力補正（JobDef.PowerMul）もここへ乗せる＝本体・パネル・雑魚の全経路に同じ係数が届く
         // （祈り手だけ ×0.8＝4ジョブ最遅。他3ジョブは 1.0 で従来どおり）。下限1は据え置き。
-        // ★2026-09-13 一本道13段：基礎威力は 1 固定になり、#4「火力 2倍」が最終段の倍率（×2）として掛かる。
-        //   掛ける順は フォロワーバフ → ジョブ補正 → 火力2倍。丸めは1回だけ（段ごとに丸めると2倍が2倍にならない）。
         int dmg = Mathf.Max(1, Mathf.RoundToInt(1f
                                                 * (_game?.FollowerPowerMul ?? 1f)
-                                                * (_game?.JobDef.PowerMul ?? 1f)
-                                                * (_game?.ShotPowerMul ?? 1))) + FocusFireBonus;
+                                                * (_game?.JobDef.PowerMul ?? 1f))) + FocusFireBonus;
 
         // 選択中のショットモードで発射パターンを分岐（設計書 §3）。
         switch (_game?.SelectedShotMode ?? GameManager.ShotMode.Rapid)
@@ -1305,7 +1302,7 @@ public partial class Player : Area2D
         {
             Vector2 op = GlobalPosition + OptionSlots[i];
             _pool.Spawn(op + ShotDir * 8f, ShotDir * 340f, isEnemy: false, 2.6f,
-                Mathf.Max(1, Mathf.RoundToInt(dmg * 0.5f)));
+                Mathf.Max(1, Mathf.RoundToInt(dmg * 0.5f))).ShotPowerPercent = ShotPowerPercent;
         }
 
         // マズルフラッシュ＋発射音（画と同フレーム）＋体のキックバック（反動）
@@ -1326,13 +1323,17 @@ public partial class Player : Area2D
         Vector2 vel = direction * Jobs.Get(Job.Tank).ShotSpeed;
         int pierce = _game?.ShotPierceCount ?? 0;
         int rdmg = dmg + (_game?.RapidPowerBonus ?? 0); // 連射モード専用の威力上乗せ
-        int lines = 2 + (_game?.ExtraLines ?? 0) + LinePower;
+        int lines = 2 + (_game?.ExtraLines ?? 0);
         float[] offs = lines <= 2 ? new[] { -4f, 4f }
                      : lines == 3 ? new[] { -6f, 0f, 6f }
                      : lines == 4 ? new[] { -9f, -3f, 3f, 9f }
                                   : new[] { -12f, -6f, 0f, 6f, 12f };
         foreach (float offset in offs)
-            _pool.Spawn(muzzle + side * offset, vel, isEnemy: false, Jobs.Get(Job.Tank).ShotRadius, rdmg, BulletShape.Dart).Pierce = pierce;
+        {
+            var b = _pool.Spawn(muzzle + side * offset, vel, isEnemy: false, Jobs.Get(Job.Tank).ShotRadius, rdmg, BulletShape.Dart);
+            b.Pierce = pierce;
+            b.ShotPowerPercent = ShotPowerPercent;
+        }
     }
 
     // 加速球：発射したら自機のすぐ前でほぼ静止して“タメ”を作り、タメ後にロケットのように急加速して発進する。
@@ -1351,9 +1352,8 @@ public partial class Player : Area2D
         // 同時タメ中の弾数を上限化：無効化(非Active)/発進済み分を掃除してから残数を確認し、
         // 上限（AccelChargeCap）到達中は新規スポーンをスキップ＝タメ中弾の自弾グローが自機前方に積み上がるのを防ぐ。
         _accelCharging.RemoveAll(b => b == null || !b.Active || !b.AccelCharging);
-        int lines = 2 + (_game?.ExtraLines ?? 0) + LinePower;
-        int chargeCap = AccelChargeCap + LinePower * 3;
-        if (_accelCharging.Count + lines > chargeCap)
+        int lines = 2 + (_game?.ExtraLines ?? 0);
+        if (_accelCharging.Count + lines > AccelChargeCap)
             return;
 
         // 上下2本（連射と同じ正面集中の手触り）＋ #8「ライン +1」で1発増える。
@@ -1367,6 +1367,7 @@ public partial class Player : Area2D
         foreach (float offset in adys)
         {
             var b = _pool.Spawn(muzzle + side * offset, direction * fast, isEnemy: false, Jobs.Get(Job.Melee).ShotRadius, admg);
+            b.ShotPowerPercent = ShotPowerPercent;
             b.MakeAccel(charge, fast, delay); // タメ(ほぼ静止)→delay秒後に発進
             if (LockedOn) b.SetLaunchTarget(_lockTarget!, LockedUnfolder);
             b.Pierce = pierce;
@@ -1378,7 +1379,7 @@ public partial class Player : Area2D
     // 連鎖の光（chain）：拡散弾のみ跳弾数を付与（ヒット時に Bullet.TryChain が跳ねる）。
     private void FireSpread(Vector2 muzzle, int dmg)
     {
-        int n = Mathf.Max(5, _game?.SpreadWays ?? 5) + LinePower;
+        int n = Mathf.Max(5, _game?.SpreadWays ?? 5);
         int sdmg = Mathf.Max(1, Mathf.RoundToInt(dmg * (_game?.SpreadPowerMul ?? 0.50f)));
         int chain = _game?.ChainLightBounces ?? 0;
         int spierce = _game?.ShotPierceCount ?? 0; // 貫通（#12）は 2026-09-13 から全モード共通
@@ -1389,6 +1390,7 @@ public partial class Player : Area2D
             Vector2 dir = new Vector2(Mathf.Cos(ang), Mathf.Sin(ang));
             var shot = Jobs.Get(Job.Magic);
             var sb = _pool.Spawn(muzzle, dir * shot.ShotSpeed, isEnemy: false, shot.ShotRadius, sdmg, shot.ShotShape);
+            sb.ShotPowerPercent = ShotPowerPercent;
             sb.Chain = chain;
             sb.Pierce = spierce;
         }
@@ -1398,7 +1400,7 @@ public partial class Player : Area2D
     // 1発威力 ×HomingPowerMul（0.85→0.95→1.05・誘導威力ノードで是正）。誘導速射なら旋回を上書き（200）。
     private void FireHoming(Vector2 muzzle, int dmg)
     {
-        int shots = Mathf.Max(1, _game?.HomingShots ?? 2) + LinePower;
+        int shots = Mathf.Max(1, _game?.HomingShots ?? 2);
         int hdmg = Mathf.Max(1, Mathf.RoundToInt(dmg * (_game?.HomingPowerMul ?? 0.85f)));
         int turn = _game?.HomingTurnRateOverride ?? 0; // 0=Bullet 既定（150）を使う
         int hpierce = _game?.ShotPierceCount ?? 0;     // 貫通（#12）は 2026-09-13 から全モード共通
@@ -1409,6 +1411,7 @@ public partial class Player : Area2D
             Vector2 dir = new Vector2(Mathf.Cos(ang), Mathf.Sin(ang));
             var shot = Jobs.Get(Job.Heal);
             var hb = _pool.Spawn(muzzle, dir * shot.ShotSpeed, isEnemy: false, shot.ShotRadius, hdmg, shot.ShotShape, null, homing: true);
+            hb.ShotPowerPercent = ShotPowerPercent;
             if (turn > 0) hb.TurnRateOverride = turn;
             hb.Pierce = hpierce;
         }
@@ -1637,7 +1640,7 @@ public partial class Player : Area2D
                         _counterCount++;
                         Vector2 at = b.GlobalPosition;
                         // 威力はホーミング射と同等（基礎×フォロワーバフ×追尾税0.7）。弾はその場で光弾に置き換える。
-                        int cdmg = Mathf.Max(1, Mathf.RoundToInt(1f * game.ShotPowerMul * game.FollowerPowerMul * 0.7f));
+                        int cdmg = Mathf.Max(1, Mathf.RoundToInt(game.FollowerPowerMul * 0.7f));
                         _pool?.Spawn(at, ShotDir * 200f, isEnemy: false, 3f, cdmg, BulletShape.Orb, null, homing: true);
                         FxLayer.Instance?.Muzzle(at); // 変換の一閃（“返した”を短く見せる）
                     }
@@ -1696,8 +1699,7 @@ public partial class Player : Area2D
         var job = _game!.JobDef;
         int baseDmg = Mathf.Max(1, Mathf.RoundToInt(1f
                                                     * (_game?.FollowerPowerMul ?? 1f)
-                                                    * (_game?.JobDef.PowerMul ?? 1f)
-                                                    * (_game?.ShotPowerMul ?? 1)));
+                                                    * (_game?.JobDef.PowerMul ?? 1f)));
         int dmg = Mathf.Max(1, Mathf.RoundToInt(baseDmg * job.ChargePower * ChargeTier.PowerMulFor(stage)));
         float radius = job.ChargeRadius * ChargeTier.RadiusMulFor(stage);
         Vector2 muzzle = GlobalPosition + ShotDir * 20f;
@@ -1707,6 +1709,7 @@ public partial class Player : Area2D
             Vector2 dir = ShotDir.Rotated(spread * Mathf.DegToRad(job.ChargeSpreadDegrees));
             var b = _pool.Spawn(muzzle, dir * job.ChargeSpeed, isEnemy: false, radius, dmg,
                 homing: job.Mode == GameManager.ShotMode.Homing);
+            b.ShotPowerPercent = ShotPowerPercent;
             b.MakeCharged(job.Id, stage);
             if (b.Homing) b.TurnRateOverride = 240;
             if (job.Mode == GameManager.ShotMode.Accel)

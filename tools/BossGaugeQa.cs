@@ -231,7 +231,6 @@ public partial class BossGaugeQa : Node
         var cameoBarrage = boss is CameoBoss ? new BossDanmaku(boss) : null;
         BossCharacterTechnique? uiAttack = null;
         foreach (var attack in boss.GetChildren().OfType<BossCharacterTechnique>().Where(a => !a.Finished)) attack.Cancel();
-        BaseField(boss, "_shieldTechniqueCompleted").SetValue(boss, false);
         BaseField(boss, "_shieldTechnique").SetValue(boss, null);
         void StartTechnique()
         {
@@ -244,7 +243,6 @@ public partial class BossGaugeQa : Node
         {
             foreach (var attack in boss.GetChildren().OfType<BossCharacterTechnique>().Where(a => !a.Finished).ToArray())
                 typeof(BossCharacterTechnique).GetMethod("Finish", P)!.Invoke(attack, null);
-            BaseField(boss, "_shieldTechniqueCompleted").SetValue(boss, true);
         }
         Panel[] Panels() => boss.GetChildren().OfType<Panel>().Where(p => !p.IsQueuedForDeletion()).ToArray();
         string Phase() => BaseField(boss, "_phase").GetValue(boss)!.ToString()!;
@@ -313,7 +311,7 @@ public partial class BossGaugeQa : Node
         await Frames(2);
         if (boss.UsesTechniqueCycle)
         {
-            State("Resolving", "resolving", "シールド破壊");
+            State("Resolving", "resolving", "攻撃終了待ち");
             Check($"{prefix}: resolving keeps the attack active and hides body-attack callouts", boss.GaugeAttackResolving
                 && !boss.GaugeVulnerable && !boss.GaugeBodyExposed && boss.GaugeWindowLeft == 0 && !callout.Active
                 && uiAttack is { Finished: false });

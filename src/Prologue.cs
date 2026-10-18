@@ -114,8 +114,7 @@ public partial class Prologue : Node2D
         TextureFilter = TextureFilterEnum.LinearWithMipmaps;
         _backdropArt = new OpeningBackdrop();
         _font = UiKit.Mono; // 滑らかな等幅フォント（コードレイン／識別表示）。非ピクセル化。
-        // 冒頭専用曲「オーヴⅡ」（2026-09-14〜。従来は BgmMenu の使い回し）。
-        //   Prologue はテキストが主役なので、旋律の立たないアンビエントで「世界の底の音」だけを敷く。
+        // ここで聴く記憶の主題が、終盤の告白で再び流れる。
         if (Audio.Instance != null) Audio.Instance.Music(Audio.Instance.BgmPrologue);
         _game = GetNodeOrNull<GameManager>("/root/Game");
         _diffSel = (int)(_game?.Difficulty ?? GameManager.Diff.Normal);

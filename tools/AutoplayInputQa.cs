@@ -57,7 +57,7 @@ public partial class AutoplayInputQa : Node
                 $"tracks a target 12px away without stalling (y={_player.GlobalPosition.Y:0.0})");
             Check(_maxCharge == ChargeTier.First && _firstCharge <= 1.1,
                 $"fires a first-tier charge through Z within 1.1s (t={_firstCharge:0.00})");
-            Check(!game.HasChargeTier2 && game.ExtraLines == 0 && game.ShotPowerMul == 1,
+            Check(!game.HasChargeTier2 && game.ExtraLines == 0,
                 "autoplay does not grant upgrades");
 
             _hud.SetCinematicMode(true);

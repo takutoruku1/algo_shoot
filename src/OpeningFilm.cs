@@ -49,7 +49,7 @@ public partial class OpeningFilm : Node2D
     private const string TaglineLine = "消された言葉は、消えていない。";
     private static readonly Color[] Accents = { new("f0c969"), new("a6dac8"), new("de91b9"), new("87d7ed") };
     private static readonly Vector2[] PortraitFocus = { new(0.52f, 0.24f), new(0.64f, 0.25f), new(0.51f, 0.24f), new(0.45f, 0.2f) };
-    private static readonly Vector2[] DailyFocus = { new(0.73f, 0.32f), new(0.35f, 0.32f), new(0.73f, 0.32f) };
+    private static readonly Vector2[] DailyFocus = { new(0.52f, 0.44f), new(0.61f, 0.43f), new(0.55f, 0.39f) };
     private const float RecallBeat = 0.42f;
     private readonly List<List<string>> _captionPages = new();
     private readonly List<DialoguePacing.Page[]> _captionPacing = new();

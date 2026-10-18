@@ -96,7 +96,7 @@ public partial class BulletPool : Node2D
         return bullet;
     }
 
-    internal Bullet SpawnReiFragment(Bullet source, Vector2 direction, int splitsRemaining, float offset, Vector2? target = null)
+    internal Bullet SpawnReiFragment(Bullet source, Vector2 direction, int splitsRemaining, float offset, Vector2? target = null, bool warnedLaunch = false)
     {
         float radius = source.Radius * (splitsRemaining > 0 ? 2f / 3f : 0.62f);
         Vector2 destination = source.GlobalPosition + source.Velocity.Normalized().Rotated(Mathf.Pi / 2) * offset;
@@ -111,7 +111,7 @@ public partial class BulletPool : Node2D
         fragment.BossBarrageId = source.BossBarrageId;
         fragment.UseCharacterProjectile(Job.Magic, source.BossStyle);
         if (source.BossPattern >= 0) fragment.UseBossPatternVisual(Job.Magic, source.BossPattern);
-        fragment.DeployBossFormation(destination, edgeLaunch: true);
+        fragment.DeployBossFormation(destination, edgeLaunch: true, warnedLaunch: warnedLaunch);
         return fragment;
     }
 

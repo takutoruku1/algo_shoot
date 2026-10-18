@@ -9,8 +9,8 @@ public partial class AkariBossTechnique : BossCharacterTechnique
     {
         public Bullet Shot = null!;
         public ulong Activation;
-        public Vector2 Origin, Direction;
-        public double Born, Changed;
+        public Vector2 Origin, Direction, TurnPoint, PreviousTurnPoint;
+        public double Born, Changed, PreviousChanged;
         public int Group, State;
         public bool Alive => Shot.Active && Shot.ActivationId == Activation;
     }
@@ -28,9 +28,35 @@ public partial class AkariBossTechnique : BossCharacterTechnique
     private double _warning, _next, _still;
     private Vector2 _origin, _aim, _dwell;
     private float _angle;
+    private static BulletArt.PlayerVisual? _easyRainShot, _easyUnbindingShot;
     private static readonly Color Paper = new("ffe6a2"), Ink = new("b3e4eb");
+    private const float EasyUnbindingScale = 3;
     private double ClipCycle => Tier switch { 2 => 2.95, 3 => 2.75, _ => 3.2 };
     private double ClipLead => Tier switch { 2 => 1.35, 3 => 1.25, _ => 1.5 };
+    private const int EasyPileColumns = 7, EasyPileRows = 3, EasyRainWaves = 2, EasyRainColumns = 9, EasyRainRows = 3;
+    private const float EasyPileWidth = 26, EasyPileSpeed = 120;
+    private float EasyPileLayerHeight => 18 + Tier * 2;
+    private const double EasyPileRowInterval = .14, EasyPileColumnInterval = .03,
+        EasyPileCollapseAt = 2.1, EasyPileCollapseInterval = .16;
+    private const double EasyRainWaveInterval = 11.4, EasyRainRowInterval = 3.6;
+    private const double EasyInboxWarningLead = 3.2;
+    private int EasyDeliveryBursts => 3 + Tier;
+    private int EasyInboxBursts => 7 + Tier * 2;
+    private int EasyRainBursts => 3 + Tier;
+    private double EasyDeliveryBurstInterval => .32 - Tier * .03;
+    private double EasyInboxBurstInterval => .18 - Tier * .015;
+    private double EasyRainBurstInterval => .25 - Tier * .02;
+    private const float EasyRainSpeed = 76, EasySplashRise = 68, EasySplashGravity = 48;
+    private const int EasyWaveSegments = 64, EasyWaveSpentSegments = 20;
+    private const float EasyWaveSpeed = 28, EasyWaveWaitRadius = 60;
+    private float EasyWaveOuterSpeed => 144 + Tier * 12;
+    private const double EasyWaveOpeningAt = 1.1,
+        EasyWaveAccelerationTime = .45, EasyWaveRest = .08;
+    private readonly double[] _easyWaveWarningStarts = { -1, -1 }, _easyWaveLaunches = { -1, -1 };
+    private readonly Vector2[] _easyWaveWaitPoints = new Vector2[2];
+    private readonly Vector2[] _easyDeliveryTargets = new Vector2[3], _easyInboxTargets = new Vector2[4];
+    private readonly bool[] _easyDeliveryReserved = new bool[3], _easyInboxReserved = new bool[4];
+    internal int? VisibleDangerousShotsAtNaturalEnd { get; private set; }
 
     protected override void Start()
     {
@@ -53,18 +79,18 @@ public partial class AkariBossTechnique : BossCharacterTechnique
         };
         var identity = _mechanic switch
         {
-            0 => ("重なる一斉送信", "akari.delivery-overtake", "遅い便と速い便が重なる時刻を見て、追越し後に横切る"),
+            0 => ("速達の差戻し", "akari.returned-express", "追越し点で横折れする速達と、壁から戻る返信を順にかわす"),
             1 => ("ふたつの焦がれる扇火", "akari.alternating-inboxes", "片方の発射が終わった側へ切り返す"),
-            2 => ("連なる火花の花冠", "akari.unfastened-clips", "外れたクリップの継ぎ目から、縮まる花冠を抜ける"),
-            3 => ("切り返す紅蓮の織目", "akari.unsent-history", "記録された自分の線を戻らず、まだ通っていない所へ移る"),
+            2 => ("綴じた下書きの取消", "akari.bound-draft-retraction", "複写の取消が端に届くとクリップが外れる。予約された進路から離れる"),
+            3 => ("切り返す紅蓮の織目", "akari.unsent-history", "複写された経路の取消順を読み、紙面の間へ移る"),
             4 => ("追いかける返信の針路", "akari.wall-reply", "壁で一度反射する返信の先まで読む"),
             5 => ("降り積もる未送信", "akari.filing-piles", "床の書類が崩れた場所を使い、次の積み上がりを避ける"),
             6 => ("豪雨予報", "akari.rain-splash", "雨柱の着地後、床から横へ飛ぶしぶきも越す"),
             7 => ("沈黙の波紋", "akari.spent-wavefront", "中心から離れ、外へ伝わる波が薄れたら内側へ入り直す"),
             8 => ("狐火・三尾の便り", "akari.braided-delivery", "三つの束の前後を読み、ほどけて飛ぶ束を見送る"),
-            9 => ("逃がさない締切", "akari.dwell-timecard", "一か所に留まらず、押印の予告を置いて離れる"),
+            9 => ("逃がさない締切", "akari.dwell-timecard", "滞在で早まる締切を読み、確定した印影の余白へ移る"),
             10 => ("交差する焦燥", "akari.exchanged-priority", "速い便と遅い便の交換後の到着順で横断する"),
-            11 => ("一斉送信", "akari.carried-envelope", "封が開く前に、封筒の背面へ回る"),
+            11 => ("巡回する承認待ち", "akari.carried-approval", "角に届いた案件の開封を避け、予約された承認印の外へ移る"),
             12 => ("駆け抜ける残業", "akari.extending-clock", "時計の針の長さに合わせて、内外の距離を変える"),
             13 => ("ほどけない焦り", "akari.tensioned-clips", "二つのクリップを見て、糸が張る前に広い側へ移る"),
             14 => ("狐火・締切の境界", "akari.coincident-membranes", "予兆中に広い側の外へ出る。回避なら二つが重なる瞬間に越せる"),
@@ -80,7 +106,7 @@ public partial class AkariBossTechnique : BossCharacterTechnique
         if (_mechanic == 3) _history.Add(_aim);
         if (_mechanic == 4)
         {
-            _origin = Boss.ShotCenter;
+            _origin = new Vector2(Field.CenterX, Field.CenterY);
             bool left = _aim.X < Field.CenterX;
             _points[0] = new Vector2(left ? Field.Left + 8 : Field.Right - 8, Mathf.Clamp(_aim.Y - 35, 35, 150));
             _angle = _origin.DirectionTo(_points[0]).Angle();
@@ -115,6 +141,16 @@ public partial class AkariBossTechnique : BossCharacterTechnique
             _points[1] = new Vector2(Field.Right - 36, 154);
         }
         if (_mechanic == 20) _origin = _aim.Clamp(new Vector2(Field.Left + 72, 70), new Vector2(Field.Right - 72, 150));
+        if (_mechanic is 0 or 1 or 2 or 5 or 6 or 11 or 12)
+            _warning = Math.Max(_warning, _mechanic is 0 or 11 or 12 ? 3.6 : 3.2);
+        if (_mechanic == 7)
+        {
+            _angle = (_aim - _origin).Angle();
+            PrepareEasyWave(0, 0);
+            _warning = _easyWaveLaunches[0];
+        }
+        if (UsesEasyReadabilityRules && _mechanic != 6) _next = _warning + (_mechanic == 9 ? 1.6 : 0);
+        if (_mechanic == 2) PrepareEasyUnbinding();
     }
 
     protected override void Step(double delta)
@@ -132,7 +168,7 @@ public partial class AkariBossTechnique : BossCharacterTechnique
             case 8: BraidedDelivery(delta); break;
             case 9: DwellTimecard(delta); break;
             case 10: ExchangedPriority(); break;
-            case 11: CarriedEnvelope(); break;
+            case 11: CarriedEnvelope(delta); break;
             case 12: ExtendingClock(); break;
             case 13: TensionedClips(); break;
             case 14: CoincidentMembranes(); break;
@@ -149,6 +185,15 @@ public partial class AkariBossTechnique : BossCharacterTechnique
     private Letter Send(Vector2 at, Vector2 velocity, int group = 0, int pattern = 1)
     {
         var shot = Shot(at, velocity == Vector2.Zero ? Vector2.Down : velocity, pattern);
+        if (UsesCustomHazardArt && _mechanic == 6)
+            shot.UseBossIllustration(EasyRainShotVisual());
+        if (_mechanic == 2) shot.UseBossIllustration(EasyUnbindingShotVisual());
+        if (UsesCustomHazardArt)
+        {
+            shot.ZIndex = 3;
+            shot.ZAsRelative = false;
+        }
+        if (_mechanic == 2) shot.Scale = Vector2.One * EasyUnbindingScale;
         shot.Accel = false;
         shot.Velocity = velocity;
         var letter = new Letter { Shot = shot, Activation = shot.ActivationId, Origin = at,
@@ -158,89 +203,412 @@ public partial class AkariBossTechnique : BossCharacterTechnique
     }
     private void EndAfter(double duration)
     {
-        if (Time > duration) Finish();
+        if (Time <= duration) return;
+        if (UsesEasyReadabilityRules)
+        {
+            var remaining = OwnedShots.ToArray();
+            int visible = remaining.Count(shot =>
+            {
+                float radius = shot.CollisionRadius * Math.Max(shot.GlobalTransform.X.Length(), shot.GlobalTransform.Y.Length());
+                return !shot.LeadIn && shot.IsEnemy && shot.CollisionLayer != 0
+                    && new Rect2(shot.GlobalPosition - Vector2.One * radius, Vector2.One * radius * 2)
+                        .Intersects(Field.Rect.Grow(Player.HitRadius));
+            });
+            if (remaining.Length > 0 || HazardShapes.Any(hazard => hazard.Live)
+                || _mechanic == 9 && _stamps.Any(stamp => Time < stamp.At + .6)) return;
+            VisibleDangerousShotsAtNaturalEnd = visible;
+        }
+        Finish();
     }
     private float Progress(double start, double duration) => Mathf.Clamp((float)((Time - start) / duration), 0, 1);
 
-    private void OvertakingDeliveries()
+    private float EasyWarningRouteProgress(double start, double grow = .35) => Progress(start + .2, grow);
+    private float EasyDeliveryWarningProgress(int batch) => Progress(EasyDeliveryWarningStart(batch) + .4, 1.2);
+    private float EasyInboxWarningProgress(int turn) => Progress(EasyInboxLaunch(turn) - EasyInboxWarningLead + .4, .8);
+    private (float Inward, float Outward) EasyClipWarningProgress() => (Progress(.2, .25), Progress(.45, .3));
+    private (float Incoming, float Outgoing) EasyReplyWarningProgress() => (Progress(.2, .45), Progress(.9, .45));
+    private float EasyPileWarningProgress(int column) => Progress(EasyPileStart(column) - _warning + .4, .8);
+    private (float Ring, float Expiry) EasyWaveWarningProgress(int wave)
+        => (Progress(_easyWaveWarningStarts[wave] + .4, .8), Progress(_easyWaveWarningStarts[wave] + 1.2, .5));
+    private float EasyEnvelopeTravelWarningProgress() => EasyWarningRouteProgress(0, 1.4);
+    private float EasyEnvelopeOpeningWarningProgress(int opening) => EasyWarningRouteProgress(EasyApprovalWarningStart(opening));
+    private float EasyClockWarningProgress() => Progress(.4, 1.2);
+
+    private const int EasyHistoryCopies = 12;
+    private double EasyHistoryRecording => 2.6;
+    private double EasyHistoryWarningStart(int copy) => EasyHistoryRecording + copy * .1;
+    private double EasyHistoryFire(int copy, int index)
+        => EasyHistoryRecording + _warning + copy * .12 + (_history.Count - index) * .13;
+    private double EasyHistoryEnd() => EasyHistoryFire(EasyHistoryCopies - 1, 1) + .75;
+    private float EasyHistoryCopyWarningProgress(int copy) => EasyWarningRouteProgress(EasyHistoryWarningStart(copy));
+
+    private Vector2[] EasyHistoryCopyPoints(int copy)
     {
-        int batches = 2 + Tier;
-        for (int wave = 0; wave < batches; wave++)
-        {
-            double launch = _warning + wave * 2.1;
-            float center = Mathf.Clamp(_aim.X + (wave % 2 == 0 ? -24 : 30), Field.Left + 42, Field.Right - 42);
-            if (Time < launch && Time >= launch - _warning)
-                for (int j = 0; j < 3 + Tier; j++)
-                {
-                    float x = center + (j - (2 + Tier) * .5f) * 17;
-                    Line(new(x, 10), new(x, 190), 3, false, Progress(launch - _warning, _warning));
-                }
-            if (At(launch) || At(launch + .7))
-            {
-                bool express = Time >= launch + .7;
-                int count = 3 + Tier;
-                for (int j = 0; j < count; j++)
-                {
-                    var letter = Send(new(center + (j - (count - 1) * .5f) * 17, 8), Vector2.Down * 27, express ? 1 : 0);
-                    if (express) letter.Shot.MakeAccel(27, 88 + Tier * 6, .28f);
-                }
-            }
-            if (Time >= launch && Time < launch + 1.8) Hint(new(center, 78), Time < launch + .7 ? "普通便 → 速達" : "追越し");
-        }
-        EndAfter(_warning + batches * 2.1 + 4);
+        float minX = _history.Min(point => point.X), maxX = _history.Max(point => point.X);
+        float minY = _history.Min(point => point.Y), maxY = _history.Max(point => point.Y);
+        Vector2 cell = new(Field.Width / 4, Field.Height / 3);
+        Vector2 center = new(Field.Left + (copy % 4 + .5f) * cell.X, Field.Top + (copy / 4 + .5f) * cell.Y);
+        Vector2 sourceCenter = new((minX + maxX) * .5f, (minY + maxY) * .5f);
+        float scale = Math.Min(1, Math.Min((cell.X - 24) / Math.Max(1, maxX - minX),
+            (cell.Y - 24) / Math.Max(1, maxY - minY)));
+        return _history.Select(point => center + (point - sourceCenter) * scale).ToArray();
     }
 
-    private void AlternatingInboxes()
+    private float EasyHistoryCopySegmentWarningProgress(int copy, int index)
     {
-        double cycle = 2.9;
-        int turn = (int)(Math.Max(0, Time - _warning) / cycle);
-        if (turn != _beat) { _beat = turn; _aim = Player.GlobalPosition; }
-        Vector2 source = new(turn % 2 == 0 ? Field.Left + 16 : Field.Right - 16, 34);
-        double local = Time - _warning - turn * cycle;
-        if (Time < _warning || local < 1.1)
+        float total = 0, before = 0;
+        for (int i = _history.Count - 1; i > 0; i--)
         {
-            float aim = source.DirectionTo(_aim).Angle();
-            for (int i = -2 - Tier; i <= 2 + Tier; i++)
-                Line(source, source + Vector2.FromAngle(aim + i * .115f) * 230, 3, false,
-                    Time < _warning ? Progress(0, _warning) : (float)(local / 1.1));
-            Hint(source + new Vector2(turn % 2 == 0 ? 20 : -40, -12), "開封中");
+            float length = _history[i].DistanceTo(_history[i - 1]);
+            total += length;
+            if (i > index) before += length;
         }
-        if (Time >= _warning && turn < 4 + Tier && local >= 1.1 && local < 1.85 && Time >= _next)
-        {
-            _next = Time + .24 - Tier * .025;
-            float aim = source.DirectionTo(_aim).Angle();
-            for (int i = -2 - Tier; i <= 2 + Tier; i++)
-                Send(source, Vector2.FromAngle(aim + i * .115f) * (45 + Tier * 4));
-        }
-        if (local >= 1.85) Hint(source + new Vector2(0, 12), "送信済");
-        EndAfter(_warning + (4 + Tier) * cycle);
+        float segment = _history[index].DistanceTo(_history[index - 1]);
+        float progress = EasyHistoryCopyWarningProgress(copy);
+        return segment == 0 ? progress : Mathf.Clamp((total * progress - before) / segment, 0, 1);
     }
 
-    private void UnfastenedClips()
+    private static BulletArt.PlayerVisual EasyRainShotVisual()
     {
-        int count = 18 + Tier * 4;
-        if (Time < _warning)
+        if (_easyRainShot != null) return _easyRainShot;
+        var texture = GD.Load<Texture2D>("res://char/v3/fx/akari/easy_rain_drop_v1.png");
+        Rect2 region = UiKit.ContentRect(texture);
+        return _easyRainShot = new BulletArt.PlayerVisual(texture, region, region.GetCenter(), new Color("b3e4eb"));
+    }
+
+    private static BulletArt.PlayerVisual EasyUnbindingShotVisual()
+    {
+        if (_easyUnbindingShot != null) return _easyUnbindingShot;
+        var texture = GD.Load<Texture2D>("res://char/v3/bullets/akari_clip.png");
+        Rect2 region = UiKit.ContentRect(texture);
+        return _easyUnbindingShot = new BulletArt.PlayerVisual(texture, region, region.GetCenter(), Ink);
+    }
+
+    private float EasyWarningHalfWidth(int pattern)
+    {
+        var art = _mechanic == 6 ? EasyRainShotVisual() : _mechanic == 2
+            ? EasyUnbindingShotVisual() : BulletArt.BossPattern(Job.Melee, pattern);
+        float radius = Evolved ? BulletPool.BossChargeRadius : BulletPool.BossRadius;
+        return BulletFootprint.Texture(art.Cropped, art.Pivot - art.Region.Position, Bullet.BossArtSize(radius, Evolved)).Radius
+            * (_mechanic == 2 ? EasyUnbindingScale : 1);
+    }
+
+    private Vector2 EasyRayExit(Vector2 from, Vector2 direction)
+    {
+        direction = direction.Normalized();
+        var bounds = Field.Rect.Grow(24);
+        float exit = float.PositiveInfinity;
+        if (direction.X != 0)
+            exit = Math.Min(exit, ((direction.X > 0 ? bounds.End.X : bounds.Position.X) - from.X) / direction.X);
+        if (direction.Y != 0)
+            exit = Math.Min(exit, ((direction.Y > 0 ? bounds.End.Y : bounds.Position.Y) - from.Y) / direction.Y);
+        return from + direction * exit;
+    }
+
+    private Vector2 EasyClipReleasePoint(int group)
+    {
+        float radius = Math.Max(8, 45 - group / 3 * .9f * 8);
+        return _origin + Vector2.FromAngle(group * Mathf.Tau / 18) * radius;
+    }
+
+    private IEnumerable<(Vector2 Start, Vector2 Release, Vector2 Exit)> EasyClipWarningPaths()
+    {
+        for (int group = 0; group < 18; group++)
         {
-            for (int i = 0; i < count; i++) Disc(_origin + Vector2.FromAngle(i * Mathf.Tau / count) * 45, 3, false, Progress(0, _warning));
-            Hint(_origin + new Vector2(-22, -12), "継ぎ目が外れる");
+            Vector2 direction = Vector2.FromAngle(group * Mathf.Tau / 18), release = EasyClipReleasePoint(group);
+            yield return (_origin + direction * 45, release, EasyRayExit(release, direction));
         }
-        if (At(_warning))
-            for (int i = 0; i < count; i++) Send(_origin + Vector2.FromAngle(i * Mathf.Tau / count) * 45, Vector2.Zero, i, 2);
-        double elapsed = Time - _warning;
-        int opening = Mathf.FloorToInt((float)Math.Max(0, elapsed - .7) / .9f) * 3;
-        foreach (var letter in _letters.Where(l => l.Alive))
+    }
+
+    private IEnumerable<(Vector2 Start, Vector2 Bounce, Vector2 Exit)> EasyReplyWarningPaths()
+    {
+        for (int row = -1; row <= 1; row++)
         {
-            if (letter.Shot.LeadIn) continue;
-            int distance = (letter.Group - opening % count + count) % count;
-            Vector2 ray = Vector2.FromAngle(letter.Group * Mathf.Tau / count);
-            if (elapsed > .7 && distance < 3 + Tier / 2)
+            Vector2 start = new(_origin.X, Field.CenterY + row * Field.Height / 3);
+            Vector2 bounce = new(_points[0].X, start.Y + row * 10);
+            Vector2 incoming = start.DirectionTo(bounce), reflected = new(-incoming.X, incoming.Y);
+            yield return (start, bounce, EasyRayExit(bounce, reflected));
+        }
+    }
+
+    private IEnumerable<(Vector2 Start, Vector2 Exit)> EasyDeliveryWarningPaths(int batch)
+    {
+        for (int column = 0; column < 3; column++)
+        {
+            Vector2 start = new(Field.Left + (column * 4 + batch % 2 * 2 + 1) * Field.Width / 12, Field.Top);
+            yield return (start, new Vector2(start.X, Field.Bottom));
+        }
+    }
+
+    private double EasyDeliveryWarningStart(int batch) => batch * 6.0;
+    private double EasyDeliveryLaunch(int batch) => EasyDeliveryWarningStart(batch) + _warning;
+    private (Vector2 Start, Vector2 Turn, Vector2 Bounce, Vector2 Exit)[] EasyDeliveryReturnPaths(int batch)
+        => EasyDeliveryWarningPaths(batch).Select((path, lane) =>
+        {
+            float y = Mathf.Clamp(_easyDeliveryTargets[batch].Y + (lane - 1) * 24, Field.Top, Field.Bottom);
+            Vector2 turn = new(path.Start.X, y);
+            bool left = (batch + lane) % 2 == 0;
+            Vector2 bounce = new(left ? Field.Left + 8 : Field.Right - 8, y);
+            Vector2 reply = new(left ? 1 : -1, y < Field.CenterY ? .35f : -.35f);
+            Vector2 exit = EasyRayExit(bounce, reply.Normalized());
+            return (path.Start, turn, bounce, exit);
+        }).ToArray();
+
+    private void EasyReturnedDelivery()
+    {
+        for (int batch = 0; batch < 3; batch++)
+        {
+            if (Time < EasyDeliveryWarningStart(batch)) continue;
+            if (!_easyDeliveryReserved[batch])
             {
-                if (letter.State == 0) { letter.State = 1; letter.Shot.Velocity = ray * 85; }
+                _easyDeliveryTargets[batch] = Player.GlobalPosition;
+                _easyDeliveryReserved[batch] = true;
             }
-            else if (letter.State == 0)
-                letter.Shot.GlobalPosition = _origin + ray * Math.Max(8, 45 - (float)Math.Max(0, elapsed - .7) * 8);
+            double launch = EasyDeliveryLaunch(batch);
+            var paths = EasyDeliveryReturnPaths(batch);
+            if (Time < launch)
+            {
+                float progress = EasyDeliveryWarningProgress(batch);
+                foreach (var path in EasyDeliveryWarningPaths(batch))
+                    if (progress > 0) Line(path.Start, path.Start.Lerp(path.Exit, Math.Min(1, progress * 3)), EasyWarningHalfWidth(1), false, progress);
+                foreach (var path in paths)
+                {
+                    var prefix = EasyRainWarningPathPrefix(new[] { path.Start, path.Turn, path.Bounce, path.Exit }, progress);
+                    for (int i = 1; i < prefix.Length; i++)
+                        Line(prefix[i - 1], prefix[i], EasyWarningHalfWidth(1), false, progress);
+                }
+            }
+            for (int lane = 0; lane < paths.Length; lane++)
+            {
+                var path = paths[lane];
+                double delay = (path.Turn.Y - path.Start.Y) * (1.0 / 27 - 1.0 / 88);
+                for (int burst = 0; burst < EasyDeliveryBursts; burst++)
+                {
+                    double pulse = burst * EasyDeliveryBurstInterval;
+                    if (At(launch + pulse))
+                    {
+                        var ordinary = Send(path.Start, Vector2.Down * 27, 100 + burst * 9 + batch * 3 + lane);
+                        ordinary.Shot.CancelLeadIn();
+                    }
+                    if (At(launch + delay + pulse))
+                    {
+                        var express = Send(path.Start, Vector2.Down * 88, burst * 9 + batch * 3 + lane);
+                        express.Shot.CancelLeadIn();
+                    }
+                }
+            }
         }
-        EndAfter(_warning + 5.8);
+        foreach (var letter in _letters.Where(letter => letter.Alive && letter.Group < 100))
+        {
+            var path = EasyDeliveryReturnPaths(letter.Group % 9 / 3)[letter.Group % 3];
+            if (letter.State == 0 && letter.Shot.GlobalPosition.Y >= path.Turn.Y)
+            {
+                letter.State = 1;
+                letter.Shot.GlobalPosition = path.Turn;
+                letter.TurnPoint = path.Turn;
+                letter.Changed = Time;
+                letter.Shot.Velocity = path.Turn.DirectionTo(path.Bounce) * 78;
+            }
+            else if (letter.State == 1 && (path.Bounce.X < path.Turn.X
+                ? letter.Shot.GlobalPosition.X <= path.Bounce.X : letter.Shot.GlobalPosition.X >= path.Bounce.X))
+            {
+                letter.State = 2;
+                letter.PreviousTurnPoint = letter.TurnPoint;
+                letter.PreviousChanged = letter.Changed;
+                letter.Shot.GlobalPosition = path.Bounce;
+                letter.TurnPoint = path.Bounce;
+                letter.Changed = Time;
+                letter.Shot.Velocity = path.Bounce.DirectionTo(path.Exit) * 78;
+            }
+        }
+        EndAfter(EasyDeliveryLaunch(2) + EasyDeliveryReturnPaths(2)
+            .Max(path => (path.Turn.Y - path.Start.Y) * (1.0 / 27 - 1.0 / 88))
+            + (EasyDeliveryBursts - 1) * EasyDeliveryBurstInterval + .02);
+    }
+
+    private Vector2 EasyInboxSource(int turn) => new(turn % 2 == 0 ? Field.Left + 16 : Field.Right - 16, Field.CenterY);
+    private double EasyInboxLaunch(int turn) => _warning + turn * 4.8;
+
+    private IEnumerable<(Vector2 Start, Vector2 Exit)> EasyInboxWarningPaths(int turn)
+    {
+        Vector2 source = EasyInboxSource(turn);
+        float aim = source.DirectionTo(_easyInboxTargets[turn]).Angle();
+        for (int row = -2; row <= 2; row++)
+        {
+            Vector2 direction = Vector2.FromAngle(aim + row * .19f);
+            yield return (source, EasyRayExit(source, direction));
+        }
+        foreach (float y in new[] { Field.Top + 12, Field.Bottom - 12 })
+        {
+            Vector2 target = new(turn % 2 == 0 ? Field.Right - 8 : Field.Left + 8, y);
+            Vector2 direction = source.DirectionTo(target);
+            yield return (source, EasyRayExit(source, direction));
+        }
+    }
+
+    private void EasyAlternatingInboxes()
+    {
+        for (int turn = 0; turn < 4; turn++)
+        {
+            double launch = EasyInboxLaunch(turn);
+            if (Time < launch - EasyInboxWarningLead) continue;
+            if (!_easyInboxReserved[turn])
+            {
+                _easyInboxTargets[turn] = Player.GlobalPosition;
+                _easyInboxReserved[turn] = true;
+            }
+            var paths = EasyInboxWarningPaths(turn).ToArray();
+            if (Time < launch)
+            {
+                float progress = EasyInboxWarningProgress(turn);
+                if (progress > 0)
+                    foreach (var path in paths)
+                        Line(path.Start, path.Start.Lerp(path.Exit, progress), EasyWarningHalfWidth(1), false, progress);
+            }
+            for (int burst = 0; burst < EasyInboxBursts; burst++)
+                if (At(launch + burst * EasyInboxBurstInterval))
+                    foreach (var path in paths)
+                    {
+                        var letter = Send(path.Start, path.Start.DirectionTo(path.Exit) * 45, turn);
+                        letter.Shot.CancelLeadIn();
+                    }
+        }
+        EndAfter(EasyInboxLaunch(3) + (EasyInboxBursts - 1) * EasyInboxBurstInterval);
+    }
+
+    private void OvertakingDeliveries() => EasyReturnedDelivery();
+
+    private void AlternatingInboxes() => EasyAlternatingInboxes();
+
+    private void UnfastenedClips() => EasyUnbindingDrafts();
+
+    private const int EasyUnbindingCopiesPerRound = 3, EasyUnbindingRounds = 4;
+    private int EasyUnbindingBurstCount => 3 + Tier;
+    private const double EasyUnbindingCopyInterval = .18, EasyUnbindingRoundInterval = 4.6;
+    private double EasyUnbindingBurstInterval => .24 - Tier * .02;
+    private const double EasyUnbindingLeadTime = .34, EasyUnbindingRetraceTime = .8;
+    private const float EasyUnbindingSpeed = 90;
+    private readonly double[] _easyUnbindingWarningStarts = { -1, -1, -1, -1 };
+    private readonly Vector2[] _easyUnbindingTargets = new Vector2[EasyUnbindingRounds];
+    private double _easyUnbindingNextRecord;
+    private int _easyUnbindingRound = -1;
+    private int EasyUnbindingRound => _easyUnbindingRound;
+    private double EasyUnbindingRecording => 2.6;
+
+    private void PrepareEasyUnbinding()
+    {
+        _history.Clear();
+        _history.Add(_aim);
+        _easyUnbindingNextRecord = 0;
+    }
+
+    private double EasyUnbindingWarningStart(int round) => _easyUnbindingWarningStarts[round];
+    private Vector2 EasyUnbindingTarget(int round) => _easyUnbindingTargets[round];
+    private double EasyUnbindingFire(int copy)
+        => EasyUnbindingWarningStart(copy / EasyUnbindingCopiesPerRound) + 3 + copy % EasyUnbindingCopiesPerRound * EasyUnbindingCopyInterval;
+    private double EasyUnbindingRelease(int copy) => EasyUnbindingFire(copy) + EasyUnbindingLeadTime + EasyUnbindingRetraceTime;
+    private int EasyUnbindingCopyForGroup(int group) => group % (EasyUnbindingCopiesPerRound * EasyUnbindingRounds);
+    private int EasyUnbindingBurstForGroup(int group) => group / (EasyUnbindingCopiesPerRound * EasyUnbindingRounds);
+    private double EasyUnbindingBurstFire(int copy, int burst) => EasyUnbindingFire(copy) + burst * EasyUnbindingBurstInterval;
+    private double EasyUnbindingBurstRelease(int copy, int burst)
+        => EasyUnbindingRelease(copy) + burst * EasyUnbindingBurstInterval;
+    private double EasyUnbindingEnd(int round) => Enumerable.Range(round * EasyUnbindingCopiesPerRound, EasyUnbindingCopiesPerRound)
+        .Max(copy => EasyUnbindingBurstRelease(copy, EasyUnbindingBurstCount - 1)
+            + EasyUnbindingCopyPoints(copy)[0].DistanceTo(EasyUnbindingExit(copy)) / EasyUnbindingSpeed + .15);
+    private (float Retrace, float Exit) EasyUnbindingWarningProgress(int round)
+        => (Progress(EasyUnbindingWarningStart(round) + .2, .35), Progress(EasyUnbindingWarningStart(round) + .55, .35));
+    private Vector2[] EasyUnbindingCopyPoints(int copy) => EasyHistoryCopyPoints(copy);
+
+    private Vector2 EasyUnbindingExit(int copy)
+    {
+        Vector2 from = EasyUnbindingCopyPoints(copy)[0];
+        Vector2 direction = from.DirectionTo(EasyUnbindingTarget(copy / EasyUnbindingCopiesPerRound));
+        if (direction == Vector2.Zero) direction = Vector2.FromAngle(copy * Mathf.Tau / 12);
+        return EasyRayExit(from, direction);
+    }
+
+    private Vector2[] EasyUnbindingForecastPath(int copy)
+        => EasyUnbindingCopyPoints(copy).Reverse().Append(EasyUnbindingExit(copy)).ToArray();
+
+    private Vector2 EasyUnbindingRetracePoint(int copy, float progress)
+    {
+        var points = EasyUnbindingCopyPoints(copy);
+        float total = 0;
+        for (int index = 1; index < points.Length; index++) total += points[index].DistanceTo(points[index - 1]);
+        float remaining = total * Mathf.Clamp(progress, 0, 1);
+        for (int index = points.Length - 1; index > 0; index--)
+        {
+            float length = points[index].DistanceTo(points[index - 1]);
+            if (length > 0 && remaining <= length) return points[index].Lerp(points[index - 1], remaining / length);
+            remaining -= length;
+        }
+        return points[0];
+    }
+
+    private void EasyUnbindingDrafts()
+    {
+        if (Time < EasyUnbindingRecording)
+        {
+            if (Time >= _easyUnbindingNextRecord)
+            {
+                _history.Add(Player.GlobalPosition);
+                _easyUnbindingNextRecord = Time + .14;
+            }
+            return;
+        }
+        if (_easyUnbindingRound < 0)
+        {
+            _easyUnbindingRound = 0;
+            _easyUnbindingWarningStarts[0] = Time;
+            _easyUnbindingTargets[0] = Player.GlobalPosition;
+        }
+        if (_easyUnbindingRound < EasyUnbindingRounds - 1
+            && Time >= EasyUnbindingWarningStart(_easyUnbindingRound) + EasyUnbindingRoundInterval)
+        {
+            _easyUnbindingRound++;
+            _easyUnbindingWarningStarts[_easyUnbindingRound]
+                = EasyUnbindingWarningStart(_easyUnbindingRound - 1) + EasyUnbindingRoundInterval;
+            _easyUnbindingTargets[_easyUnbindingRound] = Player.GlobalPosition;
+        }
+        int first = _easyUnbindingRound * EasyUnbindingCopiesPerRound;
+        var warning = EasyUnbindingWarningProgress(_easyUnbindingRound);
+        for (int copy = first; copy < first + EasyUnbindingCopiesPerRound; copy++)
+        {
+            if (Time < EasyUnbindingFire(first))
+            {
+                var points = EasyUnbindingCopyPoints(copy);
+                float total = 0, before = 0;
+                for (int index = 1; index < points.Length; index++) total += points[index].DistanceTo(points[index - 1]);
+                for (int index = points.Length - 1; index > 0; index--)
+                {
+                    float length = points[index].DistanceTo(points[index - 1]);
+                    float progress = length == 0 ? warning.Retrace : Mathf.Clamp((total * warning.Retrace - before) / length, 0, 1);
+                    if (progress > 0 && length > 0)
+                        Line(points[index], points[index].Lerp(points[index - 1], progress), EasyWarningHalfWidth(2), false, progress);
+                    before += length;
+                }
+                if (warning.Exit > 0)
+                    Line(points[0], points[0].Lerp(EasyUnbindingExit(copy), warning.Exit), EasyWarningHalfWidth(2), false, warning.Exit);
+            }
+            for (int burst = 0; burst < EasyUnbindingBurstCount; burst++)
+                if (At(EasyUnbindingBurstFire(copy, burst)))
+                    Send(EasyUnbindingCopyPoints(copy)[^1], Vector2.Zero,
+                        copy + burst * EasyUnbindingCopiesPerRound * EasyUnbindingRounds, 2);
+        }
+        foreach (var letter in _letters.Where(letter => letter.Alive && letter.State == 0 && !letter.Shot.LeadIn))
+        {
+            int copy = EasyUnbindingCopyForGroup(letter.Group), burst = EasyUnbindingBurstForGroup(letter.Group);
+            float progress = Progress(EasyUnbindingBurstFire(copy, burst) + EasyUnbindingLeadTime, EasyUnbindingRetraceTime);
+            letter.Shot.GlobalPosition = EasyUnbindingRetracePoint(copy, progress);
+            if (Time < EasyUnbindingBurstRelease(copy, burst)) continue;
+            letter.State = 1;
+            letter.Changed = Time;
+            letter.TurnPoint = letter.Shot.GlobalPosition;
+            letter.Direction = letter.TurnPoint.DirectionTo(EasyUnbindingExit(copy));
+            letter.Shot.Velocity = letter.Direction * EasyUnbindingSpeed;
+        }
+        if (_easyUnbindingRound == EasyUnbindingRounds - 1)
+            EndAfter(EasyUnbindingBurstRelease(first + EasyUnbindingCopiesPerRound - 1, EasyUnbindingBurstCount - 1));
     }
 
     private void UnsentHistory()
@@ -271,108 +639,253 @@ public partial class AkariBossTechnique : BossCharacterTechnique
     {
         Vector2 wall = _points[0];
         Vector2 incoming = _origin.DirectionTo(wall);
-        Vector2 reflected = new(-incoming.X, incoming.Y);
         if (Time < _warning)
         {
-            for (int i = -1 - Tier; i <= 1 + Tier; i++)
+            var progress = EasyReplyWarningProgress();
+            foreach (var path in EasyReplyWarningPaths())
             {
-                Vector2 offset = new(0, i * 10);
-                Line(_origin + offset, wall + offset, 3, false, Progress(0, _warning));
-                Line(wall + offset, wall + offset + reflected * 220, 3, false, Progress(0, _warning));
+                if (progress.Incoming > 0)
+                    Line(path.Start, path.Start.Lerp(path.Bounce, progress.Incoming), EasyWarningHalfWidth(1), false, progress.Incoming);
+                if (progress.Outgoing > 0)
+                    Line(path.Bounce, path.Bounce.Lerp(path.Exit, progress.Outgoing), EasyWarningHalfWidth(1), false, progress.Outgoing);
             }
             Hint(wall + new Vector2(incoming.X < 0 ? 6 : -42, -12), "返信 ↩");
         }
         for (int wave = 0; wave < 3; wave++)
             if (At(_warning + wave * .7))
-                for (int i = -1 - Tier; i <= 1 + Tier; i++) Send(_origin + new Vector2(0, i * 10), incoming * (59 + Tier * 6));
+            {
+                var paths = EasyReplyWarningPaths().ToArray();
+                for (int row = 0; row < paths.Length; row++)
+                    Send(paths[row].Start, paths[row].Start.DirectionTo(paths[row].Bounce) * 59, row);
+            }
         foreach (var letter in _letters.Where(l => l.Alive && l.State == 0 && !l.Shot.LeadIn))
             if (letter.Shot.GlobalPosition.X <= Field.Left + 8 || letter.Shot.GlobalPosition.X >= Field.Right - 8)
             {
                 letter.State = 1;
-                letter.Shot.GlobalPosition = new Vector2(Mathf.Clamp(letter.Shot.GlobalPosition.X, Field.Left + 8, Field.Right - 8), letter.Shot.GlobalPosition.Y);
+                letter.Shot.GlobalPosition = EasyReplyWarningPaths().First(path => path.Start.DistanceSquaredTo(letter.Origin) < .01f).Bounce;
+                letter.Changed = Time;
+                letter.TurnPoint = letter.Shot.GlobalPosition;
                 letter.Shot.Velocity = new Vector2(-letter.Shot.Velocity.X, letter.Shot.Velocity.Y);
             }
         EndAfter(_warning + 8);
     }
 
-    private void FilingPiles()
+    private void FilingPiles() => EasyFilingPiles();
+
+    private void RainSplash() => EasyRainSplash();
+
+    private void SpentWavefront() => EasySpentWavefront();
+
+    private double EasyPileSwitchAt => _warning + (EasyPileColumns - 1) * EasyPileColumnInterval
+        + EasyPileCollapseAt + (EasyPileRows - 1) * EasyPileCollapseInterval + .06;
+    private int EasyPilePass => Time >= EasyPileSwitchAt ? 1 : 0;
+    private int EasyPileColumnCount => EasyPileColumns + EasyPilePass;
+    private float EasyPileX(int column) => Field.Left
+        + (column + (EasyPilePass == 0 ? .5f : 0)) * Field.Width / EasyPileColumns;
+    private double EasyPileStart(int column) => _warning + EasyPilePass * EasyPileSwitchAt + column * EasyPileColumnInterval;
+    private int EasyPileRemaining(int column)
     {
-        int count = 3 + Tier;
-        for (int i = 0; i < count; i++)
+        double age = Time - EasyPileStart(column);
+        int removed = age < EasyPileCollapseAt ? 0 : 1 + (int)((age - EasyPileCollapseAt) / EasyPileCollapseInterval);
+        return Math.Max(0, EasyPileRows - removed);
+    }
+    private Rect2 EasyPileSheetBounds(int column, int row)
+    {
+        double age = Time - EasyPileStart(column) - row * EasyPileRowInterval;
+        float settledY = Field.Bottom - (row + 1) * EasyPileLayerHeight;
+        float y = Math.Min(settledY, -EasyPileLayerHeight + (float)age * EasyPileSpeed);
+        return new Rect2(EasyPileX(column) - EasyPileWidth / 2, y, EasyPileWidth, EasyPileLayerHeight);
+    }
+    private Rect2 EasyPileStackBounds(int column)
+        => new Rect2(EasyPileX(column) - EasyPileWidth / 2, Field.Bottom - _states[column] * EasyPileLayerHeight,
+            EasyPileWidth, _states[column] * EasyPileLayerHeight).Intersection(Field.Rect);
+
+    private void EasyFilingPiles()
+    {
+        for (int column = 0; column < EasyPileColumnCount; column++)
         {
-            float x = Field.Left + 30 + i * (Field.Width - 60) / (count - 1);
-            double start = _warning + i * .48;
-            double elapsed = Time - start;
-            if (Time < start) Line(new(x, 5), new(x, Field.Bottom - 8), 8, false, Progress(start - _warning, _warning));
-            for (int row = 0; row < 4; row++)
-                if (At(start + row * .65)) Send(new(x, 8), Vector2.Down * 110, i, 2);
-            foreach (var letter in _letters.Where(l => l.Alive && l.Group == i && l.State == 0 && !l.Shot.LeadIn))
-                if (letter.Shot.GlobalPosition.Y > Field.Bottom - 10 - _states[i] * 8)
-                {
-                    _states[i]++;
-                    letter.State = 1;
-                    Pool.Despawn(letter.Shot);
-                }
-            if (elapsed >= 0 && elapsed < 5.4 && _states[i] > 0)
+            double start = EasyPileStart(column);
+            _states[column] = 0;
+            if (Time >= start - _warning && Time < start)
             {
-                Box(new Rect2(x - 12, Field.Bottom - 8 - _states[i] * 8, 24, 8 + _states[i] * 8), true);
-                if (elapsed > 4.2) Hint(new(x - 10, Field.Bottom - 18 - _states[i] * 8), "崩れる");
+                float progress = EasyPileWarningProgress(column);
+                if (progress > 0)
+                    Box(new Rect2(EasyPileX(column) - EasyPileWidth / 2, Field.Top,
+                        EasyPileWidth, Field.Height * progress).Intersection(Field.Rect), false, progress);
             }
+            for (int row = 0; row < EasyPileRemaining(column); row++)
+            {
+                if (Time < start + row * EasyPileRowInterval) continue;
+                Rect2 bounds = EasyPileSheetBounds(column, row);
+                if (bounds.Position.Y >= Field.Bottom - (row + 1) * EasyPileLayerHeight) _states[column]++;
+                else if (bounds.End.Y > Field.Top) Box(bounds.Intersection(Field.Rect), true);
+            }
+            if (_states[column] > 0) Box(EasyPileStackBounds(column), true);
         }
-        EndAfter(_warning + count * .48 + 6);
+        EndAfter(_warning + EasyPileSwitchAt + EasyPileColumns * EasyPileColumnInterval
+            + EasyPileCollapseAt + (EasyPileRows - 1) * EasyPileCollapseInterval + .12);
     }
 
-    private void RainSplash()
+    private double EasyRainLaunch(int wave, int row) => _warning + wave * EasyRainWaveInterval + row * EasyRainRowInterval;
+    private float EasyRainX(int wave, int row, int column)
+        => Field.Left + 16 + column * (Field.Width - 32) / (EasyRainColumns - 1) + ((wave + row) % 3 - 1) * 7;
+    private Vector2 EasyRainOrigin(int wave, int row, int column) => new(EasyRainX(wave, row, column), 8);
+    private static Vector2 EasyRainImpactPoint(Vector2 position) => new(position.X, Field.Bottom - 10);
+    private Vector2 EasyRainImpact(int wave, int row, int column) => EasyRainImpactPoint(EasyRainOrigin(wave, row, column));
+
+    private float EasyRainDropWarningProgress(int wave, int row)
     {
-        for (int wave = 0; wave < 3; wave++)
+        double launch = EasyRainLaunch(wave, row);
+        double start = launch - _warning;
+        return Progress(start + .4, .8);
+    }
+
+    private (int Wave, int Row, double Remaining, float Progress, Vector2[] Points)? EasyRainImpactWarning()
+    {
+        var first = _letters.Where(letter => letter.Alive && !letter.Shot.LeadIn && letter.State == 0 && letter.Group < 10)
+            .OrderBy(letter => letter.Born).ThenByDescending(letter => letter.Shot.GlobalPosition.Y).FirstOrDefault();
+        if (first == null) return null;
+        double remaining = Math.Max(0, (EasyRainImpactPoint(first.Shot.GlobalPosition).Y - first.Shot.GlobalPosition.Y) / EasyRainSpeed);
+        if (remaining > 2.7) return null;
+        int wave = first.Group;
+        int row = Math.Clamp((int)Math.Round((first.Born - EasyRainLaunch(wave, 0)) / EasyRainRowInterval), 0, EasyRainRows - 1);
+        float progress = Mathf.Clamp((float)((2.7 - remaining - .2) / .3), 0, 1);
+        var points = _letters.Where(letter => letter.Alive && !letter.Shot.LeadIn && letter.State == 0
+                && letter.Group == wave && letter.Born == first.Born)
+            .Select(letter => EasyRainImpactPoint(letter.Shot.GlobalPosition)).ToArray();
+        return (wave, row, remaining, progress, points);
+    }
+    private int EasyRainNextRow
+    {
+        get
         {
-            double launch = _warning + wave * 2.35;
-            if (_states[wave] == 0 && Time >= Math.Max(0, launch - _warning))
+            for (int next = 0; next < EasyRainWaves * EasyRainRows; next++)
             {
-                _points[wave] = new Vector2(Player.GlobalPosition.X, Field.Bottom - 14);
-                _states[wave] = 1;
+                double launch = EasyRainLaunch(next / EasyRainRows, next % EasyRainRows);
+                if (Time >= launch - _warning && Time < launch) return next;
             }
-            float x = _points[wave].X;
-            if (Time < launch && _states[wave] == 1)
-            {
-                Line(new(x, 8), new(x, Field.Bottom - 14), 12, false, Progress(launch - _warning, _warning));
-                for (int side = -1; side <= 1; side += 2)
-                    for (int i = 0; i < 1 + Tier; i++)
-                    {
-                        Vector2 splash = new Vector2(side * (52 + i * 8), -10 - i * 12).Normalized();
-                        Line(new(x, Field.Bottom - 14), new Vector2(x, Field.Bottom - 14) + splash * 115, 12, false, Progress(launch - _warning, _warning));
-                    }
-            }
-            if (At(launch))
-                for (int j = -1; j <= 1; j++) Send(new(x + j * 7, 8), Vector2.Down * 132, wave, 0);
+            return -1;
         }
+    }
+
+    private void EasyRainSplash()
+    {
+        int nextRow = EasyRainNextRow;
+        for (int wave = 0; wave < EasyRainWaves; wave++)
+            for (int row = 0; row < EasyRainRows; row++)
+            {
+                double launch = EasyRainLaunch(wave, row);
+                for (int column = 0; column < EasyRainColumns; column++)
+                {
+                    Vector2 origin = EasyRainOrigin(wave, row, column);
+                    Vector2 impact = EasyRainImpact(wave, row, column);
+                    if (wave * EasyRainRows + row == nextRow)
+                    {
+                        float progress = EasyRainDropWarningProgress(wave, row);
+                        if (progress > 0)
+                            Line(origin, origin.Lerp(impact, progress), EasyWarningHalfWidth(0), false, progress);
+                    }
+                    for (int burst = 0; burst < EasyRainBursts; burst++)
+                        if (At(launch + burst * EasyRainBurstInterval)) Send(origin, Vector2.Down * EasyRainSpeed, wave, 0);
+                }
+            }
         foreach (var letter in _letters.ToArray())
         {
-            if (!letter.Alive || letter.State != 0 || letter.Group >= 10 || letter.Shot.LeadIn || letter.Shot.GlobalPosition.Y < Field.Bottom - 16) continue;
-            Vector2 impact = letter.Shot.GlobalPosition;
+            if (!letter.Alive || letter.Shot.LeadIn) continue;
+            if (letter.Group == 10)
+            {
+                double age = Time - letter.Born;
+                letter.Shot.Velocity = new Vector2(letter.Direction.X * 50, -EasySplashRise + (float)age * EasySplashGravity);
+                continue;
+            }
+            if (letter.State != 0 || letter.Shot.GlobalPosition.Y < Field.Bottom - 10) continue;
+            Vector2 impact = EasyRainImpactPoint(letter.Shot.GlobalPosition);
             Pool.Despawn(letter.Shot);
             letter.State = 1;
             for (int side = -1; side <= 1; side += 2)
-                for (int i = 0; i < 1 + Tier; i++) Send(impact, new Vector2(side * (52 + i * 8), -10 - i * 12), 10, 2);
+            {
+                var splash = Send(impact, new Vector2(side * 50, -EasySplashRise), 10, 2);
+                splash.Direction = new Vector2(side, 0);
+                splash.Shot.CancelLeadIn();
+            }
         }
-        EndAfter(_warning + 9);
+        EndAfter(EasyRainLaunch(EasyRainWaves - 1, EasyRainRows - 1) + (EasyRainBursts - 1) * EasyRainBurstInterval + (Field.Bottom - 18) / EasyRainSpeed
+            + 2 * EasySplashRise / EasySplashGravity + .2);
     }
 
-    private void SpentWavefront()
+    private float EasyWaveMaxRadius => Math.Max(Math.Max(_origin.DistanceTo(new(Field.Left, Field.Top)),
+        _origin.DistanceTo(new(Field.Right, Field.Top))), Math.Max(_origin.DistanceTo(new(Field.Left, Field.Bottom)),
+        _origin.DistanceTo(new(Field.Right, Field.Bottom)))) + 6;
+    private double EasyWaveDuration => EasyWaveOpeningAt + EasyWaveAccelerationTime
+        + (EasyWaveMaxRadius - EasyWaveRadius(EasyWaveOpeningAt + EasyWaveAccelerationTime)) / EasyWaveOuterSpeed;
+    private float EasyWaveRadius(double elapsed)
     {
-        for (int wave = 0; wave < 2 + Tier / 2; wave++)
+        if (elapsed <= EasyWaveOpeningAt) return 18 + (float)elapsed * EasyWaveSpeed;
+        double acceleration = Math.Min(elapsed - EasyWaveOpeningAt, EasyWaveAccelerationTime);
+        double amount = acceleration / EasyWaveAccelerationTime;
+        double easedTravel = EasyWaveAccelerationTime * (amount * amount * amount - .5 * amount * amount * amount * amount);
+        return 18 + (float)(EasyWaveOpeningAt * EasyWaveSpeed + acceleration * EasyWaveSpeed
+            + easedTravel * (EasyWaveOuterSpeed - EasyWaveSpeed)
+            + Math.Max(0, elapsed - EasyWaveOpeningAt - EasyWaveAccelerationTime) * EasyWaveOuterSpeed);
+    }
+    private float EasyWaveGapAngle(int wave) => _angle + wave * Mathf.Pi;
+    private float EasyWaveExpiryInnerRadius => EasyWaveRadius(EasyWaveOpeningAt) + 4.5f;
+    private float EasyWaveExpiryHalfAngle => EasyWaveSpentSegments * Mathf.Pi / EasyWaveSegments
+        - Mathf.Asin(4.5f / EasyWaveExpiryInnerRadius);
+    private (int First, int End)[] EasyWaveLiveRanges(double elapsed)
+        => elapsed >= EasyWaveOpeningAt
+            ? new[] { (EasyWaveSpentSegments, EasyWaveSegments) }
+            : new[] { (0, EasyWaveSegments) };
+    private Vector2 EasyWavePoint(int wave, int segment, float radius)
+        => _origin + Vector2.FromAngle(EasyWaveGapAngle(wave) - EasyWaveSpentSegments * Mathf.Pi / EasyWaveSegments
+            + segment * Mathf.Tau / EasyWaveSegments) * radius;
+    private void PrepareEasyWave(int wave, double start)
+    {
+        float halfOpening = EasyWaveSpentSegments * Mathf.Pi / EasyWaveSegments - .15f;
+        var body = Boss.GetChildren().OfType<CollisionShape2D>().First();
+        var shape = (CapsuleShape2D)body.Shape;
+        float clearance = shape.Radius + Player.HitRadius + 12;
+        float halfAxis = shape.Height / 2 - shape.Radius;
+        Vector2 lower = body.GlobalPosition - Vector2.Down * halfAxis, upper = body.GlobalPosition + Vector2.Down * halfAxis;
+        float detourRadius = clearance + halfAxis;
+        float distance = float.MaxValue;
+        for (int sample = 0; sample <= 32; sample++)
         {
-            double elapsed = Time - _warning - wave * 2.7;
-            if (elapsed < 0 && elapsed > -_warning) Disc(_origin, 20, false, (float)(1 + elapsed / _warning));
-            if (elapsed < 0 || elapsed > 2.55) continue;
-            if (elapsed < .3) Disc(_origin, 20, true);
-            float radius = Math.Min(80, 18 + (float)elapsed * (27 + Tier * 2));
-            for (int i = 0; i < 64; i++)
-                Line(_origin + Vector2.FromAngle(i * Mathf.Tau / 64) * radius,
-                    _origin + Vector2.FromAngle((i + 1) * Mathf.Tau / 64) * radius, 2 + Tier * .4f, elapsed < 2.05, elapsed < 2.05 ? 1 : 0);
-            if (elapsed > 1.6) Hint(_origin + new Vector2(-28, -14), elapsed < 2.05 ? "波が薄れる" : "内側へ戻れる");
+            float offset = Mathf.Lerp(-halfOpening, halfOpening, sample / 32f);
+            Vector2 waiting = _origin + Vector2.FromAngle(EasyWaveGapAngle(wave) + offset) * EasyWaveWaitRadius;
+            if (waiting.DistanceTo(Geometry2D.GetClosestPointToSegment(waiting, lower, upper)) <= clearance) continue;
+            float travel = Player.GlobalPosition.DistanceTo(waiting);
+            if (body.GlobalPosition.DistanceTo(Geometry2D.GetClosestPointToSegment(body.GlobalPosition, Player.GlobalPosition, waiting)) < detourRadius)
+                travel += Mathf.Pi * detourRadius;
+            if (travel >= distance) continue;
+            distance = travel;
+            _easyWaveWaitPoints[wave] = waiting;
         }
-        EndAfter(_warning + 2.7 * (2 + Tier / 2));
+        _easyWaveWarningStarts[wave] = start;
+        _easyWaveLaunches[wave] = start + WarnFor(distance + 8, 3.8);
+    }
+    private void EasySpentWavefront()
+    {
+        if (_easyWaveLaunches[1] < 0 && Time >= _easyWaveLaunches[0] + EasyWaveDuration + EasyWaveRest)
+            PrepareEasyWave(1, Time);
+        for (int wave = 0; wave < 2; wave++)
+        {
+            if (_easyWaveLaunches[wave] < 0) continue;
+            double elapsed = Time - _easyWaveLaunches[wave];
+            if (elapsed < 0)
+            {
+                float progress = EasyWaveWarningProgress(wave).Ring;
+                if (progress > 0) Disc(_origin, 20 * progress, false, progress);
+                continue;
+            }
+            if (elapsed >= EasyWaveDuration) continue;
+            if (elapsed < .3) Disc(_origin, 20, true);
+            float radius = EasyWaveRadius(elapsed);
+            foreach (var range in EasyWaveLiveRanges(elapsed))
+                for (int i = range.First; i < range.End; i++)
+                    Line(EasyWavePoint(wave, i, radius), EasyWavePoint(wave, i + 1, radius), 2, true);
+        }
+        if (_easyWaveLaunches[1] >= 0) EndAfter(_easyWaveLaunches[1] + EasyWaveDuration + EasyWaveRest);
     }
 
     private void BraidedDelivery(double delta)
@@ -419,6 +932,20 @@ public partial class AkariBossTechnique : BossCharacterTechnique
         EndAfter(_warning + 7.6);
     }
 
+    private (Vector2 A, Vector2 B, float Radius)[] EasyApprovalStampPaths(int index)
+    {
+        Vector2 position = _stamps[index].Position;
+        float shiftX = Mathf.Clamp((position.X - Field.CenterX) / Field.Width, -.5f, .5f) * 8;
+        float shiftY = Mathf.Clamp((position.Y - Field.CenterY) / Field.Height, -.5f, .5f) * 8;
+        Vector2 topLeft = new(Field.Left + 8, Field.Top + 8), topRight = new(Field.Right - 8, Field.Top + 8);
+        Vector2 bottomLeft = new(Field.Left + 8, Field.Bottom - 8), bottomRight = new(Field.Right - 8, Field.Bottom - 8);
+        Vector2 first = new(Field.Left + Field.Width * .22f + shiftX, Field.Top + Field.Height * .46f + shiftY);
+        Vector2 fold = new(Field.Left + Field.Width * .43f + shiftX * .5f, Field.Top + Field.Height * .68f + shiftY);
+        Vector2 last = new(Field.Left + Field.Width * .8f + shiftX, Field.Top + Field.Height * .24f + shiftY * .5f);
+        return new[] { (topLeft, topRight, 3f), (topRight, bottomRight, 3f),
+            (bottomRight, bottomLeft, 3f), (bottomLeft, topLeft, 3f), (first, fold, 6f), (fold, last, 6f) };
+    }
+
     private void DwellTimecard(double delta)
     {
         if (Player.GlobalPosition.DistanceTo(_dwell) > 9)
@@ -434,11 +961,13 @@ public partial class AkariBossTechnique : BossCharacterTechnique
             _next = Time + .8;
         }
         foreach (var stamp in _stamps)
+        {
             if (Time < stamp.At + .6)
             {
                 Disc(stamp.Position, 19 + Tier * 2, Time >= stamp.At, Progress(stamp.At - 1.2, 1.2));
                 Hint(stamp.Position + new Vector2(-12, -26), Time < stamp.At ? "締切" : "承認");
             }
+        }
         Hint(_dwell + new Vector2(-18, 25), "滞在 " + Math.Min(100, (int)(_still / (.65 - Tier * .08) * 100)) + "%");
         EndAfter(_warning + 7.2);
     }
@@ -471,45 +1000,261 @@ public partial class AkariBossTechnique : BossCharacterTechnique
         EndAfter(_warning + 7.6);
     }
 
-    private void CarriedEnvelope()
+    private Vector2[] EasyEnvelopeTravelPath() => new[]
     {
-        double elapsed = Time - _warning;
-        Vector2 carrier = new(Field.Left + 26 + Mathf.Clamp((float)elapsed, 0, 6) * 35, Mathf.Clamp(_aim.Y, 55, 155));
-        bool exists = elapsed >= 0 && elapsed < 6;
-        Box(new Rect2(carrier - new Vector2(18, 11), new Vector2(36, 22)), exists, Progress(0, _warning));
-        for (int opening = 0; opening < 3; opening++)
+        new Vector2(Field.Left + 26, 26), new Vector2(Field.Right - 26, 26),
+        new Vector2(Field.Right - 26, Field.Bottom - 26), new Vector2(Field.Left + 26, Field.Bottom - 26),
+        new Vector2(Field.Left + 26, 26), new Vector2(Field.Left + 26, -40),
+    };
+
+    private double EasyEnvelopeTravelDuration
+    {
+        get
         {
-            double when = 1.6 + opening * 1.35;
-            if (elapsed > when - 1.2 && elapsed < when)
-            {
-                Line(carrier + new Vector2(18, 0), carrier + new Vector2(108, 0), 15, false, (float)((elapsed - when + 1.2) / 1.2));
-                Hint(carrier + new Vector2(-15, -18), "開封 →");
-            }
-            if (At(_warning + when))
-                for (int j = -2 - Tier; j <= 2 + Tier; j++)
-                    Send(carrier + new Vector2(19, j * 2), Vector2.FromAngle(j * .14f) * (62 + Tier * 4), 0, 2);
+            var path = EasyEnvelopeTravelPath();
+            return EasyApprovalLeave(3) - _warning + path[4].DistanceTo(path[5]) / 70;
         }
-        EndAfter(_warning + 8);
+    }
+
+    private double EasyApprovalArrival(int index)
+    {
+        var path = EasyEnvelopeTravelPath();
+        double departure = index == 0 ? _warning : EasyApprovalLeave(index - 1);
+        return departure + path[index].DistanceTo(path[index + 1]) / 70;
+    }
+
+    private int EasyApprovalBursts => 3 + Tier;
+    private double EasyApprovalBurstInterval => .28 - Tier * .025;
+    private double EasyApprovalWarningStart(int index) => EasyApprovalArrival(index);
+    private double EasyApprovalOpeningFire(int index) => EasyApprovalWarningStart(index) + 2.55;
+    private double EasyApprovalBurstFire(int index, int burst) => EasyApprovalOpeningFire(index) + burst * EasyApprovalBurstInterval;
+    private double EasyApprovalStampFire(int index)
+        => _stamps.Count > index ? _stamps[index].At : EasyApprovalWarningStart(index) + 3.7;
+    private double EasyApprovalLeave(int index) => EasyApprovalStampFire(index) + .6;
+    private Vector2 EasyApprovalStampPosition(int index) => _stamps[index].Position;
+    private (float Frame, float Check) EasyApprovalStampWarningProgress(int index)
+        => (Progress(EasyApprovalWarningStart(index) + .2, .35), Progress(EasyApprovalWarningStart(index) + .55, .35));
+    private float EasyApprovalStampDiscWarningProgress(int index) => Progress(EasyApprovalWarningStart(index) + .2, .7);
+
+    private float EasyApprovalStampPathWarningProgress(int index, int pathIndex)
+    {
+        var paths = EasyApprovalStampPaths(index);
+        var progress = EasyApprovalStampWarningProgress(index);
+        if ((pathIndex < 4 ? progress.Frame : progress.Check) >= 1) return 1;
+        int first = pathIndex < 4 ? 0 : 4, end = pathIndex < 4 ? 4 : 6;
+        float total = 0, before = 0;
+        for (int path = first; path < end; path++)
+        {
+            float length = paths[path].A.DistanceTo(paths[path].B);
+            total += length;
+            if (path < pathIndex) before += length;
+        }
+        return Mathf.Clamp((total * (pathIndex < 4 ? progress.Frame : progress.Check) - before)
+            / paths[pathIndex].A.DistanceTo(paths[pathIndex].B), 0, 1);
+    }
+
+    private float EasyEnvelopeOpenProgress()
+    {
+        for (int index = 0; index < 4; index++)
+            if (Time >= EasyApprovalWarningStart(index) && Time < EasyApprovalLeave(index))
+                return Progress(EasyApprovalOpeningFire(index) - .6, .6);
+        return 0;
+    }
+
+    private Vector2 CarriedEnvelopePosition(double elapsed)
+    {
+                var path = EasyEnvelopeTravelPath();
+        double time = _warning + Math.Max(0, elapsed);
+        for (int index = 0; index < 4; index++)
+        {
+            double departure = index == 0 ? _warning : EasyApprovalLeave(index - 1);
+            double arrival = EasyApprovalArrival(index);
+            if (time < arrival)
+                return path[index].Lerp(path[index + 1], Mathf.Clamp((float)((time - departure) / (arrival - departure)), 0, 1));
+            if (time < EasyApprovalLeave(index)) return path[index + 1];
+        }
+        return path[4].MoveToward(path[5], (float)(time - EasyApprovalLeave(3)) * 70);
+    }
+
+    private bool CarriedEnvelopeVisible(double elapsed)
+        => elapsed >= 0 && new Rect2(CarriedEnvelopePosition(elapsed) - new Vector2(18, 11), new Vector2(36, 22)).Intersects(Field.Rect);
+
+    private IEnumerable<Rect2> EasyEnvelopeWarningBoxes(float progress)
+    {
+        var path = EasyRainWarningPathPrefix(EasyEnvelopeTravelPath(), progress);
+        for (int i = 1; i < path.Length; i++)
+        {
+            Vector2 from = path[i - 1], to = path[i];
+            yield return new Rect2(new Vector2(Math.Min(from.X, to.X) - 18, Math.Min(from.Y, to.Y) - 11),
+                new Vector2(Math.Abs(to.X - from.X) + 36, Math.Abs(to.Y - from.Y) + 22));
+        }
+    }
+
+    private IEnumerable<(Vector2 Start, Vector2 Exit)> EasyEnvelopeOpeningPaths(int opening)
+    {
+        Vector2 carrier = EasyEnvelopeTravelPath()[opening + 1];
+        Vector2 forward = carrier.DirectionTo(new Vector2(Field.CenterX, Field.CenterY));
+        for (int row = -2; row <= 2; row++)
+        {
+            Vector2 start = carrier + forward * 19 + forward.Orthogonal() * (row * 2);
+            Vector2 direction = forward.Rotated(row * .14f);
+            yield return (start, EasyRayExit(start, direction));
+        }
+    }
+
+    private void CarriedEnvelope(double delta) => EasyCarriedApproval(delta);
+
+    private void EasyCarriedApproval(double delta)
+    {
+        if (Player.GlobalPosition.DistanceTo(_dwell) > 9)
+        {
+            _dwell = Player.GlobalPosition;
+            _still = 0;
+        }
+        else _still += delta;
+        double elapsed = Time - _warning;
+        Vector2 carrier = CarriedEnvelopePosition(elapsed);
+        bool exists = CarriedEnvelopeVisible(elapsed);
+        if (elapsed < 0)
+        {
+            float progress = EasyEnvelopeTravelWarningProgress();
+            if (progress > 0)
+                foreach (var bounds in EasyEnvelopeWarningBoxes(progress)) Box(bounds, false, progress);
+        }
+        else if (exists)
+            Box(new Rect2(carrier - new Vector2(18, 11), new Vector2(36, 22)), true);
+        for (int index = 0; index < 4; index++)
+        {
+            double reservation = EasyApprovalWarningStart(index);
+            if (Time < reservation) continue;
+            if (_stamps.Count == index)
+            {
+                _stamps.Add(new Stamp { Position = Player.GlobalPosition, At = reservation + 3.7 });
+                _dwell = Player.GlobalPosition;
+                _still = 0;
+            }
+            double opening = EasyApprovalOpeningFire(index);
+            if (Time < opening)
+            {
+                if (_still >= .65) _stamps[index].At = reservation + 2.9;
+                float progress = EasyEnvelopeOpeningWarningProgress(index);
+                if (progress > 0)
+                    foreach (var path in EasyEnvelopeOpeningPaths(index))
+                        Line(path.Start, path.Start.Lerp(path.Exit, progress), EasyWarningHalfWidth(2), false, progress);
+            }
+            for (int burst = 0; burst < EasyApprovalBursts; burst++)
+                if (At(EasyApprovalBurstFire(index, burst)))
+                    foreach (var path in EasyEnvelopeOpeningPaths(index))
+                        Send(path.Start, path.Start.DirectionTo(path.Exit) * 62, index, 2);
+            if (Time >= EasyApprovalLeave(index)) continue;
+            bool live = Time >= EasyApprovalStampFire(index);
+            var paths = EasyApprovalStampPaths(index);
+            for (int path = 0; path < paths.Length; path++)
+            {
+                float progress = live ? 1 : EasyApprovalStampPathWarningProgress(index, path);
+                if (progress > 0)
+                    Line(paths[path].A, paths[path].A.Lerp(paths[path].B, progress), paths[path].Radius, live, progress);
+            }
+            float disc = live ? 1 : EasyApprovalStampDiscWarningProgress(index);
+            if (disc > 0) Disc(EasyApprovalStampPosition(index), 19 * disc, live, disc);
+            Hint(EasyApprovalStampPosition(index) + new Vector2(-18, -27), live ? "承認" : "承認待ち");
+        }
+        EndAfter(_warning + EasyEnvelopeTravelDuration + .1);
+    }
+
+    private Vector2[] EasyClockWarningOutline() => EasyClockWarningSector(1);
+
+    private double EasyClockDuration => 11.5;
+    private float EasyClockWarningAngle(double elapsed) => _angle + (float)Math.Max(0, elapsed) * (Mathf.Tau / 7.5f);
+
+    private float EasyClockBoundaryLength(float angle)
+    {
+        Vector2 direction = Vector2.FromAngle(angle);
+        float length = float.PositiveInfinity;
+        if (direction.X != 0)
+            length = Math.Min(length, ((direction.X > 0 ? Field.Right : Field.Left) - _origin.X) / direction.X);
+        if (direction.Y != 0)
+            length = Math.Min(length, ((direction.Y > 0 ? Field.Bottom : Field.Top) - _origin.Y) / direction.Y);
+        return length + 3;
+    }
+
+    private float EasyClockWarningLength(double elapsed)
+    {
+        float extension = elapsed < 2 ? 0 : elapsed < 3 ? (float)(elapsed - 2)
+            : elapsed < 10.5 ? 1 : Mathf.Clamp((float)(EasyClockDuration - elapsed), 0, 1);
+        return Mathf.Lerp(44, EasyClockBoundaryLength(EasyClockWarningAngle(elapsed)), extension);
+    }
+
+    private Vector2[] EasyClockWarningSector(float progress)
+    {
+        progress = Mathf.Clamp(progress, 0, 1);
+        if (progress == 0) return Array.Empty<Vector2>();
+        float reach = Math.Max(Math.Max(_origin.DistanceTo(new(Field.Left, Field.Top)), _origin.DistanceTo(new(Field.Right, Field.Top))),
+            Math.Max(_origin.DistanceTo(new(Field.Left, Field.Bottom)), _origin.DistanceTo(new(Field.Right, Field.Bottom)))) + 3;
+        int segments = Mathf.CeilToInt(Mathf.Tau * reach / 3);
+        double end = EasyClockDuration * progress, sweep = Math.Min(7.5, end), frontier = end % 7.5;
+        var times = new SortedSet<double>(Enumerable.Range(0, segments + 1).Select(i => i * 7.5 / segments)
+            .Where(elapsed => elapsed <= sweep)) { 0, sweep };
+        foreach (double boundary in new[] { 2d, 3d, 10.5d, EasyClockDuration, end })
+            if (boundary <= end && boundary % 7.5 <= sweep) times.Add(boundary % 7.5);
+        foreach (Vector2 corner in new[] { new Vector2(Field.Left, Field.Top), new Vector2(Field.Right, Field.Top),
+            new Vector2(Field.Right, Field.Bottom), new Vector2(Field.Left, Field.Bottom) })
+        {
+            double at = Mathf.PosMod(_origin.DirectionTo(corner).Angle() - _angle, Mathf.Tau) / (Mathf.Tau / 7.5f);
+            if (at <= sweep) times.Add(at);
+        }
+        float MaximumLength(double at, bool includeFrontier)
+        {
+            float length = 0;
+            for (double occurrence = at; occurrence <= end + 1e-8; occurrence += 7.5)
+                if (includeFrontier || occurrence < end - 1e-8)
+                    length = Math.Max(length, EasyClockWarningLength(occurrence));
+            return length;
+        }
+        var points = new List<Vector2>();
+        foreach (double at in times)
+        {
+            Vector2 radial = Vector2.FromAngle(EasyClockWarningAngle(at));
+            float length = MaximumLength(at, true);
+            points.Add(_origin + radial * length);
+            if (end >= 7.5 && Math.Abs(at - frontier) < 1e-8)
+            {
+                float earlier = MaximumLength(at, false);
+                if (earlier > 0 && earlier < length) points.Add(_origin + radial * earlier);
+            }
+        }
+        points.Add(_origin + Vector2.FromAngle(EasyClockWarningAngle(sweep)) * 12);
+        for (int i = segments; i >= 0; i--)
+        {
+            double at = i * 7.5 / segments;
+            if (at >= sweep) continue;
+            points.Add(_origin + Vector2.FromAngle(EasyClockWarningAngle(at)) * 12);
+        }
+        points.Add(points[0]);
+        return points.ToArray();
     }
 
     private void ExtendingClock()
     {
         _origin = new Vector2(Field.CenterX, Field.CenterY);
         double elapsed = Time - _warning;
-        float cycle = Tier switch { 2 => 6.7f, 3 => 6f, _ => 7.5f };
-        float reach = Mathf.Max(Tier switch { 2 => 124f, 3 => 140f, _ => 104f }, _aim.DistanceTo(_origin) + 16 + Tier * 4);
-        double phase = Tier < 2 ? elapsed : elapsed * 7.5 / cycle;
-        float angle = _angle + (float)Math.Max(0, elapsed) * (Mathf.Tau / cycle);
-        float length = phase < 2 ? 44 : phase < 4.5 ? Mathf.Lerp(44, reach, Mathf.Clamp((float)(phase - 2), 0, 1)) : 44;
-        Vector2 tip = _origin + Vector2.FromAngle(angle) * length;
-        Line(_origin + Vector2.FromAngle(angle) * 12, tip, 3 + Tier * .5f, elapsed >= 0, Progress(0, _warning));
-        if (elapsed >= 0 && phase < 3)
+
+        if (elapsed < 0)
         {
-            Line(tip, _origin + Vector2.FromAngle(angle) * reach, 3 + Tier * .5f, false, Mathf.Clamp((float)phase / 2, 0, 1));
-            Hint(_origin + new Vector2(-24, 20), "23:00　延長");
+            float progress = EasyClockWarningProgress();
+            if (progress > 0)
+            {
+                Vector2 radial = Vector2.FromAngle(_angle), start = _origin + radial * 12;
+                Line(start, start.Lerp(_origin + radial * 44, progress), 3 + Tier * .65f, false, progress);
+            }
         }
-        EndAfter(_warning + cycle);
-    }
+        else if (elapsed < EasyClockDuration)
+        {
+            Vector2 radial = Vector2.FromAngle(EasyClockWarningAngle(elapsed));
+            Line(_origin + radial * 12, _origin + radial * EasyClockWarningLength(elapsed), 3 + Tier * .65f, true);
+        }
+        EndAfter(_warning + EasyClockDuration);
+        }
 
     private void TensionedClips()
     {
@@ -718,12 +1463,23 @@ public partial class AkariBossTechnique : BossCharacterTechnique
 
     protected override void DrawTechnique()
     {
+        if (UsesCustomHazardArt)
+        {
+            DrawEasyTechniqueArt();
+            return;
+        }
+        DrawOfficeTechniqueArt();
+    }
+
+    private void DrawOfficeTechniqueArt()
+    {
         var paper = new Color(Paper, .70f);
         var ink = new Color(Ink, .65f);
         double elapsed = Time - _warning;
         switch (_mechanic)
         {
             case 0:
+                if (UsesEasyReadabilityRules) break;
                 foreach (var group in _letters.Where(l => l.Alive).GroupBy(l => l.Group))
                 {
                     var letter = group.First();
@@ -733,26 +1489,27 @@ public partial class AkariBossTechnique : BossCharacterTechnique
                 }
                 break;
             case 1:
-                int turn = (int)(Math.Max(0, elapsed) / 2.9);
+                int turn = Math.Min(3, (int)(Math.Max(0, Time - _warning + EasyInboxWarningLead) / 4.8));
                 for (int side = 0; side < 2; side++)
-                    Envelope(new Vector2(side == 0 ? Field.Left + 16 : Field.Right - 16, 34), new Vector2(10, 6),
-                        side == turn % 2 && (elapsed < 0 || elapsed % 2.9 < 1.85) ? 1 : 0, side == turn % 2 ? paper : new Color(Ink, .35f));
+                    Envelope(new Vector2(side == 0 ? Field.Left + 16 : Field.Right - 16, Field.CenterY), new Vector2(10, 6),
+                        side == turn % 2 && Time < EasyInboxLaunch(turn) + (EasyInboxBursts - 1) * EasyInboxBurstInterval ? 1 : 0, side == turn % 2 ? paper : new Color(Ink, .35f));
                 break;
             case 2:
-                foreach (var letter in _letters.Where(l => l.Alive && l.Group % 3 == 0))
-                    PaperClip(letter.Shot.GlobalPosition, letter.Direction.Angle(), letter.State > 0, ink);
+                if (Time < EasyUnbindingRecording)
+                    PaperSheet(Player.GlobalPosition + new Vector2(13, -11), -.15f, ink);
                 break;
             case 3:
                 double recording = 2.6 + Tier * .3;
                 if (Time < recording)
                     PaperSheet(Player.GlobalPosition + new Vector2(13, -11), -.15f, ink);
-                else if (_history.Count > 0)
+                else if (_history.Count > 0 && !UsesEasyReadabilityRules)
                 {
                     int cursor = Math.Clamp(_history.Count - 1 - (int)(Math.Max(0, Time - recording - _warning) / .13), 0, _history.Count - 1);
                     UndoMark(_history[cursor] + new Vector2(0, -10), paper);
                 }
                 break;
             case 4:
+                if (UsesEasyReadabilityRules) break;
                 Vector2 wall = _points[0], incoming = _origin.DirectionTo(wall);
                 Vector2 reflected = new(-incoming.X, incoming.Y);
                 DrawLine(wall - incoming * 14, wall, ink, 1, true);
@@ -801,6 +1558,7 @@ public partial class AkariBossTechnique : BossCharacterTechnique
                 }
                 break;
             case 9:
+                if (UsesEasyReadabilityRules) break;
                 foreach (var stamp in _stamps)
                 {
                     if (Time >= stamp.At + .6) continue;
@@ -814,16 +1572,10 @@ public partial class AkariBossTechnique : BossCharacterTechnique
                 }
                 break;
             case 11:
-                Vector2 carrier = new(Field.Left + 26 + Mathf.Clamp((float)elapsed, 0, 6) * 35, Mathf.Clamp(_aim.Y, 55, 155));
-                if (elapsed < 6)
+                Vector2 carrier = CarriedEnvelopePosition(elapsed);
+                if (elapsed < 0 || CarriedEnvelopeVisible(elapsed))
                 {
-                    float open = 0;
-                    for (int i = 0; i < 3; i++)
-                    {
-                        double until = 1.6 + i * 1.35 - elapsed;
-                        if (until >= 0 && until < 1.2) open = 1 - (float)until / 1.2f;
-                    }
-                    Envelope(carrier, new Vector2(16, 9), open, paper);
+                    Envelope(carrier, new Vector2(16, 9), EasyEnvelopeOpenProgress(), paper);
                 }
                 break;
             case 12:

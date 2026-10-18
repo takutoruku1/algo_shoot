@@ -110,6 +110,7 @@ public partial class StoryFilm : Node2D
         _grade = new ShaderMaterial { Shader = GD.Load<Shader>("res://shaders/story_film.gdshader") };
         SetFrame("scene", _shot);
         SetFrame("previous", _shot);
+        _blendT = 0.8;
         _grade.SetShaderParameter("grayscale", !_aftermath);
         AddChild(new TextureRect
         {
@@ -208,10 +209,14 @@ public partial class StoryFilm : Node2D
         if (line.Shot != _shot)
         {
             SetFrame("previous", _shot);
+            _grade.SetShaderParameter("previous_motion_time", (float)_shotT);
             _shot = line.Shot;
             SetFrame("scene", _shot);
             _blendT = 0;
             _shotT = 0;
+            // Update the shader in the switching frame, before the new texture can be drawn.
+            _grade.SetShaderParameter("blend_amount", 0f);
+            _grade.SetShaderParameter("motion_time", 0f);
         }
         _lineT = _readT = 0;
         // 時制が変わった行＝場面の切り替わり。見出しを先に一拍だけ見せてからセリフへ渡す。
@@ -222,6 +227,7 @@ public partial class StoryFilm : Node2D
         //   1行目は _timeShown が空なので必ず出る（4本とも Time は全行埋まっていて空文字は無い）。
         if (line.Time.Length > 0 && line.Time != _timeShown)
         {
+            _hud.HideBubble();
             _timeShown = _timeText = line.Time;
             _timeT = 0;
             // 一拍のあいだセリフを出さずに待つ。**送りボタンは増やさない**：待ちは _Process が

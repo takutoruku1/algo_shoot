@@ -1,0 +1,532 @@
+{
+  "tool": "built-in image_gen",
+  "revision": "2026-10-18",
+  "scope": "Current runtime artwork and scenario, 21 replacement assets.",
+  "sources": [
+    {
+      "url": "https://www.kokuyo-furniture.co.jp/sales/case/sanyo/c-office.html",
+      "used_for": "Practical office desk islands, perimeter storage and ordinary lighting."
+    },
+    {
+      "url": "https://www.ikea.com/jp/ja/rooms/childrens-room/gallery/a-teen-hideout-in-the-city-pub8ed58240/",
+      "used_for": "Teen bedroom study/sleep/storage functions; not a geographic setting."
+    },
+    {
+      "url": "https://jp.yamaha.com/audio/streaming-gaming/explore/webcasting-mixer/guide/webcasting.html",
+      "used_for": "PC, microphone, headphones and audio interface connections for streaming."
+    },
+    {
+      "url": "https://www.ur-net.go.jp/chintai/sp/college/202201/000825.html",
+      "used_for": "Modest residential room layout and circulation."
+    }
+  ],
+  "canon": [
+    "src/AkariStoryFilm.cs",
+    "src/KoharuStoryFilm.cs",
+    "src/ReiStoryFilm.cs",
+    "src/CharacterStory.cs",
+    "src/BossPostStory.cs",
+    "src/EndingFilm.cs",
+    "src/Epilogue.cs"
+  ],
+  "continuity": {
+    "akari": "General affairs office. Two facing seats, blinds, copier cabinet, yellow/navy umbrella stand. Ceiling lights stay on during overtime; close low-rise facade outside. Train and station diner are separate scripted locations.",
+    "koharu": "Family bedroom, bed left, rear mint curtains and low houses, honey-oak desk right with laptop, cream chair, school shelf, oval bedside rug. Before first stream no fan cards or penlight; later two handmade cards and one penlight. School scenes retained.",
+    "rei": "Independent VTuber, not illustrator or live-action host. Gray desk on far wall, one monitor/keyboard/left microphone boom, blue-gray bed and window left, closet right. Bare floor, no freestanding bookshelf. Book and draft notebook are scenario props. Kitchen memory remains a separate established location.",
+    "mina": "No invented personal home. Return background uses the established ending rooftop from cg_ep_mina_sky_v3. Digital memory/battle locations remain digital."
+  },
+  "assets": [
+    {
+      "path": "char/bg2/boss/akari_real_v1.png",
+      "generation": "master_akari"
+    },
+    {
+      "path": "char/bg2/boss/koharu_real_v1.png",
+      "generation": "master_koharu"
+    },
+    {
+      "path": "char/bg2/boss/rei_real_v1.png",
+      "generation": "master_rei"
+    },
+    {
+      "path": "char/bg2/boss/mina_real_v1.png",
+      "generation": "master_mina"
+    },
+    {
+      "path": "char/bg2/opening/op_akari_v1.png",
+      "generation": "opening_akari_final"
+    },
+    {
+      "path": "char/bg2/opening/op_koharu_v1.png",
+      "generation": "opening_koharu_v3"
+    },
+    {
+      "path": "char/bg2/opening/op_rei_v1.png",
+      "generation": "opening_rei_v3"
+    },
+    {
+      "path": "char/bg2/boss/akari_v1.png",
+      "generation": "night_akari"
+    },
+    {
+      "path": "char/bg2/boss/koharu_v1.png",
+      "generation": "night_koharu"
+    },
+    {
+      "path": "char/bg2/midboss/rei_v1.png",
+      "generation": "night_rei"
+    },
+    {
+      "path": "char/bg2/midboss/koharu_v1.png",
+      "generation": "koharu_foyer"
+    },
+    {
+      "path": "char/bg2/story/cg_akari_playable_memory_v1.png",
+      "generation": "akari_memory_final",
+      "normalized_crop": [
+        0.22,
+        0.16,
+        0.78,
+        0.78
+      ]
+    },
+    {
+      "path": "char/bg2/story/cg_koharu_playable_memory_v1.png",
+      "generation": "koharu_test"
+    },
+    {
+      "path": "char/bg2/story/cg_koharu_playable_aftermath_v1.png",
+      "generation": "koharu_closed"
+    },
+    {
+      "path": "char/bg2/story/cg_rei_playable_memory_v1.png",
+      "generation": "rei_draft",
+      "normalized_crop": [
+        0.23,
+        0.1,
+        0.72,
+        0.72
+      ]
+    },
+    {
+      "path": "char/bg2/story/cg_rei_playable_aftermath_v1.png",
+      "generation": "rei_book",
+      "normalized_crop": [
+        0.23,
+        0.1,
+        0.72,
+        0.72
+      ]
+    },
+    {
+      "path": "char/bg2/ending/cg_ep_rei_v1.png",
+      "generation": "rei_book",
+      "normalized_crop": [
+        0.23,
+        0.1,
+        0.72,
+        0.72
+      ]
+    },
+    {
+      "path": "char/bg2/ending/cg_ep_akari_v1.png",
+      "generation": "akari_diner"
+    },
+    {
+      "path": "char/v3/akari_story_atlas.png",
+      "rows": 3,
+      "frames": [
+        {
+          "id": "atlas_akari",
+          "cell": 0,
+          "rows": 3
+        },
+        {
+          "id": "atlas_akari",
+          "cell": 1,
+          "rows": 3
+        },
+        {
+          "id": "atlas_akari",
+          "cell": 2,
+          "rows": 3
+        },
+        {
+          "id": "atlas_akari",
+          "cell": 3,
+          "rows": 3
+        },
+        {
+          "id": "akari_atlas_fix",
+          "cell": 4,
+          "rows": 3
+        },
+        {
+          "id": "atlas_akari",
+          "cell": 5,
+          "rows": 3
+        }
+      ],
+      "packaging": "Equal 960x540 cells, two columns, row-major. Crop/resize only; no synthesized painting outside image_gen."
+    },
+    {
+      "path": "char/v3/koharu_story_atlas_v2.png",
+      "rows": 4,
+      "frames": [
+        {
+          "original": "char/v3/koharu_story_atlas_v2.png",
+          "cell": 0,
+          "rows": 4
+        },
+        {
+          "original": "char/v3/koharu_story_atlas_v2.png",
+          "cell": 1,
+          "rows": 4
+        },
+        {
+          "id": "koharu_test"
+        },
+        {
+          "id": "koharu_first"
+        },
+        {
+          "id": "koharu_off"
+        },
+        {
+          "id": "koharu_comment"
+        },
+        {
+          "id": "koharu_closed"
+        },
+        {
+          "original": "char/v3/koharu_story_atlas_v2.png",
+          "cell": 7,
+          "rows": 4
+        }
+      ],
+      "packaging": "Equal 960x540 cells, two columns, row-major. Crop/resize only; no synthesized painting outside image_gen."
+    },
+    {
+      "path": "char/v3/rei_story_atlas_v2.png",
+      "rows": 4,
+      "frames": [
+        {
+          "id": "atlas_rei",
+          "cell": 0,
+          "rows": 4
+        },
+        {
+          "id": "rei_early",
+          "crop": null
+        },
+        {
+          "id": "rei_avatar",
+          "crop": null
+        },
+        {
+          "id": "opening_rei_v3",
+          "crop": [
+            0.23,
+            0.1,
+            0.72,
+            0.72
+          ]
+        },
+        {
+          "id": "rei_draft",
+          "crop": [
+            0.23,
+            0.1,
+            0.72,
+            0.72
+          ]
+        },
+        {
+          "id": "rei_publish",
+          "crop": [
+            0.23,
+            0.1,
+            0.72,
+            0.72
+          ]
+        },
+        {
+          "id": "rei_book",
+          "crop": [
+            0.23,
+            0.1,
+            0.72,
+            0.72
+          ]
+        },
+        {
+          "id": "rei_done",
+          "crop": [
+            0.23,
+            0.1,
+            0.72,
+            0.72
+          ]
+        }
+      ],
+      "packaging": "Equal 960x540 cells, two columns, row-major. Crop/resize only; no synthesized painting outside image_gen."
+    }
+  ],
+  "generations": [
+    {
+      "id": "master_akari",
+      "references": [
+        "char/raw/room_redesign_20261018/originals/char/bg2/boss/akari_real_v1.png"
+      ],
+      "prompt": "Use case: stylized-concept. Asset type: opaque Japanese anime game Refrain background. Reference 1 is the existing art/style and emotional context, not a demand to retain implausible props. Redesign the environment with coherent architectural perspective and believable human scale, while matching the supplied fine anime contours and painterly cel rendering. Keep original approximately 6:5 landscape aspect ratio, empty readable central/lower floor for game characters, detailed props near perimeter. No humans, text, logos, watermark, collage, magic particles, decorative glowing specks, photographic look, lens bokeh or 3D render. No houseplants, vines, flowers, botanical prints. No repetitive horizontal book piles, staged decoration, luxury furnishings or huge metropolitan skyscraper skyline. AKARI OFFICE continuity anchor: ordinary small general-affairs office, not her home. A practical light-gray steel two-person facing desk island toward the rear-right; the two seats face EACH OTHER across the desks, never both toward the viewer. Two modest office monitors correctly face their respective chairs, their opaque vented backs face away. One empty departed coworker seat is cleared with its powered-off monitor, Akari's seat has an in-tray with a thin loose sheaf, a landline phone and plain white mug; no towers of paper. Rear wall has three normal rectangular aluminum windows with lowered horizontal Venetian blinds in their top halves; exterior is nearby low-rise office roofs and a neighboring three-story wall at normal working-floor height, no distant high-rise panorama. Left wall: low steel cabinet with upright A4 binders inside, compact copier on top. Near left edge a plain door and umbrella stand with a yellow umbrella and navy umbrella. Gray low-sheen carpet tiles, off-white walls, ordinary ceiling lights. Main passage clear. This office is reused unchanged in all Akari office story scenes; only daylight and occupancy/paperwork change. Ceiling lighting is ON over occupied desks even during overtime. Exterior has only one close weathered beige neighboring building with irregular window spacing and a lower corrugated roof, mostly obscured by blinds; absolutely no repeated building silhouettes. Both workstations have a keyboard directly in front of THEIR monitor, keyboard long axis parallel to monitor face, mouse alongside and open clear knee space under desk; no keyboard trapped behind files. Keep storage confined to copier cabinet, no identical binder parade. Gentle morning daylight; no people. Original art sets style only, layout may change to satisfy spatial plausibility.",
+      "saved_source": "char/raw/room_redesign_20261018/generated/master_akari.png"
+    },
+    {
+      "id": "master_koharu",
+      "references": [
+        "char/raw/room_redesign_20261018/originals/char/bg2/boss/koharu_real_v1.png"
+      ],
+      "prompt": "Use case: stylized-concept. Asset type: opaque Japanese anime game Refrain background. Reference 1 is the existing art/style and emotional context, not a demand to retain implausible props. Redesign the environment with coherent architectural perspective and believable human scale, while matching the supplied fine anime contours and painterly cel rendering. Keep original approximately 6:5 landscape aspect ratio, empty readable central/lower floor for game characters, detailed props near perimeter. No humans, text, logos, watermark, collage, magic particles, decorative glowing specks, photographic look, lens bokeh or 3D render. No houseplants, vines, flowers, botanical prints. No repetitive horizontal book piles, staged decoration, luxury furnishings or huge metropolitan skyscraper skyline. KOHARU BEDROOM continuity anchor: modest approximately six-tatami rectangular individual room in her family's home in a quiet residential neighborhood. Normal-height cream walls, light oak laminate. Single waist-high sliding window centered in rear short wall with plain mint curtains; outside, close tiled roofs of two-story houses and a short utility pole, NEVER towers or apartment skyline. Single narrow wooden bed along LEFT wall, faded lavender floral duvet and ONE small rabbit plush at pillow. Plain honey-oak study desk along RIGHT wall, one integrated three-drawer pedestal and a small cream swivel chair facing the right wall. A dark-gray 14-inch laptop is the ONLY computer; NO large desktop monitor, tower PC, microphone or streaming equipment. On desk: one open school exercise book, zipped purple fabric pencil case, eraser, desk lamp. Above desk a small corkboard with one school schedule and TWO handmade fan postcards of the existing purple-haired star-clip Rei avatar, no rows of merchandise. Adjacent to desk a narrow bookcase with an upright row of mixed textbooks, two thin file folders, a pale storage box and ONE unlit lavender penlight on a shelf. Navy school blazer on hook and school bag beside desk; small wastebasket. Closet and room entrance are on near wall, not behind the bed. Human circulation between bed and desk is believable. No sofa, fancy display cabinet or generic ornamental books. Use this SAME room across all Koharu home scenes. Add ONE small oval dusty-rose woven bedside rug, its complete smooth oval perimeter visible, naturally following the bedside and clear of the rolling chair; no cut-off/truncated/torn edges or notch cutouts. The textbook shelf has only school materials: thin mixed-height exercise books, an English dictionary, a few colored lesson folders, soft fabric bin, visible free shelf space. It is NOT the same bookshelf or contents as Rei's. Gentle morning daylight; no people. Original art sets style only, layout may change to satisfy spatial plausibility.",
+      "saved_source": "char/raw/room_redesign_20261018/generated/master_koharu.png"
+    },
+    {
+      "id": "master_rei",
+      "references": [
+        "char/raw/room_redesign_20261018/originals/char/bg2/boss/rei_real_v1.png"
+      ],
+      "prompt": "Use case: stylized-concept. Asset type: opaque Japanese anime game Refrain background. Reference 1 is the existing art/style and emotional context, not a demand to retain implausible props. Redesign the environment with coherent architectural perspective and believable human scale, while matching the supplied fine anime contours and painterly cel rendering. Keep original approximately 6:5 landscape aspect ratio, empty readable central/lower floor for game characters, detailed props near perimeter. No humans, text, logos, watermark, collage, magic particles, decorative glowing specks, photographic look, lens bokeh or 3D render. No houseplants, vines, flowers, botanical prints. No repetitive horizontal book piles, staged decoration, luxury furnishings or huge metropolitan skyscraper skyline. REI ROOM continuity anchor: A narrow modest rented room for a 24-year-old independent VTuber, in a low-rise residential neighborhood. Distinct from Koharu's student room. NO freestanding bookshelf anywhere; no art, drawings, posters, ring lights, cameras, plants, decorative star props or book piles. Off-white walls, mid-dark wood floor WITHOUT AREA RUG (entire bare floor; no cut-off carpet). Plain blue-gray checked single bed along LEFT wall. One small bedside drawer holds a couple of paperbacks inside, no decorative book display. Back window has plain slate-blue blackout curtains almost closed with a small gap showing one nearby cream neighboring house wall and eaves, no skyline. Main workstation is fully visible in REAR RIGHT CORNER and must NOT be cropped at image edge. Simple inexpensive 110cm gray laminate desk with black metal legs, plain black fabric swivel chair. Workstation ergonomic geometry is the priority: ONE flat 24-inch monitor at back center of desk, ONE straight full keyboard immediately in front of monitor with 12cm of empty desk edge for wrists; keyboard parallel to monitor plane; chair centered exactly on keyboard and monitor. Mouse on keyboard's right. Monitor faces the seated chair. Every desk leg and clear knee space plausible. Small black non-RGB PC tower beside the desk rather than in footwell. ONE dynamic vocal mic on compact desk-clamped boom comes from LEFT of monitor toward seated mouth, not blocking screen; plain wired headphones on left desk hook. One small audio interface behind mic clamp. One blue mug away from keyboard at far corner. ONE closed paperback with mint bookmark and ONE thin idea notebook kept at side of keyboard, NEVER between person and keyboard. One compact underdesk drawer holds spare cables and a few upright paperbacks, no open bookcase. Plain fabric tote on side hook. Camera from near-left entrance diagonally toward desk, not same frontal bedroom shot as Koharu; portray a genuinely compact room while keeping a clear middle passage. Lock this exact bed/window/desk arrangement for all Rei room scenes. Gentle morning daylight; no people. Original art sets style only, layout may change to satisfy spatial plausibility.",
+      "saved_source": "char/raw/room_redesign_20261018/generated/master_rei.png"
+    },
+    {
+      "id": "master_mina",
+      "references": [
+        "char/bg2/ending/cg_ep_mina_sky_v3.png"
+      ],
+      "prompt": "Use case: stylized-concept. Asset type: opaque Japanese anime game Refrain background. Reference 1 is the existing art/style and emotional context, not a demand to retain implausible props. Redesign the environment with coherent architectural perspective and believable human scale, while matching the supplied fine anime contours and painterly cel rendering. Keep original approximately 6:5 landscape aspect ratio, empty readable central/lower floor for game characters, detailed props near perimeter. No humans, text, logos, watermark, collage, magic particles, decorative glowing specks, photographic look, lens bokeh or 3D render. No houseplants, vines, flowers, botanical prints. No repetitive horizontal book piles, staged decoration, luxury furnishings or huge metropolitan skyscraper skyline. MINA RETURN PLACE: the SAME modest rooftop already used in Refrain's ending, input reference is that established rooftop with Mina. This replaces the unrelated glass conservatory. Keep the left concrete rooftop stairwell doorway with small rectangular warm wall light, low waist-high concrete parapet and simple metal railing, distant ordinary varied low-rise residential roofs with a water tank at far right, calm open night sky and moon. No new geography, no conservatory, mansion, palace, table and four cups, garden, household interior, furniture, indoor plants. Do NOT draw Mina or any person; this background appears behind her existing game sprite while she reconnects to the protagonist. Match existing nighttime setting of the rooftop reference and its painted anime style. Large clear foreground concrete floor with natural seams. It must be recognizable as the same place used in the ending, with no invented personal home.",
+      "saved_source": "char/raw/room_redesign_20261018/generated/master_mina.png"
+    },
+    {
+      "id": "opening_akari_v3",
+      "references": [
+        "char/raw/room_redesign_20261018/generated/master_akari.png",
+        "char/raw/room_redesign_20261018/references/exec-8b822098-7de8-4f2b-ac27-3f2528a3ec94.png"
+      ],
+      "prompt": "Use case: compositing. Create a 16:9 anime story illustration. Image1 is the authoritative office environment; image2 is ONLY Akari's identity, outfit and tired mood. Keep Image1's office EXACTLY: same camera from entrance, same two-person desk island at right, both seats on OPPOSITE sides facing each other, same windows, copier left, umbrellas by door. Frame a medium-wide cut of that exact desk island, NEVER rotate desk or add rows of desks. Seat Akari in the LEFT chair of Image1 facing right toward her own monitor, side profile recognizable. Fingers lightly at the keyboard directly between her and monitor, other hand to cheek, phone facedown beside keyboard, gaze at PC. Opposite chair at FAR RIGHT remains empty with cleared surface and powered-off monitor. Both chairs remain OPPOSITE across desk, never adjacent or side by side. Night outside single nearby beige building; overhead ceiling lights ON, entire workspace sensibly illuminated. No plants, paper stacks, ring lights, skyline, new furniture, text overlay. Monitor front faces Akari, back opaque, coherent perspective. Beautiful same 2D anime quality as image2. Scene furniture geometry and continuous office matter more than closeup. Opaque output.",
+      "saved_source": "char/raw/room_redesign_20261018/generated/opening_akari_v3.png"
+    },
+    {
+      "id": "opening_rei_v3",
+      "references": [
+        "char/raw/room_redesign_20261018/generated/master_rei.png",
+        "char/raw/room_redesign_20261018/references/exec-14c00fa7-d836-490c-bde7-b438a572e4df.png"
+      ],
+      "prompt": "Use case: compositing. Create a 16:9 anime story illustration. Image1 supplies the EXACT room and camera; image2 supplies ONLY Rei's identity (short purple bob, purple eyes, gray cardigan white shirt) and tired mood. Keep image1 geometry, desk AGAINST FAR WALL, window LEFT above blue-gray checked bed, closet and entry on RIGHT wall. Do not put desk on right wall or move it forward. Medium-wide crop of Image1 right half from same near-left camera, showing bed edge at left and seated Rei in the black chair at desk on FAR wall. Rei viewed from behind-left in clear 3/4 profile looking directly at screen, shoulders/hips oriented to keyboard. One hand on mouse immediately beside keyboard, other to cheek. Monitor and keyboard stay exactly centered in front of chair; wrists have space. Screen shows VTuber production software with small long purple-haired star-clip avatar preview, narrow live chat and audio meters. The one left-clamped mic boom is at her mouth. Room ceiling light ON at night; left window only nearby house dark eaves. No ring lights, photographic camera, posters, illustration sheets, art supplies, freestanding bookcase, plants, rug, second monitor or extra tower. One blue mug, one paperback with mint tab to side. Opaque 2D anime rendered like image2. Keep exact room continuity over dramatic camera.",
+      "saved_source": "char/raw/room_redesign_20261018/generated/opening_rei_v3.png"
+    },
+    {
+      "id": "opening_koharu_v3",
+      "references": [
+        "char/raw/room_redesign_20261018/references/exec-eacf4248-bef8-42ad-ae9c-48bde588241b.png"
+      ],
+      "prompt": "Use case: precise-object-edit. Edit this 16:9 illustration only: REMOVE the duplicate lavender penlight that stands on the right bookshelf; reconstruct ordinary empty shelf space there. Keep the SINGLE penlight already in Koharu's hand completely unchanged. No other changes to girl, pose, laptop with livestream and chat, room geometry, curtains, bed, rug, shelf contents, lighting, framing or rendering. Exactly one penlight in the entire image, held in her hand.",
+      "saved_source": "char/raw/room_redesign_20261018/generated/opening_koharu_v3.png"
+    },
+    {
+      "id": "atlas_akari",
+      "references": [
+        "char/raw/room_redesign_20261018/originals/char/v3/akari_story_atlas.png",
+        "char/raw/room_redesign_20261018/generated/master_akari.png",
+        "char/raw/room_redesign_20261018/generated/opening_akari_v3.png",
+        "char/raw/room_redesign_20261018/originals/char/bg2/ending/cg_ep_akari_v1.png"
+      ],
+      "prompt": "Use case: illustration-story. Edit a production game storyboard atlas. Image1 is the ORIGINAL atlas: preserve its character identities, faces, clothes and EXACT equal cell grid with no gutters, margins, letters or panel borders. Image2 is the NEW CANONICAL empty location. Image3 is the NEW opening at this same location, for room continuity and character rendering. Replace ALL OLD room geometry and props with the canonical location. Same anime painterly quality, each cell a finished 16:9 film still filling its rectangle. Keep coherent physical perspective, characters face the screen they use, keyboard immediately between body and monitor. Screens visible only on front. No houseplants, repeated book/paper piles, metropolitan skyline, ring lights, camera tripods, art sheets or poster walls. Change camera crops without moving furniture/walls. No readable words, captions or overlays. All screen text is small nonlegible lines. Output EXACT 2 columns x 3 rows equal panels, overall aspect 32:27, each cell16:9. Read row-major panel0 to5. Office: two facing gray desks at right of room, Akari left-facing-right, Nishino on opposite right-facing-left; windows blinds rear, copier cabinet/door/umbrella stand left. Do not make side-by-side workstations. Panel0: eight years ago spring daytime, Akari and Nishino smiling in conversation ACROSS their opposite desk seats, one thin document in hand. Panel1: years later after23:00, SAME desk positions, ceiling lights ON, dark low neighboring building through blinds; Akari types at her PC while Nishino paused opposite asks dinner, weary but fond. Panel2: his last workday cloudy rainy daylight, Akari seated at her PC answers CORDED landline, turns slightly to look toward Nishino at LEFT entry door with work bag leaving; opposite seat cleared, monitor off. Panel3: commuter train night, Akari seated with phone, regret; retain original train details and pose, outside low houses and rails blurred, not skyscrapers. Panel4: later lunch break, Akari stands beside same LEFT office doorway/copy cabinet, checks phone with quiet acceptance; yellow umbrella held downward in other hand, navy stays in same stand. This must be office entrance, not a cafe table. Panel5: station-front diner, image4 precisely anchors environment/character/meal: warm wooden counter, striped rice bowl, water, condiment holder left, cook and red curtain rear, phone FACE DOWN beside bowl; yellow folded umbrella hanging down from chair, not lying on food counter. Akari takes one spoonful and smiles. No room migration within office panels.",
+      "saved_source": "char/raw/room_redesign_20261018/generated/atlas_akari.png"
+    },
+    {
+      "id": "atlas_koharu",
+      "references": [
+        "char/raw/room_redesign_20261018/originals/char/v3/koharu_story_atlas_v2.png",
+        "char/raw/room_redesign_20261018/generated/master_koharu.png",
+        "char/raw/room_redesign_20261018/generated/opening_koharu_v3.png"
+      ],
+      "prompt": "Use case: illustration-story. Edit a production game storyboard atlas. Image1 is the ORIGINAL atlas: preserve its character identities, faces, clothes and EXACT equal cell grid with no gutters, margins, letters or panel borders. Image2 is the NEW CANONICAL empty location. Image3 is the NEW opening at this same location, for room continuity and character rendering. Replace ALL OLD room geometry and props with the canonical location. Same anime painterly quality, each cell a finished 16:9 film still filling its rectangle. Keep coherent physical perspective, characters face the screen they use, keyboard immediately between body and monitor. Screens visible only on front. No houseplants, repeated book/paper piles, metropolitan skyline, ring lights, camera tripods, art sheets or poster walls. Change camera crops without moving furniture/walls. No readable words, captions or overlays. All screen text is small nonlegible lines. Output EXACT 2 columns x4 rows equal panels, overall aspect8:9, each cell16:9. Row-major0 to7. Panels0,1,7 remain original schools/compositions: 0 middle school Koharu helps short-haired classmate;1 new highschool Koharu hesitates beside confident long-haired classmate;7 same highschool Koharu asks that classmate for help, friendly study together. Panels2 through6 use IDENTICAL canonical bedroom: bed LEFT lav floral rabbit, rear mint-curtain window with two-story rooftops, honey-wood desk against RIGHT wall, textbook shelf far right, cream chair, rose oval rug beside bed, laptop only. No rearranging desk. Camera from behind-left of her facing right desk, visible 3/4 face. Panel2: evening uniform Koharu at study desk with test, mother in cream sweater standing near room entrance at LEFT foreground holding results, concerned not angry. Since first stream has not happened, no Rei fan cards or penlight YET, corkboard school schedule only. Panel3: SAME night first discovery, Koharu lavender floral pajamas watching laptop, screen shows ordinary stream player with small waist-up purple long-haired star-clip Rei avatar, chat column right and controls; room lights off with soft screen and hallway spill. NO fan cards/penlight yet. Panel4: months later skipped cram school after stream, same desk room dark, laptop screen BLACK with subtle reflection of Koharu holding ONE violet penlight; shelf contains no second penlight, now two handmade Rei fan cards on corkboard. Panel5: afterwards night, CEILING LIGHT ON, girl types thanks on laptop livestream with player + chat + control UI, SINGLE penlight lying inactive beside laptop, no penlight on shelf; two handmade cards. Panel6: same evening, hand gently closes laptop (fully closed), turns ready for bed, ONE unlit penlight stored on shelf; school uniform on hook, bedroom ceiling light still ON just before switching it off. No merchandise shrine, drawing hobby, desktop computer, duplicate props or other bedroom.",
+      "saved_source": "char/raw/room_redesign_20261018/generated/atlas_koharu.png"
+    },
+    {
+      "id": "atlas_rei",
+      "references": [
+        "char/raw/room_redesign_20261018/originals/char/v3/rei_story_atlas_v2.png",
+        "char/raw/room_redesign_20261018/generated/master_rei.png",
+        "char/raw/room_redesign_20261018/generated/opening_rei_v3.png"
+      ],
+      "prompt": "Use case: illustration-story. Edit a production game storyboard atlas. Image1 is the ORIGINAL atlas: preserve its character identities, faces, clothes and EXACT equal cell grid with no gutters, margins, letters or panel borders. Image2 is the NEW CANONICAL empty location. Image3 is the NEW opening at this same location, for room continuity and character rendering. Replace ALL OLD room geometry and props with the canonical location. Same anime painterly quality, each cell a finished 16:9 film still filling its rectangle. Keep coherent physical perspective, characters face the screen they use, keyboard immediately between body and monitor. Screens visible only on front. No houseplants, repeated book/paper piles, metropolitan skyline, ring lights, camera tripods, art sheets or poster walls. Change camera crops without moving furniture/walls. No readable words, captions or overlays. All screen text is small nonlegible lines. Output EXACT 2 columns x4 rows equal panels, overall aspect8:9, each cell16:9. Row-major0to7. Rei real person short purple bob/purple eyes; streaming avatar long purple hair star clip. Panel0: three years ago returning home, preserve original modest dining-kitchen memory with simple meal and propped phone, remove plants and all decorative art, this is legitimately kitchen not bedroom. Panels1to7 SAME canonical rented room: bed+slate curtain window on LEFT wall, gray desk AGAINST FAR WALL, closet/door RIGHT wall, bare wood floor, no shelf or rug. Camera stays at near-left of desk showing girl in 3/4 side profile facing monitor, use medium crops of exact master perspective, no turning desktop toward the audience. Monitor at back of desk, keyboard aligned in front, mouse beside, dynamic mic boom from LEFT. Blue mug. One paperback cream/gray cover with mint tab, thin idea notebook at SIDE not blocking keyboard. Room ceiling light on during work, evening/night window low neighboring house. Panel1: first small livestream years ago, delighted surprised quiet smile reading one comment at screen, one hand near mouth, talking to mic. Panel2: avatar arrives digital asset on monitor front, she smiles hands clasped at PC, avatar software preview, NO design printouts or drawing tools, no claim she created avatar. Panel3: age24 before livestream, weary practicing strained smile toward monitor, one hand to cheek, no ring light or camera. Panel4: same night, hesitant over open thin idea notebook with many crossed-out lines, other hand keyboard deleting announcement on PC, discouraged. Panel5: later evening publishing her chosen book-topic announcement, one hand mouse, other pointing to idea notebook set LEFT of keyboard, cream/gray paperback with mint tab to right. Panel6: same night enthusiastic real smile speaking into mic, open SAME paperback held below mouth so she reads and discusses rather than displays cover to webcam; monitor has small avatar preview, chat column and audio meters. Panel7: after stream, monitor neutral dark desktop with no active avatar/live indicator, she writes ONE checkmark in thin notebook at side, same opened book/mint tab nearby, relaxed smile. No star-patterned merchandising, fantasy memorabilia, cat toys, framed art, camera, ringlight, plants, skyline or replacement furniture.",
+      "saved_source": "char/raw/room_redesign_20261018/generated/atlas_rei.png"
+    },
+    {
+      "id": "koharu_test",
+      "references": [
+        "char/raw/room_redesign_20261018/generated/opening_koharu_v3.png",
+        "char/raw/room_redesign_20261018/originals/char/bg2/story/cg_koharu_playable_memory_v1.png"
+      ],
+      "prompt": "Use case: precise-object-edit. Edit the supplied NEW canonical story illustration, opaque16:9. Preserve the character identity, EXACT architecture, furniture location, window view, camera angle and 2D anime rendering. Change only the described story moment. No room rearrangement, no added monitor, no plants, no decorative book/paper piles, no ring light/camera/art. Screen front faces the person, keyboard between person and screen. Do not bring back obsolete room from any other input. Image1 is edit target and absolute room geometry. Image2 ONLY supplies mother's face and Koharu's navy school uniform; ignore its kitchen. Scene evening test returned, Koharu still in school uniform seated at SAME right-wall desk in SAME cream chair. Laptop CLOSED, exercise notebook open, pen loosely in hand, turn head left over shoulder toward mother, worried expression. Mother cream knit sweater stands near LEFT foreground doorway holding one test paper, gently concerned. Lamp is SAME small lavender angled desk lamp in image1 switched on, also normal ceiling illumination. No invented golden table lamp. Remove penlight AND both Rei postcards because this is before she discovers the stream; keep corkboard school schedule. Bed/rabbit/rug/rear window/schoolbook shelf remain exact.",
+      "saved_source": "char/raw/room_redesign_20261018/generated/koharu_test.png"
+    },
+    {
+      "id": "koharu_first",
+      "references": [
+        "char/raw/room_redesign_20261018/generated/opening_koharu_v3.png"
+      ],
+      "prompt": "Use case: precise-object-edit. Edit the supplied NEW canonical story illustration, opaque16:9. Preserve the character identity, EXACT architecture, furniture location, window view, camera angle and 2D anime rendering. Change only the described story moment. No room rearrangement, no added monitor, no plants, no decorative book/paper piles, no ring light/camera/art. Screen front faces the person, keyboard between person and screen. Do not bring back obsolete room from any other input. Scene first livestream discovery. Keep same pose and room, but girl holds NO penlight: hand loosely rests empty beside open exercise notebook, remove the penlight entirely. Remove both small Rei cards on corkboard, leaving school schedule. Soft surprised grateful smile watching the exact same laptop stream with player+chat UI. Night, room light off, faint screen and hallway illumination. All other objects and rendering unchanged.",
+      "saved_source": "char/raw/room_redesign_20261018/generated/koharu_first.png"
+    },
+    {
+      "id": "koharu_off",
+      "references": [
+        "char/raw/room_redesign_20261018/generated/opening_koharu_v3.png"
+      ],
+      "prompt": "Use case: precise-object-edit. Edit the supplied NEW canonical story illustration, opaque16:9. Preserve the character identity, EXACT architecture, furniture location, window view, camera angle and 2D anime rendering. Change only the described story moment. No room rearrangement, no added monitor, no plants, no decorative book/paper piles, no ring light/camera/art. Screen front faces the person, keyboard between person and screen. Do not bring back obsolete room from any other input. Scene after stream on a night she skipped cram school. Keep one penlight in her hand, shelf has none. Change laptop display to completely OFF black reflective glass, with a faint physically correct reflection of her face/hand violet penlight, no avatar/UI. Her expression tired and alone, no smile. Same dark night lighting and exact room/framing. No other changes.",
+      "saved_source": "char/raw/room_redesign_20261018/generated/koharu_off.png"
+    },
+    {
+      "id": "koharu_comment",
+      "references": [
+        "char/raw/room_redesign_20261018/generated/opening_koharu_v3.png"
+      ],
+      "prompt": "Use case: precise-object-edit. Edit the supplied NEW canonical story illustration, opaque16:9. Preserve the character identity, EXACT architecture, furniture location, window view, camera angle and 2D anime rendering. Change only the described story moment. No room rearrangement, no added monitor, no plants, no decorative book/paper piles, no ring light/camera/art. Screen front faces the person, keyboard between person and screen. Do not bring back obsolete room from any other input. Scene later night she writes sincere thanks then decides to sleep. Normal room CEILING LIGHT ON provides soft neutral warm even illumination (do not add a visible lamp if outside frame), original lavender desk lamp remains same. Same girl in SAME seat now both hands typing on laptop's actual keyboard, notebook moved safely LEFT of laptop so it does not block forearms. ONE penlight placed horizontally unlit at desk's far side, none in hands or shelf. Laptop player+right chat+controls preserved, small avatar, small input line lower chat. Gentle relieved focused expression, do not look toward viewer. All furniture unchanged.",
+      "saved_source": "char/raw/room_redesign_20261018/generated/koharu_comment.png"
+    },
+    {
+      "id": "koharu_closed",
+      "references": [
+        "char/raw/room_redesign_20261018/generated/opening_koharu_v3.png"
+      ],
+      "prompt": "Use case: precise-object-edit. Edit the supplied NEW canonical story illustration, opaque16:9. Preserve the character identity, EXACT architecture, furniture location, window view, camera angle and 2D anime rendering. Change only the described story moment. No room rearrangement, no added monitor, no plants, no decorative book/paper piles, no ring light/camera/art. Screen front faces the person, keyboard between person and screen. Do not bring back obsolete room from any other input. Scene after deciding to sleep while stream continues. Same exact room now normal ceiling light ON, girl same pajamas seated in same cream chair, hand resting on FULLY CLOSED laptop lid, other hand on lap, small relieved genuine smile. Her SINGLE penlight is now unlit on the textbook shelf where an empty space exists; none in hand or desk. Homework notebook remains open beside closed laptop, keep uniform hanging ready on right hook. No mug added, no replacement lamp. Same bed/window/rug/desk and camera. Laptop closed means no screen visible, do not create second laptop.",
+      "saved_source": "char/raw/room_redesign_20261018/generated/koharu_closed.png"
+    },
+    {
+      "id": "akari_atlas_fix",
+      "references": [
+        "char/raw/room_redesign_20261018/generated/atlas_akari.png"
+      ],
+      "prompt": "Use case: precise-object-edit. Preserve this 2-column3-row storyboard atlas EXACTLY with the same dimensions and six equal panels. In bottom-left panel ONLY, remove the EXTRA yellow umbrella from the umbrella stand at left, leaving ONLY ONE navy umbrella in that stand. Akari already holds the sole yellow umbrella in her hand, keep that intact. Do not change anything else in that panel or the other five panels. No new objects or text.",
+      "saved_source": "char/raw/room_redesign_20261018/generated/akari_atlas_fix.png"
+    },
+    {
+      "id": "rei_early",
+      "references": [
+        "char/raw/room_redesign_20261018/generated/opening_rei_v3.png"
+      ],
+      "prompt": "Use case: precise-object-edit. Edit image1, the authoritative NEW Rei bedroom shot. Keep EXACT geometry: gray desk faces FAR wall, window above checked bed LEFT, closet RIGHT, black chair aimed at the SINGLE monitor, keyboard aligned in front of it, mouse immediately right, boom mic LEFT. Keep same camera orientation from behind-left; you may push camera closer so Rei fills about half frame height, never orbit to opposite side or move furniture. Rei stays seated at workstation in 3/4 side profile facing monitor, NOT posing at audience. Same short purple bob/purple eyes/gray cardigan white shirt. Same blue mug and cream paperback with mint tab. One monitor only, no laptop, no extra screen, no art/posters/plants/bookshelf/rug/ringlight/tripod/camera/decor. Natural anime 2D16:9 opaque. Early streaming memory, she reads one small chat comment and smiles in surprised happiness, one hand near mouth. Monitor shows dark streaming software with modest avatar preview/chat/audio meters. Ceiling lamp ON night. Preserve all equipment placements.",
+      "saved_source": "char/raw/room_redesign_20261018/generated/rei_early.png"
+    },
+    {
+      "id": "rei_avatar",
+      "references": [
+        "char/raw/room_redesign_20261018/generated/opening_rei_v3.png"
+      ],
+      "prompt": "Use case: precise-object-edit. Edit image1, the authoritative NEW Rei bedroom shot. Keep EXACT geometry: gray desk faces FAR wall, window above checked bed LEFT, closet RIGHT, black chair aimed at the SINGLE monitor, keyboard aligned in front of it, mouse immediately right, boom mic LEFT. Keep same camera orientation from behind-left; you may push camera closer so Rei fills about half frame height, never orbit to opposite side or move furniture. Rei stays seated at workstation in 3/4 side profile facing monitor, NOT posing at audience. Same short purple bob/purple eyes/gray cardigan white shirt. Same blue mug and cream paperback with mint tab. One monitor only, no laptop, no extra screen, no art/posters/plants/bookshelf/rug/ringlight/tripod/camera/decor. Natural anime 2D16:9 opaque. New avatar has arrived. Daytime from left window, same room. She clasps hands happily at chest looking at monitor. Screen displays digital preview of long purple-haired star-clip avatar upper body with neutral software panels, not a drawing application. One monitor only; no printed reference sheets or art supplies.",
+      "saved_source": "char/raw/room_redesign_20261018/generated/rei_avatar.png"
+    },
+    {
+      "id": "rei_draft",
+      "references": [
+        "char/raw/room_redesign_20261018/generated/opening_rei_v3.png"
+      ],
+      "prompt": "Use case: precise-object-edit. Edit image1, the authoritative NEW Rei bedroom shot. Keep EXACT geometry: gray desk faces FAR wall, window above checked bed LEFT, closet RIGHT, black chair aimed at the SINGLE monitor, keyboard aligned in front of it, mouse immediately right, boom mic LEFT. Keep same camera orientation from behind-left; you may push camera closer so Rei fills about half frame height, never orbit to opposite side or move furniture. Rei stays seated at workstation in 3/4 side profile facing monitor, NOT posing at audience. Same short purple bob/purple eyes/gray cardigan white shirt. Same blue mug and cream paperback with mint tab. One monitor only, no laptop, no extra screen, no art/posters/plants/bookshelf/rug/ringlight/tripod/camera/decor. Natural anime 2D16:9 opaque. Same night age24, subdued discouraged expression. One hand at mouse, other touching a thin open paper notebook placed LEFT beside keyboard, notebook has short crossed-out illegible lines (fourteen drafts), not drawings. Monitor ordinary draft message editor with lines of small text, not active stream. Keep keyboard clear and directly in front of monitor, notebook may be beside but never cover it. Ceiling light ON.",
+      "saved_source": "char/raw/room_redesign_20261018/generated/rei_draft.png"
+    },
+    {
+      "id": "rei_publish",
+      "references": [
+        "char/raw/room_redesign_20261018/generated/opening_rei_v3.png"
+      ],
+      "prompt": "Use case: precise-object-edit. Edit image1, the authoritative NEW Rei bedroom shot. Keep EXACT geometry: gray desk faces FAR wall, window above checked bed LEFT, closet RIGHT, black chair aimed at the SINGLE monitor, keyboard aligned in front of it, mouse immediately right, boom mic LEFT. Keep same camera orientation from behind-left; you may push camera closer so Rei fills about half frame height, never orbit to opposite side or move furniture. Rei stays seated at workstation in 3/4 side profile facing monitor, NOT posing at audience. Same short purple bob/purple eyes/gray cardigan white shirt. Same blue mug and cream paperback with mint tab. One monitor only, no laptop, no extra screen, no art/posters/plants/bookshelf/rug/ringlight/tripod/camera/decor. Natural anime 2D16:9 opaque. Later evening, determined gentle expression. One hand clicks mouse to publish book-topic announcement on screen: small avatar thumbnail and text lines in simple form, no readable prose. Left hand near thin open idea notebook placed LEFT of keyboard, SINGLE cream paperback/mint tab placed RIGHT of monitor. No new hobbies or extra equipment. Ceiling light ON.",
+      "saved_source": "char/raw/room_redesign_20261018/generated/rei_publish.png"
+    },
+    {
+      "id": "rei_book",
+      "references": [
+        "char/raw/room_redesign_20261018/generated/opening_rei_v3.png"
+      ],
+      "prompt": "Use case: precise-object-edit. Edit image1, the authoritative NEW Rei bedroom shot. Keep EXACT geometry: gray desk faces FAR wall, window above checked bed LEFT, closet RIGHT, black chair aimed at the SINGLE monitor, keyboard aligned in front of it, mouse immediately right, boom mic LEFT. Keep same camera orientation from behind-left; you may push camera closer so Rei fills about half frame height, never orbit to opposite side or move furniture. Rei stays seated at workstation in 3/4 side profile facing monitor, NOT posing at audience. Same short purple bob/purple eyes/gray cardigan white shirt. Same blue mug and cream paperback with mint tab. One monitor only, no laptop, no extra screen, no art/posters/plants/bookshelf/rug/ringlight/tripod/camera/decor. Natural anime 2D16:9 opaque. Night livestream discussing her favorite childhood book. Genuine enthusiastic small smile while speaking into her existing LEFT boom mic. She holds the OPEN cream paperback with mint bookmark in both hands BELOW chin and mic, reading and talking, no presenting cover to camera. Same monitor shows streaming software, small waist-up long-purple-hair star-clip avatar, chat and audio meters. Keyboard stays clear in front of monitor. Thin idea notebook at left of keyboard. Ceiling light ON, no staged lighting.",
+      "saved_source": "char/raw/room_redesign_20261018/generated/rei_book.png"
+    },
+    {
+      "id": "rei_done",
+      "references": [
+        "char/raw/room_redesign_20261018/generated/opening_rei_v3.png"
+      ],
+      "prompt": "Use case: precise-object-edit. Edit image1, the authoritative NEW Rei bedroom shot. Keep EXACT geometry: gray desk faces FAR wall, window above checked bed LEFT, closet RIGHT, black chair aimed at the SINGLE monitor, keyboard aligned in front of it, mouse immediately right, boom mic LEFT. Keep same camera orientation from behind-left; you may push camera closer so Rei fills about half frame height, never orbit to opposite side or move furniture. Rei stays seated at workstation in 3/4 side profile facing monitor, NOT posing at audience. Same short purple bob/purple eyes/gray cardigan white shirt. Same blue mug and cream paperback with mint tab. One monitor only, no laptop, no extra screen, no art/posters/plants/bookshelf/rug/ringlight/tripod/camera/decor. Natural anime 2D16:9 opaque. After ending livestream. Same room/pose in chair, she bends slightly writing a SINGLE checkmark with ordinary ballpoint pen in thin notebook placed LEFT of keyboard, relieved smile. Monitor now neutral dark desktop, no active avatar/live indicators. The same cream paperback with mint tab open at RIGHT of keyboard for rereading. One pair of wired headphones on same desk hook. No additional books or props. Ceiling light ON.",
+      "saved_source": "char/raw/room_redesign_20261018/generated/rei_done.png"
+    },
+    {
+      "id": "night_akari",
+      "references": [
+        "char/raw/room_redesign_20261018/generated/master_akari.png"
+      ],
+      "prompt": "Use case: lighting-weather. Edit this exact empty office background. Keep exact aspect ratio, framing, all architecture/furniture/two facing workstations/cabinet/windows/umbrella positions/carpet tiles. Change time to rainy late night outside close neighboring beige low-rise office building. CEILING LIGHTS REMAIN ON with normal even cool-white working illumination, not a dark unlit office. Akari's left workstation screen faintly shows abstract office software facing its chair, opposite monitor off. No people, no additional props/plants/bookpiles/skyscrapers. No changes to camera or layout.",
+      "saved_source": "char/raw/room_redesign_20261018/generated/night_akari.png"
+    },
+    {
+      "id": "night_koharu",
+      "references": [
+        "char/raw/room_redesign_20261018/generated/master_koharu.png"
+      ],
+      "prompt": "Use case: lighting-weather. Edit this exact empty Koharu bedroom background, same dimensions and camera. ONLY change to night: window same low residential tiled roofs dark sky, room ceiling and small lavender desk lamp OFF, soft cool ambient from window and faint warm spill from near entrance so architecture remains visible. Laptop black/off. Exactly ONE penlight on shelf unlit. Keep entire same bed LEFT/rabbit/desk RIGHT/textbooks/window mint curtains/rug shape/cream chair/school uniform. No added objects or plants, no posters beyond2existing fan cards, no new monitor, no chopped rug or furniture changes.",
+      "saved_source": "char/raw/room_redesign_20261018/generated/night_koharu.png"
+    },
+    {
+      "id": "night_rei",
+      "references": [
+        "char/raw/room_redesign_20261018/generated/master_rei.png"
+      ],
+      "prompt": "Use case: lighting-weather. Edit this exact empty Rei bedroom background, same dimensions and camera. Change to evening/night outside same neighboring house at LEFT window. The normal round CEILING lamp is ON, subdued evenly lit ordinary room. One monitor at FAR wall shows faint dark streaming software with small avatar preview and audio meters, no readable words. Black chair empty. Preserve keyboard directly in front of monitor with wrist space, mic boom LEFT, blue mug and mint-tab book, bare floor, bed LEFT, closet RIGHT. Do not add ringlights/cameras/acoustic foam/art/plants/bookshelf/rug/extra monitor. No humans.",
+      "saved_source": "char/raw/room_redesign_20261018/generated/night_rei.png"
+    },
+    {
+      "id": "akari_memory",
+      "references": [
+        "char/raw/room_redesign_20261018/generated/opening_akari_v3.png"
+      ],
+      "prompt": "Use case: precise-object-edit. Keep this SAME16:9 office illustration, same Akari identity cream cardigan/white shirt/lanyard, same camera/windows/two facing desks/copy cabinet/door/umbrellas. Memory after colleague departed: rain on windows outside nighttime low beige building, ceiling lights ON. Akari pauses at keyboard, hand loosely rests beside it, gaze lifts wistfully toward the EMPTY opposite chair across desk at far right. Other hand supports cheek. Remove papers from opposite departed coworker desk, keep only its monitor OFF and keyboard; move a single thin handover folder beside Akari's own left monitor. Add/retain one ordinary corded office landline resting in cradle within Akari's reach to LEFT of her keyboard. No new desktops/plants/rows of desks/skyline. All perspective and monitor orientation unchanged.",
+      "saved_source": "char/raw/room_redesign_20261018/generated/akari_memory.png"
+    },
+    {
+      "id": "koharu_foyer",
+      "references": [
+        "char/raw/room_redesign_20261018/originals/char/bg2/midboss/koharu_v1.png"
+      ],
+      "prompt": "Use case: precise-object-edit. Preserve this empty Japanese home entrance game background, same composition and aspect, door/mirror/shoe cabinet/shoes/step/bench/corridor and soft evening lighting. Remove the vine/potted plant and reed diffuser from top of shoe cabinet, leave small family photo and key tray. Remove three generic stacked cardboard boxes beside bench; leave clear practical passage. Remove violet penlight lying beside schoolbag because the single penlight belongs inside her bedroom, not duplicated in entry. Keep school bag and plain tote on bench, ordinary plausible family entrance. No new props, no humans, no text.",
+      "saved_source": "char/raw/room_redesign_20261018/generated/koharu_foyer.png"
+    },
+    {
+      "id": "akari_diner",
+      "references": [
+        "char/raw/room_redesign_20261018/originals/char/bg2/ending/cg_ep_akari_v1.png"
+      ],
+      "prompt": "Use case: precise-object-edit. Preserve entire16:9 anime image, same adult Akari, happy eating pose/meal/spoon/bowl/phone facedown/water/wood diner counter/cook/red rear curtain/window. Two small changes ONLY: remove potted plant on window ledge, retain real outdoor street greenery; move folded yellow umbrella OFF the eating counter to hang vertically down from chair at far right by its hooked handle, below tabletop, so it matches her prior diner scene. No new props, no room change, same lighting/identity/composition.",
+      "saved_source": "char/raw/room_redesign_20261018/generated/akari_diner.png"
+    },
+    {
+      "id": "opening_akari_final",
+      "references": [
+        "char/raw/room_redesign_20261018/generated/opening_akari_v3.png"
+      ],
+      "prompt": "Use case: lighting-weather. Keep this exact16:9 anime office scene and EVERYTHING in it unchanged except remove implausible SUNLIGHT: remove diagonal bright blind stripes on left wall above copier and any warm sunbeam on floor. Night outside; illuminate interior evenly ONLY from the two existing cool-white ceiling panels. Keep Akari at her keyboard, face/pose, both monitor orientations, all furniture/umbrella/cabinet/window framing identical. No other changes.",
+      "saved_source": "char/raw/room_redesign_20261018/generated/opening_akari_final.png"
+    },
+    {
+      "id": "akari_memory_final",
+      "references": [
+        "char/raw/room_redesign_20261018/generated/akari_memory.png"
+      ],
+      "prompt": "Use case: precise-object-edit. Keep exact16:9 scene, girl and geometry. Correct TWO errors only. (1) The SECOND monitor near RIGHT empty chair: its face points RIGHT toward that empty chair, so the camera sees ONLY its opaque plastic BACK. Replace its visible black screen-like face with a solid matte hardware rear panel with small ventilation slots and a center stand mount, no glass, display or illuminated content. Keep position/angle/stand unchanged. Akari's FIRST monitor at center remains normal screen facing HER to LEFT. (2) Remove bright diagonal sun stripes on LEFT wall above copier and bright sun patch on floor; nighttime illuminated evenly from existing ceiling panels ON. Preserve all other objects, girl's gaze, rain and low neighbor building.",
+      "saved_source": "char/raw/room_redesign_20261018/generated/akari_memory_final.png"
+    }
+  ],
+  "rejected": [
+    "atlas_koharu (room geometry drift; use individual generated frames)",
+    "atlas_rei panels1-7 (extra monitor/layout drift; use individual generated frames)"
+  ],
+  "backup": "char/raw/room_redesign_20261018/originals/"
+}

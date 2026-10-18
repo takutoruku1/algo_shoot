@@ -33,6 +33,8 @@ public partial class Enemy : Area2D
     // パネル構成（派生で設定）。
     protected int PanelCount = 3;
     protected int PanelInk = 2;
+    protected virtual float PanelHpMul => 1f;
+    private int _totalPanelInk;
     protected float OrbitRadius = 18f;
     protected float PanelDisplayScale = 1f; // パネル絵＆当たりの拡縮（ザコ縮小用。ボスは1のまま）
     protected float SpinSpeed = 1.4f; // rad/s
@@ -157,11 +159,12 @@ public partial class Enemy : Area2D
     protected enum BossPhase { Shielded, Resolving, Break, Exposed, Reclose }
     private BossPhase _phase = BossPhase.Shielded;
     private double _phaseT; // 現フェーズ経過秒
-    private bool _shieldTechniqueCompleted;
     private BossCharacterTechnique? _shieldTechnique;
     internal bool UsesTechniqueCycle => GameManager.Instance?.Difficulty >= GameManager.Diff.Normal
         && this is BossAkari or BossKoharu or BossRei or BossMina or CameoBoss;
-    public const int BarHp = 100;                 // 1本=100（HUDで大きく動く）
+    internal bool UsesEasyTechniqueSlots => GameManager.Instance?.Difficulty == GameManager.Diff.Easy
+        && this is BossAkari or BossKoharu or BossRei or BossMina;
+    public int BarHp { get; private set; } = 100;
     protected int BarCount = 0;                    // >0でHPバー方式に。総HP=BarHp×BarCount（派生が設定）。
     private const double VulnDur = 8.0;            // 無防備窓（全難易度共通）
     private const double BreakCueDur = 0.45;       // BREAK タメ＋合図
@@ -182,9 +185,6 @@ public partial class Enemy : Area2D
     //   #25 のHP増（Normal以上+1本）に合わせ 90→100＝ちょうど1本ぶん。未強化でも窓数が伸びすぎない。
     //   #b案：到達した瞬間に窓（VulnDur=4.0s）の残り時間を待たず TickBossPhase が即 EnterReclose へ進める
     //   （火力に投資するほど窓が早く閉じ、次のBREAKへ速く進む＝テンポでリターンを返す。詳細は TickBossPhase 参照）。
-    //   ★2026-09-13：定数をやめ、火力3段（#4 火力2倍 / #8 線+1 / #11 連射2倍）の所持数で
-    //     180 + 35×n へ伸ばす＝火力に投資するほど1窓で通せる量が増え、「強くなったのに窓の中で
-    //     手が空く」を作らない。値の定義元は GameManager.ExposedDamageCap（BodyHitCd は据え置き）。
     protected virtual int WindowCap => GameManager.Instance?.ExposedDamageCap ?? 180;
     private int _windowDamage;                      // 現在の無防備窓で本体へ通した累計ダメージ
     private int _windowHpFloor;
@@ -199,7 +199,7 @@ public partial class Enemy : Area2D
     public static readonly bool ShowDamageNumbers = false;
     // 本体ヒットのクールダウン（同一フレームの多重弾で過剰に削れるのを軽く抑える補助）。
     private double _bodyHitCd;
-    private const double BodyHitCd = 0.05;
+    protected const double BodyHitCd = 0.05;
     private int _maxHp;                             // 総HP（=BarHp×BarCount）
     private int _hp;
     public bool HasHpBar => _maxHp > 0;
@@ -334,7 +334,7 @@ public partial class Enemy : Area2D
     // 派生ボスの「攻めているか」駆動ギミック（レイの逃げ腰圧など）が上書きする。基底は何もしない。
     public virtual void OnPlayerDealtDamage() { }
 
-    internal void AnnounceTechnique(string name, double duration = 5.0)
+    internal void AnnounceTechnique(string name, double duration = 5.0, bool compact = false)
     {
         if (BodyShotJob is not Job job) return;
         var who = Jobs.Get(job).CharacterName;
@@ -345,7 +345,7 @@ public partial class Enemy : Area2D
         };
         if (this is CameoBoss cameo) { who = cameo.Theme.DisplayName; handle = cameo.Theme.Handle; }
         (GetTree().GetFirstNodeInGroup("hud") as Hud)?.AnnounceSpell(who, handle, name,
-            Bullet.BossColor(GameManager.Instance!.SelectedJob, BossShotStyle.Aimed), impact: false, duration: duration);
+            Bullet.BossColor(GameManager.Instance!.SelectedJob, BossShotStyle.Aimed), impact: false, duration: duration, compact: compact);
     }
 
     // 本体に自機弾が刺さった瞬間のフック。fromDir＝弾から本体へ向かう単位ベクトル（＝のけぞる向き）。
@@ -362,7 +362,9 @@ public partial class Enemy : Area2D
         // 無防備窓中だけ本体が自機弾を拾う（EnterExposed/EnterReclose で mask=2 を開閉する）。
         AreaEntered += OnBodyHitByPlayerBullet;
 
+        BarHp = Mathf.RoundToInt(100f * (GameManager.Instance?.BossHpMul ?? 1f));
         OnEnemyReady();
+        _totalPanelInk = Mathf.CeilToInt(PanelCount * PanelInk * PanelHpMul);
         // ★当たり判定は OnEnemyReady の後で作る：BodyRadius / BodyHalfH は派生（MidEnemy / 各ボスの
         //   boss_stats.ini）が OnEnemyReady で上書きするので、その前に作ると全敵が基底の既定値 9px の
         //   まま固定されてしまう（＝「ボスに触っても当たらない」の原因。2026-09-06 修正）。
@@ -376,8 +378,6 @@ public partial class Enemy : Area2D
                 : new CircleShape2D { Radius = BodyRadius },
         };
         AddChild(_bodyShape);
-        // ボスHPは難易度別バー本数で決まる（総HP=BarHp×BarCount）。本数は派生 OnEnemyReady で確定済み。
-        if (UsesTechniqueCycle) BarCount = Mathf.Max(BarCount, TechniqueCycleBars());
         _maxHp = BarCount * BarHp;
         _hp = _maxHp;
         if (_maxHp > 0) _danmaku = new BossDanmaku(this);
@@ -584,7 +584,7 @@ public partial class Enemy : Area2D
         return b;
     }
 
-    // 難易度別HPバー本数（総HP=BarHp×本数）。派生ボスが OnEnemyReady で BarCount に設定する。
+    // EASYを基準にしたバー本数。難易度倍率は各バーのHPへ適用する。
     protected int DiffBars(bool finalBoss) =>
         GetNodeOrNull<GameManager>("/root/Game")?.DiffBarBonus(finalBoss) ?? (finalBoss ? 6 : 4);
 
@@ -758,7 +758,7 @@ public partial class Enemy : Area2D
 
     protected bool TickForm2Technique(double delta, BossMover mover, AreaSpellCaster caster)
     {
-        if (UsesTechniqueCycle)
+        if (UsesTechniqueCycle || UsesEasyTechniqueSlots && this is not BossAkari)
             return _danmaku?.ActiveTechnique is { Finished: false, TechniqueKind: BossTechniqueKind.Signature };
         if (!_form2) return false;
         if (GaugeVulnerable || GaugeReforming || Transforming || IsPurified)
@@ -767,6 +767,7 @@ public partial class Enemy : Area2D
             return false;
         }
         if (AnimalTechniqueActive) return true;
+        if (GaugeAttackResolving) return false;
         _animalTechniqueCooldown -= delta;
         if (!AnimalTechniquePending && _animalTechniqueCooldown <= 0 && !caster.AttackPending)
             AnimalTechniquePending = true;
@@ -824,7 +825,7 @@ public partial class Enemy : Area2D
     private void SpawnPanels()
     {
         for (int i = 0; i < PanelCount; i++)
-            SpawnOnePanel(Mathf.Tau * i / Mathf.Max(1, PanelCount));
+            SpawnOnePanel(Mathf.Tau * i / Mathf.Max(1, PanelCount), i);
         if (_maxHp > 0) OnShieldFormed();
     }
 
@@ -851,10 +852,11 @@ public partial class Enemy : Area2D
         return best;
     }
 
-    private void SpawnOnePanel(float baseAngle)
+    private void SpawnOnePanel(float baseAngle, int index)
     {
         var p = new Panel();
-        p.Setup(this, baseAngle, OrbitRadius, SpinSpeed, PanelsFire, PanelFireInterval, PanelInk, PanelTexPath, PanelDisplayScale);
+        int ink = _totalPanelInk / PanelCount + (index < _totalPanelInk % PanelCount ? 1 : 0);
+        p.Setup(this, baseAngle, OrbitRadius, SpinSpeed, PanelsFire, PanelFireInterval, ink, PanelTexPath, PanelDisplayScale);
         AddChild(p);
         _panels.Add(p);
     }
@@ -882,16 +884,11 @@ public partial class Enemy : Area2D
     // ─── 無防備窓サイクルのフェーズ遷移 ───
     private void ResolveShieldBreak()
     {
-        OnShieldBroken();
-        _shieldLayer?.QueueRedraw();
-        FxLayer.Instance?.BossBreak(GlobalPosition, BodyDisplayH);
-        GameCamera.Instance?.Shake(1.6f, 0.14f);
-        Audio.Instance?.PlaySpell();
-        GetNodeOrNull<GameManager>("/root/Game")?.NotifyBossBreak();
-        if (UsesTechniqueCycle && (!_shieldTechniqueCompleted || TechniqueInProgress))
+        if (TechniqueInProgress)
         {
             _phase = BossPhase.Resolving;
             _phaseT = 0;
+            _shieldLayer?.QueueRedraw();
             QueueRedraw();
             return;
         }
@@ -900,17 +897,26 @@ public partial class Enemy : Area2D
 
     private bool TechniqueInProgress => IsInstanceValid(_shieldTechnique) && !_shieldTechnique!.Finished;
 
-    internal void OnTechniqueStarted(BossCharacterTechnique technique) => _shieldTechnique = technique;
+    internal void OnTechniqueStarted(BossCharacterTechnique technique)
+    {
+        _shieldTechnique = technique;
+        _shieldLayer?.QueueRedraw();
+    }
 
     internal void OnTechniqueFinished(BossCharacterTechnique technique)
     {
-        if (technique.Completed && _phase is BossPhase.Shielded or BossPhase.Resolving)
-            _shieldTechniqueCompleted = true;
+        _shieldLayer?.QueueRedraw();
     }
+
 
     private void EnterBreak()
     {
         _phase = BossPhase.Break; _phaseT = 0;
+        OnShieldBroken();
+        FxLayer.Instance?.BossBreak(GlobalPosition, BodyDisplayH);
+        GameCamera.Instance?.Shake(1.6f, 0.14f);
+        Audio.Instance?.PlaySpell();
+        GetNodeOrNull<GameManager>("/root/Game")?.NotifyBossBreak();
         FxLayer.Instance?.BossBreakCue(GlobalPosition, BodyDisplayH);
         SetDownBody(true);
         _shieldLayer?.QueueRedraw();
@@ -956,7 +962,6 @@ public partial class Enemy : Area2D
     private void EnterShielded()
     {
         _phase = BossPhase.Shielded; _phaseT = 0;
-        _shieldTechniqueCompleted = false;
         _shieldTechnique = null;
         _shieldLayer?.QueueRedraw();
         if (_panels.Count == 0)
@@ -976,24 +981,6 @@ public partial class Enemy : Area2D
 
     internal void RestartShieldCycle() => RallyShield();
 
-    private int TechniqueCycleBars()
-    {
-        int repeats = GameManager.Instance!.Difficulty == GameManager.Diff.Normal ? 2 : 3;
-        int cap = GameManager.MaximumExposedDamageCap;
-        (int Count, float Span)[] segments = this switch
-        {
-            BossAkari => new[] { (10, .48f), (9, .51f) },
-            BossKoharu or BossRei => new[] { (9, .50f), (5, .24f), (5, .25f) },
-            BossMina => new[] { (4, .20f), (4, .22f), (4, .22f), (4, .20f), (3, .15f) },
-            _ => new[] { (2, 1f) },
-        };
-        float hp = 0;
-        // One spare window absorbs rounded story thresholds without cutting a rotation short.
-        foreach (var segment in segments)
-            hp = Mathf.Max(hp, (segment.Count * repeats + 1) * cap / segment.Span);
-        return Mathf.CeilToInt(hp / BarHp);
-    }
-
     private int LimitTechniqueCycleDamage(int damage)
     {
         if (!UsesTechniqueCycle) return damage;
@@ -1010,7 +997,41 @@ public partial class Enemy : Area2D
             _ => 0f,
         };
 
-    // 無防備窓中：本体に当たった自機弾の威力ぶん本体HPを削る。
+    protected int BodyShotDamage(Bullet b, Player? player, out bool crit)
+    {
+        // Charge bypasses the rapid-fire cap, but still respects the window and story HP floors.
+        int dmg = Mathf.Clamp(b.Damage, 1, b.Charged ? 48 : 8);
+
+        // 距離ボーナス（設計書 §2・ジョブ差の本体）。自機が取れない場合は base のまま（null安全）。
+        //   近: Jobs.CloseRange(48px) 以内 → JobDef.CritMult / CritCap（灯し手 ×2.0・上限8／他 ×1.25・上限5）。
+        //       語り手は CritEnabled=false＝密着しても何も起きない。
+        //   遠: Jobs.FarRange(120px) より遠い → JobDef.FarMult（語り手のみ ×1.3）。近接の鏡像。
+        //   両者は排他（48以内 or 120超のどちらか。48〜120 は素の威力）。
+        var job = GetNodeOrNull<GameManager>("/root/Game")?.JobDef;
+        crit = false;
+        if (player is Player pl)
+        {
+            float d = GlobalPosition.DistanceTo(pl.GlobalPosition);
+            if (d <= PointBlankRange && (job?.CritEnabled ?? true))
+            {
+                crit = true;
+                dmg = Mathf.Min(b.Charged ? 48 : job?.CritCap ?? 5, Mathf.RoundToInt(dmg * (job?.CritMult ?? 1.25f)));
+            }
+            else if (d > Jobs.FarRange && (job?.FarMult ?? 1f) > 1f)
+            {
+                crit = true; // 表示は密着クリと同じ金色＝「今の距離が効いている」を同じ語彙で返す
+                dmg = Mathf.RoundToInt(dmg * job!.FarMult);
+                if (b.Charged) dmg = Mathf.Min(dmg, 48);
+            }
+            // QA走行だけ、ジョブの距離ボーナスが実際に効いたかを1ヒットずつログへ出す（検証用）。
+            if (crit && QaPilot.Verbose)
+                GD.Print($"[JOB] {job?.CharacterName} dist={d:0}px raw={b.Damage} -> {dmg} "
+                       + (d <= PointBlankRange ? $"(close x{job?.CritMult:0.00} cap{job?.CritCap})" : $"(far x{job?.FarMult:0.00})"));
+        }
+
+        return player?.PoweredShotDamage(b, dmg) ?? dmg;
+    }
+
     private void OnBodyHitByPlayerBullet(Area2D area)
     {
         if (_phase != BossPhase.Exposed || _purified || Transforming) return;
@@ -1023,7 +1044,8 @@ public partial class Enemy : Area2D
             if (b.Pierce > 0) b.Pierce--;
             else GetNodeOrNull<BulletPool>("/root/Pool")?.Despawn(b);
             // 集中の光（focus_fire）：同一敵への連続ヒットを自機側で計上（対象が変わるとリセット）。
-            (GetTree().GetFirstNodeInGroup("player") as Player)?.NotifyShotHit(this);
+            var player = GetTree().GetFirstNodeInGroup("player") as Player;
+            player?.NotifyShotHit(this);
             OnPlayerDealtDamage(); // 「攻めている」の通知（キャップ/CD で削れないヒットも攻めは攻め）
 
             // 窓キャップ到達後は、この窓では本体HPを削らない（弾の消滅は上で済ませ撃ち心地は残す）。
@@ -1040,35 +1062,7 @@ public partial class Enemy : Area2D
             // 本体ヒットのクールダウン中は削らない（同一フレーム多重弾の過剰削りを軽く抑える補助）。
             if (_bodyHitCd > 0 && !b.Charged) return;
 
-            // Charge bypasses the rapid-fire cap, but still respects the window and story HP floors.
-            int dmg = Mathf.Clamp(b.Damage, 1, b.Charged ? 48 : 8);
-
-            // 距離ボーナス（設計書 §2・ジョブ差の本体）。自機が取れない場合は base のまま（null安全）。
-            //   近: Jobs.CloseRange(48px) 以内 → JobDef.CritMult / CritCap（灯し手 ×2.0・上限8／他 ×1.25・上限5）。
-            //       語り手は CritEnabled=false＝密着しても何も起きない。
-            //   遠: Jobs.FarRange(120px) より遠い → JobDef.FarMult（語り手のみ ×1.3）。近接の鏡像。
-            //   両者は排他（48以内 or 120超のどちらか。48〜120 は素の威力）。
-            var job = GetNodeOrNull<GameManager>("/root/Game")?.JobDef;
-            bool crit = false;
-            if (GetTree().GetFirstNodeInGroup("player") is Player pl)
-            {
-                float d = GlobalPosition.DistanceTo(pl.GlobalPosition);
-                if (d <= PointBlankRange && (job?.CritEnabled ?? true))
-                {
-                    crit = true;
-                    dmg = Mathf.Min(b.Charged ? 48 : job?.CritCap ?? 5, Mathf.RoundToInt(dmg * (job?.CritMult ?? 1.25f)));
-                }
-                else if (d > Jobs.FarRange && (job?.FarMult ?? 1f) > 1f)
-                {
-                    crit = true; // 表示は密着クリと同じ金色＝「今の距離が効いている」を同じ語彙で返す
-                    dmg = Mathf.RoundToInt(dmg * job!.FarMult);
-                    if (b.Charged) dmg = Mathf.Min(dmg, 48);
-                }
-                // QA走行だけ、ジョブの距離ボーナスが実際に効いたかを1ヒットずつログへ出す（検証用）。
-                if (crit && QaPilot.Verbose)
-                    GD.Print($"[JOB] {job?.CharacterName} dist={d:0}px raw={b.Damage} -> {dmg} "
-                           + (d <= PointBlankRange ? $"(close x{job?.CritMult:0.00} cap{job?.CritCap})" : $"(far x{job?.FarMult:0.00})"));
-            }
+            int dmg = BodyShotDamage(b, player, out bool crit);
 
             // 窓キャップ：残り許容ぶんへクランプ（密着クリティカルは上限を超えず到達を早めるだけ）。
             dmg = LimitBodyDamage(LimitTechniqueCycleDamage(Mathf.Min(dmg, WindowCap - _windowDamage)));
@@ -1805,7 +1799,7 @@ public partial class Enemy : Area2D
         switch (_phase)
         {
             case BossPhase.Resolving:
-                if (_shieldTechniqueCompleted && !TechniqueInProgress) EnterBreak();
+                if (!TechniqueInProgress) EnterBreak();
                 break;
             case BossPhase.Break:
                 if (_phaseT >= BreakCueDur) EnterExposed();
@@ -1838,7 +1832,28 @@ public partial class Enemy : Area2D
         if (_maxHp <= 0 || _purified || _entering) return;
         bool breaking = _phase == BossPhase.Break;
         bool reforming = _phase == BossPhase.Reclose;
-        if (!breaking && !reforming && (_phase != BossPhase.Shielded || _panels.Count == 0)) return;
+        bool shielded = _phase is BossPhase.Shielded or BossPhase.Resolving;
+        if (!breaking && !reforming && !shielded) return;
+        if (shielded && GameManager.Instance!.Difficulty == GameManager.Diff.Easy && this is BossAkari
+            && IsInstanceValid(_shieldTechnique)
+            && _shieldTechnique is AkariBossTechnique { Finished: false, UsesEasyReadabilityRules: true })
+        {
+            var guardSize = new Vector2(BodyRadius + 5f, BodyDisplayH * 0.32f);
+            var guardColor = new Color("c2c6cb") * TintLift.Of(_worldTint, TintLift.EnemyBody);
+            for (int side = -1; side <= 1; side += 2)
+            {
+                var points = new[]
+                {
+                    new Vector2(side * (guardSize.X - 4f), -guardSize.Y),
+                    new Vector2(side * guardSize.X, -guardSize.Y + 4f),
+                    new Vector2(side * guardSize.X, guardSize.Y - 4f),
+                    new Vector2(side * (guardSize.X - 4f), guardSize.Y),
+                };
+                layer.DrawPolyline(points, new Color("111722"), 2.2f, true);
+                layer.DrawPolyline(points, new Color(guardColor, 0.62f), 0.8f, true);
+            }
+            return;
+        }
         bool major = PurifyGrade == FxLayer.PurifyTier.Boss;
         CanvasTexture art;
         if (major)
@@ -1861,11 +1876,11 @@ public partial class Enemy : Area2D
         var tint = (major ? Colors.White : new Color("91dfff")) * lift;
         float alpha = (major ? 0.82f + pulse * 0.08f : 0.64f + pulse * 0.08f) * (0.3f + 0.7f * build);
         float integrity = 1f;
-        if (_phase == BossPhase.Shielded)
+        if (shielded)
         {
             int remainingInk = 0;
             foreach (var panel in _panels) remainingInk += panel.Ink;
-            integrity = Mathf.Clamp(remainingInk / (float)(PanelCount * PanelInk), 0f, 1f);
+            integrity = Mathf.Clamp(remainingInk / (float)_totalPanelInk, 0f, 1f);
             alpha *= Mathf.Lerp(0.45f, 1f, integrity);
         }
         if (breaking)

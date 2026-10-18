@@ -14,7 +14,7 @@ public partial class PowerPickupQa : Node
     private string _out = "";
     private static T Read<T>(object o, string name) => (T)o.GetType().GetField(name, Private)!.GetValue(o)!;
     private static void Write(object o, string name, object value) => o.GetType().GetField(name, Private)!.SetValue(o, value);
-    private static void Call(object o, string name) => o.GetType().GetMethod(name, Private)!.Invoke(o, null);
+    private static void Call(object o, string name, params object[] args) => o.GetType().GetMethod(name, Private)!.Invoke(o, args);
     private static void Check(bool ok, string message)
     {
         if (!ok) throw new Exception(message);
@@ -42,7 +42,9 @@ public partial class PowerPickupQa : Node
         {
             Check(OS.GetUserDataDir().Replace('\\', '/').Contains("/build/qa_story/"), "isolated save directory");
             GD.Print($"[PowerQA] saves={OS.GetUserDataDir()}");
-            _out = ProjectSettings.GlobalizePath("res://build/qa_story/power_pickups");
+            typeof(Settings).GetProperty(nameof(Settings.PauseWhenUnfocused))!.GetSetMethod(true)!.Invoke(null, new object[] { false });
+            string? output = OS.GetCmdlineUserArgs().FirstOrDefault(arg => arg.StartsWith("--output="));
+            _out = ProjectSettings.GlobalizePath(output == null ? "res://build/qa_story/power_pickups" : output[9..]);
             DirAccess.MakeDirRecursiveAbsolute(_out);
             _game = GetNode<GameManager>("/root/Game");
             _pool = GetNode<BulletPool>("/root/Pool");
@@ -132,6 +134,7 @@ public partial class PowerPickupQa : Node
         long money = _game.Impression;
         int hits = _game.RunHitCount;
         Check(Enum.GetValues<PowerKind>().All(k => p.PowerLevel(k) == 0), $"{job.CharacterId}: new run has no temporary buffs");
+        var baselineDamage = new Dictionary<string, int>();
         for (int level = 0; level <= 2; level++)
         {
             if (level > 0)
@@ -147,14 +150,14 @@ public partial class PowerPickupQa : Node
                 Call(p, "Fire");
                 int baseCount = job.Id == Job.Magic ? 5 : 2;
                 int shopCount = shop ? (job.Id == Job.Magic ? 2 : 1) : 0;
-                Check(Shots().Length == baseCount + shopCount + level,
-                    $"{job.CharacterId}: level {level}, shop {shop}, exactly {baseCount + shopCount + level} shots");
+                Check(Shots().Length == baseCount + shopCount,
+                    $"{job.CharacterId}: level {level}, shop {shop}, exactly {baseCount + shopCount} shots");
                 Check(Shots().All(b => !b.IsEnemy && ReferenceEquals(Read<BulletArt.PlayerVisual>(b, "_playerVisual"), BulletArt.PlayerShot(job.Id))),
-                    "bonus lines retain the selected character artwork");
+                    "powered shots retain the selected character artwork");
                 if (job.Id == Job.Melee)
                 {
                     for (int i = 0; i < 12; i++) Call(p, "Fire");
-                    Check(Shots().Length <= 6 + level * 3, "acceleration charge cloud remains bounded");
+                    Check(Shots().Length <= 6, "acceleration charge cloud remains bounded");
                 }
                 p.Position = new Vector2(170, 90);
                 Input.ActionPress("ui_down");
@@ -162,9 +165,10 @@ public partial class PowerPickupQa : Node
                 Input.ActionRelease("ui_down");
                 float speed = 75f * job.MoveMul * (shop ? 1.5f : 1f) * (1f + level * 0.25f);
                 Check(Mathf.IsEqualApprox(p.Position.Y - 90f, speed * 0.1f), "actual movement includes temporary and permanent speed");
-                Check(Mathf.IsEqualApprox(p.SlowestMoveSpeed, speed * 0.4f), "AOE reachability uses the same boosted movement");
+                Check(Mathf.IsEqualApprox(p.SlowestMoveSpeed, speed * 0.8f), "AOE reachability uses the same boosted movement");
                 _pool.DespawnAll();
             }
+            CheckDamage(root, level, baselineDamage);
         }
         _game.TrainingSetAllUpgrades(false);
         foreach (var kind in new[] { PowerKind.Line, PowerKind.Speed })
@@ -190,11 +194,68 @@ public partial class PowerPickupQa : Node
             job.CharacterId + " heart pickup heals once with no stored buff");
         Check(_game.ExtraLines == 0 && Mathf.IsEqualApprox(_game.MoveSpeedMul, 1),
             "temporary buffs never modify permanent upgrades");
+        while (Engine.TimeScale < 0.99) await Frames(1);
         Vulnerable(p);
         var hostile = _pool.Spawn(p.Position, Vector2.Zero, true, 3f);
         await Frames(5);
         Check(p.Lives == startingLives - 1 && hostile.Active, "real bullet contact costs life without destroying the bullet");
         await Close(root);
+    }
+
+    private void CheckDamage(AkariRoot root, int level, Dictionary<string, int> baseline)
+    {
+        var player = root.Player;
+        _game.TrainingSetUpgrade("n_lines", false);
+        var body = new Enemy { Position = player.Position + Vector2.Right * 85, ProcessMode = ProcessModeEnum.Disabled };
+        Write(body, "BarCount", 1000);
+        Write(body, "PanelCount", 0);
+        root.World.AddChild(body);
+        var road = new MidEnemy { ProcessMode = ProcessModeEnum.Disabled };
+        road.Configure(EnemyTable.CharactersFor(StageTheme.Akari)[0]);
+        root.World.AddChild(road);
+        var boss = new BossAkari { ProcessMode = ProcessModeEnum.Disabled };
+        root.World.AddChild(boss);
+        var bodyHit = typeof(Enemy).GetMethod("OnBodyHitByPlayerBullet", Private)!;
+        foreach (int tier in new[] { 0, ChargeTier.First, ChargeTier.Second })
+        foreach (string target in new[] { "road", "shield", "body" })
+        {
+            Write(player, "_shotPowerRemainder", 0);
+            var panel = new Panel { ProcessMode = ProcessModeEnum.Disabled };
+            panel.Setup(target == "road" ? road : boss, 0, 18, 0, false, 0, 10000);
+            (target == "road" ? (Enemy)road : boss).AddChild(panel);
+            int hp = Read<int>(body, "_hp");
+            for (int volley = 0; volley < 10; volley++)
+            {
+                _pool.DespawnAll();
+                if (tier == 0) Call(player, "Fire");
+                else Call(player, "FireCharge", tier);
+                var shots = Shots();
+                Check(shots.Length > 0, "damage fixture emits a real player volley");
+                foreach (var bullet in shots)
+                {
+                    if (target == "body")
+                    {
+                        Call(body, "EnterExposed");
+                        bodyHit.Invoke(body, new object[] { bullet });
+                    }
+                    else Call(panel, "OnAreaEntered", bullet);
+                }
+            }
+            int damage = target == "body" ? hp - Read<int>(body, "_hp") : 10000 - panel.Ink;
+            string key = $"{target}/tier{tier}";
+            if (level == 0) baseline[key] = damage;
+            int expectedPercent = new[] { 100, 110, 130 }[level];
+            Check(damage * 100 == baseline[key] * expectedPercent,
+                $"{_game.SelectedJob}/{key}/power{level}: actual damage {damage} vs baseline {baseline[key]} = {expectedPercent}%");
+            panel.QueueFree();
+        }
+        _pool.DespawnAll();
+        var recycled = _pool.Spawn(Vector2.Zero, Vector2.Zero, true);
+        Check(recycled.ShotPowerPercent == 100, "recycled enemy bullet cannot inherit player power");
+        _pool.DespawnAll();
+        body.QueueFree();
+        road.QueueFree();
+        boss.QueueFree();
     }
 
     private object Spawn(PowerKind kind, Vector2 position)
@@ -467,8 +528,8 @@ public partial class PowerPickupQa : Node
             UiKit.BeginDesign(this);
             DrawRect(new Rect2(0, 0, 1280, 720), new Color("232829"));
             UiKit.Text(this, UiKit.ZenBold, new Vector2(64, 56), "ドロップアイテム", 32, Colors.White);
-            string[] names = { "攻撃ライン", "移動速度", "ライフ回復" };
-            string[] levels = { "+1 / +2", "+25% / +50%", "30体撃破で出現 / 1回復" };
+            string[] names = { "弾の威力", "移動速度", "ライフ回復" };
+            string[] levels = { "×1.1 / ×1.3", "+25% / +50%", "30体撃破で出現 / 1回復" };
             for (int i = 0; i < 3; i++)
             {
                 float x = 72 + i * 300;

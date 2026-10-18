@@ -34,9 +34,9 @@ public partial class StageRei : Node
     private Spawner _spawner = null!;
     private int _waveBase;
     private bool _waveSpawnDone;       // 道中ステップ内：規定数を浄化してスポーン停止済み（あとは残ザコ全滅待ち）。各ステップ開始でリセット。
-    private const int MidWaveA = 72;
-    private const int MidWaveB = 28;
-    private const int MidWaveC = 32;
+    private const int MidWaveA = 36;
+    private const int MidWaveB = 14;
+    private const int MidWaveC = 16;
     // 引用の嵐（step 18）で薄く回す道中弾ぶんの見込み体数。この波は「規定数で止める」ゲートを持たず
     // 嵐が終わるまで湧き続けるので、浄化目標(StageTarget)に含めていないと嵐の途中で目標に達し、
     // Spawner が StageCleared で自動停止して以降ずっと敵ゼロになる（＝道中Cが空になる進行不能ぎみの間）。
@@ -104,7 +104,7 @@ public partial class StageRei : Node
     };
 
     // S3-4 中ボス レイ（仮台本 07）。先出しの本人＝中の人。ヘッドセットを首に掛けたパーカー、
-    //   狭い机、リングライトの光が顔に当たっている。第一声のあと、すぐ配信用の笑顔へ切り替わる。
+    //   狭い机でモニターに向かい、第一声のあと、すぐ配信用の笑顔へ切り替わる。
     //   捨て台詞も笑顔のまま。第一声→RECLOSE（順送り）→捨て台詞、の三段で CameoBoss に渡す。
     private static readonly (int who, string text, string face)[] CameoTalk1 =
     {
@@ -583,7 +583,7 @@ public partial class StageRei : Node
             _stepStarted = true;
             _waveBase = game?.PurifiedCount ?? 0;
             _waveSpawnDone = false;
-            StartMidwaveSpawner();
+            StartMidwaveSpawner(MidWaveA);
         }
 
         // ２段階ゲート：①規定数を浄化（or 目標到達でスポーナ自動停止）したらスポーンだけ止める（残ザコは消さない）→②画面のザコを全滅させてから次へ。
@@ -612,7 +612,7 @@ public partial class StageRei : Node
             _stepStarted = true;
             _waveBase = game?.PurifiedCount ?? 0;
             _waveSpawnDone = false;
-            StartMidwaveSpawner(0.35f);
+            StartMidwaveSpawner(MidWaveB, 0.35f);
         }
         // ２段階ゲート：①規定数浄化（or 目標到達）でスポーン停止（残ザコは消さない）→②全滅でミッドシナリオへ。
         if (!_waveSpawnDone && game != null && (game.PurifiedCount - _waveBase >= MidWaveB || (game.StageCleared && !_lunatic)))
@@ -654,7 +654,7 @@ public partial class StageRei : Node
             _storm = new QuoteStorm { Name = "QuoteStorm" };
             World.AddChild(_storm);
             // 通常の道中弾は薄く続ける（11：密度は道中Bの六割）。StartIntensity を下げた Spawner を回す。
-            StartMidwaveSpawner(0.35f);
+            StartMidwaveSpawner(0, 0.35f);
             _spawner.AttackDensity = 0.6f;
         }
         if (_storm == null || !IsInstanceValid(_storm) || _storm.Finished)
@@ -685,8 +685,10 @@ public partial class StageRei : Node
         {
             _stepStarted = true;
             _waveBase = game?.PurifiedCount ?? 0;
+            // 嵐は時間制で撃破数が変わるため、最後の波とボスの残り数をここで確定する。
+            game?.SetStageTarget(_waveBase + MidWaveC + 1);
             _waveSpawnDone = false;
-            StartMidwaveSpawner(0.7f);
+            StartMidwaveSpawner(MidWaveC, 0.7f);
         }
         // ２段階ゲート：①規定数浄化（or 目標到達）でスポーン停止（残ザコは消さない）→②全滅で本ボスへ。
         if (!_waveSpawnDone && game != null && (game.PurifiedCount - _waveBase >= MidWaveC || (game.StageCleared && !_lunatic)))
@@ -758,7 +760,7 @@ public partial class StageRei : Node
         }
     }
 
-    private void StartMidwaveSpawner(float startIntensity = 0f)
+    private void StartMidwaveSpawner(int count, float startIntensity = 0f)
     {
         if (_spawner != null) return;
         (GetTree().GetFirstNodeInGroup("stagebg") as StageBackground)?.BeginRoute();
@@ -767,7 +769,7 @@ public partial class StageRei : Node
         //   ルナティックは除外（理由は StageAkari.StartMidwaveSpawner と同じ＝戦闘を途切れさせない設計）。
         if (!_lunatic) Player?.ReturnToStart();
         // ルナティック：浄化目標に達しても湧きを止めない（嵐の途中で目標に達して以降が敵ゼロになるのを断つ。Spawner 側のコメント参照）。
-        _spawner = new Spawner { Name = "Spawner", World = World, Theme = StageTheme.Rei, StartIntensity = startIntensity, IgnoreStageCleared = _lunatic };
+        _spawner = new Spawner { Name = "Spawner", World = World, Theme = StageTheme.Rei, SpawnLimit = count, StartIntensity = startIntensity, IgnoreStageCleared = _lunatic };
         AddChild(_spawner);
         _spawner.Begin();
     }

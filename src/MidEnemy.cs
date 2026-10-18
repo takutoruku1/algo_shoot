@@ -314,6 +314,7 @@ public partial class MidEnemy : Enemy
 
     // 種ごとの欠片の粒数倍率（EnemySpec.ShardWeight）。粒数だけが変わり、スコアも通貨も不変。
     protected override float ShardMul => _spec.ShardWeight;
+    protected override float PanelHpMul => GameManager.Instance?.RoadHpMul ?? 1f;
 
     protected override Bullet FireBullet(BulletPool pool, Vector2 pos, Vector2 vel, float radius = 3.4f, int dmg = 1,
         bool fromCenter = true)
@@ -328,11 +329,7 @@ public partial class MidEnemy : Enemy
         Points = _spec.Points;
         BodyRadius = ZakoBodyRadius;    // 全種共通（絵の大小に依らず「体に触れたら痛い」を一定に）
         PanelCount = 3;
-        int totalHealth = GameManager.Instance?.Difficulty switch
-        {
-            GameManager.Diff.Easy => 28, GameManager.Diff.Hard => 84,
-            GameManager.Diff.Lunatic => 104, _ => 60,
-        };
+        int totalHealth = 14;
         if (_spec.Pattern is AttackPattern.AkariVacant or AttackPattern.KoharuParcel or AttackPattern.ReiMetrics)
             totalHealth = Mathf.RoundToInt(totalHealth * 1.2f);
         OrbitRadius = 11.5f;
@@ -360,6 +357,7 @@ public partial class MidEnemy : Enemy
             PanelCount = 2;
             totalHealth = Mathf.RoundToInt(totalHealth * 0.4f);
         }
+        // EASYで実際に必要だった耐久を保ち、難易度倍率は基底で総耐久へ一度だけ掛ける。
         PanelInk = Mathf.CeilToInt(totalHealth / (float)PanelCount);
 
         // 進入後は倒されるまで画面内に留まる。

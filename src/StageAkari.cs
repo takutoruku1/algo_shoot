@@ -35,10 +35,10 @@ public partial class StageAkari : Node
 
     private Spawner _spawner = null!;
     private int _waveBase;
-    private const int MidWave0 = 60;
-    private const int MidWaveA = 24;
-    private const int MidWaveB = 26;
-    private const int MidWaveC = 28;
+    private const int MidWave0 = 30;
+    private const int MidWaveA = 12;
+    private const int MidWaveB = 13;
+    private const int MidWaveC = 14;
     // ボスの“チラ見せ”（カメオ）＝本戦ボスと同じ土台の短いミニボス戦（CameoBoss＝Enemy 派生・シールド制）。
     // あかり＝怯え・自責で、攻撃も悲嘆寄り。撃破（HP/サイクル削り切り＝改心）まで Stage は進まない。保険退場は廃止。
     private CameoBoss _cameo = null!;
@@ -619,7 +619,7 @@ public partial class StageAkari : Node
         {
             _stepStarted = true;
             _waveBase = game?.PurifiedCount ?? 0;
-            StartMidwaveSpawner();
+            StartMidwaveSpawner(MidWave0);
         }
         if (game != null && (game.PurifiedCount - _waveBase >= MidWave0 || game.StageCleared))
         {
@@ -638,10 +638,10 @@ public partial class StageAkari : Node
         {
             _stepStarted = true;
             _waveBase = game?.PurifiedCount ?? 0;
-            StartMidwaveSpawner();
+            StartMidwaveSpawner(MidWaveA);
         }
         // 規定数浄化（or 目標到達）で節目＝スポーン停止＋倒し残しの居座りザコを片付けて進む。
-        // 全滅ハント（60体の中で最後の1体探し）を要求しない＝進行不能を防ぐ。戦闘中の居座りは維持。
+        // 最後の1体探しを要求しない＝進行不能を防ぐ。戦闘中の居座りは維持。
         if (game != null && (game.PurifiedCount - _waveBase >= MidWaveA || game.StageCleared))
         {
             _spawner?.Stop(); _spawner = null!;
@@ -659,7 +659,7 @@ public partial class StageAkari : Node
         {
             _stepStarted = true;
             _waveBase = game?.PurifiedCount ?? 0;
-            StartMidwaveSpawner(0.35f);
+            StartMidwaveSpawner(MidWaveB, 0.35f);
         }
         // 規定数浄化（or 目標到達）で節目＝スポーン停止＋居座り片付け＋ミッドシナリオへ（全滅ハント不要＝進行不能を防ぐ）。
         if (game != null && (game.PurifiedCount - _waveBase >= MidWaveB || game.StageCleared))
@@ -679,7 +679,7 @@ public partial class StageAkari : Node
         {
             _stepStarted = true;
             _waveBase = game?.PurifiedCount ?? 0;
-            StartMidwaveSpawner(0.7f);
+            StartMidwaveSpawner(MidWaveC, 0.7f);
         }
         // 規定数浄化（or 目標到達）で節目＝スポーン停止＋居座り片付け＋本ボスへ（全滅ハント不要＝進行不能を防ぐ）。
         if (game != null && (game.PurifiedCount - _waveBase >= MidWaveC || game.StageCleared))
@@ -691,7 +691,7 @@ public partial class StageAkari : Node
         }
     }
 
-    private void StartMidwaveSpawner(float startIntensity = 0f)
+    private void StartMidwaveSpawner(int count, float startIntensity = 0f)
     {
         if (_spawner != null) return;
         (GetTree().GetFirstNodeInGroup("stagebg") as StageBackground)?.BeginRoute();
@@ -701,7 +701,7 @@ public partial class StageAkari : Node
         //     段ごとに入力を預かると「途切れない」設計を壊す（中ボス・ボス・形態変化は向こうでも戻す）。
         //   ・ステージ開始直後の波0 では自機がもう初期位置に居る＝ReturnToStart 側が距離を見て何もしない。
         if (!_lunatic) Player?.ReturnToStart();
-        _spawner = new Spawner { Name = "Spawner", World = World, Theme = StageTheme.Akari, StartIntensity = startIntensity };
+        _spawner = new Spawner { Name = "Spawner", World = World, Theme = StageTheme.Akari, SpawnLimit = count, StartIntensity = startIntensity };
         AddChild(_spawner);
         _spawner.Begin();
     }

@@ -28,8 +28,8 @@ public partial class BossPostSequence : Node
         return sequence;
     }
 
-    private float Threshold(int index) => Mathf.RoundToInt(_thresholds[index] * _boss.TotalBars * Enemy.BarHp)
-        / (float)(_boss.TotalBars * Enemy.BarHp);
+    private float Threshold(int index) => Mathf.RoundToInt(_thresholds[index] * (_boss.TotalBars * _boss.BarHp))
+        / (float)(_boss.TotalBars * _boss.BarHp);
 
     public override void _Ready()
     {
@@ -81,7 +81,7 @@ public partial class BossPostSequence : Node
         {
             _draft = false;
             _finished = true;
-            _boss.DealDirectDamage(Enemy.BarHp * _boss.TotalBars);
+            _boss.DealDirectDamage(_boss.BarHp * _boss.TotalBars);
         });
     }
 

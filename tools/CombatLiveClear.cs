@@ -14,10 +14,14 @@ public partial class CombatRevisionQa
     private ulong _liveTechnique;
     private readonly Queue<string> _liveTrace = new();
     private int _livePlanDepth;
+    private bool _liveAim = true;
+    private ulong _liveGuide;
+    private int _liveGuideBeat = -1, _liveGuidedFrames;
 
     private void BeginLiveClear()
     {
         GD.Seed(2070);
+        Input.UseAccumulatedInput = false;
         _game.Difficulty = GameManager.Diff.Lunatic;
         _game.SelectedJob = Job.Tank;
         _game.TrainingSetUpgrade("n_dodge", true);
@@ -50,7 +54,13 @@ public partial class CombatRevisionQa
         if (_liveVictoryTime > 0 || _liveBoss != null && IsInstanceValid(_liveBoss) && _liveBoss.IsPurified)
         {
             _liveVictoryTime += delta;
+            AutoplayInput.Move(Vector2.Zero);
+            SetLiveKey(Key.Shift, false, ref _liveShift);
+            SetLiveKey(Key.Z, false, ref _liveCharge);
+            SetLiveKey(Key.Space, false, ref _liveDodge);
+            Input.FlushBufferedEvents();
             if (_liveVictoryTime > 3) { EndLiveClear(""); return; }
+            return;
         }
         if (_liveFrame % 300 == 0)
             GD.Print($"[LiveClear] t={_liveTime:F1} hp={_liveBoss?.HpRatio:F3} lives={_livePlayer.Lives} hits={_game.RunHitCount} wall_dodges={_liveWallDodges} p={_livePlayer.Position} speed={_livePlayer.MoveSpeed:F2} mouse={Pad.UsingMouse}");
@@ -64,7 +74,9 @@ public partial class CombatRevisionQa
             Input.FlushBufferedEvents();
             return;
         }
-        SetLiveKey(Key.Shift, true, ref _liveShift);
+        SetLiveKey(Key.Shift, _liveAim, ref _liveShift);
+        // Synthetic movement actions do not set Pad's physical-key device hints.
+        Pad.ReleaseMouseFollow();
         float speed = _livePlayer.SlowestMoveSpeed;
         if (_livePlayer.Dodging || _livePlayer.ReturningToStart)
         {
@@ -77,7 +89,8 @@ public partial class CombatRevisionQa
         {
             var wall = GetTree().GetNodesInGroup("boss_dodge_waves").OfType<BossDodgeWave>().FirstOrDefault(a => !a.Finished);
             var attack = boss.GetChildren().OfType<BossCrossfire>().FirstOrDefault(a => !a.Finished);
-            Node? technique = (Node?)wall ?? attack;
+            var guide = boss.GetChildren().OfType<BossNormalBarrage>().FirstOrDefault(a => !a.Finished);
+            Node? technique = (Node?)wall ?? (Node?)attack ?? guide;
             if (technique != null && technique.GetInstanceId() != _liveTechnique)
             {
                 _liveTechnique = technique.GetInstanceId();
@@ -93,7 +106,7 @@ public partial class CombatRevisionQa
             }
             else
             {
-                Vector2 goal = global::Field.PlayerStart;
+                Vector2 goal = _livePlayer.Position;
                 if (attack != null)
                 {
                     int path = attack.Pincer && !attack.Diagonal ? 8 : attack.Diagonal && boss.HasEvolved ? 4
@@ -113,10 +126,40 @@ public partial class CombatRevisionQa
                         if (cost < best) { best = cost; goal = point; }
                     }
                 }
-                if (wall != null) _liveDirection = Vector2.Zero;
-                else if (_liveFrame % 2 == 0)
+                if (guide != null)
                 {
-                    _liveDirection = PlanLiveMove(_livePlayer, boss, goal, speed);
+                    goal = guide.DodgeTarget;
+                    _liveGuidedFrames++;
+                    if (_liveGuide != guide.GetInstanceId() || _liveGuideBeat != guide.RouteBeat)
+                    {
+                        _liveGuide = guide.GetInstanceId();
+                        _liveGuideBeat = guide.RouteBeat;
+                        GD.Print($"[LiveClear] GUIDE t={_liveTime:F2} wave={guide.RouteBeat} goal={guide.DodgeTarget}");
+                    }
+                }
+                if (wall != null) _liveDirection = Vector2.Zero;
+                else if (guide != null && Hostile().All(b => b.BossBarrageId == guide.GetInstanceId()))
+                {
+                    _liveAim = true;
+                    SetLiveKey(Key.Shift, true, ref _liveShift);
+                    _liveDirection = (goal - _livePlayer.Position).LimitLength(speed * (float)delta) / (speed * (float)delta);
+                }
+                else if (_liveFrame % 4 == 0)
+                {
+                    _liveDirection = PlanLiveMove(_livePlayer, boss, goal, speed, guide != null);
+                    _liveAim = true;
+                    if (_livePlanDepth < LiveSteps)
+                    {
+                        int slowDepth = _livePlanDepth;
+                        Vector2 quick = PlanLiveMove(_livePlayer, boss, goal, speed * 1.25f, guide != null);
+                        if (_livePlanDepth >= slowDepth)
+                        {
+                            _liveDirection = quick;
+                            _liveAim = false;
+                        }
+                        else _livePlanDepth = slowDepth;
+                    }
+                    SetLiveKey(Key.Shift, _liveAim, ref _liveShift);
                     _liveTrace.Enqueue($"[LiveClear] TRACE f={_liveFrame} p={_livePlayer.Position} move={_liveDirection} depth={_livePlanDepth} speed={_livePlayer.MoveSpeed:F2} gap={Clearance(0, _livePlayer.Position):F2}");
                     while (_liveTrace.Count > 20) _liveTrace.Dequeue();
                 }
@@ -124,7 +167,7 @@ public partial class CombatRevisionQa
             }
         }
         _liveChargeDelay -= delta;
-        if (_livePlayer.ChargeFull)
+        if (_livePlayer.ChargeFull && _liveAim)
         {
             if (_liveCharge) _liveChargeDelay = 0.15;
             SetLiveKey(Key.Z, false, ref _liveCharge);
@@ -135,7 +178,7 @@ public partial class CombatRevisionQa
 
     private void SetLiveKey(Key key, bool down, ref bool held)
     {
-        if (held == down) return;
+        if (held == down && Input.IsKeyPressed(key) == down && key != Key.Shift) return;
         held = down;
         Input.ParseInputEvent(new InputEventKey { Keycode = key, Pressed = down, ShiftPressed = key == Key.Shift ? down : _liveShift });
     }
@@ -148,7 +191,7 @@ public partial class CombatRevisionQa
         SetLiveKey(Key.Z, false, ref _liveCharge);
         SetLiveKey(Key.Space, false, ref _liveDodge);
         Input.FlushBufferedEvents();
-        GD.Print($"[LiveClear] {(failure.Length == 0 ? "PASS" : "FAIL " + failure)} frames={_liveFrame} dodges={_livePlayer.DodgeCount} wall_dodges={_liveWallDodges}");
+        GD.Print($"[LiveClear] {(failure.Length == 0 ? "PASS" : "FAIL " + failure)} frames={_liveFrame} hits={_game.RunHitCount} lives={_livePlayer.Lives} bombs={_game.Bombs} god={QaPilot.GodActive} dodges={_livePlayer.DodgeCount} wall_dodges={_liveWallDodges} guided_frames={_liveGuidedFrames}");
         if (OS.GetCmdlineUserArgs().Contains("--live-shots"))
         {
             await ToSignal(RenderingServer.Singleton, RenderingServer.SignalName.FramePostDraw);

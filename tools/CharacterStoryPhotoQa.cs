@@ -39,6 +39,7 @@ public partial class CharacterStoryPhotoQa : Node
             await Frames(2);
             if (OS.GetCmdlineUserArgs().Contains("--progression"))
             {
+                CheckClearAutosave(game);
                 await CheckProgression(game);
                 GD.Print("[PhotoQA] ALL PASS");
                 GetTree().Quit();
@@ -110,6 +111,46 @@ public partial class CharacterStoryPhotoQa : Node
             GD.PushError($"[PhotoQA] FAIL {ex}");
             GetTree().Quit(1);
         }
+    }
+
+    private static void CheckClearAutosave(GameManager game)
+    {
+        foreach (var job in Jobs.All)
+        {
+            game.ResetPersistent();
+            game.AutoSaveEnabled = false;
+            game.Difficulty = GameManager.Diff.Normal;
+            if (job.UnlockStageId.Length > 0) game.CompleteStage(job.UnlockStageId);
+            game.SelectedJob = job.Id;
+            string stage = job.UnlockStageId == "akari" ? "koharu" : "akari";
+            Check(game.SaveToSlot(1), job.CharacterName + ": save the pre-clear manual slot");
+            game.AutoSaveEnabled = true;
+            game.CompleteStage(stage);
+            long impression = game.Impression;
+            int followers = game.Followers;
+            int chapter = game.CharacterChapter(job.Id);
+            bool reiCleared = game.IsStageCleared("rei");
+            Check(game.JustClearedStageId == stage, job.CharacterName + ": clear queues the return dialogue");
+            game.ResetPersistent();
+            Check(game.LoadFromSlot(0), job.CharacterName + ": load the immediate clear autosave before entering the hub");
+            Check(game.IsStageCleared(stage) && game.IsJobUnlocked(job.Id) && game.IsJobUnlocked(Job.Melee),
+                job.CharacterName + ": autosave preserves the cleared stage and unlocked characters");
+            Check(game.SelectedJob == job.Id && game.CharacterChapter(job.Id) == chapter
+                && game.ClearedWithCompanion(stage) == (job.Id != Job.Tank),
+                job.CharacterName + ": autosave preserves the selected character, chapter and return route");
+            Check(game.Impression == impression && game.Followers == followers,
+                job.CharacterName + ": clear rewards are restored exactly once");
+            Check(game.LoadFromSlot(1) && !game.IsStageCleared(stage),
+                job.CharacterName + ": autosave does not overwrite the manual slot");
+            game.AutoSaveEnabled = false;
+            game.CompleteStage("rei");
+            Check(game.LoadFromSlot(0) && game.IsStageCleared("rei") == reiCleared
+                && game.Impression == impression && game.Followers == followers,
+                job.CharacterName + ": disabling autosave leaves the previous clear snapshot intact");
+        }
+        game.ResetPersistent();
+        game.JustClearedStageId = null;
+        game.AutoSaveEnabled = false;
     }
 
     private async Task CheckProgression(GameManager game)

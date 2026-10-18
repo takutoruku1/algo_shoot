@@ -8,13 +8,15 @@ internal sealed class BulletFootprint
     public float Radius { get; }
     public Rect2 Bounds { get; }
     public Vector2[] Hull { get; }
+    public Vector2[][] Contours { get; }
     private static readonly Dictionary<Texture2D, Vector2[][]> Outlines = new();
     private static readonly Dictionary<(Texture2D, Vector2, float), BulletFootprint> Textures = new();
     private static readonly Dictionary<(BulletShape, float), BulletFootprint> Primitives = new();
 
-    private BulletFootprint(Shape2D[] shapes, float radius)
+    private BulletFootprint(Shape2D[] shapes, float radius, Vector2[][]? contours = null)
     {
         Shapes = shapes;
+        Contours = contours ?? System.Array.Empty<Vector2[]>();
         Radius = radius;
         if (shapes.Length == 1 && shapes[0] is CircleShape2D)
         {
@@ -101,15 +103,16 @@ internal sealed class BulletFootprint
 
     private static BulletFootprint Polygons(IEnumerable<Vector2[]> polygons)
     {
+        var contours = polygons.ToArray();
         var shapes = new List<Shape2D>();
         float radius = 0;
-        foreach (var polygon in polygons)
+        foreach (var polygon in contours)
         {
             foreach (var point in polygon) radius = Mathf.Max(radius, point.Length());
             foreach (var convex in Geometry2D.DecomposePolygonInConvex(polygon))
                 shapes.Add(new ConvexPolygonShape2D { Points = convex });
         }
-        return new BulletFootprint(shapes.ToArray(), radius);
+        return new BulletFootprint(shapes.ToArray(), radius, contours);
     }
 
     public static BulletFootprint Primitive(BulletShape kind, float radius)

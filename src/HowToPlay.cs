@@ -488,12 +488,6 @@ public partial class HowToCanvas : Node2D
         }
     }
 
-    // ───────── ページ6：強化アイテム（ザコが落とす4種の欠片・2026-09-22）─────────
-    //   事実は docs/20260922/強化アイテム説明_本文_2026-09-22.md の事実表に従う（落ちる条件・効果・被弾で失う）。
-    //   数値（何体ごと・倍率・段数）は出さない＝効果を並行して調整中のため、嘘にならない書き方にする。
-    //   絵は盤面と同じ PowerPickupArt.Draw（枠＋種類色＋アイコン。絵が無ければ枠と色だけ＝落ちない）。
-    //   語はステージ冒頭のミナの説明（StageTutorial.ItemsAkari）と揃える＝「光が増える／足が速くなる／
-    //   LIFEが増える／被弾を肩代わり」。
     private void DrawPageItems(float x, float y, float w)
     {
         UiKit.Multi(this, UiKit.Zen, new Vector2(x, y),
@@ -503,7 +497,7 @@ public partial class HowToCanvas : Node2D
 
         var rows = new (PowerKind kind, string name, string desc)[]
         {
-            (PowerKind.Line,   "光が増える",     "撃ち方を問わず、放つ光の筋が増える"),
+            (PowerKind.Line,   "光が強くなる",   "弾の威力が1段階で1.1倍、2段階で1.3倍になる"),
             (PowerKind.Speed,  "足が速くなる",   "移動が速くなる。よけやすく、拾いやすく"),
             (PowerKind.Life,   "LIFEを1回復",     "敵を30体倒すと出現。拾ったその場で回復する（最大LIFEまで）"),
         };

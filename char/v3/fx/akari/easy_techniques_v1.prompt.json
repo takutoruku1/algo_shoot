@@ -1,0 +1,32 @@
+{
+  "tool": "built-in image_gen",
+  "transparent_background": true,
+  "references": [
+    "char/v3/bullets/akari_docs.png",
+    "char/v3/fx/akari/card_unsent_1.png",
+    "char/v3/fx/akari/ring_floor.png",
+    "char/v3/boss_akari_body_attack_v3.png"
+  ],
+  "assets": [
+    {
+      "file": "easy_paper_pile_v1.png",
+      "prompt": "Use case: stylized-concept. Asset type: ONE transparent PNG sprite for the EXISTING Japanese anime bullet-hell game Refrain, Akari's attack 'Piling unsent messages'. References: image 1 is the actual existing office-document projectile (preserve white paper, fine blue lines, tiny red tab); image 2 is the existing pale cyan unsent-message effect; image 3 supplies restrained ice-white edge treatment; image 4 is the existing boss and its anime rendering style, do NOT include the character. Draw one compact upright PILE OF UNSENT OFFICE PAPERS, ten loosely stacked sheets with two folded message envelopes tucked in, viewed almost straight on with a very slight view of the tops. Tall narrow overall silhouette, approximately 4:5, enough layered paper edges to read clearly at 24 by 32 game pixels. Pages mostly ivory-white, fine storm-blue shadow planes and crisp dark-blue outlines, a single tiny red paper tab matching reference 1. A few slightly displaced corners suggest a pile about to collapse, but all sheets remain within the single compact object. Premium clean hand-painted anime sprite, clear material layers, no glow or floor shadow. True transparent background, isolated single object with generous transparent margin, no scene, no desk, no character, no magic sigils, no lettering, no fake words, no gold frame. Maintain the existing rainy office/SNS world; do not invent setting or props."
+    },
+    {
+      "file": "easy_rain_cloud_v1.png",
+      "prompt": "Use case: stylized-concept. Asset type: ONE transparent PNG spell-source sprite for Akari's existing attack 'Heavy Rain Forecast' in the Japanese anime game Refrain. References: image 1 gives the small office-paper material; image 2 gives pale blue unsent-message glass; image 3 gives restrained ice-white highlights; image 4 is the boss STYLE reference only, do not draw any character. Create one compact HEAVY RAIN CLOUD whose lower edge breaks into THREE clear elongated rain droplets, not a landscape. Rain is already part of Akari's current rainy-night/unsent-message imagery. Small front-on 2D anime sprite, broad cloud about 4:3 in silhouette, storm-blue and ink-navy inner shadow, crisp cool pearl/cyan edges, two very subtle folded-paper facets inside the cloud referring to the actual document material. The three droplets hang close beneath the same cloud, clearly separate pointed tops and rounded ends. Strong readable outer silhouette at 32 game pixels; restrained painterly cel shading matching reference assets. No yellow danger stripes, no red warning fill, no lightning, no gold, no symbols, no magic circle, no text, no character, no scenery, no extra objects, no ground shadow. True transparent background and generous transparent margins. Single production sprite with no opaque rectangular backplate."
+    },
+    {
+      "file": "easy_silent_message_v1.png",
+      "prompt": "Use case: stylized-concept. Asset type: ONE transparent PNG source sprite for 'Ripples of Silence', Akari's existing attack in Japanese anime bullet-hell Refrain. References: image 2 is the DIRECT design/material reference: pale unsent SNS speech-bubble card that frays at one side; image 3 is the ice-white/cyan wave highlight reference; image 4 only establishes the existing anime style and world. Draw one compact horizontally wide EMPTY MESSAGE BUBBLE, close to reference 2 but with a gently sagging lower edge and small downward tail, suggesting an unanswered message sinking into silence. A softly layered translucent-looking pearl-white/pale cyan face, storm-blue thin edge, three tiny muted-blue ellipsis dots centered inside. One corner begins to loosen into just three tiny paper-like fragments VERY CLOSE to the edge. Front-on 2D hand-painted anime game sprite, approximately 3:2 silhouette, simple legible form at 28 by 18 game pixels. Crisp silhouette, restrained refined shading, no glow cloud or external wave ring, no ground shadow. Preserve reference 2's SNS/unsent-message meaning. No characters, no lips, no skull, no fantasy scenery, no gold, no red/yellow warning areas, no text except the three circular ellipsis dots. True transparent background, generous transparent margins, isolated single production sprite."
+    },
+    {
+      "file": "easy_rain_drop_v1.png",
+      "references": [
+        "easy_rain_cloud_v1.png",
+        "../../boss_akari_body_attack_v3.png"
+      ],
+      "prompt": "Use case: stylized-concept. Asset type: ONE transparent PNG PROJECTILE sprite for the existing 'Heavy Rain Forecast' attack, Japanese anime shooting game Refrain. Image 1 is the matching cloud source sprite, preserve exactly its cool pearl-white/cyan glassy water and storm-blue outlines. Image 2 is the existing boss style reference only, no character. Draw ONE SIMPLE RAIN DROPLET lying HORIZONTALLY: narrow pointed tail on the LEFT, rounded heavy bulb on the RIGHT, forward direction is RIGHT. Clean almost 3:2 overall droplet silhouette with the bulb fully visible, simple crisp navy outer contour, cyan-blue shaded water, a restrained white curved highlight. It must remain unmistakably a water drop when drawn at 8 game pixels, no interior details smaller than the main highlight. True transparent background with generous margins. No cloud, no document, no motion trail, no glow aura, no text, no lightning, no symbols, no scene, no second object. Restrained anime cel-painted material, same existing rainy-night world."
+    }
+  ]
+}

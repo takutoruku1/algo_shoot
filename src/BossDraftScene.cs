@@ -10,6 +10,7 @@ public partial class BossDraftScene : Node2D
     private ProcessModeEnum _worldMode, _gameMode;
     private Action _completed = null!;
     private Texture2D _background = null!, _face = null!;
+    private CutsceneBackdrop _backdrop = null!;
     private bool _suppressed, _held, _started, _leaving, _restored;
     private int _line;
     private double _time, _lineTime, _readTime, _exitTime;
@@ -39,7 +40,8 @@ public partial class BossDraftScene : Node2D
         GetNode<BulletPool>("/root/Pool").DespawnAll();
         if (Audio.Instance is { } audio) audio.Music(audio.StoryBgm(_story.Id, aftermath: true), 3f);
         _background = GD.Load<Texture2D>(_story.RealBackground);
-        _face = GD.Load<Texture2D>(_story.Id == "mina" ? BossMina.CostumePath(4, "idle") : _story.Face);
+        _face = GD.Load<Texture2D>(_story.Id == "mina" ? BossMina.CostumePath(4, "idle") : _story.Lines[0].face);
+        _backdrop = CutsceneBackdrop.Attach(_hud, ZIndex);
         _held = Pad.AdvanceHeld();
     }
 
@@ -87,6 +89,7 @@ public partial class BossDraftScene : Node2D
     {
         _lineTime = _readTime = 0;
         var (who, text, face) = _story.Lines[_line];
+        if (_story.Id != "mina") _face = GD.Load<Texture2D>(face);
         _hud.ShowDialog((Hud.LineKind)who, text, face, otherName: _story.Name);
     }
 
@@ -126,6 +129,7 @@ public partial class BossDraftScene : Node2D
     {
         if (_restored) return;
         _restored = true;
+        if (IsInstanceValid(_backdrop)) _backdrop.Dismiss();
         if (IsInstanceValid(_world)) _world.ProcessMode = _worldMode;
         if (IsInstanceValid(_game)) _game.ProcessMode = _gameMode;
         if (IsInstanceValid(_hud))

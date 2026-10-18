@@ -211,14 +211,14 @@ public partial class PlayerHomeQa : Node
 
         // (a) 道中の波の頭（StartMidwaveSpawner＝波0/A/B/C と、レイ面は引用の嵐もここを通る）
         Write(stage, "_spawner", null);
-        Moment($"{id} 道中の波の頭", player, hud, world, () => Call(stage, "StartMidwaveSpawner", 0f));
+        Moment($"{id} 道中の波の頭", player, hud, world, () => Call(stage, "StartMidwaveSpawner", 0, 0f));
         StopSpawner(stage);
 
         // (b) ルナティックの道中の波の頭＝対象外（会話の区切りを全部飛ばして戦闘を途切れさせない難易度なので、
         //     段ごとに入力を預かると流れを壊す。中ボス・ボス・形態変化は向こうでも戻す＝下の (c)(d)(e)）。
         Write(stage, "_lunatic", true);
         Write(stage, "_spawner", null);
-        NoMoment($"{id} 道中の波の頭（ルナティック）", player, hud, () => Call(stage, "StartMidwaveSpawner", 0f));
+        NoMoment($"{id} 道中の波の頭（ルナティック）", player, hud, () => Call(stage, "StartMidwaveSpawner", 0, 0f));
         StopSpawner(stage);
         Write(stage, "_lunatic", false);
 

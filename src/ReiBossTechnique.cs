@@ -32,6 +32,61 @@ public partial class ReiBossTechnique : BossCharacterTechnique
     private double _selectionBegan, _selectionLockedAt, _selectionRepostAt = -1;
     private static readonly Color Ink = new("bda2ef");
     private static readonly Color Original = new("ffe4a2");
+    private const double EasyCueGrow = 1.2, EasyCueLead = 3.4;
+    private int QuotePulses => 3 + Tier;
+    private double QuoteSpacing => 1 - Tier * .07;
+    private readonly List<EasyQuotePath> _easyPaths = new();
+    private readonly List<EasyEditorialCut> _easyCuts = new();
+    private double _easyEnd;
+    private bool _easySelectionBuilt;
+    private int _easySelectionRound, _easyParagraphsPrepared, _easyFanRowsPrepared, _easyTriangleFacesPrepared, _easyPagesPrepared;
+    private int _easyTriangleFirstEdge;
+    private readonly HashSet<int> _easyRevisionsPrepared = new();
+    private double _easySelectionRecordAt;
+    private bool EasyEditorial => (Kind == BossTechniqueKind.Normal
+        || Kind == BossTechniqueKind.Area && Variant == 0
+        || Kind == BossTechniqueKind.Extra && (!Evolved && Variant == 0 || Evolved && Variant == 1)
+        || Kind is BossTechniqueKind.Signature or BossTechniqueKind.Finale);
+    protected override bool UsesCustomHazardArt => EasyEditorial;
+
+    private sealed class EasyQuotePath
+    {
+        internal string Key = "";
+        internal double StartsAt, FiresAt, ArrivesAt, WarningEndsAt;
+        internal Vector2 From, To, Scale = Vector2.One;
+        internal float HalfWidth, Velocity;
+        internal int Parent = -1, Generation, Hits, SelectionRound = -1, EditGroup = -1;
+        internal bool Draw, Fired, Waiting, Peel;
+        internal Bullet? Shot;
+        internal ulong Activation;
+    }
+
+    private sealed class EasyEditorialCut
+    {
+        internal string Key = "";
+        internal double StartsAt, FiresAt, EndsAt;
+        internal Vector2 A, B;
+        internal float HalfWidth;
+        internal bool Box, Fired;
+    }
+
+    private IReadOnlyList<EasyQuotePath> EasyPaths => _easyPaths;
+    private IReadOnlyList<EasyEditorialCut> EasyCuts => _easyCuts;
+    private float EasyCueProgress(double start) => Mathf.Clamp((float)((Time - start) / EasyCueGrow), 0, 1);
+    internal override IEnumerable<BossEasyCue> EasyCues
+    {
+        get
+        {
+            if (!EasyEditorial) yield break;
+            foreach (var path in _easyPaths)
+                yield return new BossEasyCue(path.Key, path.StartsAt, path.FiresAt, EasyCueProgress(path.StartsAt), path.Fired);
+            foreach (var cut in _easyCuts)
+                yield return new BossEasyCue(cut.Key, cut.StartsAt, cut.FiresAt, EasyCueProgress(cut.StartsAt), cut.Fired);
+            if (Kind is BossTechniqueKind.Finale || Kind == BossTechniqueKind.Area)
+                yield return new BossEasyCue(Kind == BossTechniqueKind.Finale ? "sentence:sweep" : "reader:sweep",
+                    0, EasyCueLead, EasyCueProgress(0), Time >= EasyCueLead);
+        }
+    }
 
     private sealed class EditedWord
     {
@@ -76,6 +131,7 @@ public partial class ReiBossTechnique : BossCharacterTechnique
         _forward = _anchor.X < Field.CenterX ? Vector2.Left : Vector2.Right;
         _source = Side(Mathf.Clamp(_anchor.Y, 48, Field.Bottom - 48));
         _warning = WarnFor(70, Tier == 0 ? 1.7 : 1.35);
+        if (EasyEditorial) { StartEasyEditorial(); return; }
         switch (Kind)
         {
             case BossTechniqueKind.Normal when Variant == 0:
@@ -186,6 +242,7 @@ public partial class ReiBossTechnique : BossCharacterTechnique
 
     protected override void Step(double delta)
     {
+        if (EasyEditorial) { StepEasyEditorial(); return; }
         switch (Kind)
         {
             case BossTechniqueKind.Normal: if (Variant == 0) SelectQuotation(); else if (Variant == 1) QuotedFan(); else Kaleidoscope(); break;
@@ -203,6 +260,508 @@ public partial class ReiBossTechnique : BossCharacterTechnique
                 else { if (Variant == 0) PeelPage(); else RewriteEnding(); }
                 break;
             case BossTechniqueKind.Cameo: if (Variant == 0) QuoteChain(); else QuotationReversal(); break;
+        }
+    }
+
+    private void StartEasyEditorial()
+    {
+        _warning = EasyCueLead;
+        switch (Kind)
+        {
+            case BossTechniqueKind.Normal when Variant == 0:
+                Identify("引用範囲の選択", "rei-selected-frame-cut-quotation", "切り出した左右の引用が反対側へ開く。二度の確定から離れる");
+                BeginEasySelectionRecording(0);
+                break;
+            case BossTechniqueKind.Normal when Variant == 1:
+                Identify("引用の扇", "rei-parent-child-angle", "原文の到着点を空け、三つに分かれる引用の間へ入る");
+                PrepareEasyQuotationFan();
+                break;
+            case BossTechniqueKind.Normal:
+                Identify("反響の万華鏡", "rei-triangle-subdivision", "四方の辺から中心へ届く原文を見て、分割された三角形の部屋を移る");
+                PrepareEasyKaleidoscope();
+                break;
+            case BossTechniqueKind.Area:
+                Identify("コメント一斉読み", "rei-reading-cursor-quotation", "読取り線の余白を通り、読み終えた行から分かれる引用を避ける");
+                BuildEasyReader();
+                break;
+            case BossTechniqueKind.Extra when !Evolved:
+                Identify("引用の段落", "rei-paragraph-opens-seam", "三つの段落へ分かれる行を追い、上下に開く継ぎ目の間を渡る");
+                PrepareEasyParagraph();
+                break;
+            case BossTechniqueKind.Extra:
+                Identify("星翼・書き直した結末", "rei-second-generation-edit", "分かれた文章が止まる編集点から離れ、訂正後の引用を読む");
+                BuildEasyRewrite();
+                break;
+            case BossTechniqueKind.Signature:
+                Identify("星翼・追い越す流星", "rei-edited-page-peeling", "三つの編集先をたどる頁を撃って剥がし、最後に分かれる引用へ備える");
+                BuildEasyEditedPage();
+                break;
+            case BossTechniqueKind.Finale:
+                Identify("最後まで見てて", "rei-continuous-sentence", "先に示された一文の余白を進み、読み終えた場所から離れる");
+                _easyEnd = EasyCueLead + EasySentenceDuration;
+                break;
+        }
+    }
+
+    private static Vector2 EasyExit(Vector2 from, Vector2 direction)
+    {
+        direction = direction.Normalized();
+        var bounds = Field.Rect.Grow(28);
+        float distance = float.MaxValue;
+        if (direction.X > .001f) distance = Mathf.Min(distance, (bounds.End.X - from.X) / direction.X);
+        if (direction.X < -.001f) distance = Mathf.Min(distance, (bounds.Position.X - from.X) / direction.X);
+        if (direction.Y > .001f) distance = Mathf.Min(distance, (bounds.End.Y - from.Y) / direction.Y);
+        if (direction.Y < -.001f) distance = Mathf.Min(distance, (bounds.Position.Y - from.Y) / direction.Y);
+        return from + direction * distance;
+    }
+
+    private int AddEasyQuote(string key, Vector2 from, Vector2 to, double start, double fire,
+        double warningEnd, bool draw, int parent = -1, bool peel = false)
+    {
+        int generation = parent < 0 ? 0 : _easyPaths[parent].Generation + 1;
+        float radius = (Evolved ? BulletPool.BossChargeRadius : BulletPool.BossRadius) * 1.5f * Mathf.Pow(.62f, generation);
+        var art = BulletArt.BossPattern(Job.Magic, 1);
+        float halfWidth = BulletFootprint.Texture(art.Cropped, art.Pivot - art.Region.Position,
+            Bullet.BossArtSize(radius, Evolved)).Radius;
+        Vector2 scale = peel ? new Vector2(2.2f, 3) : Vector2.One;
+        float speed = Speed * Mathf.Pow(.9f, generation);
+        var path = new EasyQuotePath
+        {
+            Key = key, From = from, To = to, StartsAt = start, FiresAt = fire, WarningEndsAt = warningEnd,
+            Velocity = speed, ArrivesAt = fire + from.DistanceTo(to) / speed, HalfWidth = halfWidth * Mathf.Max(scale.X, scale.Y),
+            Parent = parent, Generation = generation, Draw = draw, Peel = peel, Scale = scale,
+            SelectionRound = parent < 0 ? -1 : _easyPaths[parent].SelectionRound,
+        };
+        _easyPaths.Add(path);
+        _easyEnd = Math.Max(_easyEnd, path.ArrivesAt + .1);
+        return _easyPaths.Count - 1;
+    }
+
+    private void AddEasyFan(int parent, string key, Vector2[] destinations, double? fire = null, double? start = null)
+    {
+        var root = _easyPaths[parent];
+        for (int child = 0; child < destinations.Length; child++)
+        {
+            Vector2 end = EasyExit(root.To, root.To.DirectionTo(destinations[child]));
+            AddEasyQuote($"{key}:{child}", root.To, end, start ?? root.StartsAt, fire ?? root.ArrivesAt,
+                start.HasValue ? fire!.Value : root.WarningEndsAt, root.Draw, parent);
+        }
+    }
+
+    private void AddEasyCut(string key, Vector2 a, Vector2 b, float radius, double start, double fire, double end, bool box = false)
+    {
+        _easyCuts.Add(new EasyEditorialCut { Key = key, A = a, B = b, HalfWidth = radius,
+            StartsAt = start, FiresAt = fire, EndsAt = end, Box = box });
+        _easyEnd = Math.Max(_easyEnd, end);
+    }
+
+    private void BeginEasySelectionRecording(int round)
+    {
+        _easySelectionRound = round;
+        _easySelectionRecordAt = Time;
+        _easySelectionBuilt = _selectionLocked = false;
+        _selectionStart = _selectionEnd = Player.GlobalPosition;
+        _selectionRect = SelectedQuotation();
+    }
+
+    private void BuildEasySelectedFrame()
+    {
+        _easySelectionBuilt = true;
+        _selectionLocked = true;
+        _selectionLockedAt = Time;
+        _selectionRect = SelectedQuotation();
+        Vector2 center = _selectionRect.GetCenter();
+        double start = Time, fire = start + EasyCueLead;
+        string key = $"selection:{_easySelectionRound}";
+        AddEasyCut($"{key}:range", _selectionRect.Position, _selectionRect.End, 0, start, fire, fire + 1.15, true);
+        var corners = new[] { _selectionRect.Position, new Vector2(_selectionRect.End.X, _selectionRect.Position.Y),
+            _selectionRect.End, new Vector2(_selectionRect.Position.X, _selectionRect.End.Y) };
+        int opening = center.Y < Field.CenterY ? 2 : 0;
+        for (int side = 0; side < 3; side++)
+        {
+            int edge = (opening + 1 + side) % 4;
+            AddEasyCut($"{key}:frame:{side}", corners[edge], corners[(edge + 1) % 4], 3,
+                start, fire + side * .24, fire + 1.4);
+        }
+        double cut = fire + 1.4;
+        AddEasyCut($"{key}:cut", new Vector2(Field.Left, center.Y), new Vector2(Field.Right, center.Y),
+            3, start, cut, cut + .55);
+        for (int half = 0; half < 2; half++)
+            for (int pulse = 0; pulse < QuotePulses; pulse++)
+            {
+                Vector2 direction = half == 0 ? Vector2.Left : Vector2.Right;
+                Vector2 fork = Inside(new Vector2(Field.Left + Field.Width * (half == 0 ? .25f : .75f),
+                    center.Y + (half == 0 ? -26 : 26)), 24);
+                if (center.DistanceTo(fork) < 40)
+                    fork.Y = Mathf.Clamp(center.Y + (center.Y < Field.CenterY ? 56 : -56), 24, Field.Bottom - 24);
+                int root = AddEasyQuote($"{key}:{half}:{pulse}:parent", center, fork, start,
+                    cut + pulse * .24 * QuoteSpacing, cut, pulse == 0);
+                _easyPaths[root].SelectionRound = _easySelectionRound;
+                float opposite = half == 0 ? Field.Right + 28 : Field.Left - 28;
+                Vector2 reserved = _selectionEnd == fork ? fork + direction : _selectionEnd;
+                AddEasyFan(root, $"{key}:{half}:{pulse}:quote", new[] {
+                    new Vector2(opposite, -12), reserved, new Vector2(opposite, Field.Bottom + 12) });
+            }
+    }
+
+    private void PrepareEasyQuotationFan()
+    {
+        int row = _easyFanRowsPrepared++;
+        Vector2 target = Player.GlobalPosition;
+        float y = new[] { 10f, 76f, 140f, 206f }[row];
+        bool right = row % 2 == 0;
+        Vector2 from = new(right ? Field.Left : Field.Right, y);
+        Vector2 forward = right ? Vector2.Right : Vector2.Left;
+        Vector2 fork = from + forward * 76;
+        if (fork == target) target = fork + forward;
+        double start = row * 1.35, first = start + EasyCueLead;
+        for (int pulse = 0; pulse < QuotePulses + 1; pulse++)
+        {
+            int root = AddEasyQuote($"fan:{row}:{pulse}:parent", from, fork, start,
+                first + pulse * .23 * QuoteSpacing, first, pulse == 0);
+            float farX = right ? Field.Right + 28 : Field.Left - 28;
+            AddEasyFan(root, $"fan:{row}:{pulse}:quote", new[] { new Vector2(farX, -8),
+                target, new Vector2(farX, Field.Bottom + 8) });
+        }
+    }
+
+    private void PrepareEasyKaleidoscope()
+    {
+        int face = _easyTriangleFacesPrepared++;
+        Vector2 center = Player.GlobalPosition;
+        if (face == 0)
+        {
+            float nearest = Math.Min(Math.Min(center.X - Field.Left, Field.Right - center.X),
+                Math.Min(center.Y - Field.Top, Field.Bottom - center.Y));
+            _easyTriangleFirstEdge = nearest == center.Y - Field.Top ? 0 : nearest == Field.Right - center.X ? 1
+                : nearest == Field.Bottom - center.Y ? 2 : 3;
+        }
+        int edgeIndex = (_easyTriangleFirstEdge + new[] { 0, 2, 1, 3 }[face]) % 4;
+        Vector2[] vertices = edgeIndex switch
+        {
+            0 => new[] { new Vector2(Field.Left - 8, -8), new Vector2(Field.Right + 8, -8), new Vector2(center.X, Field.Bottom + 8) },
+            1 => new[] { new Vector2(Field.Right + 8, -8), new Vector2(Field.Right + 8, Field.Bottom + 8), new Vector2(Field.Left - 8, center.Y) },
+            2 => new[] { new Vector2(Field.Left - 8, Field.Bottom + 8), new Vector2(Field.Right + 8, Field.Bottom + 8), new Vector2(center.X, -8) },
+            _ => new[] { new Vector2(Field.Left - 8, -8), new Vector2(Field.Left - 8, Field.Bottom + 8), new Vector2(Field.Right + 8, center.Y) },
+        };
+        double start = face * 4.1, first = start + EasyCueLead;
+        for (int edge = 0; edge < 3; edge++)
+        {
+            Vector2 a = vertices[edge], b = vertices[(edge + 1) % 3];
+            AddEasyCut($"triangle:{face}:edge:{edge}", a, b, 3, start, first + edge * .23, first + 1.7);
+            Vector2 middle = a.Lerp(b, .5f);
+            AddEasyCut($"triangle:{face}:divide:{edge}", middle, center, 2.5f,
+                start, first + 1.7 + edge * .32, first + 2.6 + edge * .32);
+            for (int pulse = 0; pulse < QuotePulses; pulse++)
+            {
+                int root = AddEasyQuote($"triangle:{face}:{edge}:{pulse}:parent", middle, center,
+                    start, first + 1.7 + edge * .32 + pulse * .22 * QuoteSpacing, first + 1.7, pulse == 0);
+                AddEasyFan(root, $"triangle:{face}:{edge}:{pulse}:subdivision", vertices);
+            }
+        }
+    }
+
+    private void PrepareEasyParagraph()
+    {
+        int paragraph = _easyParagraphsPrepared++;
+        double start = paragraph * 2.5, first = start + EasyCueLead;
+        Vector2 target = Player.GlobalPosition;
+        bool right = target.X >= Field.CenterX;
+        Vector2 forward = right ? Vector2.Right : Vector2.Left;
+        float y = target.Y;
+        Vector2 from = new(right ? Field.Left : Field.Right, y), fork = new(target.X - forward.X * 64, y);
+        float[] bands = { Field.Left + Field.Width / 6, Field.CenterX, Field.Right - Field.Width / 6 };
+        int nearestBand = Enumerable.Range(0, bands.Length).MinBy(index => Math.Abs(bands[index] - target.X));
+        float[] otherBands = bands.Where((_, index) => index != nearestBand).ToArray();
+        for (int pulse = 0; pulse < QuotePulses; pulse++)
+        {
+            int root = AddEasyQuote($"paragraph:{paragraph}:{pulse}:original", from, fork, start,
+                first + pulse * .25 * QuoteSpacing, first, pulse == 0);
+            for (int line = 0; line < 3; line++)
+            {
+                float lineY = line == 1 ? y : Mathf.Clamp(y + (line - 1) * 26, 4, Field.Bottom - 4);
+                Vector2 seam = new(line == 1 ? target.X : otherBands[line == 0 ? 0 : 1], lineY);
+                if (fork.DistanceTo(seam) < 40)
+                    seam.Y = Mathf.Clamp(fork.Y + (fork.Y < Field.CenterY ? 56 : -56), 8, Field.Bottom - 8);
+                int child = AddEasyQuote($"paragraph:{paragraph}:{pulse}:line:{line}", fork, seam, start,
+                    _easyPaths[root].ArrivesAt, first, pulse == 0, root);
+                float spread = seam.X < Field.CenterX ? 30 : -30;
+                AddEasyFan(child, $"paragraph:{paragraph}:{pulse}:seam:{line}", new[] {
+                    seam + new Vector2(spread, -100), seam + new Vector2(spread, 100) });
+                if (pulse != 0) continue;
+                double join = _easyPaths[child].ArrivesAt;
+                AddEasyCut($"paragraph:{paragraph}:upper:{line}", new Vector2(seam.X, -8),
+                    new Vector2(seam.X, Mathf.Max(0, seam.Y - 24)), 3, start, join, join + 1.25);
+                AddEasyCut($"paragraph:{paragraph}:lower:{line}", new Vector2(seam.X, Mathf.Min(Field.Bottom, seam.Y + 24)),
+                    new Vector2(seam.X, Field.Bottom + 8), 3, start, join, join + 1.25);
+            }
+        }
+    }
+
+    private void BuildEasyRewrite()
+    {
+        for (int edition = 0; edition < 2; edition++)
+        {
+            bool right = edition == 0;
+            Vector2 forward = right ? Vector2.Right : Vector2.Left;
+            Vector2 from = new(right ? Field.Left : Field.Right, edition == 0 ? 54 : 162);
+            Vector2 fork = from + forward * 64;
+            double start = edition * 2.4, first = start + EasyCueLead;
+            for (int pulse = 0; pulse < QuotePulses; pulse++)
+            {
+                int root = AddEasyQuote($"rewrite:{edition}:{pulse}:original", from, fork,
+                    start, first + pulse * .27 * QuoteSpacing, first, pulse == 0);
+                for (int phrase = 0; phrase < 3; phrase++)
+                {
+                    Vector2 editing = new(Field.CenterX + (edition == 0 ? -14 : 14), 34 + phrase * 74);
+                    int child = AddEasyQuote($"rewrite:{edition}:{pulse}:phrase:{phrase}", fork, editing,
+                        start, _easyPaths[root].ArrivesAt, first, pulse == 0, root);
+                    _easyPaths[child].EditGroup = edition * 3 + phrase;
+                }
+            }
+        }
+    }
+
+    private void PrepareEasyRevision(int group)
+    {
+        _easyRevisionsPrepared.Add(group);
+        var phrases = _easyPaths.Select((path, index) => (path, index)).Where(item => item.path.EditGroup == group).ToArray();
+        Vector2 editing = phrases[0].path.To;
+        Vector2 target = Player.GlobalPosition == editing ? editing + Vector2.Down : Player.GlobalPosition;
+        float opposite = group < 3 ? Field.Right + 28 : Field.Left - 28;
+        double first = Time + EasyCueLead;
+        foreach (var phrase in phrases)
+            AddEasyFan(phrase.index, phrase.path.Key.Replace(":phrase:", ":revision:"), new[] {
+                new Vector2(opposite, -12), target, new Vector2(opposite, Field.Bottom + 12) },
+                first + phrase.path.FiresAt - phrases[0].path.FiresAt, Time);
+    }
+
+    private void BuildEasyEditedPage()
+    {
+        _points = new[] { new Vector2(Field.CenterX - 68, 36), new Vector2(Field.CenterX + 60, 178),
+            new Vector2(Field.CenterX, 108) };
+    }
+
+    private void PrepareEasyEditedPage()
+    {
+        int page = _easyPagesPrepared++;
+        Vector2 target = Player.GlobalPosition;
+        bool right = page == 0 ? target.X < Field.CenterX : target.X >= Field.CenterX;
+        Vector2 from = _points[2] + Vector2.Down * (page == 0 ? -34 : 34);
+        Vector2 fork = new(right ? Field.Right - 48 : Field.Left + 48, Mathf.Clamp(target.Y, 24, Field.Bottom - 24));
+        Vector2 aim = target == fork ? fork + (right ? Vector2.Left : Vector2.Right) : target;
+        float opposite = right ? Field.Left - 28 : Field.Right + 28;
+        double start = Time, first = start + EasyCueLead;
+        for (int pulse = 0; pulse < QuotePulses; pulse++)
+        {
+            int root = AddEasyQuote($"page:{page}:{pulse}:edited", from, fork, start,
+                first + pulse * .33 * QuoteSpacing, first, pulse == 0, peel: true);
+            AddEasyFan(root, $"page:{page}:{pulse}:peel", new[] {
+                new Vector2(opposite, -12), aim, new Vector2(opposite, Field.Bottom + 12) });
+        }
+    }
+
+    private float EasyReaderSpeed => 24 + Tier * 4;
+    private float EasyReaderHalfGap => 31 - Tier * 2;
+    private double EasySentenceDuration => 9.8 - Tier * .8;
+    private float EasySentenceHalfGap => 34 - Tier * 2;
+    private double EasyReaderEnd => EasyCueLead + (Field.Height + 20) / EasyReaderSpeed;
+    private float EasyReaderGap(float progress)
+    {
+        float side = _anchor.X < Field.CenterX ? 1 : -1;
+        return Field.CenterX + side * (99 - Mathf.Sin(Mathf.Clamp(progress, 0, 1) * Mathf.Pi) * 40);
+    }
+
+    private (Vector2 A, Vector2 B, Vector2 C, Vector2 D, float HalfWidth) EasyReaderGeometry(double at)
+    {
+        float y = -10 + Mathf.Clamp((float)(at - EasyCueLead) * EasyReaderSpeed, 0, Field.Height + 20);
+        float gap = EasyReaderGap((y + 10) / (Field.Height + 20));
+        return (new Vector2(Field.Left, y), new Vector2(gap - EasyReaderHalfGap, y),
+            new Vector2(gap + EasyReaderHalfGap, y), new Vector2(Field.Right, y), 4);
+    }
+
+    private IEnumerable<(double At, Vector2 A, Vector2 B, Vector2 C, Vector2 D, float HalfWidth)> EasyReaderFrames
+    {
+        get
+        {
+            for (int step = 0; step <= 20; step++)
+            {
+                double at = EasyCueLead + (EasyReaderEnd - EasyCueLead) * step / 20;
+                var g = EasyReaderGeometry(at);
+                yield return (at, g.A, g.B, g.C, g.D, g.HalfWidth);
+            }
+        }
+    }
+
+    private void BuildEasyReader()
+    {
+        _easyEnd = EasyReaderEnd;
+        for (int row = 0; row < 4; row++)
+        {
+            float y = 12 + row * 64;
+            bool right = row % 2 == 0;
+            double first = EasyCueLead + (y + 10) / EasyReaderSpeed;
+            Vector2 fork = new(EasyReaderGap((y + 10) / (Field.Height + 20)), y);
+            Vector2 from = new(right ? Field.Left : Field.Right, y);
+            for (int pulse = 0; pulse < QuotePulses; pulse++)
+            {
+                int root = AddEasyQuote($"reader:{row}:{pulse}:line", from, fork, first - EasyCueLead,
+                    first + pulse * .28 * QuoteSpacing, first, pulse == 0);
+                AddEasyFan(root, $"reader:{row}:{pulse}:quotation", new[] {
+                    new Vector2(Field.Left - 28, y - 94), new Vector2(Field.Right + 28, y - 94),
+                    new Vector2(_anchor.X, y + 68) });
+            }
+        }
+    }
+
+    private (float Head, float Center, Rect2 Upper, Rect2 Lower, Rect2 Tail) EasySentenceGeometry(double at)
+    {
+        float progress = Mathf.Clamp((float)((at - EasyCueLead) / EasySentenceDuration), 0, 1);
+        bool right = _anchor.X < Field.CenterX;
+        float head = Mathf.Lerp(right ? Field.Left + 26 : Field.Right - 26,
+            right ? Field.Right - 14 : Field.Left + 14, progress);
+        float finish = _anchor.Y < Field.CenterY ? 157 : 59;
+        float center = Mathf.Lerp(108, finish, progress) + Mathf.Sin(progress * Mathf.Tau) * 23;
+        float x0 = Mathf.Max(Field.Left, head - 43), x1 = Mathf.Min(Field.Right, head + 43);
+        var upper = new Rect2(x0, 0, x1 - x0, center - EasySentenceHalfGap);
+        var lower = new Rect2(x0, center + EasySentenceHalfGap, x1 - x0, Field.Bottom - center - EasySentenceHalfGap);
+        float tail = head + (right ? -61 : 61);
+        var behind = right ? new Rect2(Field.Left, 0, Mathf.Max(0, tail - Field.Left), Field.Bottom)
+            : new Rect2(Mathf.Min(Field.Right, tail), 0, Mathf.Max(0, Field.Right - tail), Field.Bottom);
+        return (head, center, upper, lower, behind);
+    }
+
+    private IEnumerable<(double At, float Head, float Center, Rect2 Upper, Rect2 Lower, Rect2 Tail)> EasySentenceFrames
+    {
+        get
+        {
+            for (int step = 0; step <= 32; step++)
+            {
+                double at = EasyCueLead + EasySentenceDuration * step / 32;
+                var g = EasySentenceGeometry(at);
+                yield return (at, g.Head, g.Center, g.Upper, g.Lower, g.Tail);
+            }
+        }
+    }
+
+    private bool EasyQuoteExists(EasyQuotePath path) => path.Shot is { Active: true } shot
+        && shot.ActivationId == path.Activation && shot.BossBarrageId == GetInstanceId();
+
+    private void StepEasyEditorial()
+    {
+        if (Kind == BossTechniqueKind.Normal && Variant == 0 && !_easySelectionBuilt)
+        {
+            _selectionEnd = Player.GlobalPosition;
+            _selectionRect = SelectedQuotation();
+            if (Time >= _easySelectionRecordAt + 1.2) BuildEasySelectedFrame();
+        }
+        if (Kind == BossTechniqueKind.Extra && !Evolved && Variant == 0)
+            while (_easyParagraphsPrepared < 3 && Time >= _easyParagraphsPrepared * 2.5) PrepareEasyParagraph();
+        if (Kind == BossTechniqueKind.Normal && Variant == 1)
+            while (_easyFanRowsPrepared < 4 && Time >= _easyFanRowsPrepared * 1.35) PrepareEasyQuotationFan();
+        if (Kind == BossTechniqueKind.Normal && Variant == 2)
+            while (_easyTriangleFacesPrepared < 4 && Time >= _easyTriangleFacesPrepared * 4.1) PrepareEasyKaleidoscope();
+        if (Kind == BossTechniqueKind.Signature)
+            while (_easyPagesPrepared < 2 && Time >= 2.2 + _easyPagesPrepared * 1.35) PrepareEasyEditedPage();
+        var splitParents = new HashSet<int>();
+        bool beginNextSelection = false;
+        for (int index = 0; index < _easyPaths.Count; index++)
+        {
+            var path = _easyPaths[index];
+            if (path.Draw && Time >= path.StartsAt && Time < path.WarningEndsAt)
+                Line(path.From, path.To, path.HalfWidth, false, EasyCueProgress(path.StartsAt));
+            if (path.Fired || Time < path.FiresAt) continue;
+            Bullet bullet;
+            if (path.Parent < 0) bullet = Shot(path.From, path.From.DirectionTo(path.To), 1);
+            else
+            {
+                var parent = _easyPaths[path.Parent];
+                if (!EasyQuoteExists(parent)) continue;
+                parent.Shot!.GlobalPosition = parent.To;
+                bullet = Pool.SpawnReiFragment(parent.Shot, path.From.DirectionTo(path.To), 0, 0, warnedLaunch: true);
+                Track(bullet);
+                splitParents.Add(path.Parent);
+            }
+            bullet.CancelLeadIn();
+            bullet.MakeReiSplit(0);
+            bullet.GlobalPosition = path.From;
+            bullet.Scale = path.Scale;
+            bullet.Velocity = path.From.DirectionTo(path.To) * path.Velocity;
+            bullet.Rotation = bullet.Velocity.Angle();
+            bullet.ReleaseBossShot();
+            bullet.BossBarrageWave = index;
+            path.Shot = bullet;
+            path.Activation = bullet.ActivationId;
+            path.Fired = true;
+            if (path.Generation == 1 && path.SelectionRound == 0 && _easySelectionRound == 0 && bullet.Active)
+                beginNextSelection = true;
+        }
+        // A parent remains allocated until all siblings inherit its physical properties.
+        foreach (int parent in splitParents) Pool.Despawn(_easyPaths[parent].Shot!);
+        if (beginNextSelection) BeginEasySelectionRecording(1);
+        for (int index = 0; index < _easyPaths.Count; index++)
+        {
+            var path = _easyPaths[index];
+            if (!EasyQuoteExists(path)) continue;
+            if (path.EditGroup >= 0 && Time >= path.ArrivesAt && !_easyRevisionsPrepared.Contains(path.EditGroup))
+                PrepareEasyRevision(path.EditGroup);
+            if (!path.Waiting && Time >= path.ArrivesAt && _easyPaths.Any(p => p.Parent == index && p.FiresAt > Time))
+            {
+                path.Waiting = true;
+                path.Shot!.GlobalPosition = path.To;
+                path.Shot.Velocity = Vector2.Zero;
+                path.Shot.HoldBossShot();
+            }
+            if (path.Peel && path.Hits < 3) PeelEasyPage(path);
+        }
+        foreach (var cut in _easyCuts)
+        {
+            if (Time >= cut.FiresAt) cut.Fired = true;
+            if (Time < cut.StartsAt || Time >= cut.EndsAt) continue;
+            if (cut.Box) Box(new Rect2(cut.A, cut.B - cut.A), cut.Fired, EasyCueProgress(cut.StartsAt));
+            else Line(cut.A, cut.B, cut.HalfWidth, cut.Fired, EasyCueProgress(cut.StartsAt));
+        }
+        if (Kind == BossTechniqueKind.Area && Time >= EasyCueLead && Time < EasyReaderEnd)
+        {
+            var g = EasyReaderGeometry(Time);
+            Line(g.A, g.B, g.HalfWidth, true);
+            Line(g.C, g.D, g.HalfWidth, true);
+        }
+        if (Kind == BossTechniqueKind.Finale && Time >= EasyCueLead && Time < _easyEnd)
+        {
+            var g = EasySentenceGeometry(Time);
+            Box(g.Upper, true);
+            Box(g.Lower, true);
+            if (g.Tail.Size.X > 0) Box(g.Tail, true);
+        }
+        bool pending = Kind == BossTechniqueKind.Normal && Variant == 0 && !_easySelectionBuilt
+            || Kind == BossTechniqueKind.Normal && Variant == 2 && _easyTriangleFacesPrepared < 4
+            || Kind == BossTechniqueKind.Signature && _easyPagesPrepared < 2
+            || Kind == BossTechniqueKind.Extra && Evolved && Variant == 1 && _easyRevisionsPrepared.Count < 6;
+        if (!pending && Time >= _easyEnd && !OwnedShots.Any()) Finish();
+    }
+
+    private void PeelEasyPage(EasyQuotePath page)
+    {
+        var source = page.Shot!;
+        foreach (var shot in GetTree().GetNodesInGroup("player_bullets").OfType<Bullet>().Where(b => b.Active && !b.IsEnemy).ToArray())
+        {
+            bool hit;
+            if (shot.Footprint is { } footprint)
+                hit = source.Footprint!.Shapes.Any(s => footprint.Shapes.Any(p => s.Collide(source.GlobalTransform, p, shot.GlobalTransform)));
+            else
+            {
+                _roundShot ??= new CircleShape2D();
+                _roundShot.Radius = shot.Radius;
+                hit = source.Footprint!.Shapes.Any(s => s.Collide(source.GlobalTransform, _roundShot, shot.GlobalTransform));
+            }
+            if (!hit) continue;
+            Pool.Despawn(shot);
+            page.Hits++;
+            if (page.Hits < 3) continue;
+            source.HoldBossShot();
+            source.Modulate = new Color(1, 1, 1, .35f);
+            break;
         }
     }
 
@@ -1029,6 +1588,7 @@ public partial class ReiBossTechnique : BossCharacterTechnique
 
     protected override void DrawTechnique()
     {
+        if (EasyEditorial) { DrawEasyEditorial(); return; }
         if (!GameManager.ShowAttackTelegraphs) return;
         DrawEditorialCues();
         foreach (var guide in _citationGuides)
@@ -1045,6 +1605,190 @@ public partial class ReiBossTechnique : BossCharacterTechnique
         }
         if (Time - _rejectedAt < .3)
             DrawArc(_rejectedPosition, 12, 0, Mathf.Tau, 20, new Color("ff7568"), 2, true);
+    }
+
+    private void DrawEasyEditorial()
+    {
+        bool warnings = GameManager.ShowAttackTelegraphs;
+        var warning = new Color("f47773") { A = .43f };
+        if (warnings)
+        {
+            if (Kind == BossTechniqueKind.Normal && Variant == 0 && !_easySelectionBuilt)
+            {
+                DrawFilm(_selectionRect.GetCenter(), _selectionRect.Size, new Color(Ink, .65f));
+                DrawQuotation(_selectionStart, 6, new Color(Original, .75f));
+                DrawEditorialMark(_selectionRect.GetCenter() + Vector2.Up * 20, "引用範囲を選択", Original);
+            }
+            foreach (var path in _easyPaths)
+            {
+                if (!path.Draw || Time < path.StartsAt) continue;
+                if (Time < path.WarningEndsAt)
+                    DrawEasyRoute(path.From, path.To, path.HalfWidth, EasyCueProgress(path.StartsAt), warning);
+                if (Time < path.ArrivesAt && _easyPaths.Any(p => p.Parent >= 0 && ReferenceEquals(_easyPaths[p.Parent], path)))
+                {
+                    DrawQuotation(path.To, 5, new Color(Original, .7f));
+                    DrawArc(path.To, 4.5f, 0, Mathf.Tau, 12, new Color(warning, .6f), .65f, true);
+                }
+            }
+            foreach (var cut in _easyCuts)
+            {
+                if (Time < cut.StartsAt || Time >= cut.FiresAt) continue;
+                float progress = EasyCueProgress(cut.StartsAt);
+                if (cut.Box) DrawEasyWarningBox(new Rect2(cut.A, cut.B - cut.A), progress, warning);
+                else DrawEasyRoute(cut.A, cut.B, cut.HalfWidth, progress, warning);
+            }
+            if (Kind == BossTechniqueKind.Area && Time < EasyCueLead) DrawEasyReaderWarning(warning);
+            if (Kind == BossTechniqueKind.Finale && Time < EasyCueLead) DrawEasySentenceWarning(warning);
+            if (Kind == BossTechniqueKind.Signature && Time < 2.2)
+            {
+                for (int edit = 0; edit < _points.Length; edit++)
+                {
+                    DrawCropCorner(_points[edit] + new Vector2(-8, -8), 5, Vector2.One, new Color(Ink, .6f));
+                    DrawEditorialMark(_points[edit] + Vector2.Up * 13, (edit + 1).ToString(), Original);
+                }
+                float t = Mathf.Clamp((float)(Time / 1.1), 0, 2);
+                int leg = Mathf.Min(1, (int)t);
+                Vector2 editor = _points[leg].Lerp(_points[leg + 1], t - leg);
+                DrawFilm(editor, new Vector2(14, 22), new Color(Original, .8f));
+            }
+        }
+        foreach (var path in _easyPaths)
+        {
+            if (!EasyQuoteExists(path)) continue;
+            if (path.Waiting)
+            {
+                DrawFilm(path.To, new Vector2(14, 12), new Color(Ink, .8f));
+                DrawLine(path.To + new Vector2(-7, 3), path.To + new Vector2(7, -3), new Color(Original, .8f), .8f, true);
+            }
+            if (path.Peel && path.Hits < 3)
+                DrawEditorialMark(path.Shot!.GlobalPosition + Vector2.Up * 14, (3 - path.Hits).ToString(), Original);
+        }
+        foreach (var h in HazardShapes.Where(h => h.Live))
+        {
+            var fill = new Color("df737c") { A = .19f };
+            var edge = new Color("ffb09c") { A = .9f };
+            if (h.Shape == 2)
+            {
+                var rect = new Rect2(h.A, h.B - h.A);
+                DrawRect(rect, fill);
+                DrawRect(rect, edge, false, 1, true);
+                for (float x = rect.Position.X + 7; x < rect.End.X; x += 20)
+                    DrawLine(new Vector2(x, rect.Position.Y + 2), new Vector2(Mathf.Min(x + 7, rect.End.X), Mathf.Min(rect.Position.Y + 9, rect.End.Y)), fill, .7f, true);
+            }
+            else
+            {
+                DrawLine(h.A, h.B, fill, h.Radius * 2, true);
+                Vector2 side = h.A.DirectionTo(h.B).Orthogonal() * h.Radius;
+                DrawLine(h.A + side, h.B + side, edge, .9f, true);
+                DrawLine(h.A - side, h.B - side, edge, .9f, true);
+                DrawArc(h.A, h.Radius, 0, Mathf.Tau, 16, edge, .7f, true);
+                DrawArc(h.B, h.Radius, 0, Mathf.Tau, 16, edge, .7f, true);
+            }
+        }
+    }
+
+    private void DrawEasyOrigin(Vector2 at, Color ink)
+    {
+        for (int dash = 0; dash < 4; dash++)
+            DrawArc(at, 3.5f, dash * Mathf.Pi / 2, dash * Mathf.Pi / 2 + .7f, 4, ink, .7f, true);
+    }
+
+    private void DrawEasyRoute(Vector2 from, Vector2 to, float halfWidth, float progress, Color ink)
+    {
+        DrawEasyOrigin(from, ink);
+        float grow = Mathf.Clamp((progress * (float)EasyCueGrow - .4f) / .8f, 0, 1);
+        if (grow <= 0) return;
+        Vector2 end = from.Lerp(to, grow);
+        Vector2 direction = from.DirectionTo(to), side = direction.Orthogonal() * halfWidth;
+        DrawDashedLine(from + side, end + side, ink, .6f, 4, true);
+        DrawDashedLine(from - side, end - side, ink, .6f, 4, true);
+        DrawDashedLine(from, end, new Color(ink, ink.A * .6f), .55f, 6, true);
+        DrawArc(end, halfWidth, 0, Mathf.Tau, 14, new Color(ink, ink.A * .6f), .5f, true);
+        for (float distance = 26; distance < from.DistanceTo(end) - 8; distance += 76)
+        {
+            Vector2 tip = from + direction * distance;
+            DrawLine(tip - direction * 3 + direction.Orthogonal() * 2, tip, ink, .7f, true);
+            DrawLine(tip - direction * 3 - direction.Orthogonal() * 2, tip, ink, .7f, true);
+        }
+    }
+
+    private void DrawEasyWarningBox(Rect2 rect, float progress, Color ink)
+    {
+        DrawEasyOrigin(rect.Position, ink);
+        float grow = Mathf.Clamp((progress * (float)EasyCueGrow - .4f) / .8f, 0, 1);
+        if (grow <= 0) return;
+        var end = rect.Position + rect.Size * grow;
+        Vector2[] corners = { rect.Position, new(end.X, rect.Position.Y), end, new(rect.Position.X, end.Y) };
+        for (int edge = 0; edge < 4; edge++) DrawDashedLine(corners[edge], corners[(edge + 1) % 4], ink, .65f, 4, true);
+    }
+
+    private void DrawEasyReaderWarning(Color ink)
+    {
+        float progress = EasyCueProgress(0);
+        float grow = Mathf.Clamp((progress * (float)EasyCueGrow - .4f) / .8f, 0, 1);
+        var frames = EasyReaderFrames.ToArray();
+        DrawEasyOrigin(new Vector2(Field.Left, 1), ink);
+        if (grow <= 0) return;
+        int last = Mathf.FloorToInt(grow * (frames.Length - 1));
+        if (last > 0)
+        {
+            var left = new List<Vector2> { frames[0].A + new Vector2(-4, -4), frames[last].A + new Vector2(-4, 4) };
+            var right = new List<Vector2> { frames[0].D + new Vector2(4, -4), frames[last].D + new Vector2(4, 4) };
+            for (int frame = last; frame >= 0; frame--)
+            {
+                left.Add(frames[frame].B + Vector2.Right * 4);
+                right.Add(frames[frame].C + Vector2.Left * 4);
+            }
+            DrawColoredPolygon(left.ToArray(), new Color(ink, .035f));
+            DrawColoredPolygon(right.ToArray(), new Color(ink, .035f));
+        }
+        for (int frame = 0; frame <= last; frame++)
+        {
+            var g = frames[frame];
+            if (frame % 4 == 0)
+            {
+                DrawDashedLine(g.A, g.B, new Color(ink, .22f), .55f, 5, true);
+                DrawDashedLine(g.C, g.D, new Color(ink, .22f), .55f, 5, true);
+            }
+            if (frame == 0) continue;
+            var previous = frames[frame - 1];
+            DrawLine(previous.B + Vector2.Right * 4, g.B + Vector2.Right * 4, ink, .7f, true);
+            DrawLine(previous.C + Vector2.Left * 4, g.C + Vector2.Left * 4, ink, .7f, true);
+        }
+        if (progress >= 1)
+        {
+            var g = EasyReaderGeometry(EasyCueLead);
+            DrawEasyRoute(g.A, g.B, g.HalfWidth, 1, ink);
+            DrawEasyRoute(g.C, g.D, g.HalfWidth, 1, ink);
+        }
+    }
+
+    private void DrawEasySentenceWarning(Color ink)
+    {
+        float progress = EasyCueProgress(0);
+        float grow = Mathf.Clamp((progress * (float)EasyCueGrow - .4f) / .8f, 0, 1);
+        var frames = EasySentenceFrames.ToArray();
+        DrawEasyOrigin(new Vector2(frames[0].Head, frames[0].Center - 34), ink);
+        if (grow <= 0) return;
+        int last = Mathf.FloorToInt(grow * (frames.Length - 1));
+        for (int frame = 0; frame <= last; frame++)
+        {
+            var g = frames[frame];
+            DrawRect(g.Upper, new Color(ink, .009f));
+            DrawRect(g.Lower, new Color(ink, .009f));
+            if (g.Tail.Size.X > 0) DrawRect(g.Tail, new Color(ink, .004f));
+            if (frame > 0)
+            {
+                var previous = frames[frame - 1];
+                DrawLine(new Vector2(previous.Head, previous.Center - 34), new Vector2(g.Head, g.Center - 34), ink, .8f, true);
+                DrawLine(new Vector2(previous.Head, previous.Center + 34), new Vector2(g.Head, g.Center + 34), ink, .8f, true);
+            }
+            if (frame % 8 != 0) continue;
+            DrawEasyWarningBox(g.Upper, 1, new Color(ink, .22f));
+            DrawEasyWarningBox(g.Lower, 1, new Color(ink, .22f));
+            float tail = _anchor.X < Field.CenterX ? g.Tail.End.X : g.Tail.Position.X;
+            DrawDashedLine(new Vector2(tail, 0), new Vector2(tail, Field.Bottom), new Color(ink, .2f), .55f, 6, true);
+        }
     }
 
     private void DrawEditorialCues()
