@@ -1,175 +1,31 @@
 using Godot;
 
-// StageBackground : ステージ背景のデータ駆動コントローラ（旧 static 額背景 Sprite2D の置き換え）。
-//
-//   ・道中(mid)背景 ＝ 1枚絵を画面高(216)に合わせて横にタイルし、左へシームレスにループ。
-//     自機は画面内にほぼ留まるので、背景が左へ流れる＝「左→右に前進している」移動感を作る。
-//     （ScrollFx の near/far パララックス層・StageImagery・MurkVignette はこの上にそのまま重なる）
-//   ・ボス(boss)背景 ＝ ボス戦突入(EnterBoss)で道中背景を隠し、専用背景へ差し替え。
-//     軽い動きだけ付ける：ゆっくりした横ドリフト＋ごく弱い呼吸スケール＋光の明滅(modulate)。やり過ぎない。
-//
-//   ・層(layers)背景 ＝ LayerDefs に層定義の配列を入れると BgLayers（L1 -95 / L2 -92 / L3 -91 / L4 -88）へ委譲する。
-//     このとき 1枚絵タイルは作らず、EnterBoss は「背景の差し替え」ではなく「暗転（面によっては明転）」を意味する。
-//     LayerDefs が空なら以下の 1枚絵経路のまま＝既存ステージは何も変わらない。
-//   ・道中3面（あかり／こはる／レイ）は描き込み背景を Route（道中パノラマ）→ Midboss（中ボスの部屋）→ Boss
-//     （ボスの部屋）の順に BeginRoute / BeginMidboss / EnterBoss で切り替える。**会話・選択肢の間も直前の
-//     戦闘背景をそのまま維持する**＝会話用の層セットは持たない（2026-09-22 ユーザー指摘「選択肢で過去の
-//     ボスステージイラストが出る」＝会話のたびに旧四層へ戻していたのを廃止）。開幕は LayerDefs を空にして
-//     RouteLayerDefs を渡す＝道中パノラマを最初から敷き、ステージ開始直後の会話もその上で進む。
-//
-//   ZIndex は旧額背景と同じ -90（ScrollFx -70..-55 / StageImagery -50 / MurkVignette -45 / 弾0.. の奥）。
-//   背景パスは Root から MidBgPath / BossBgPath で注入する＝新アートが来たらパスを差すだけで反映できる。
-//   BossBgPath を空にすると（中ボスのみ等）EnterBoss を呼ばない＝道中背景のまま。
-//   テクスチャが読めなければ何も描かず HasMid=false（Root 側で単色フィルにフォールバック）。
 public partial class StageBackground : Node2D
 {
-    private const float ScreenWidth = 384f;
-    private const float ScreenHeight = 216f;
-
-    // ───── データ駆動パラメータ（Root から代入） ─────
-    public string MidBgPath = "";    // 道中の横スクロール背景（無ければフォールバック）
-    public string BossBgPath = "";   // ボス専用背景（無ければボス突入でも切替なし）
-    // 画像パスではなく生成テクスチャを直接ボス背景に使いたい場合（例：FINAL の暗いグラデ）。
-    // BossBgPath より優先。ラスボのように画像アセットを持たないステージで使う。
-    public Texture2D BossBgTexture = null!;
-    public bool StartInBoss = false; // 道中の無いステージ（ラスボ）は最初からボス背景で軽く動かす。
-
-    // 層システム（BgLayers）へ渡す開幕の層定義。空でなければこちらが使われ、MidBgPath/BossBgPath は無視する。
-    // 道中3面はここを空にして RouteLayerDefs だけ渡す（道中パノラマで開幕）。静的な層セットで始める面
-    // （Stage0 の練習場／FINAL のミナ）だけがここを使う。
-    // どちらも空なら従来どおり 1枚絵タイルの経路に落ちる＝既存ステージは何も変わらない。
     public BgLayers.Layer[] LayerDefs = System.Array.Empty<BgLayers.Layer>();
     public BgLayers.Layer[] RouteLayerDefs = System.Array.Empty<BgLayers.Layer>();
+    public BgLayers.Layer[] LateRouteLayerDefs = System.Array.Empty<BgLayers.Layer>();
+    public BgLayers.Layer[] PassageLayerDefs = System.Array.Empty<BgLayers.Layer>();
+    public BgLayers.Layer[] ClimaxLayerDefs = System.Array.Empty<BgLayers.Layer>();
     public BgLayers.Layer[] MidbossLayerDefs = System.Array.Empty<BgLayers.Layer>();
-    // ボス突入の挙動（暗転／明転）と、明転のときに差し替える層セット。層モードのときだけ意味を持つ。
-    public BgLayers.BossBehavior LayerBossBehavior = BgLayers.BossBehavior.Dim;
     public BgLayers.Layer[] BossLayerDefs = System.Array.Empty<BgLayers.Layer>();
-    // LayerDefs が空でも層モードに入る（開幕は層ゼロ＝背後が透け、あとから層セットを敷く面。FINAL の巡回）。
-    public bool ForceLayers = false;
-    // 1枚絵経路のタイルを置く ZIndex。既定 -90（従来どおり）。FINAL は層(-95..-88)より奥へ
-    // 沈めたいので -96 を渡す＝ミナ自身のグラデが常に最背面に敷かれ、その上を三人の層が巡る。
+    public BgLayers.BossBehavior LayerBossBehavior = BgLayers.BossBehavior.Dim;
+    public bool StartInLateRoute;
+    public bool StartInBoss;
+    public float MidScrollSpeed = 13f;
     public int BaseZ = -90;
+
+    private enum Mode { Mid, Route, Midboss, Boss }
     private BgLayers _layers = null!;
-
-    // 道中ザコ戦の開始（Stage の StartMidwaveSpawner から）。中ボスの部屋から道中パノラマへ戻る。
-    // 開幕が既に Route なら何もしない（同じ層セットへ無駄にクロスフェードしてスクロール位相が飛ぶのを防ぐ）。
-    // ボス突入後は戻らない。会話のたびに呼ぶものではない＝戦闘の切れ目でだけ背景が動く。
-    public void BeginRoute()
-    {
-        if (_mode == Mode.Route || _mode == Mode.Boss || RouteLayerDefs.Length == 0) return;
-        _mode = Mode.Route;
-        _layers.CrossfadeTo(RouteLayerDefs, 0.8f);
-    }
-
-    // 中ボス（カメオ）の登場（Stage の Step_BossCameo から）。道中パノラマから中ボスの部屋へ。
-    // 撃破後の会話・選択肢（こはるのペンライト等）もこの部屋のまま進み、次の道中ザコ戦の BeginRoute で戻る。
-    public void BeginMidboss()
-    {
-        if (_mode == Mode.Midboss || _mode == Mode.Boss || MidbossLayerDefs.Length == 0) return;
-        _mode = Mode.Midboss;
-        _layers.CrossfadeTo(MidbossLayerDefs, 0.8f);
-    }
-
-    // 層セットと「ボス中の見え方」を同時に入れ替える（FINAL の巡回。巡る先の面のボス時の係数に揃える）。
-    public void CrossfadeLayersToBoss(BgLayers.BossBehavior onBoss, BgLayers.Layer[] defs, float dur = 1.0f)
-        => _layers?.CrossfadeToBoss(onBoss, defs, dur);
-
-    // 現行の層をすべて消す（FINAL の巡回の終点。背後のミナ自身の背景だけが残る）。
-    public void FadeOutLayers(float dur = 1.0f) => _layers?.FadeOutAll(dur);
-
-    // ───── tunable（控えめに） ─────
-    public float MidScrollSpeed = 13f;     // px/s。道中背景が左へ流れる速さ＝前進感。控えめ（弾の視認を妨げない／画面酔い対策で半減）
-    public float BossDriftSpeed = 4f;      // px/s。ボス背景の横ドリフト（ゆっくり／半減）
-    public float BossBreathAmp = 0.012f;   // 呼吸スケール振幅（±1.2%。やり過ぎない）
-    public float BossBreathHz = 0.18f;     // 呼吸の周期（Hz）
-    public float BossPulseAmp = 0.06f;     // 光の明滅振幅（modulate ±6%）
-    public float BossPulseHz = 0.5f;       // 明滅の周期（Hz）
+    private Mode _mode = Mode.Mid;
+    private bool _intenseRoute;
+    private Spawner? _routeSpawner;
+    private float _routeFrom, _routeTo, _routeSeconds, _routeElapsed;
+    private float _journey;
+    internal int RouteChapter { get; private set; }
 
     public bool HasMid { get; private set; }
-
-    // Mid ＝ 1枚絵の道中／静的な層セット（Stage0・FINAL）。道中3面は _Ready で Route から始まる。
-    private enum Mode { Mid, Route, Midboss, Boss }
-    private Mode _mode = Mode.Mid;
-    internal bool IsSunset => _mode == Mode.Route && GetParent() is KoharuRoot;
-    private double _t;
-
-    // 道中：横タイル群（左スクロール・シームレスループ）
-    private Sprite2D[] _midTiles = System.Array.Empty<Sprite2D>();
-    private float _midTileW;     // 1枚分の表示幅(px)
-    private float _midX;         // ループ用オフセット
-
-    // ボス：専用背景タイル群（横ドリフトでループ。呼吸/明滅は親 modulate で）
-    private Sprite2D[] _bossTiles = System.Array.Empty<Sprite2D>();
-    private float _bossTileW;
-    private float _bossX;
-    private Texture2D _bossTex = null!;     // 遅延ロード（EnterBoss で初めて読む）
-    private bool _bossReady;
-
-    // ───── ボス背景クロスフェード（FINAL：歴代ボス背景の追体験）─────
-    // 既存のボスタイル群(_bossTiles)を「現行層」とし、切替のたびに別の Sprite2D 群を「新層」として
-    // 生成→α0→1 でフェードイン、旧層はα1→0 で捨てる。WorldGrade と同じ作法＝唐突に切り替えない。
-    // Dim は「歴代背景は道中用で明るい」ため必須：ボス弾幕の下では暗め・低コントラストに落として敷く。
-    private Sprite2D[] _fadeTiles = System.Array.Empty<Sprite2D>();
-    private float _fadeX, _fadeTileW;
-    private float _fadeT, _fadeDur = 2.4f;
-    private bool _fading;
-    private Color _curDim = Colors.White, _newDim = Colors.White;
-
-    // 指定した背景テクスチャへクロスフェードする（ボスモード限定）。
-    //   path : res:// テクスチャ。読めなければ何もしない（現行背景を残す＝事故らない）。
-    //   dim  : 敷き色。歴代の道中背景はここで暗く沈める（例 0.34,0.30,0.42）。
-    //   dur  : フェード秒。
-    public void CrossfadeBossTo(string path, Color dim, float dur = 2.4f)
-    {
-        if (string.IsNullOrEmpty(path) || !ResourceLoader.Exists(path)) return;
-        var tex = ResourceLoader.Load<Texture2D>(path);
-        if (tex == null) return;
-        CrossfadeBossTo(tex, dim, dur);
-    }
-
-    public void CrossfadeBossTo(Texture2D tex, Color dim, float dur = 2.4f)
-    {
-        if (tex == null) return;
-        if (_layers != null) return;    // 層モードは1枚絵のクロスフェードを持たない（層ごとの入替は別タスク）
-        if (_fading) FinishFade();       // 連続要求：進行中のフェードを即着地させてから次へ（層が増えない）
-        if (!_bossReady) SetupBoss();
-        _mode = Mode.Boss;
-        foreach (var s in _midTiles) s.Visible = false;
-
-        float scale = ScreenHeight / tex.GetHeight();
-        _fadeTileW = tex.GetWidth() * scale;
-        int count = Mathf.Max(2, Mathf.CeilToInt(ScreenWidth / _fadeTileW) + 2);
-        var tiles = new Sprite2D[count];
-        for (int i = 0; i < count; i++)
-        {
-            var spr = new Sprite2D
-            {
-                Name = $"Fade{i}",
-                Texture = tex, Centered = false,
-                Scale = new Vector2(scale, scale),
-                Position = new Vector2(i * _fadeTileW, 0f),
-                ZIndex = BaseZ + 1, ZAsRelative = false,   // 現行層(BaseZ)のすぐ手前に重ねる
-                TextureFilter = CanvasItem.TextureFilterEnum.Linear,
-                Modulate = new Color(dim.R, dim.G, dim.B, 0f),
-            };
-            AddChild(spr);
-            tiles[i] = spr;
-        }
-        _fadeTiles = tiles; _fadeX = _bossX; _newDim = dim;
-        _fadeT = 0f; _fadeDur = Mathf.Max(0.05f, dur); _fading = true;
-    }
-
-    // 新層を現行層に昇格させ、旧層を破棄する。
-    private void FinishFade()
-    {
-        if (!_fading) return;
-        foreach (var s in _bossTiles) s.QueueFree();
-        foreach (var s in _fadeTiles) { s.ZIndex = BaseZ; s.Modulate = _newDim; }
-        _bossTiles = _fadeTiles; _bossTileW = _fadeTileW; _bossX = _fadeX;
-        _curDim = _newDim;
-        _fadeTiles = System.Array.Empty<Sprite2D>();
-        _fading = false;
-    }
+    internal bool IsSunset => _mode == Mode.Route && !_intenseRoute && GetParent() is KoharuRoot;
 
     public override void _Ready()
     {
@@ -177,203 +33,98 @@ public partial class StageBackground : Node2D
         ZAsRelative = false;
         AddToGroup("stagebg");
 
-        // 層リストが与えられていれば BgLayers に委譲する（1枚絵タイルは作らない）。
-        // 開幕の層セット：LayerDefs が空で道中パノラマ（RouteLayerDefs）があれば、それを最初から敷いて
-        // Route で始める＝ステージ開始直後の会話（最初の道中ザコ戦より前）も道中の絵の上で進む。
-        // ForceLayers は「開幕は層ゼロで、あとから CrossfadeLayersToBoss で敷く」面（FINAL の巡回）用。
-        // 層が0枚でも BgLayers を作って層モードに入る＝背後の別背景（ミナの生成グラデ）が透ける。
         var opening = LayerDefs;
-        if (opening.Length == 0 && RouteLayerDefs.Length > 0) { opening = RouteLayerDefs; _mode = Mode.Route; }
-        if (opening.Length > 0 || ForceLayers)
+        _intenseRoute = StartInLateRoute;
+        _journey = StartInLateRoute ? 2f : 0f;
+        RouteChapter = StartInLateRoute ? 2 : 0;
+        if (opening.Length == 0 && RouteLayerDefs.Length > 0)
         {
-            _layers = new BgLayers
-            {
-                Name = "BgLayers", Layers = opening, ScrollSpeed = MidScrollSpeed,
-                OnBoss = LayerBossBehavior, BossLayers = BossLayerDefs,
-            };
-            AddChild(_layers);
-            HasMid = _layers.HasAny;
-            if (HasMid || ForceLayers)
-            {
-                // 呼吸/明滅は 1枚絵ボス背景のための演出。層システムでは親を動かさない（層ごとの視差が壊れる）。
-                if (StartInBoss) EnterBoss();
-                return;
-            }
-            // 層が1枚も読めなかった＝旧経路へ落ちる（下へ抜ける）。
-            _layers.QueueFree();
-            _layers = null!;
-            _mode = Mode.Mid;
+            opening = _intenseRoute && LateRouteLayerDefs.Length > 0 ? LateRouteLayerDefs : RouteLayerDefs;
+            _mode = Mode.Route;
         }
-
-        SetupMid();
-        // 道中の無いステージ（ラスボ）は最初からボス背景で軽く動かす。
+        // FINAL の記憶巡回は空の層から始め、後で背景を重ねる。
+        _layers = new BgLayers
+        {
+            Name = "BgLayers", Layers = opening,
+            ScrollSpeed = MidScrollSpeed * (_intenseRoute ? 1.45f : 1f),
+            OnBoss = LayerBossBehavior, BossLayers = BossLayerDefs,
+        };
+        AddChild(_layers);
+        HasMid = _layers.HasAny;
         if (StartInBoss) EnterBoss();
-    }
-
-    // 道中背景を画面高に合わせ、横に画面幅+1枚ぶんタイルする（左ループ用に最低2枚）。
-    private void SetupMid()
-    {
-        if (string.IsNullOrEmpty(MidBgPath) || !ResourceLoader.Exists(MidBgPath)) return;
-        var tex = ResourceLoader.Load<Texture2D>(MidBgPath);
-        if (tex == null) return;
-
-        float scale = ScreenHeight / tex.GetHeight();
-        _midTileW = tex.GetWidth() * scale;
-        int count = Mathf.Max(2, Mathf.CeilToInt(ScreenWidth / _midTileW) + 1);
-
-        var tiles = new Sprite2D[count];
-        for (int i = 0; i < count; i++)
-        {
-            var spr = new Sprite2D
-            {
-                Name = $"Mid{i}",
-                Texture = tex,
-                Centered = false,
-                Scale = new Vector2(scale, scale),
-                Position = new Vector2(i * _midTileW, 0f),
-                ZIndex = BaseZ,
-                ZAsRelative = false,
-                TextureFilter = CanvasItem.TextureFilterEnum.Linear,
-            };
-            AddChild(spr);
-            tiles[i] = spr;
-        }
-        _midTiles = tiles;
-        HasMid = true;
-    }
-
-    // ボス戦突入：道中背景を隠し、専用背景へ切替（軽く動かす）。BossBgPath が無ければ何もしない（道中のまま）。
-    public void EnterBoss()
-    {
-        if (_layers != null) { _mode = Mode.Boss; _layers.EnterBoss(); return; }
-        if (_mode == Mode.Boss) return;
-        bool hasTex = BossBgTexture != null || (!string.IsNullOrEmpty(BossBgPath) && ResourceLoader.Exists(BossBgPath));
-        if (!hasTex) return; // ボス背景未指定（例：中ボスのみ）＝切替しない
-        if (!_bossReady) SetupBoss();
-        if (_bossTiles.Length == 0) return; // 読込失敗時は切替しない（道中背景を残す）
-
-        _mode = Mode.Boss;
-        foreach (var s in _midTiles) s.Visible = false;
-        foreach (var s in _bossTiles) s.Visible = true;
-    }
-
-    // ボス背景タイルを準備（横ドリフトでループ。ドリフト用に画面幅+余白ぶんタイル）。
-    private void SetupBoss()
-    {
-        _bossReady = true;
-        _bossTex = BossBgTexture ?? ResourceLoader.Load<Texture2D>(BossBgPath);
-        if (_bossTex == null) return;
-
-        float scale = ScreenHeight / _bossTex.GetHeight();
-        _bossTileW = _bossTex.GetWidth() * scale;
-        int count = Mathf.Max(2, Mathf.CeilToInt(ScreenWidth / _bossTileW) + 2);
-
-        var tiles = new Sprite2D[count];
-        for (int i = 0; i < count; i++)
-        {
-            var spr = new Sprite2D
-            {
-                Name = $"Boss{i}",
-                Texture = _bossTex,
-                Centered = false,
-                Scale = new Vector2(scale, scale),
-                Position = new Vector2(i * _bossTileW, 0f),
-                ZIndex = BaseZ,
-                ZAsRelative = false,
-                TextureFilter = CanvasItem.TextureFilterEnum.Linear,
-                Visible = false,
-            };
-            AddChild(spr);
-            tiles[i] = spr;
-        }
-        _bossTiles = tiles;
     }
 
     public override void _Process(double delta)
     {
-        // 層モードはスクロールも暗転も BgLayers 側が回す（ここは何もしない）。
-        if (_layers != null) return;
-
-        _t += delta;
+        if (Hud.BubblePaused || Pad.UiBlocked(this)) return;
         float dt = (float)delta;
-
-        if (_mode == Mode.Mid)
-        {
-            // 道中：左へシームレスループ。span を法に取り、各タイルを並べ直す（蓄積誤差なし）。
-            if (_midTiles.Length > 0 && _midTileW > 0f)
-            {
-                // 位置係数 scrollMul：自機が右にいるほど背景が速く流れて前進感UP、左でゆっくり。
-                //   scrollMul = 0.65 + 0.80*nx（左端0.65 / 中央1.05 / 右端1.45）。
-                _midX += MidScrollSpeed * ScrollMul() * dt;
-                float off = _midX % _midTileW;     // 0.._midTileW
-                for (int i = 0; i < _midTiles.Length; i++)
-                {
-                    var p = _midTiles[i].Position;
-                    p.X = i * _midTileW - off;
-                    if (p.X <= -_midTileW) p.X += _midTiles.Length * _midTileW; // 左へ出た列を右端へ
-                    _midTiles[i].Position = p;
-                }
-            }
-        }
-        else // Mode.Boss
-        {
-            if (_bossTiles.Length > 0 && _bossTileW > 0f)
-            {
-                // ① ゆっくり横ドリフト（左へ）＝専用背景が「微かに動いている」
-                _bossX += BossDriftSpeed * dt;
-                float off = _bossX % _bossTileW;
-                for (int i = 0; i < _bossTiles.Length; i++)
-                {
-                    var p = _bossTiles[i].Position;
-                    p.X = i * _bossTileW - off;
-                    if (p.X <= -_bossTileW) p.X += _bossTiles.Length * _bossTileW;
-                    _bossTiles[i].Position = p;
-                }
-            }
-
-            // クロスフェード進行：新層をα0→1、旧層をα1→0。位置は現行層と同じ速度でドリフト。
-            if (_fading)
-            {
-                _fadeT += dt;
-                float k = Mathf.Clamp(_fadeT / _fadeDur, 0f, 1f);
-                float s = k * k * (3f - 2f * k); // smoothstep＝立ち上がり/収束が柔らかい
-                if (_fadeTiles.Length > 0 && _fadeTileW > 0f)
-                {
-                    _fadeX += BossDriftSpeed * dt;
-                    float foff = _fadeX % _fadeTileW;
-                    for (int i = 0; i < _fadeTiles.Length; i++)
-                    {
-                        var p = _fadeTiles[i].Position;
-                        p.X = i * _fadeTileW - foff;
-                        if (p.X <= -_fadeTileW) p.X += _fadeTiles.Length * _fadeTileW;
-                        _fadeTiles[i].Position = p;
-                        _fadeTiles[i].Modulate = new Color(_newDim.R, _newDim.G, _newDim.B, _newDim.A * s);
-                    }
-                }
-                foreach (var b in _bossTiles) b.Modulate = new Color(_curDim.R, _curDim.G, _curDim.B, _curDim.A * (1f - s));
-                if (k >= 1f) FinishFade();
-            }
-
-            // ② 呼吸スケール（ごく弱く、中心基準で拡大のみ）＋ ③ 光の明滅（modulate）。
-            //    Node2D 全体に掛ける。背景は画面を覆う前提なので画面中心を基点にスケール。
-            //    1.0 を下限に「拡大方向だけ」で揺らす＝縮小して画面端に隙間が出るのを防ぐ。
-            float breath = 1f + BossBreathAmp * (0.5f + 0.5f * Mathf.Sin((float)(_t * Mathf.Tau * BossBreathHz)));
-            var center = new Vector2(ScreenWidth * 0.5f, ScreenHeight * 0.5f);
-            Scale = new Vector2(breath, breath);
-            Position = center - center * breath; // 中心を固定したままスケール
-            float pulse = 1f + BossPulseAmp * Mathf.Sin((float)(_t * Mathf.Tau * BossPulseHz));
-            Modulate = new Color(pulse, pulse, pulse, 1f);
-        }
+        _layers.ScrollSpeed = Mathf.Lerp(_layers.ScrollSpeed, MidScrollSpeed * (_intenseRoute ? 1.45f : 1f),
+            1f - Mathf.Exp(-1.5f * dt));
+        if (_mode != Mode.Route || !IsInstanceValid(_routeSpawner)) return;
+        _routeElapsed += dt;
+        float progress = _routeSeconds > 0f ? _routeElapsed / _routeSeconds
+            : (float)_routeSpawner!.SpawnedCount / _routeSpawner.SpawnLimit;
+        float target = Mathf.Lerp(_routeFrom, _routeTo, Mathf.Clamp(progress, 0f, 1f));
+        SetJourney(Mathf.MoveToward(_journey, Mathf.Max(_journey, target), dt * 0.16f));
     }
 
-    // 位置係数：自機の正規化X(nx)から scrollMul = 0.65 + 0.80*nx を返す（左端0.65/中央1.05/右端1.45）。
-    private float ScrollMul() => 0.65f + 0.80f * BgScroll.PlayerNx(this);
+    public void TrackRoute(Spawner spawner, float from, float to, float seconds = 0f)
+    {
+        if (_mode == Mode.Boss) return;
+        _routeSpawner = spawner;
+        _routeFrom = from;
+        _routeTo = to;
+        _routeSeconds = seconds;
+        _routeElapsed = 0f;
+        SetJourney(Mathf.Max(_journey, from));
+    }
+
+    private void SetJourney(float journey)
+    {
+        _journey = Mathf.Clamp(journey, 0f, 4f);
+        int chapter = Mathf.Min(3, (int)_journey);
+        var defs = chapter switch
+        {
+            1 => PassageLayerDefs,
+            2 => LateRouteLayerDefs,
+            3 => ClimaxLayerDefs,
+            _ => RouteLayerDefs,
+        };
+        _layers.TravelProgress = _journey - chapter;
+        if (_mode == Mode.Route && chapter == RouteChapter) return;
+        RouteChapter = chapter;
+        _intenseRoute = chapter >= 2;
+        _mode = Mode.Route;
+        _layers.CrossfadeTo(defs, 2.4f);
+    }
+
+    public void BeginRoute(bool intense = false)
+    {
+        if (_mode == Mode.Boss) return;
+        SetJourney(Mathf.Max(_journey, intense ? 2f : 0f));
+    }
+
+    public void BeginMidboss()
+    {
+        if (_mode == Mode.Midboss || _mode == Mode.Boss || MidbossLayerDefs.Length == 0) return;
+        _mode = Mode.Midboss;
+        _routeSpawner = null;
+        _layers.CrossfadeTo(MidbossLayerDefs, 0.8f);
+    }
+
+    public void EnterBoss()
+    {
+        _mode = Mode.Boss;
+        _routeSpawner = null;
+        _layers.EnterBoss();
+    }
+
+    public void CrossfadeLayersToBoss(BgLayers.BossBehavior onBoss, BgLayers.Layer[] defs, float dur = 1.0f)
+        => _layers.CrossfadeToBoss(onBoss, defs, dur);
+
+    public void FadeOutLayers(float dur = 1.0f) => _layers.FadeOutAll(dur);
 }
 
-// BgScroll : 背景スクロールの位置係数まわりの共有ヘルパ（StageBackground / ScrollFx / WorldGrade から使う）。
-//   nx（自機の正規化X, 0=左端/1=右端）の取得を1箇所に集約。engineer が公開した GameManager.PlayerNormX
-//   （TickProgress で毎フレーム更新）を第一参照にし、GameManager が無い場面では Player を group から引いて
-//   盤面(Field)基準で算出するフォールバックを残す。参照名が変わってもここだけ直せばよい。
 public static class BgScroll
 {
     public static float PlayerNx(Node self)

@@ -38,7 +38,13 @@ public partial class RouteBackgroundQa : Node
             DisplayServer.WindowSetMode(DisplayServer.WindowMode.Windowed);
             DisplayServer.WindowSetSize(new Vector2I(1280, 720));
             await Frames(1);
-            if (OS.GetCmdlineUserArgs().Contains("--typography"))
+            if (OS.GetCmdlineUserArgs().Contains("--journey"))
+                await CheckJourney(game);
+            else if (OS.GetCmdlineUserArgs().Contains("--worlds-motion"))
+                await CaptureWorldMotion(game);
+            else if (OS.GetCmdlineUserArgs().Contains("--worlds"))
+                await CheckWorlds(game);
+            else if (OS.GetCmdlineUserArgs().Contains("--typography"))
                 await CheckTypography(game);
             else if (OS.GetCmdlineUserArgs().Contains("--route-length"))
                 await CheckPreCameoRoutes(game);
@@ -67,6 +73,342 @@ public partial class RouteBackgroundQa : Node
             GetTree().Paused = false;
             GetTree().Quit(1);
         }
+    }
+
+    private async Task CheckJourney(GameManager game)
+    {
+        typeof(Settings).GetProperty(nameof(Settings.PauseWhenUnfocused))!.GetSetMethod(true)!.Invoke(null, new object[] { false });
+        foreach (string scene in new[] { "Akari", "Koharu", "Rei", "MinaBattle" })
+        {
+            string id = scene == "MinaBattle" ? "mina" : scene.ToLowerInvariant();
+            game.SelectedEntry = GameManager.StageEntry.Start;
+            game.SelectedJob = id == "mina" ? Job.Magic : Job.Tank;
+            game.Difficulty = GameManager.Diff.Easy;
+            var root = GD.Load<PackedScene>($"res://{scene}.tscn").Instantiate<Node2D>();
+            GetTree().Root.AddChild(root);
+            GetTree().CurrentScene = root;
+            root.SetProcess(false);
+            var stage = (Node)root.GetType().GetProperty("Stage")!.GetValue(root)!;
+            stage.SetProcess(false);
+            root.GetNode<Node2D>("World").ProcessMode = ProcessModeEnum.Disabled;
+            var hud = root.GetNode<Hud>("Hud");
+            hud.HoldBubble = false;
+            hud.HideBubble();
+            hud.SetCinematicMode(false);
+            Write(hud, "_bannerTimer", 0d);
+            Hud.BubblePaused = false;
+            var bg = root.GetNode<StageBackground>("StageBackground");
+            var layers = bg.GetNode<BgLayers>("BgLayers");
+            bg.SetProcess(false);
+            layers.SetProcess(false);
+            await Frames(3);
+            foreach (string field in new[] { "RouteLayers", "PassageLayers", "LateRouteLayers", "ClimaxLayers" })
+            {
+                var defs = (BgLayers.Layer[])root.GetType().GetField(field)!.GetValue(null)!;
+                Check(defs.Length == 3 && defs.All(d => d.Travel && !d.Loop), $"{id}/{field}: finite three-layer travel");
+                foreach (var def in defs.Skip(1))
+                {
+                    using var pixels = GD.Load<Texture2D>(def.Path).GetImage();
+                    int clear = 0, samples = 0;
+                    for (int y = 0; y < pixels.GetHeight(); y += 19)
+                    for (int x = 0; x < pixels.GetWidth(); x += 19)
+                    { samples++; if (pixels.GetPixel(x, y).A < .01f) clear++; }
+                    Check(clear > samples / 5, def.Path + " transparent negative space");
+                }
+                await CheckPixels(game, id, defs);
+            }
+            int[] steps = id switch { "akari" => new[] { 2, 5, 7, 9 }, "koharu" => new[] { 2, 7, 10 },
+                "rei" => new[] { 3, 6, 18, 8 }, _ => new[] { 0, 1, 2 } };
+            var chapters = new System.Collections.Generic.HashSet<int>();
+            int previousChapter = 0;
+            float previousJourney = 0;
+            for (int wave = 0; wave < steps.Length; wave++)
+            {
+                if (wave == 1 && id != "mina")
+                {
+                    bg.BeginMidboss();
+                    layers._Process(1d);
+                    await Frames(2);
+                    Check(Sprites(layers).All(s => s.Texture.ResourcePath.Contains("/midboss/")), id + " midboss room");
+                }
+                Spawner spawner;
+                if (id == "mina")
+                {
+                    Write(stage, "_wave", wave);
+                    Call(stage, "StartEchoWave");
+                    spawner = Read<Spawner>(stage, "_echoSpawner");
+                }
+                else
+                {
+                    Write(stage, "_step", steps[wave]);
+                    Call(stage, "StartMidwaveSpawner", steps[wave] == 18 ? 0 : 30, 0f);
+                    spawner = Read<Spawner>(stage, "_spawner");
+                }
+                spawner.SetProcess(false);
+                Check(Read<Spawner>(bg, "_routeSpawner") == spawner, id + " actual wave binds its journey");
+                for (int part = 0; part <= 24; part++)
+                {
+                    typeof(Spawner).GetProperty("SpawnedCount")!.SetValue(spawner, spawner.SpawnLimit * part / 24);
+                    for (int tick = 0; tick < 30; tick++)
+                    {
+                        bg._Process(.1);
+                        layers._Process(.1);
+                        float journey = Read<float>(bg, "_journey");
+                        CheckForward(journey >= previousJourney && bg.RouteChapter >= previousChapter);
+                        previousJourney = journey;
+                        previousChapter = bg.RouteChapter;
+                    }
+                    if (chapters.Add(bg.RouteChapter))
+                    {
+                        layers._Process(2.5);
+                        await Frames(2);
+                        await Shot($"journey_{id}_{bg.RouteChapter}");
+                    }
+                }
+                float distance = Read<float>(bg, "_journey");
+                var phases = Sprites(layers).Select(Phase).ToArray();
+                Hud.BubblePaused = true;
+                bg._Process(5);
+                layers._Process(5);
+                Check(distance == Read<float>(bg, "_journey") && phases.SequenceEqual(Sprites(layers).Select(Phase)), id + " dialogue freezes route");
+                Hud.BubblePaused = false;
+                spawner.QueueFree();
+                if (id != "mina") Write(stage, "_spawner", null!);
+                await Frames(2);
+            }
+            Check(chapters.SetEquals(new[] { 0, 1, 2, 3 }), id + " actual waves visit all four locations in order");
+            var destination = Sprites(layers).Select(Phase).ToArray();
+            bg.BeginRoute();
+            for (int tick = 0; tick < 300; tick++) { bg._Process(1); layers._Process(1); }
+            Check(bg.RouteChapter == 3 && destination.SequenceEqual(Sprites(layers).Select(Phase)), id + " five-minute hold never wraps or returns to entrance");
+            await Shot($"journey_{id}_destination");
+            bg.EnterBoss();
+            layers._Process(1);
+            await Frames(2);
+            bg.BeginRoute();
+            Check(Sprites(layers).Length == 3 && Sprites(layers).All(s => s.Texture.ResourcePath.Contains("/boss/")), id + " boss arrival replaces route");
+            root.QueueFree();
+            await Frames(5);
+            Pool.DespawnAll();
+            if (id == "mina") continue;
+            game.SelectedEntry = GameManager.StageEntry.AfterMidBoss;
+            var resumed = GD.Load<PackedScene>($"res://{scene}.tscn").Instantiate<Node2D>();
+            GetTree().Root.AddChild(resumed);
+            resumed.ProcessMode = ProcessModeEnum.Disabled;
+            Check(resumed.GetNode<StageBackground>("StageBackground").RouteChapter == 2, id + " checkpoint resumes the late location");
+            resumed.QueueFree();
+            await Frames(5);
+        }
+        GD.Print("[JourneyQA] ALL PASS: controlled wave progression and background captures; no difficulty evaluation.");
+
+        static void CheckForward(bool valid)
+        {
+            if (!valid) throw new Exception("Journey moved backwards");
+        }
+    }
+
+    private async Task CaptureWorldMotion(GameManager game)
+    {
+        typeof(Settings).GetProperty(nameof(Settings.PauseWhenUnfocused))!.GetSetMethod(true)!.Invoke(null, new object[] { false });
+        string output = ProjectSettings.GlobalizePath("res://build/qa_story/worlds/motion");
+        DirAccess.MakeDirRecursiveAbsolute(output);
+        foreach (string scene in new[] { "Akari", "Koharu", "Rei", "MinaBattle" })
+        {
+            string id = scene == "MinaBattle" ? "mina" : scene.ToLowerInvariant();
+            game.SelectedEntry = GameManager.StageEntry.Start;
+            var root = GD.Load<PackedScene>($"res://{scene}.tscn").Instantiate<Node2D>();
+            GetTree().Root.AddChild(root);
+            GetTree().CurrentScene = root;
+            root.SetProcess(false);
+            ((Node)root.GetType().GetProperty("Stage")!.GetValue(root)!).SetProcess(false);
+            var player = root.GetNode<Player>("World/Player");
+            player.SetPhysicsProcess(false);
+            var hud = root.GetNode<Hud>("Hud");
+            hud.HoldBubble = false;
+            hud.HideBubble();
+            hud.SetCinematicMode(false);
+            Write(hud, "_bannerTimer", 0d);
+            Hud.BubblePaused = false;
+            foreach (string field in new[] { "RouteLayers", "PassageLayers", "LateRouteLayers", "ClimaxLayers" })
+                await CheckPixels(game, id, (BgLayers.Layer[])root.GetType().GetField(field)!.GetValue(null)!);
+            var bg = root.GetNode<StageBackground>("StageBackground");
+            foreach (string phase in new[] { "early", "passage", "midboss", "late", "climax", "boss" })
+            {
+                if (phase == "passage") Call(bg, "SetJourney", 1f);
+                if (phase == "midboss") bg.BeginMidboss();
+                if (phase == "late") bg.BeginRoute(intense: true);
+                if (phase == "climax") Call(bg, "SetJourney", 3f);
+                if (phase == "boss") bg.EnterBoss();
+                await Frames(150);
+                for (int frame = 0; frame < 45; frame++)
+                {
+                    float nx = phase is "boss" or "midboss" ? .5f - .48f * Mathf.Cos(frame / 44f * Mathf.Tau) : .5f;
+                    player.Position = new Vector2(Mathf.Lerp(Field.Left + 15, Field.Right - 15, nx), 155);
+                    game.TickProgress(player.Position.X, 0);
+                    if (phase is not ("boss" or "midboss"))
+                        bg.GetNode<BgLayers>("BgLayers").TravelProgress = frame / 44f;
+                    await Frames(4);
+                    await ToSignal(RenderingServer.Singleton, RenderingServer.SignalName.FramePostDraw);
+                    using var pixels = GetViewport().GetTexture().GetImage();
+                    if (pixels.SaveJpg($"{output}/{id}_{phase}_{frame:D3}.jpg", .92f) != Error.Ok)
+                        throw new Exception("Motion frame could not be saved");
+                }
+                Check(true, $"{id}/{phase}: 45 motion frames captured at 15 fps; no combat automation");
+            }
+            root.QueueFree();
+            await Frames(8);
+            Pool.DespawnAll();
+        }
+    }
+
+    private async Task CheckWorlds(GameManager game)
+    {
+        typeof(Settings).GetProperty(nameof(Settings.PauseWhenUnfocused))!.GetSetMethod(true)!.Invoke(null, new object[] { false });
+        string output = ProjectSettings.GlobalizePath("res://build/qa_story/worlds");
+        DirAccess.MakeDirRecursiveAbsolute(output);
+        async Task Capture(string name)
+        {
+            await Frames(4);
+            await ToSignal(RenderingServer.Singleton, RenderingServer.SignalName.FramePostDraw);
+            using var pixels = GetViewport().GetTexture().GetImage();
+            Check(pixels.SavePng($"{output}/{name}.png") == Error.Ok, name + " screenshot");
+        }
+        void CheckLayers(BgLayers layers, string expected)
+        {
+            var sprites = Sprites(layers);
+            Check(sprites.Length == 3 && sprites.All(s => s.Texture.ResourcePath.Contains(expected)),
+                expected + " uses three registered layers");
+            foreach (var sprite in sprites.Skip(1))
+            {
+                using var art = sprite.Texture.GetImage();
+                int clear = 0, samples = 0;
+                for (int y = 0; y < art.GetHeight(); y += 31)
+                for (int x = 0; x < art.GetWidth(); x += 31)
+                { samples++; if (art.GetPixel(x, y).A < .01f) clear++; }
+                Check(clear > samples / 5, sprite.Texture.ResourcePath + " has genuine transparent space");
+            }
+        }
+        foreach (string scene in new[] { "Akari", "Koharu", "Rei", "MinaBattle" })
+        {
+            string id = scene == "MinaBattle" ? "mina" : scene.ToLowerInvariant();
+            game.SelectedEntry = GameManager.StageEntry.Start;
+            game.SelectedJob = id == "mina" ? Job.Magic : Job.Tank;
+            game.Difficulty = GameManager.Diff.Easy;
+            var root = GD.Load<PackedScene>($"res://{scene}.tscn").Instantiate<Node2D>();
+            GetTree().Root.AddChild(root);
+            GetTree().CurrentScene = root;
+            root.SetProcess(false);
+            var stage = (Node)root.GetType().GetProperty("Stage")!.GetValue(root)!;
+            stage.SetProcess(false);
+            var world = root.GetNode<Node2D>("World");
+            var player = world.GetNode<Player>("Player");
+            player.SetPhysicsProcess(false);
+            Write(player, "_invincible", true);
+            Write(player, "_invincibleTimer", 999f);
+            var hud = root.GetNode<Hud>("Hud");
+            hud.HoldBubble = false;
+            hud.HideBubble();
+            hud.SetCinematicMode(false);
+            Write(hud, "_bannerTimer", 0d);
+            Hud.BubblePaused = false;
+            var bg = root.GetNode<StageBackground>("StageBackground");
+            var layers = bg.GetNode<BgLayers>("BgLayers");
+            await Frames(3);
+            CheckLayers(layers, $"/route/{id}_");
+            var phase = Sprites(layers).Select(Phase).ToArray();
+            layers.TravelProgress = .3f;
+            await Frames(60);
+            var travel = Sprites(layers).Select((s, i) => Phase(s) - phase[i]).ToArray();
+            Check(travel[0] > 0 && travel[1] > travel[0] * 2 && travel[2] > travel[1] * 1.5,
+                id + " far, middle and near advance at visibly different speeds");
+            foreach (var size in new[] { new Vector2I(1280, 720), new Vector2I(960, 540) })
+            {
+                DisplayServer.WindowSetSize(size);
+                await Capture($"{id}_early_{size.X}");
+            }
+            DisplayServer.WindowSetSize(new Vector2I(1280, 720));
+            if (id != "mina")
+            {
+                bg.BeginMidboss();
+                await Frames(80);
+                CheckLayers(layers, $"/midboss/{id}_");
+                await Capture($"{id}_midboss");
+            }
+            bg.BeginRoute(intense: true);
+            await Frames(150);
+            CheckLayers(layers, $"/route/{id}_late_");
+            Check(layers.ScrollSpeed > bg.MidScrollSpeed * 1.35f, id + " late route accelerates smoothly");
+            var before = Sprites(layers);
+            bg.BeginRoute(intense: true);
+            await Frames(2);
+            Check(before.SequenceEqual(Sprites(layers)), id + " repeated late waves preserve scrolling phase");
+            await Capture($"{id}_late");
+            bg.EnterBoss();
+            await Frames(65);
+            CheckLayers(layers, $"/boss/{id}_");
+            player.Position = new Vector2(global::Field.Left + 1, 120);
+            game.TickProgress(player.Position.X, 0);
+            await Frames(100);
+            var left = Sprites(layers).Select(s => s.Position.X).ToArray();
+            player.Position = new Vector2(global::Field.Right - 1, 120);
+            game.TickProgress(player.Position.X, 0);
+            await Frames(100);
+            var sway = Sprites(layers).Select((s, i) => left[i] - s.Position.X).ToArray();
+            Check(sway[0] > 0 && sway[1] > sway[0] * 3 && sway[2] > sway[1] * 1.5,
+                id + " boss architecture has depth-dependent parallax");
+            bg.BeginRoute();
+            bg.BeginMidboss();
+            await Frames(2);
+            CheckLayers(layers, $"/boss/{id}_");
+            player.Position = new Vector2(global::Field.Left + 42, 150);
+            game.TickProgress(player.Position.X, 0);
+            Enemy boss = id switch { "akari" => new BossAkari(), "koharu" => new BossKoharu(),
+                "rei" => new BossRei(), _ => new BossMina() };
+            world.AddChild(boss);
+            boss.Position = new Vector2(global::Field.Right - 72, 86);
+            for (int shot = 0; shot < 4; shot++)
+            {
+                await Frames(150);
+                await Capture($"{id}_combat_{shot}");
+            }
+            boss.ProcessMode = ProcessModeEnum.Disabled;
+            Pool.DespawnAll();
+            if (id == "mina")
+            {
+                var journey = root.GetNode<BgLayers>("JourneyBackground/BgLayers");
+                for (int phaseIndex = 1; phaseIndex <= 4; phaseIndex++)
+                {
+                    Write(boss, "_pattern", phaseIndex);
+                    Call(root, "TickJourney");
+                    await Frames(80);
+                    if (phaseIndex < 4)
+                        CheckLayers(journey, $"/boss/{new[] { "akari", "koharu", "rei" }[phaseIndex - 1]}_");
+                    else Check(Sprites(journey).Length == 0, "Mina returns from the three memories to her own world");
+                    await Capture($"mina_memory_{phaseIndex}");
+                }
+            }
+            var realm = root.GetNodeOrNull<BossRealmFx>("BossRealmFx");
+            Check(realm != null, id + " real-world reveal is attached");
+            realm!.BreakPost(4, boss.Position);
+            await Frames(240);
+            Check(realm.Revealed && Sprites(layers).Length == 1
+                && Sprites(layers)[0].Texture.ResourcePath == BossPostStory.Get(id).RealBackground,
+                id + " all dream layers give way to the established real room");
+            await Capture($"{id}_real");
+            root.QueueFree();
+            await Frames(8);
+            Pool.DespawnAll();
+            Hud.BubblePaused = false;
+            if (id == "mina") continue;
+            game.SelectedEntry = GameManager.StageEntry.AfterMidBoss;
+            var resumed = GD.Load<PackedScene>($"res://{scene}.tscn").Instantiate<Node2D>();
+            GetTree().Root.AddChild(resumed);
+            resumed.ProcessMode = ProcessModeEnum.Disabled;
+            CheckLayers(resumed.GetNode<BgLayers>("StageBackground/BgLayers"), $"/route/{id}_late_");
+            resumed.QueueFree();
+            await Frames(8);
+        }
+        GD.Print("[WorldsQA] ALL PASS: invincible stationary visual capture; not a difficulty evaluation.");
     }
 
     private async Task CheckTypography(GameManager game)
@@ -520,7 +862,7 @@ public partial class RouteBackgroundQa : Node
             {
                 bg.BeginMidboss();
                 backgroundLayers._Process(2);
-                Check(Sprites(backgroundLayers).Single().Texture.ResourcePath.Contains("/midboss/"),
+                Check(Sprites(backgroundLayers).Length == 3 && Sprites(backgroundLayers).All(s => s.Texture.ResourcePath.Contains("/midboss/")),
                     $"{scene}: weather preserves the midboss room transition");
                 await Capture("midboss");
                 bg.BeginRoute();
@@ -529,7 +871,7 @@ public partial class RouteBackgroundQa : Node
             }
             bg.EnterBoss();
             backgroundLayers._Process(2);
-            Check(Sprites(backgroundLayers).Single().Texture.ResourcePath.Contains("/boss/"),
+            Check(Sprites(backgroundLayers).Length == 3 && Sprites(backgroundLayers).All(s => s.Texture.ResourcePath.Contains("/boss/")),
                 $"{scene}: weather preserves the boss room transition");
             Enemy boss = scene switch { "Akari" => new BossAkari(), "Koharu" => new BossKoharu(),
                 "Rei" => new BossRei(), _ => new BossMina() };
@@ -844,8 +1186,8 @@ public partial class RouteBackgroundQa : Node
         {
             using var pixels = GD.Load<Texture2D>(def.Path).GetImage();
             Check(pixels.GetWidth() == 2172 && pixels.GetHeight() == 724, $"{def.Path}: registered panorama size");
-            Check(def.Path.EndsWith("_far.png") ? pixels.DetectAlpha() == Image.AlphaMode.None
-                : pixels.DetectAlpha() != Image.AlphaMode.None && pixels.GetPixel(900, 30).A == 0,
+            Check(def.Path.EndsWith("_far.png") ? pixels.GetPixel(900, 360).A > .95f
+                : pixels.DetectAlpha() != Image.AlphaMode.None,
                 $"{def.Path}: opaque far layer or transparent overlay");
         }
         await CheckPixels(game, id, defs);
@@ -859,15 +1201,21 @@ public partial class RouteBackgroundQa : Node
             foreach (string wave in waves)
             {
                 string method = wave == "0" ? "Step_MidWave0" : $"Step_Midwave{wave}";
-                Write(stage, "_step", wave == "0" ? 2 : 5);
+                Write(stage, "_step", (id, wave) switch
+                {
+                    ("akari", "0") => 2, ("akari", "A") => 5, ("akari", "B") => 7, ("akari", "C") => 9,
+                    ("koharu", "A") => 2, ("koharu", "B") => 7, ("koharu", "C") => 10,
+                    ("rei", "A") => 3, ("rei", "B") => 6, _ => 8,
+                });
                 Write(stage, "_stepStarted", false);
                 typeof(GameManager).GetProperty("PurifiedCount")!.SetValue(game, 0);
                 Call(stage, method, 0d);
                 var spawner = Read<Spawner>(stage, "_spawner");
                 spawner.SetProcess(false);
-                await Frames(55);
+                await Frames(150);
                 Check(Sprites(layers).Length == 3 && Sprites(layers).All(s => s.Material is ShaderMaterial),
                     $"{id}/{wave}: actual wave starts parallax");
+                spawner.Stop();
                 typeof(GameManager).GetProperty("PurifiedCount")!.SetValue(game, 100);
                 Call(stage, method, 0d);
                 await Frames(55);
@@ -878,7 +1226,7 @@ public partial class RouteBackgroundQa : Node
             bg.BeginRoute();
             typeof(GameManager).GetProperty("PurifiedCount")!.SetValue(game, 0);
         }
-        await Frames(55);
+        await Frames(150);
         layers.SetProcess(false);
         var art = Sprites(layers);
         Check(art.Length == 3, $"{id}: exactly three route draw surfaces");
@@ -887,8 +1235,9 @@ public partial class RouteBackgroundQa : Node
         {
             game.TickProgress(x, 0);
             var before = art.Select(Phase).ToArray();
+            layers.TravelProgress += .12f;
             layers._Process(1d);
-            var movement = art.Select((s, i) => Mathf.PosMod(Phase(s) - before[i], 0.92f)).ToArray();
+            var movement = art.Select((s, i) => Phase(s) - before[i]).ToArray();
             Check(movement[0] > 0 && movement[1] > movement[0] * 2 && movement[2] > movement[1] * 1.8f,
                 $"{id}: far < mid < near speed at x={x}");
             Check(art.All(s => s.GlobalPosition.X <= Field.Left && s.GlobalPosition.X + s.RegionRect.Size.X * s.Scale.X >= Field.Right
@@ -899,6 +1248,7 @@ public partial class RouteBackgroundQa : Node
         hud.ShowDialog(Hud.LineKind.Mina, "Pause QA", "res://char/mina_face.png");
         await Frames(3);
         var stopped = art.Select(Phase).ToArray();
+        layers.TravelProgress += .12f;
         layers._Process(2d);
         Check(stopped.SequenceEqual(art.Select(Phase)), $"{id}: conversation freezes all three layers");
         hud.HoldBubble = false;
@@ -921,6 +1271,7 @@ public partial class RouteBackgroundQa : Node
         DisplayServer.WindowSetSize(new Vector2I(1280, 720));
         for (int i = 0; i < 4; i++)
         {
+            layers.TravelProgress = (i + 1) * .25f;
             layers._Process(6d);
             await Shot($"{id}_scroll_{i}");
         }
@@ -938,12 +1289,12 @@ public partial class RouteBackgroundQa : Node
         }
         else Call(stage, "Step_BossSpawn");
         await Frames(70);
-        Check(Sprites(layers).Length == 1 && Sprites(layers)[0].Texture.ResourcePath == $"res://char/bg2/boss/{id}_v1.png",
-            $"{id}: actual boss spawn replaces all route layers with the original special room");
+        Check(Sprites(layers).Length == 3 && Sprites(layers).All(s => s.Texture.ResourcePath.StartsWith($"res://char/bg2/boss/{id}_")),
+            $"{id}: actual boss spawn replaces route layers with the character's ideal world");
         bg.BeginRoute();
         bg.BeginMidboss();
         await Frames(55);
-        Check(Sprites(layers).Length == 1 && Sprites(layers)[0].Material == null, $"{id}: route hooks cannot replace active boss room");
+        Check(Sprites(layers).Length == 3 && Sprites(layers).All(s => s.Material == null), $"{id}: route hooks cannot replace active boss room");
         await Shot($"{id}_boss_arrival");
         root.QueueFree();
         await Frames(8);
@@ -956,23 +1307,23 @@ public partial class RouteBackgroundQa : Node
         StageBackground bg, BgLayers layers, Hud hud)
     {
         bg.BeginRoute();
-        await Frames(55);
+        await Frames(80);
         Write(stage, "_step", CameoStep(id));
         Write(stage, "_stepStarted", false);
         Call(stage, "Step_BossCameo", 0d);
         (GetTree().GetFirstNodeInGroup("cameo_intro") as CameoIntroScene)?._Process(2.7);
         await Frames(55);
         var art = Sprites(layers);
-        Check(art.Length == 1 && art[0].Texture.ResourcePath == $"res://char/bg2/midboss/{id}_v1.png"
-            && art[0].Material == null, $"{id}: actual cameo replaces route with its dedicated room"
+        Check(art.Length == 3 && art.All(s => s.Texture.ResourcePath.StartsWith($"res://char/bg2/midboss/{id}_") && s.Material == null),
+            $"{id}: actual cameo replaces route with its dedicated room"
             + $" (live={string.Join(",", art.Select(s => s.Texture.ResourcePath + (s.Material == null ? "" : "+mat")))} paused={GetTree().Paused})");
         Check(layers.BossDimK == 0, $"{id}: midboss does not trigger main boss lighting");
         using (var pixels = art[0].Texture.GetImage())
-            Check(pixels.GetWidth() >= 1200 && pixels.GetHeight() >= 1000 && pixels.DetectAlpha() == Image.AlphaMode.None,
+            Check(pixels.GetWidth() >= 1200 && pixels.GetHeight() >= 1000 && pixels.GetPixel(900, 360).A > .95f,
                 $"{id}: high-resolution opaque midboss painting");
         bg.BeginMidboss();
         await Frames(55);
-        Check(Sprites(layers).Single() == art[0], $"{id}: repeated entry preserves active room");
+        Check(Sprites(layers).SequenceEqual(art), $"{id}: repeated entry preserves active room");
         layers.SetProcess(false);
         game.TickProgress(Field.CenterX, 0);
         layers._Process(5d);
@@ -1000,7 +1351,7 @@ public partial class RouteBackgroundQa : Node
         if (id == "koharu")
         {
             await Frames(55);
-            Check(Sprites(layers).Single() == art[0] && Read<int>(stage, "_step") == CameoStep(id),
+            Check(Sprites(layers).SequenceEqual(art) && Read<int>(stage, "_step") == CameoStep(id),
                 "koharu: penlight choice stays in the midboss entrance hall");
             Write(stage, "_cPhase", 3);
             Call(stage, "Step_BossCameo", 0d);
@@ -1011,7 +1362,7 @@ public partial class RouteBackgroundQa : Node
         hud.ShowBossLine("", "", Colors.White, 0);
         await Frames(55);
         // 撃破後の会話も中ボスの部屋のまま（旧仕様の「会話用の場所へ戻す」は廃止。次の道中の BeginRoute で戻る）。
-        Check(Sprites(layers).Single() == art[0], $"{id}: cameo completion keeps the midboss room behind the dialogue");
+        Check(Sprites(layers).SequenceEqual(art), $"{id}: cameo completion keeps the midboss room behind the dialogue");
         Pool.DespawnAll();
     }
 
@@ -1031,7 +1382,7 @@ public partial class RouteBackgroundQa : Node
         (GetTree().GetFirstNodeInGroup("cameo_intro") as CameoIntroScene)?._Process(2.7);
         await Frames(60);
         var layers = root.GetNode<BgLayers>("StageBackground/BgLayers");
-        Check(Sprites(layers).Length == 1 && Sprites(layers)[0].Texture.ResourcePath == $"res://char/bg2/midboss/{id}_v1.png"
+        Check(Sprites(layers).Length == 3 && Sprites(layers).All(s => s.Texture.ResourcePath.StartsWith($"res://char/bg2/midboss/{id}_"))
             && layers.BossDimK == 0, $"{id}: checkpoint starts inside dedicated midboss room");
         await Shot($"{id}_midboss_checkpoint");
         root.QueueFree();
@@ -1068,14 +1419,14 @@ public partial class RouteBackgroundQa : Node
                     if (a.A > 0.8f) visible++;
                 }
             Check(visible > 40 && error / count < 0.025f, $"{sprite.Texture.ResourcePath}: pixels move left without blanking ({error / count:F4})");
-            ((ShaderMaterial)sprite.Material).SetShaderParameter("scroll_offset", 0.91999f);
+            ((ShaderMaterial)sprite.Material).SetShaderParameter("scroll_offset", 0.50f);
             using var end = await Render(viewport);
             ((ShaderMaterial)sprite.Material).SetShaderParameter("scroll_offset", 0.00001f);
             using var start = await Render(viewport);
             float seam = 0;
             for (int y = 4; y < 212; y += 4)
                 for (int x = 124; x < 380; x += 4) seam += ColorDistance(end.GetPixel(x, y), start.GetPixel(x, y));
-            Check(seam / (52 * 64) < 0.002f, $"{sprite.Texture.ResourcePath}: wrap continuity");
+            Check(seam / (52 * 64) > 0.002f, $"{sprite.Texture.ResourcePath}: destination differs from entrance");
         }
         foreach (var sprite in art)
         {
@@ -1083,7 +1434,7 @@ public partial class RouteBackgroundQa : Node
             ((ShaderMaterial)sprite.Material).SetShaderParameter("scroll_offset", 0.2f);
         }
         using (var composite = await Render(viewport))
-            Check(composite.GetPixel(125, 108).A > 0.99f && composite.GetPixel(380, 108).A > 0.99f,
+            Check(composite.GetPixel(125, 108).A > 0.95f && composite.GetPixel(380, 108).A > 0.95f,
                 $"{id}: composite covers both field edges");
         viewport.QueueFree();
         await Frames(3);

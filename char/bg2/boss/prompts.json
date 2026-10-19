@@ -2,40 +2,34 @@
   "mode": "built-in image_gen",
   "assets": [
     {
-      "asset": "res://char/bg2/boss/akari_v1.png",
-      "prompt": "Use case: lighting-weather. Edit this exact empty office background. Keep exact aspect ratio, framing, all architecture/furniture/two facing workstations/cabinet/windows/umbrella positions/carpet tiles. Change time to rainy late night outside close neighboring beige low-rise office building. CEILING LIGHTS REMAIN ON with normal even cool-white working illumination, not a dark unlit office. Akari's left workstation screen faintly shows abstract office software facing its chair, opposite monitor off. No people, no additional props/plants/bookpiles/skyscrapers. No changes to camera or layout.",
-      "references": [
-        "char/raw/room_redesign_20261018/generated/master_akari.png"
-      ],
-      "revision_manifest": "char/bg2/room_continuity_v2.prompt.json",
-      "generation": "night_akari"
+      "source": "char/raw/boss_worlds_20261018/layers/boss_akari_composite.png",
+      "processing": "Composite of the three registered gameplay depth layers, also used for dream-realm fracture continuity.",
+      "revision_manifest": "char/bg2/layered_worlds_v2.prompt.json",
+      "generation": "boss_akari",
+      "asset": "res://char/bg2/boss/akari_v1.png"
     },
     {
-      "asset": "res://char/bg2/boss/koharu_v1.png",
-      "prompt": "Use case: lighting-weather. Edit this exact empty Koharu bedroom background, same dimensions and camera. ONLY change to night: window same low residential tiled roofs dark sky, room ceiling and small lavender desk lamp OFF, soft cool ambient from window and faint warm spill from near entrance so architecture remains visible. Laptop black/off. Exactly ONE penlight on shelf unlit. Keep entire same bed LEFT/rabbit/desk RIGHT/textbooks/window mint curtains/rug shape/cream chair/school uniform. No added objects or plants, no posters beyond2existing fan cards, no new monitor, no chopped rug or furniture changes.",
-      "references": [
-        "char/raw/room_redesign_20261018/generated/master_koharu.png"
-      ],
-      "revision_manifest": "char/bg2/room_continuity_v2.prompt.json",
-      "generation": "night_koharu"
+      "source": "char/raw/boss_worlds_20261018/layers/boss_koharu_composite.png",
+      "processing": "Composite of the three registered gameplay depth layers, also used for dream-realm fracture continuity.",
+      "revision_manifest": "char/bg2/layered_worlds_v2.prompt.json",
+      "generation": "boss_koharu",
+      "asset": "res://char/bg2/boss/koharu_v1.png"
     },
     {
-      "asset": "res://char/bg2/boss/rei_v1.png",
-      "references": [
-        "res://char/bg2/stage3/L1_far.png",
-        "res://char/bg2/ending/bg_ep_dawn.png",
-        "res://char/v3/boss_rei_body_idle.png"
-      ],
-      "prompt": "Use case: stylized-concept. Asset type: finished opaque boss-arena background for the Japanese anime bullet-hell game Refrain, 1536x1280 landscape 6:5, one scene, no collage. Input images: 1 existing dark monitor room is a location reference; 2 dawn rooftop defines the clean painted anime background style; 3 the blue-haired star-themed VTuber Rei provides costume motifs only, do NOT draw her or any person. Scene: a tiny streaming room being swallowed by its virtual stage. Wide rear monitor architecture opens like a small theatrical proscenium with refined star-tipped gold metal corners and layered muted violet side curtains, all belonging to a believable illustrated space rather than flat UI. A dark inky teal virtual backdrop recedes with subtle curved stage architecture, not a star field, and an empty small platform in the far rear-right. At bottom side edges retain her real desk: a boom microphone, headphones on stand, dark secondary monitor, neatly looping cables. Contrast the polished empty virtual stage with the lonely unattended desk. Sparse warm gold practical side lights and pale teal side reflection, no giant spotlights across the center. Composition broad quiet middle 60 percent for character and bullets, ornate details only outer sides/top corners, rear scene has readable depth and a restrained diffuse reflection on floor; dark calm top center for HP bar. Sophisticated hand-painted 2D anime environment consistent with refs, clean contour decisions, cel-like light/shadow groups, no over-detailed realistic textures. Rich yet subdued midnight teal, muted violet, graphite, antique gold accents. Do not make a plain purple wall. No actual UI boxes, no counters, no comment text, no letters or numbers, no people, no star particles, no bokeh, no orbs, no magical circle, no bullet-like glints, no 3D render, no photorealism, no watermark/border. Fully opaque edge-to-edge."
+      "source": "char/raw/boss_worlds_20261018/layers/boss_rei_composite.png",
+      "processing": "Composite of the three registered gameplay depth layers, also used for dream-realm fracture continuity.",
+      "revision_manifest": "char/bg2/layered_worlds_v2.prompt.json",
+      "generation": "boss_rei",
+      "asset": "res://char/bg2/boss/rei_v1.png"
     },
     {
-      "asset": "res://char/bg2/boss/mina_v1.png",
-      "references": [
-        "res://char/bg2/ending/bg_ep_dawn.png",
-        "res://char/v3/boss_mina_body_idle.png"
-      ],
-      "prompt": "Use case: stylized-concept. Asset type: final boss background painting for Japanese anime bullet-hell game Refrain. One finished image, 1536x1280 landscape 6:5, no collage. Input images: 1 dawn rooftop shows the required restrained hand-painted anime environment style, architectural perspective and shade grouping; 2 black-haired Mina is an emotional and costume reference only, never draw a person. Scene: inside Mina's exhausted heart, a quiet submerged archive of the unspoken words she carried for three people. A vast but intimate empty hall formed from layered smoked-glass message panels, suspended broken window frames and rib-like silver arches at the outer edges; panels have NO text, they are architectural slabs, not floating UI. Deep charcoal-plum shadows, muted sea-glass teal reflections, tiny blush-silver edge light. At the far rear center-right, a slender vertical opening lets in a small quiet light, suggesting a way back, not a giant portal and not a glowing circle. The lower floor is dark glass with just a few long etched cracks reflecting that light, no bright web. At perimeter, subtly echo an empty office chair, a ribbon with an unlit penlight, and a resting microphone as small ghostly still-life fragments from her friends' lives; drawn clearly and sparsely, not collaged photographs. Composition: the central 60 percent is an open low-contrast volume for the fight; detailed architecture frames top sides and lower corners, horizon and depth clear, no opaque object in main action space. Emotional, elegiac and beautiful, neither gothic cathedral nor tech server dungeon. Strong professional anime background painting, controlled cel-like shading, refined simplified forms, limited fine detail, subtle painted texture. Not just a black void or purple gradient. Avoid any characters, faces, eyes, words, symbols, floating glowing gems, particles, bokeh, orbs, spell rings, bullet-like points, bloom, photorealism, 3D render, watermarks, borders. Fully opaque artwork reaches all edges."
+      "source": "char/raw/boss_worlds_20261018/layers/boss_mina_composite.png",
+      "processing": "Composite of the three registered gameplay depth layers, also used for dream-realm fracture continuity.",
+      "revision_manifest": "char/bg2/layered_worlds_v2.prompt.json",
+      "generation": "boss_mina",
+      "asset": "res://char/bg2/boss/mina_v1.png"
     }
   ],
-  "room_continuity_revision": "char/bg2/room_continuity_v2.prompt.json"
+  "room_continuity_revision": "char/bg2/room_continuity_v2.prompt.json",
+  "boss_world_revision": "char/bg2/boss/ideal_worlds_v2.prompt.json"
 }

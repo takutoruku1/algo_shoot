@@ -9,13 +9,13 @@ public partial class CameoIntroScene : Node2D
     {
         string signal = (boss, id) switch
         {
-            (false, "akari") => "……雨の向こうに、スマホの光。",
-            (false, "koharu") => "……奥から、急ぐような足音。",
-            (false, "rei") => "……画面の外に、人影。",
-            (true, "akari") => "……雨音より近くに、あかりの声。",
-            (true, "koharu") => "……光の集まる場所に、こはるの声。",
-            (true, "rei") => "……画面の奥から、レイの声。",
-            (true, "mina") => "……ミナの声が、すぐそこに。",
+            (false, "akari") => "……手紙の道の先に、スマホの光。",
+            (false, "koharu") => "……客席の先から、急ぐような足音。",
+            (false, "rei") => "……幕の向こうに、人影。",
+            (true, "akari") => "……手紙の道の先に、あかりの声。",
+            (true, "koharu") => "……客席の奥から、こはるの声。",
+            (true, "rei") => "……星明かりの舞台から、レイの声。",
+            (true, "mina") => "……リボンのつなぐ道の先に、ミナの声。",
             _ => throw new ArgumentOutOfRangeException(nameof(id)),
         };
         if (job == Job.Tank && id == "mina")
@@ -64,12 +64,12 @@ public partial class CameoIntroScene : Node2D
                 "じゃあ、既読のまま逃げないでよね！"),
             "koharu" => ("res://char/v3/koharu_mid_conversation_v1.png",
                 "だーめ！　次、もう始まっちゃう！"),
-            _ => ("res://char/v3/rei_face.png",
+            _ => (CompanionDialogue.ReiAvatarPortrait,
                 "はい、前置きおしまい。目、離さないで！"),
         };
         int actor = (int)(job == Job.Tank ? Hud.LineKind.Mina : Hud.LineKind.Companion);
         string portrait = job == Job.Tank ? "res://char/v3/mina_conversation_v1.png" : CompanionDialogue.Portrait(job);
-        var first = opening[0];
+        var first = opening.First(line => line.who == (int)Hud.LineKind.Other);
         first.face = face;
         return new[] { first, (actor, reply, portrait), (2, challenge, face) };
     }
@@ -87,7 +87,8 @@ public partial class CameoIntroScene : Node2D
         (int who, string text, string face)[] opening)
     {
         if (job == Job.Tank && id != "mina") return opening;
-        opening = opening.Where(line => line.who != (int)Hud.LineKind.Mina).ToArray();
+        // The companion replaces the whole exchange, including answers that depend on Mina's questions.
+        opening = opening.TakeWhile(line => line.who != (int)Hud.LineKind.Mina).ToArray();
         var (reply, resolve) = (job, id) switch
         {
             (Job.Tank, "akari") => ("見ております。ですが、その方の返事は、わたくしには。", "……消した言葉のほうも、聞かせてください。"),
@@ -99,9 +100,9 @@ public partial class CameoIntroScene : Node2D
             (Job.Heal, "koharu") => ("あたしも、そう思って離せなかった。", "ちゃんとしてなくても、ここにいてほしい。"),
             (Job.Magic, "koharu") => ("今日は、わたしが会いに来たの。", "何もしなくていい。あんたの話を聞かせて。"),
             (Job.Tank, "rei") => ("……その笑顔の奥にも、声があるのですね。", "では、聞こえた声は、どこへ。"),
-            (Job.Melee, "rei") => ("初めてじゃないよ。さっきの声も、聞いてた。", "なら、笑ってないときの声も聞かせて。"),
-            (Job.Heal, "rei") => ("今日は、コメント欄じゃなくて、ここから。", "うまく笑えない日も、聞きに来るよ。"),
-            (Job.Magic, "rei") => ("その挨拶、わたし相手にも続けるの？", "わたしが消した声なら、わたしが聞く。"),
+            (Job.Melee, "rei") => ("挨拶はさっき聞いたよ。今度は、あの本の話を聞いてみたいな。", "すぐ面白い話にしなくていいよ。あたし、まだここにいるから。"),
+            (Job.Heal, "rei") => ("レイちゃん。今日は、その本の好きなところを聞きに来たの。", "うまく笑えない日も、聞きに来るよ。好きなところから、話して。"),
+            (Job.Magic, "rei") => ("その挨拶、自分相手にもするのね。……本の話は、また後回し？", "怖くて告知を消したのは、わたしも同じ。今日は、最後まで聞くわ。"),
             (Job.Tank, "mina") => ("届くところまで、近づくよ。", "急がなくていい。ここで聞いている。"),
             (Job.Melee, "mina") => ("ミナ。今度は、あたしがそっちへ行く。", "それでも、ここにいる。ひとりにしない。"),
             (Job.Heal, "mina") => ("怖いよね。……あたしも。でも、来たよ。", "あたし、まだ聞いてる。切らないから。"),
@@ -112,7 +113,7 @@ public partial class CameoIntroScene : Node2D
         {
             "akari" => "じゃあ、どうしてここまで来たの。",
             "koharu" => "……じゃあ、あたしに何をしてほしいの？",
-            "rei" => "奥なんてないよ。見えてるわたしが、全部。",
+            "rei" => "……退屈させたら、どうしよう。見てた人まで、いなくなったら。",
             _ => "……返事をしたら、また、傷つけてしまう。",
         };
         string face = BossPortrait(id);
@@ -123,7 +124,7 @@ public partial class CameoIntroScene : Node2D
         var lines = new List<(int who, string text, string face)>(opening.Select(line =>
             (line.who, line.text, line.who == (int)Hud.LineKind.Other ? face : line.face)));
         if (!opening.Any(line => line.who == (int)Hud.LineKind.Other))
-            lines.Add((2, id == "mina" ? "……来ないで。今のわたくしは、あなたにも……。"
+            lines.Add((2, id == "mina" ? "皆さまの部屋まで、道はつなぎました。……来ないで。わたくしは、まだ帰れません。"
                 : "全部見てないと、あたしの席、なくなっちゃう。", face));
         lines.Add((actor, reply, portrait));
         lines.Add((2, challenge, face));
@@ -149,7 +150,7 @@ public partial class CameoIntroScene : Node2D
     private bool _arrived;
     private const double ApproachHold = 2.2, ApproachFade = 0.45;
     private double _approachTime;
-    private int _line;
+    private int _line, _page;
     private double _time, _postTime, _lineTime, _talkTime, _exitTime;
     private string EnemyName => _id != "mina" && Jobs.Get(_game.SelectedJob).CharacterId == _id ? $"投稿の中の{_name}" : _name;
 
@@ -178,7 +179,8 @@ public partial class CameoIntroScene : Node2D
         _name = BossPostStory.Get(_id).Name;
         _lines = _bossIntro ? BossDialogue(_game.SelectedJob, _id, _opening) : Dialogue(_game.SelectedJob, _id, _opening);
         _background = GD.Load<Texture2D>(_bossIntro ? BossPostStory.Get(_id).FakeBackground : $"res://char/bg2/midboss/{_id}_v1.png");
-        _enemyPortrait = GD.Load<Texture2D>(_bossIntro ? BossPortrait(_id) : _lines[0].face);
+        _enemyPortrait = GD.Load<Texture2D>(_bossIntro ? BossPortrait(_id)
+            : _lines.First(line => line.who == (int)Hud.LineKind.Other).face);
         if (_id != "mina" || _game.SelectedJob != Job.Tank)
             _playerPortrait = GD.Load<Texture2D>(_game.SelectedJob switch {
                 Job.Tank => "res://char/v3/mina_conversation_v1.png",
@@ -262,11 +264,25 @@ public partial class CameoIntroScene : Node2D
             return;
         }
         _talkTime += delta;
+        if (_page != _hud.DialogPageIndex)
+        {
+            _page = _hud.DialogPageIndex;
+            _lineTime = 0;
+            _hud.RevealDialogNow();
+        }
         _lineTime += delta;
         double hold = _bossIntro ? Math.Clamp(1.15 + _lines[_line].text.Length * 0.055, 2.0, 4.8)
             : Math.Clamp(1.15 + _lines[_line].text.Length * 0.035, 1.6, 2.2);
         if (_lineTime >= hold || (_lineTime >= 0.4 && (edge || _hud.FastForwarding)))
         {
+            if (!_hud.DialogRevealed)
+            {
+                bool pageWasRevealed = _hud.DialogPageRevealed;
+                _hud.RevealDialogNow();
+                if (pageWasRevealed) _hud.RevealDialogNow();
+                _lineTime = 0;
+                return;
+            }
             _line++;
             if (_line == _lines.Length) Leave();
             else ShowLine();
@@ -291,6 +307,7 @@ public partial class CameoIntroScene : Node2D
             ? BossPostStory.Get(_id).Accent : CompanionDialogue.Accent(_game.SelectedJob));
         _hud.ShowDialog((Hud.LineKind)who, text, face, otherName: EnemyName);
         _hud.RevealDialogNow();
+        _page = _hud.DialogPageIndex;
     }
 
     private void Leave()

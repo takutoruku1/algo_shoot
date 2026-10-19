@@ -188,13 +188,13 @@ public partial class StageZero : Node
                     _phaseStarted = true;
                     _t2KillBase = GetNodeOrNull<GameManager>("/root/Game")?.PurifiedCount ?? 0;
                     Hud.ClearSpot();
-                    SpawnDummy(true); // 弾を撃たない無害ダミー（撃って祓う標的）
+                    SpawnDummy(); // 弾を撃たない無害ダミー（撃って祓う標的）
                 }
                 Player?.TutorialGlow();
                 {
                     int killed = (GetNodeOrNull<GameManager>("/root/Game")?.PurifiedCount ?? 0) - _t2KillBase;
                     // 倒し切る前に標的が尽きたら湧き直し（詰み防止）。湧き直しは1体ずつで「撃って→消える」を反復。
-                    if (killed < ShotKillNeed && CountLiveEnemies() == 0) SpawnDummy(true);
+                    if (killed < ShotKillNeed && CountLiveEnemies() == 0) SpawnDummy();
                     Hud.SetTutorialHint($"自動の光をダミーへ当てる（{Mathf.Min(killed, ShotKillNeed)}/{ShotKillNeed}）");
                     if (killed >= ShotKillNeed || _phaseTime > SafetyTimeout)
                     {
@@ -306,14 +306,14 @@ public partial class StageZero : Node
                     _phaseStarted = true;
                     _t6PurifyBase = GetNodeOrNull<GameManager>("/root/Game")?.PurifiedCount ?? 0;
                     // ♥心チップは HUD 整理（2026-09-06）で消えたため、指し示す先が無い＝スポットは張らない。
-                    SpawnDummy(false);
+                    SpawnDummy();
                 }
                 {
                     var game = GetNodeOrNull<GameManager>("/root/Game");
                     int purified = (game?.PurifiedCount ?? 0) - _t6PurifyBase;
                     if (purified < PurifyNeed && CountLiveEnemies() == 0)
-                        SpawnDummy(false); // 逃げて全滅したら湧き直し（詰み防止）
-                    Hud.SetTutorialHint($"周りの板を砕いて、浄化する（{Mathf.Min(purified, PurifyNeed)}/{PurifyNeed}）");
+                        SpawnDummy(); // 逃げて全滅したら湧き直し（詰み防止）
+                    Hud.SetTutorialHint($"アンフォールダーを砕いて浄化（{Mathf.Min(purified, PurifyNeed)}/{PurifyNeed}）");
                     if (purified >= PurifyNeed || _phaseTime > SafetyTimeout)
                     {
                         Hud.ClearTutorialHint();
@@ -444,16 +444,15 @@ public partial class StageZero : Node
     {
         for (int i = 0; i < BombKillNeed; i++)
         {
-            var e = new GlyphMote { Harmless = true }; // 弾を撃たない＝練習中に痛手なし
+            var e = new GlyphMote(); // 弾を撃たない＝練習中に痛手なし
             World.AddChild(e);
             e.GlobalPosition = new Vector2(330f + i * 18f, 80f + i * 34f);
         }
     }
 
-    // ダミー敵（GlyphMote）。harmless=true で弾を撃たない撃ち込み台。
-    private void SpawnDummy(bool harmless)
+    private void SpawnDummy()
     {
-        var e = new GlyphMote { Harmless = harmless };
+        var e = new GlyphMote();
         World.AddChild(e);
         e.GlobalPosition = new Vector2(360f, _rng.RandfRange(70f, 150f));
     }

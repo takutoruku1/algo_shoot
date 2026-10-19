@@ -178,14 +178,14 @@ public partial class LoadingScreen : CanvasLayer
 
     private Rect2 Bounds => IsInstanceValid(_phone) ? _phone!.LoadingBounds : FullScreen;
     private bool IsDive => _destination.GetFile().GetBaseName() is "Akari" or "Koharu" or "Rei" or "MinaBattle"
-        or "Stage0" or "Training" or "Main";
+        or "Stage0" or "Training" or "Main" or "BossRush";
 
     private string DestinationName => _destination.GetFile().GetBaseName() switch
     {
         "TitleMenu" => "タイトル", "Hub" => "ホーム", "Prologue" => "プロローグ",
         "Shop" => "強化ショップ", "Customize" => "カスタマイズ", "Records" => "記録",
         "Settings" => "設定", "Credits" => "クレジット", "Training" => "トレーニング",
-        "DiffSelect" => "難易度選択", "Stage0" => "チュートリアル",
+        "DiffSelect" => "難易度選択", "Stage0" => "チュートリアル", "BossRush" => "BOSSラッシュ",
         "Akari" => "あかりのタイムライン", "Koharu" => "こはるのタイムライン",
         "Rei" => "レイのタイムライン", "MinaBattle" => "ミナのタイムライン", "Main" => "タイムライン",
         "Final" => "最後の対話", "Epilogue" => "エピローグ", _ => "次の画面",

@@ -53,7 +53,6 @@ public partial class BossMina : Enemy
     public static string PhaseBackground(int phase) => $"res://char/bg2/boss/{phase switch
         { 1 => "akari", 2 => "koharu", 3 => "rei", _ => "mina" }}_v1.png";
     public static string PhaseName(int phase) => Spells[phase].name;
-    public static Color PhaseTint(int phase) => Spells[phase].tint;
     public void ShowSignaturePose() => TriggerAttackPose();
 
     protected override (float Scale, Vector2 Offset) ResolveBodyFrame(Texture2D texture)
@@ -142,19 +141,19 @@ public partial class BossMina : Enemy
 
     private static readonly (int who, string text, string face)[] Lines =
     {
-        (1, "……壁が、ほどけました。", "res://char/mina_face.png"),
+        (1, "……帰り道が、見えます。わたくしの分も……。", "res://char/mina_face.png"),
         (6, "ええ。立てる？　急がなくていいわ。", ""),
         (1, "はい。ご主人様へ、つないでください。", "res://char/mina_face.png"),
     };
     private static readonly (int who, string text, string face)[] AkariLines =
     {
-        (1, "……壁が、ほどけました。", "res://char/mina_face.png"),
+        (1, "……帰り道が、見えます。わたくしの分も……。", "res://char/mina_face.png"),
         (6, "立てる？　あたしにつかまって。ゆっくりでいいから。", ""),
         (1, "はい。ご主人様へ、つないでください。", "res://char/mina_face.png"),
     };
     private static readonly (int who, string text, string face)[] KoharuLines =
     {
-        (1, "……壁が、ほどけました。", "res://char/mina_face.png"),
+        (1, "……帰り道が、見えます。わたくしの分も……。", "res://char/mina_face.png"),
         (6, "手、つないでるよ。立てそう？　急がなくていいからね。", ""),
         (1, "はい。ご主人様へ、つないでください。", "res://char/mina_face.png"),
     };
@@ -176,7 +175,6 @@ public partial class BossMina : Enemy
         PanelInk = BossTuning.I("mina", "panel_ink", 66);
         OrbitRadius = BossTuning.F("mina", "orbit_radius", 32f);
         SpinSpeed = BossTuning.F("mina", "spin_speed", 1.0f);
-        PanelsFire = false;
         EnemyBulletSpeed = BossTuning.F("mina", "bullet_speed", 86f);
 
         int bars = BossTuning.I("mina", "hp_bars", 0);
@@ -295,7 +293,7 @@ public partial class BossMina : Enemy
         Player.SendToStart(this);
         // ルナティック（2026-09-26）：段間のカットシーン（弾を止める会話）は出さない。Transitioning のまま返せば
         //   次の _Process が「CinematicMode でない」を見て CompletePhaseTransition を呼ぶ＝衣装替えと次段の武装だけが走る。
-        if (GameManager.LunaticActive) return;
+        if (GameManager.SkipBossStory) return;
         MinaPhaseScene.Play(GetHud()!, GetParent(), _pattern, CompletePhaseTransition);
     }
 
@@ -319,8 +317,9 @@ public partial class BossMina : Enemy
 
     protected override void OnRecloseLine()
     {
+        if (GameManager.BossRushActive) return;
         int index = System.Math.Min(_pattern, RecloseLines.Length - 1);
-        if (GameManager.LunaticActive) { ShowRecloseLine("ミナ", RecloseLines[index]); return; }
+        if (GameManager.SkipBossStory) { ShowRecloseLine("ミナ", RecloseLines[index]); return; }
         Job job = GetNode<GameManager>("/root/Game").SelectedJob;
         string[] replies = job switch
         {
@@ -334,8 +333,6 @@ public partial class BossMina : Enemy
             (6, replies[index], ""),
         }, GetHud, ShowStoryLine, () => _zHeld = Pad.AdvanceHeld());
     }
-
-    protected override void GrantFollower() { }
 
     protected override void OnCryStart()
     {
@@ -354,7 +351,7 @@ public partial class BossMina : Enemy
         //   ＝送るものが無いのに EndCryNow を待ち続けて Finished が立たない詰まりを断つ。
         //   ルナティックも同じ経路＝邂逅（F3）の会話を出さず、その場で着地して Finished へ。
         _f3 = RedemptionLines(GetNodeOrNull<GameManager>("/root/Game")?.SelectedJob ?? Job.Tank);
-        if (hud == null || _f3.Length == 0 || GameManager.LunaticActive) { EndCryNow(); return; }
+        if (hud == null || _f3.Length == 0 || GameManager.SkipBossStory) { EndCryNow(); return; }
         hud.HoldBubble = true;
         _seq = true; _line = 0; _lineT = 0;
         ShowLine();
@@ -387,7 +384,7 @@ public partial class BossMina : Enemy
             _memoryPending = false;
             _memoryPlayed = true;
             // ルナティック：回想を挟まない。フィルム明けの復帰（撃破済みなら改心へ／戦闘中なら閾値の拾い直し）だけをその場で通す。
-            if (GameManager.LunaticActive)
+            if (GameManager.SkipBossStory)
             {
                 if (IsPurified) OnCryStart();
                 else OnHpChanged();

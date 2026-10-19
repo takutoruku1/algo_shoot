@@ -61,10 +61,6 @@ public static class CompanionDialogue
         _ => System.Array.Empty<(int, string, string)>(),
     };
 
-    // ※Final（FINAL 導入を同行キャラの掛け合いへ置換）は 2026-09-15 に廃止した。
-    //   FINAL はジョブに関わらず常にミナ本編（StageMina）。他ジョブの専用ストーリーは
-    //   STAGE1〜3 のみで、テーブルは CharacterStory.cs に集約されている。
-
     public static (string speaker, string text)[] MenuLines(Job job, Menu scene)
     {
         var lines = MenuDialogue(job, scene);

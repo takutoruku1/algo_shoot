@@ -33,13 +33,11 @@ public partial class Enemy : Area2D
     // パネル構成（派生で設定）。
     protected int PanelCount = 3;
     protected int PanelInk = 2;
-    protected virtual float PanelHpMul => 1f;
+    protected virtual float PanelHpMul => BarCount > 0 ? GameManager.Instance?.BossPanelHpMul ?? 1f : 1f;
     private int _totalPanelInk;
     protected float OrbitRadius = 18f;
     protected float PanelDisplayScale = 1f; // パネル絵＆当たりの拡縮（ザコ縮小用。ボスは1のまま）
     protected float SpinSpeed = 1.4f; // rad/s
-    protected bool PanelsFire = true;
-    protected float PanelFireInterval = 1.9f;
     protected float EnemyBulletSpeed = 90f;
 
     // スプライト素材（null/未設定なら _Draw のプレースホルダ図形を使う）
@@ -120,6 +118,12 @@ public partial class Enemy : Area2D
     // 差し替えは既存の SwapBody（クロスフェード＋squash→pop）をそのまま使う。
     protected string AttackTexPath = "";
     protected string RecoveryTexPath = "";
+    private Texture2D[]? _reiAvatarFrames;
+    private double _reiMotionTime;
+    private ShaderMaterial? _reiMotionMaterial;
+    private int _reiMotionFrame, _reiNextFrame;
+    private double _reiBlendTime, _reiBlendDuration;
+    private BossIllustrationMotion? _illustrationMotion;
     protected Sprite2D BodySprite => _bodySprite;
     protected bool BodyMotionReady => !_bodyDown && !_purified && !_crying && !_entering && !_swapAnim;
     protected bool BodyAttacking => _attackPoseT > 0;
@@ -160,8 +164,8 @@ public partial class Enemy : Area2D
     private BossPhase _phase = BossPhase.Shielded;
     private double _phaseT; // 現フェーズ経過秒
     private BossCharacterTechnique? _shieldTechnique;
-    internal bool UsesTechniqueCycle => GameManager.Instance?.Difficulty >= GameManager.Diff.Normal
-        && this is BossAkari or BossKoharu or BossRei or BossMina or CameoBoss;
+    internal bool UsesTechniqueCycle => this is CameoBoss || GameManager.Instance?.Difficulty >= GameManager.Diff.Normal
+        && this is BossAkari or BossKoharu or BossRei or BossMina;
     internal bool UsesEasyTechniqueSlots => GameManager.Instance?.Difficulty == GameManager.Diff.Easy
         && this is BossAkari or BossKoharu or BossRei or BossMina;
     public int BarHp { get; private set; } = 100;
@@ -188,16 +192,7 @@ public partial class Enemy : Area2D
     protected virtual int WindowCap => GameManager.Instance?.ExposedDamageCap ?? 180;
     private int _windowDamage;                      // 現在の無防備窓で本体へ通した累計ダメージ
     private int _windowHpFloor;
-    private bool _windowCapNotified;               // 「MAX」表示を窓ごとに一度だけ出すワンショット
-    // ── 与ダメ数値のポップアップ（2026-09-17 ユーザー指示で非表示）──
-    //   「いくつ食らわせた／食らっているか」を数字で見せない＝手応えは光・音・揺れ・HPバーで返す。
-    //   数字そのものをやめるだけで、ダメージ計算・窓キャップ・バー割れの帳簿は一切変えない。
-    //   「MAX」「BREAK!」のような“状態を伝える語”は数値ではないので残す（下の Show* とは別扱い）。
-    //   復活させたいときはこのフラグを true に戻す（呼び出し側のコードは残置）。
-    //   const ではなく static readonly にするのは、const だと呼び出し側が「到達しないコード」と
-    //   判定されて CS0162 が出るため（0 Warning を保ちつつコードを残す）。
-    public static readonly bool ShowDamageNumbers = false;
-    // 本体ヒットのクールダウン（同一フレームの多重弾で過剰に削れるのを軽く抑える補助）。
+    private bool _windowCapNotified;               // 本体ヒットのクールダウン（同一フレームの多重弾で過剰に削れるのを軽く抑える補助）。
     private double _bodyHitCd;
     protected const double BodyHitCd = 0.05;
     private int _maxHp;                             // 総HP（=BarHp×BarCount）
@@ -221,7 +216,6 @@ public partial class Enemy : Area2D
     private readonly List<Panel> _panels = new List<Panel>();
     private bool _purified;
     private bool _bombPurify; // この浄化がボム由来か。報酬側のボムキャップ判定にだけ使う（演出・消滅処理は一切不変）
-    private bool _becameFollower; // フォロワーへの引き継ぎ後に本体を残して二重表示しない。
     private bool _crying;     // 大泣き中（3段階浄化の中間）
     private double _cryT;
     // ── 改心（cry）の保険タイムアウト（softlock 防止）──
@@ -345,7 +339,7 @@ public partial class Enemy : Area2D
         };
         if (this is CameoBoss cameo) { who = cameo.Theme.DisplayName; handle = cameo.Theme.Handle; }
         (GetTree().GetFirstNodeInGroup("hud") as Hud)?.AnnounceSpell(who, handle, name,
-            Bullet.BossColor(GameManager.Instance!.SelectedJob, BossShotStyle.Aimed), impact: false, duration: duration, compact: compact);
+            Bullet.BossColor(job, BossShotStyle.Aimed), impact: false, duration: duration, compact: compact);
     }
 
     // 本体に自機弾が刺さった瞬間のフック。fromDir＝弾から本体へ向かう単位ベクトル（＝のけぞる向き）。
@@ -592,11 +586,6 @@ public partial class Enemy : Area2D
     protected int Dn(int baseCount) =>
         GetNodeOrNull<GameManager>("/root/Game")?.ScaleBullets(baseCount) ?? baseCount;
 
-    // 自機狙いの扇はこちら（必ず奇数＝中心の1本が自機の正面を通る）。Dn は偶数を返しうる＝
-    // 中心線が空き、棒立ちの自機の両脇を弾がすり抜ける（GameManager.ScaleBulletsOdd のコメント参照）。
-    protected int DnOdd(int baseCount) =>
-        GetNodeOrNull<GameManager>("/root/Game")?.ScaleBulletsOdd(baseCount) ?? (baseCount | 1);
-
     // 難易度に応じた発射間隔。やさしいほど長く（連射が遅く）なる。
     // 派生ボスは `_fireT >= Di(基準秒)` の形でしきい値に掛けて使う。
     protected double Di(double baseInterval) =>
@@ -623,6 +612,16 @@ public partial class Enemy : Area2D
         _bodySprite.Scale = new Vector2(s, s);
         ApplyBodyOffset();
         AddChild(_bodySprite);
+        if (this is BossAkari or BossKoharu or BossRei or BossMina or CameoBoss)
+        {
+            var character = this is CameoBoss cameo ? cameo.Theme.Fire switch
+            {
+                CameoFireTheme.AkariGrief => UnfolderKind.Akari,
+                CameoFireTheme.KoharuFalling => UnfolderKind.Koharu,
+                _ => UnfolderKind.Rei,
+            } : UnfolderStyle;
+            _illustrationMotion = new BossIllustrationMotion(character);
+        }
     }
 
     // 本体（と改心差し替え中の退避スプライト）へ Tint の打ち消しを入れる。α は 1 固定＝
@@ -636,7 +635,11 @@ public partial class Enemy : Area2D
     }
 
     protected virtual (float Scale, Vector2 Offset) GetBodyFrame(Texture2D texture)
-        => (1f, BossParts.BodyOffsetFor(BodyOffsetName, _bodyPose));
+    {
+        if (_reiAvatarFrames != null && System.Array.IndexOf(_reiAvatarFrames, texture) >= 0)
+            return (1.28f, new Vector2(-40, 0));
+        return (1f, BossParts.BodyOffsetFor(BodyOffsetName, _bodyPose));
+    }
 
     protected virtual (float Scale, Vector2 Offset) ResolveBodyFrame(Texture2D texture)
         => BossAnimalArt.Contains(texture) ? BossAnimalArt.Frame(texture)
@@ -700,6 +703,7 @@ public partial class Enemy : Area2D
     protected void TriggerAttackPose()
     {
         if (_bodyDown) return;
+        _illustrationMotion?.Attack();
         _parts?.OnAttackStart();
         if (string.IsNullOrEmpty(AttackTexPath) || _purified || _crying) return;
         if (_attackPoseT > 0)
@@ -740,6 +744,9 @@ public partial class Enemy : Area2D
 
     protected void SetMotionFrame(Texture2D texture)
     {
+        if (_reiMotionMaterial != null && _bodySprite.Material == _reiMotionMaterial
+            && System.Array.IndexOf(_reiAvatarFrames!, texture) < 0)
+            _bodySprite.Material = null;
         if (_bodySprite.Texture == texture) return;
         if (BossAnimalArt.Contains(_bodySprite.Texture) != BossAnimalArt.Contains(texture))
             _bodySprite.FlipH = !_bodySprite.FlipH;
@@ -749,16 +756,70 @@ public partial class Enemy : Area2D
         ApplyBodyOffset();
     }
 
+    protected void ConfigureReiAvatarMotion()
+    {
+        _reiAvatarFrames = new Texture2D[16];
+        for (int frame = 0; frame < 8; frame++)
+        {
+            _reiAvatarFrames[frame] = GD.Load<Texture2D>($"res://char/v3/boss_motion/rei_glide_v3/frame_{frame:00}.png");
+            _reiAvatarFrames[frame + 8] = GD.Load<Texture2D>($"res://char/v3/boss_motion/rei_cast_v3/frame_{frame:00}.png");
+        }
+        _reiMotionMaterial = new ShaderMaterial { Shader = new Shader { Code = BossIllustrationMotion.ShaderCode } };
+    }
+
+    private void TickReiAvatarFrame(int target, double delta)
+    {
+        if (_bodySprite.Material != _reiMotionMaterial)
+        {
+            _reiMotionFrame = _reiNextFrame = target;
+            _reiBlendTime = _reiBlendDuration = 0;
+        }
+        _reiBlendTime += delta;
+        if (_reiMotionFrame != _reiNextFrame && _reiBlendTime >= _reiBlendDuration)
+            _reiMotionFrame = _reiNextFrame;
+        // Finish each transition before accepting a new pose so rapid volleys cannot restart it every frame.
+        if (_reiMotionFrame == _reiNextFrame && target != _reiMotionFrame)
+        {
+            _reiNextFrame = target;
+            _reiBlendTime = 0;
+            _reiBlendDuration = target >= 8 || _reiMotionFrame >= 8 ? .12 : .24;
+        }
+        Vector2 squash = _bodySprite.Scale / _baseScale;
+        SetMotionFrame(_reiAvatarFrames![_reiMotionFrame]);
+        _bodySprite.Scale = squash * _baseScale;
+        _bodySprite.Material = _reiMotionMaterial;
+        _reiMotionMaterial!.SetShaderParameter("next_frame", _reiAvatarFrames[_reiNextFrame]);
+        float blend = _reiMotionFrame == _reiNextFrame ? 0 : (float)(_reiBlendTime / _reiBlendDuration);
+        _reiMotionMaterial.SetShaderParameter("blend_amount", Mathf.SmoothStep(0, 1, blend));
+    }
+
     protected virtual void TickBodyMotion(double delta)
     {
-        if (!_form2 || !BodyMotionReady || BodyAttacking) return;
+        if (!BodyMotionReady) return;
+        if (!_form2 && _reiAvatarFrames != null)
+        {
+            _reiMotionTime += delta;
+            int cast = _shieldTechnique is ReiBossTechnique { Finished: false } technique ? technique.AvatarFrame : -1;
+            int frame = cast >= 0 ? cast + 8 : (int)(_reiMotionTime / .3) % 8;
+            SetBodyPose(BossParts.Pose.Idle);
+            TickReiAvatarFrame(frame, delta);
+            return;
+        }
+        if (!_form2 || BodyAttacking) return;
         _animalMotionT += delta;
         SetMotionFrame(_animalFrames[_animalWindup ? 4 : (int)(_animalMotionT / 0.16) % 4]);
     }
 
+    private void TickIllustrationMotion(double delta)
+    {
+        if (!BodyMotionReady) return;
+        _illustrationMotion?.Tick(_bodySprite, delta, BossAnimalArt.Contains(_bodySprite.Texture),
+            this is BossMina { IsDragonForm: true }, _shieldTechnique);
+    }
+
     protected bool TickForm2Technique(double delta, BossMover mover, AreaSpellCaster caster)
     {
-        if (UsesTechniqueCycle || UsesEasyTechniqueSlots && this is not BossAkari)
+        if (UsesTechniqueCycle || UsesEasyTechniqueSlots)
             return _danmaku?.ActiveTechnique is { Finished: false, TechniqueKind: BossTechniqueKind.Signature };
         if (!_form2) return false;
         if (GaugeVulnerable || GaugeReforming || Transforming || IsPurified)
@@ -856,7 +917,7 @@ public partial class Enemy : Area2D
     {
         var p = new Panel();
         int ink = _totalPanelInk / PanelCount + (index < _totalPanelInk % PanelCount ? 1 : 0);
-        p.Setup(this, baseAngle, OrbitRadius, SpinSpeed, PanelsFire, PanelFireInterval, ink, PanelTexPath, PanelDisplayScale);
+        p.Setup(this, baseAngle, OrbitRadius, SpinSpeed, ink, PanelTexPath, PanelDisplayScale);
         AddChild(p);
         _panels.Add(p);
     }
@@ -1077,14 +1138,6 @@ public partial class Enemy : Area2D
             // 撃破（_hp==0）は Redeem 側の改心演出に譲る＝二重に鳴らさない。
             if (_hp > 0 && (_hp + BarHp - 1) / BarHp < prevBarsLeft)
                 OnBarBroken();
-            // クリティカルは金色＋一回り大きく＋"!" で「密着が効いている」を視認させる（通常は既存色）。
-            if (ShowDamageNumbers)
-            {
-                if (crit)
-                    FxLayer.Instance?.DamageNumber(GlobalPosition + new Vector2(GD.Randf() * 8 - 4, -10), dmg + "!", FxLayer.Gold, 13);
-                else
-                    FxLayer.Instance?.DamageNumber(GlobalPosition + new Vector2(GD.Randf() * 8 - 4, -8), dmg.ToString(), FxLayer.Sig2);
-            }
             OnHpChanged();
 
             // 手応え：本体に当たった一発ごとに「効いてる」を即・短く返す（当たり判定は不変）。
@@ -1229,9 +1282,6 @@ public partial class Enemy : Area2D
         _hp = Mathf.Max(0, _hp - dmg);
         if (_hp > 0 && (_hp + BarHp - 1) / BarHp < prevBarsLeft)
             OnBarBroken();
-        // 金色・大きめの数字＝「ボムが刺さった」を通常ヒットと見分けさせる（数値表示は 2026-09-17 に非表示）。
-        if (ShowDamageNumbers)
-            FxLayer.Instance?.DamageNumber(GlobalPosition + new Vector2(0, -10), dmg.ToString(), FxLayer.Gold, 15);
         OnHpChanged();
         _hitFlashT = HitFlashDur;
         _hitFlashMag = 4f;
@@ -1259,8 +1309,6 @@ public partial class Enemy : Area2D
         _hp = Mathf.Max(0, _hp - dmg);
         if (_hp > 0 && (_hp + BarHp - 1) / BarHp < prevBarsLeft)
             OnBarBroken();
-        if (ShowDamageNumbers)
-            FxLayer.Instance?.DamageNumber(GlobalPosition + new Vector2(0, -10), dmg.ToString(), FxLayer.Gold, 15);
         OnHpChanged();
         if (_hp <= 0)
         {
@@ -1414,8 +1462,6 @@ public partial class Enemy : Area2D
         GameCamera.Instance?.Hitstop(HitstopDur);
         FxLayer.Instance?.PurifyBurst(GlobalPosition, rewarded ? Points : 0, PurifyGrade, impBase, ShardMul, power);
         Audio.Instance?.PlayPurify();
-        // 浄化の一言（ありがとう等）は 2026-09-07 のユーザー指示で非表示。文言の作り直し案は
-        // （記事 18_浄化の一言_案C は現存しない。差し戻すなら本文から書き直すこと。）
 
         // やさしさの波紋（連鎖浄化のトリガー）。
         // Redeem は被弾/パネル砕けのシグナル（物理クエリのフラッシュ中）から呼ばれることがある。
@@ -1481,6 +1527,7 @@ public partial class Enemy : Area2D
             _fadeSprite = new Sprite2D
             {
                 Texture = old,
+                Material = _bodySprite.Material,
                 Centered = true,
                 TextureFilter = CanvasItem.TextureFilterEnum.Linear,
                 ZIndex = _bodySprite.ZIndex,
@@ -1497,6 +1544,9 @@ public partial class Enemy : Area2D
         if (old != null && BossAnimalArt.Contains(old) != BossAnimalArt.Contains(t))
             _bodySprite.FlipH = !_bodySprite.FlipH;
         _bodySprite.Texture = t;
+        if (_reiMotionMaterial != null && _bodySprite.Material == _reiMotionMaterial)
+            _bodySprite.Material = null;
+        _illustrationMotion?.Clear(_bodySprite);
         _baseScale = BodyDisplayH / t.GetHeight() * _bodyScaleMul * ResolveBodyFrame(t).Scale;
         _bodySprite.Scale = new Vector2(_baseScale, _baseScale);
         ApplyBodyOffset(); // 新しい姿勢の足元が待機と同じ画面位置に来るよう入れ直す
@@ -1555,13 +1605,7 @@ public partial class Enemy : Area2D
         return 1f + c3 * p * p * p + c1 * p * p;
     }
 
-    // 救った人を algo のフォロワー（味方オプション）にする。派生で上書き可（ボス＝ヒカゲ強化）。
-    protected virtual void GrantFollower()
-    {
-        var players = GetTree().GetNodesInGroup("player");
-        if (players.Count > 0 && players[0] is Player pl)
-            _becameFollower = pl.AddFollower(GlobalPosition); // フォロワー化したら本体は退場せず引き継ぐ
-    }
+    protected virtual void GrantFollower() { }
 
     // 大泣き演出の開始／終了フック（派生でセリフ等に使う）。
     // 改心の会話区間だけ戦闘テロップを鎮める（Hud.SuppressCallouts の ON/OFF）。
@@ -1739,9 +1783,6 @@ public partial class Enemy : Area2D
 
         if (_purified)
         {
-            // フォロワー化した本人は、その場に湧いた Follower が見た目を引き継ぐので本体は即退場
-            //（救った娘が去りつつ別の娘がくっつく“二重表示”を防ぐ＝救った本人がそのまま付くように見える）。
-            if (_becameFollower) { QueueFree(); return; }
             // 判定のない敵が再び攻撃しているように見えないよう、撃破位置でフェードする。
             _purifiedExitT += delta;
             float exitA = 1f - Mathf.Clamp((float)((_purifiedExitT - ExitHold) / PurifiedExitFade), 0f, 1f);
@@ -1786,6 +1827,7 @@ public partial class Enemy : Area2D
         if (GaugeReforming) return;
         UpdateMovement(edelta);
         TickBodyMotion(edelta);
+        TickIllustrationMotion(edelta);
         TickAutoBank(edelta); // ザコの移動バンク（ボス/生命感モーション持ちは AutoBank=false で素通り）
         TickFacing();         // 自機の方を向く（ボス/カメオは ApplyBossMotion が握る＝FacePlayer=false で素通り）
         if (GlobalPosition.X < OffLeftX) QueueFree();

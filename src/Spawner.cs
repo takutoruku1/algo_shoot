@@ -13,6 +13,14 @@ public partial class Spawner : Node
     public bool Active { get; private set; }
     public int SpawnLimit;
     public int SpawnedCount { get; private set; }
+    internal bool Finished => !Active && _pending.Count == 0;
+    internal static bool BattlefieldClear(SceneTree tree)
+    {
+        if (tree.GetNodesInGroup("enemies").Count > 0 || tree.GetNodesInGroup("aoe").Count > 0) return false;
+        foreach (Node node in tree.GetNodesInGroup("enemy_bullets"))
+            if (node is Bullet { Active: true }) return false;
+        return true;
+    }
     private int _characterIndex;
     private int _formationIndex;
 

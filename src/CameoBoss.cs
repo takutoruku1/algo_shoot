@@ -93,14 +93,13 @@ public partial class CameoBoss : Enemy
 
     protected override void OnShieldFormed()
     {
-        bool reformed = _shieldIntroduced;
+        if (_shieldIntroduced) return;
         _shieldIntroduced = true;
-        if (reformed) return;
         var game = GameManager.Instance;
         var hud = GetHud();
         if (hud == null) return;
         var job = game?.SelectedJob ?? Job.Tank;
-        if (!reformed && game != null && !GameManager.LunaticActive && !game.IsIdleDialogSeen(ShieldIntroKey))
+        if (game != null && !GameManager.LunaticActive && !game.IsIdleDialogSeen(ShieldIntroKey))
         {
             // Wait until the real panels exist, and keep them intact while the player reads.
             SetPanelsInvulnerable(true);
@@ -113,16 +112,7 @@ public partial class CameoBoss : Enemy
                     game.MarkIdleDialogSeen(ShieldIntroKey);
                     _shieldTalkHud = null;
                 });
-            return;
         }
-        string line = job switch
-        {
-            Job.Melee => "シールドだね。まずは周りの板を全部砕こう！",
-            Job.Heal => "シールドがある！　まずは周りの板を全部砕こう。",
-            Job.Magic => "シールドね。まずは周りの板を全部砕くわよ。",
-            _ => "シールドです。まずは周りの板をすべて砕きましょう。",
-        };
-        hud.ShowBossLine(Jobs.Get(job).CharacterName, line, CompanionDialogue.Accent(job), 2.8);
     }
 
     private static (int who, string text, string face)[] ShieldIntroLines(Job job)
@@ -131,15 +121,15 @@ public partial class CameoBoss : Enemy
         string face = job == Job.Tank ? "res://char/mina_face.png" : CompanionDialogue.Portrait(job);
         string reply = job switch
         {
-            Job.Melee => "板がなくなったら、本体に届くんだね。分かった、やってみる！",
+            Job.Melee => "アンフォールダーを砕いて、合図が出たら本体だね。分かった、やってみる！",
             Job.Heal => "全部砕いてから、本体だね。焦らず、一つずつやってみる。",
-            Job.Magic => "分かった。板をほどいて、本人に声を届けるわ。",
-            _ => "板をほどいてから、ご本人へ。承知しました。見ていてください、ご主人様。",
+            Job.Magic => "分かった。アンフォールダーをほどいて、本人に声を届けるわ。",
+            _ => "アンフォールダーをほどいてから、ご本人へ。承知しました。見ていてください、ご主人様。",
         };
         return new[]
         {
-            (0, "周りの板がシールドを張ってる。今は、本体まで光が届かない。", ""),
-            (0, "板を全部砕けば、シールドが剥がれる。張り直される前に、本体を狙おう。", ""),
+            (0, "周りのアンフォールダーがシールドを張ってる。今は、本体まで光が届かない。", ""),
+            (0, "全部砕いたら、「本体に攻撃」の合図を待とう。シールドが戻る前に、本体を狙うんだ。", ""),
             (who, reply, face),
         };
     }
@@ -155,16 +145,16 @@ public partial class CameoBoss : Enemy
         PanelInk = BossTuning.I("cameo", "panel_ink", CameoPanelInk);
         OrbitRadius = BossTuning.F("cameo", "orbit_radius", CameoOrbitR);
         SpinSpeed = BossTuning.F("cameo", "spin_speed", CameoSpin);
-        PanelsFire = false;            // 弾は本体の弾幕に集約（パネルは撃たない＝本戦ボスと同様）
         EnemyBulletSpeed = BossTuning.F("cameo", "bullet_speed", CameoBulletSpd);
         BarCount = Mathf.Max(1, BossTuning.I("cameo", "hp_bars", CameoBars)); // HPバー方式ON（総HP=BarHp×本数）
 
         PreTexPath = Theme.PreTex;
+        if (Theme.Fire == CameoFireTheme.ReiAggressive) ConfigureReiAvatarMotion();
         DownTexPath = BossDownArt.Path(Theme.Fire switch
         {
             CameoFireTheme.AkariGrief => "akari_mid",
             CameoFireTheme.KoharuFalling => "koharu_mid",
-            _ => "rei_mid",
+            _ => "rei",
         });
         CryTexPath = Theme.CryTex;
         PostTexPath = Theme.PostTex;
@@ -230,8 +220,6 @@ public partial class CameoBoss : Enemy
     }
 
     // カメオはフォロワー化しない（味方化は本戦ボスのみ）。
-    protected override void GrantFollower() { }
-
     // 撃破の欠片は「中ボスの格」＝ザコの約4倍・本戦ボスの約半分。
     // 本戦ボス（ステージの頂点）との差が絵で分かるようにする（§2-1 リスクに比例したリターン）。
     protected override FxLayer.PurifyTier PurifyGrade => FxLayer.PurifyTier.MidBoss;

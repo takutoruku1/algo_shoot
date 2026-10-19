@@ -99,7 +99,8 @@ public partial class MidEnemy : Enemy
     //   34 まで落とすと最遅個体の着座が 20秒級になって盤面が渋滞した（同時出現上限を食い潰す）。
     //   46 なら最遅 28.5px/s でも盤面対角 460px を約 16秒、実際の進入距離（150〜280px）なら 5〜10秒で着座する。
     private const float ApproachFloor = 46f;     // 進入の最低速度(px/s)
-    private double FirstShotDelay => DenseRoad ? 0.10 : 0.25;
+    private bool EarlyMinaEntry => _spec.Pattern is AttackPattern.MinaEraser or AttackPattern.MinaMemory or AttackPattern.MinaUnanswered;
+    private double FirstShotDelay => DenseRoad || EarlyMinaEntry ? 0.10 : 0.25;
 
     // ─── 移動速度の絶対上限（2026-09-22 ユーザー要望「敵が自機より速いのをやめる」）───
     // ★不変条件：**道中ザコの移動速度は、どんな種でも・進入中でも着座後でも自機の素の足を超えない。**
@@ -205,8 +206,8 @@ public partial class MidEnemy : Enemy
     //   空白があり、その間に自機の DPS でザコ HP(6ヒット) を超える約18ヒットぶん削れて「撃つ前に死ぬ」。
     //   ゲートを「画面内に入って一定時間見えている」に変え、居座る前でも撃てるようにする。
     //   画面外・出現直後は従来どおり撃たない（理不尽撃ちは作らない）。
-    private float FireGateX => Field.Right - (DenseRoad ? 16f : 44f);
-    private double FireGateVisible => DenseRoad ? 0.20 : 0.7;
+    private float FireGateX => Field.Right - (DenseRoad || EarlyMinaEntry ? 16f : 44f);
+    private double FireGateVisible => DenseRoad || EarlyMinaEntry ? 0.20 : 0.7;
     private double _visibleT;                    // 画面内に居た累計秒（進入中のみ積む）
     private bool _approachFired;                 // 進入中に発射ゲートが開いたか（居座り時の初弾プライムを二重にしない）
 
@@ -335,8 +336,6 @@ public partial class MidEnemy : Enemy
         OrbitRadius = 11.5f;
         PanelDisplayScale = 0.82f;
         SpinSpeed = _spec.SpinSpeed;
-        PanelsFire = false;
-        PanelFireInterval = _spec.FireInterval;
 
         PreTexPath = _spec.PreTexPath;
         PostTexPath = _spec.PostTexPath;
@@ -1384,12 +1383,12 @@ public partial class MidEnemy : Enemy
                 break;
 
             // ─── FINAL（ミナの内側）の残響3種（2026-09-17 固有パターン新設）───
-            // 消しゴムの残響：予告方向へ「消し線」を1本ずつ、間を置いて2度なぞる。
-            //   1本目は遅く（74px/s）＝見てから退ける。2本目は同じ線を速く（132px/s）なぞり直す＝
+            // 消しゴムの残響：予告方向へ消し線の束を、間を置いて2度なぞる。
+            //   1回目は遅く（74px/s）＝見てから退ける。2回目は同じ線を速く（132px/s）なぞり直す＝
             //   「一度避けた線をもう一度消しに来る」。同じ角度なので避け場は変わらない＝理不尽にならない。
             //   自機狙いは予告時の _burstDir に固定（撃つ瞬間の追尾はしない）。
             case AttackPattern.MinaEraser:
-                CharacterFan(pool, _characterOrigin, _burstDir, DenseRoad ? 3 : 1, 0f,
+                CharacterFan(pool, _characterOrigin, _burstDir, 3, DenseRoad ? 0f : 16f,
                     _salvoIndex == 0 ? 74f : 132f, 3.8f);
                 break;
 
@@ -1515,11 +1514,6 @@ public partial class MidEnemy : Enemy
         CharacterFan(pool, GlobalPosition, AimDir(), 3, 28f, 45f, 3.4f);
     }
 
-    // ─── 祈り運び（こはる面専用・KoharuPrayerCarry）───
-    // 消せる「祈り弾」(MakeErasable)を3発ぶら下げて画面を横断する。祈り弾を自機弾で撃つと既存経路
-    //（Bullet.OnAreaEntered → GameManager.AddPrayerCleared）でそのまま報われる。本体を撃ち落とすと
-    // 残りの祈り弾もまとめて受け止め扱い（AddPrayerCleared＋花びら）。撃ち漏らして左へ抜けられたら
-    // 祈り弾ごと消える（報酬なし）＝ボス戦「お残し禁止」を道中で遊びながら教える練習台。
     private static readonly Vector2[] PrayerOffsets =  // ぶら下げ位置（本体からの相対・下へ短い鎖）
         { new(0f, 15f), new(3f, 26f), new(6f, 37f) };
     // 祈り弾をぶら下げ始めるX。出現直後（x=398＝画面右外）に生むと、Bullet の画面外カリング
@@ -1604,7 +1598,6 @@ public partial class MidEnemy : Enemy
     // GrantFollower は浄化直後に必ず通る（cry を使わない道中ザコは PostTexPath 差替後すぐここへ）。
     protected override void GrantFollower()
     {
-        // 祈り運び：本体の撃ち落とし＝残っていた祈り弾もまとめて受け止め扱い（award 付きで解放）。
         if (_spec.Pattern == AttackPattern.KoharuPrayerCarry) ReleaseCarriedPrayers();
         _motion = LivingMotion.None;
         _spin = 0f; _kick = 0f; _startle = 0f;

@@ -31,13 +31,6 @@ public partial class AreaStrike : Node2D, IAoeHazard
     public enum Motif { None, Stream, Rain, Screen, Data }
     private Motif _motif = Motif.None;
 
-    public enum Art { None, ReadReceipt, ClipLine }
-    private Art _art = Art.None;
-    public void SetArt(Art art) => _art = art;
-
-    private static Texture2D? _messageTex, _readDotsTex;
-    private static Texture2D MessageTex => _messageTex ??= GD.Load<Texture2D>("res://char/v3/fx/rei/bubble_empty_1.png");
-    private static Texture2D ReadDotsTex => _readDotsTex ??= GD.Load<Texture2D>("res://char/v3/fx/akari/read_dots.png");
     private static readonly System.Collections.Generic.Dictionary<Motif, Texture2D[]> MotifTextures = new();
     private Texture2D[] _motifArt = System.Array.Empty<Texture2D>();
     private Vector2[][] _dangerCorners = System.Array.Empty<Vector2[]>();
@@ -110,7 +103,6 @@ public partial class AreaStrike : Node2D, IAoeHazard
     //   CoversPoint … 点 p が被弾域内か（安置くり抜き含む Inside と同一判定）
     public bool IsStriking => _struck;
     public bool CoversPoint(Vector2 p) => Inside(p);
-    internal void EnsureWarning(double seconds) => _warn = System.Math.Max(_warn, seconds);
 
     // 全形状共通で "aoe" グループに入れる（QaPilot が走査する）。ゲーム本編では誰も参照しない。
     public override void _Ready()
@@ -297,15 +289,6 @@ public partial class AreaStrike : Node2D, IAoeHazard
         var hot = new Color(DangerHot, 0.85f * fade);
         DrawLine(top + Vector2.Down * 2.5f, top + Vector2.Down * 2.5f + along * progress, hot, 0.8f);
         DrawLine(bottom + Vector2.Up * 2.5f, bottom + Vector2.Up * 2.5f + along * progress, hot, 0.8f);
-        if (_art == Art.ClipLine)
-        {
-            // The bright cut occupies the damage band, not just a thin line through a wider hitbox.
-            if (_struck) DrawRect(rect.Grow(PlayerHit), new Color(DangerHot, 0.9f * fade));
-            else
-                for (float x = rect.Position.X + 4; x < rect.End.X - 4; x += 10)
-                    DrawLine(new Vector2(x, 0), new Vector2(Mathf.Min(x + 4, rect.End.X - 4), 0), hot, 1f);
-            return;
-        }
         float span = rect.Size.X;
         int count = Mathf.Clamp((int)(span / 36f), 2, 12);
         for (int i = 0; i < count; i++)
@@ -313,9 +296,7 @@ public partial class AreaStrike : Node2D, IAoeHazard
             float u = (i + 0.5f) / count;
             float x = rect.Position.X + 10f + (span - 20f) * u;
             var at = new Vector2(x, 0);
-            if (_art == Art.ReadReceipt)
-                DrawReadReceipt(at, new Vector2(17, rect.Size.Y - 4), (0.32f + 0.22f * progress) * fade);
-            else if (_motif != Motif.None)
+            if (_motif != Motif.None)
                 DrawStamp(i, at, new Vector2(18, rect.Size.Y - 4), (0.32f + 0.22f * progress) * fade);
             else
             {
@@ -420,15 +401,6 @@ public partial class AreaStrike : Node2D, IAoeHazard
         size *= Mathf.Min(box.X / size.X, box.Y / size.Y);
         Color tint = _motif == Motif.Data ? new Color(1f, 0.7f, 0.87f, alpha) : new Color(1, 1, 1, alpha);
         DrawTextureRect(texture, new Rect2(at - size / 2, size), false, tint);
-    }
-
-    private void DrawReadReceipt(Vector2 at, Vector2 box, float alpha)
-    {
-        Vector2 size = MessageTex.GetSize();
-        size *= Mathf.Min(box.X / size.X, box.Y / size.Y);
-        DrawTextureRect(MessageTex, new Rect2(at - size / 2, size), false, new Color(1, 1, 1, alpha));
-        var dots = new Vector2(size.X * 0.42f, size.Y * 0.25f);
-        DrawTextureRect(ReadDotsTex, new Rect2(at - dots / 2, dots), false, new Color(1, 1, 1, alpha));
     }
 
     private void DrawFrameProgress(Rect2 rect, float progress, Color color)

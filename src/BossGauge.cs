@@ -241,14 +241,6 @@ public partial class BossGauge : Node2D
         DrawStringOutline(style.Font, labelPosition + new Vector2(0, style.Font.GetAscent(style.Size)), label,
             HorizontalAlignment.Left, -1, style.Size, 4, new Color(Plate, alpha));
         UiKit.Draw(this, style, labelPosition, label, new Color(accent, alpha));
-        if (resolving)
-        {
-            var instructionPosition = labelPosition + new Vector2(0, style.LineHeight);
-            const string instruction = "攻撃が終わるまで回避";
-            DrawStringOutline(style.Font, instructionPosition + new Vector2(0, style.Font.GetAscent(style.Size)), instruction,
-                HorizontalAlignment.Left, -1, style.Size, 4, new Color(Plate, alpha));
-            UiKit.Draw(this, style, instructionPosition, instruction, new Color(accent, alpha));
-        }
         UiKit.EndDesign(this);
     }
 

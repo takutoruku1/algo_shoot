@@ -6,7 +6,6 @@ public partial class StageAkari : Node
     public Player Player = null!;
     public Hud Hud = null!;
     public Node2D World = null!;
-
     private int _step;
     private bool _stepStarted;
     private double _stageElapsed;   // ステージ全体の経過秒（クリア確定まで・ポーズ中は止まる）。
@@ -19,9 +18,7 @@ public partial class StageAkari : Node
     private double _nextTutorialTime = 4.0;
     private BossAkari _boss = null!;
     private bool _bossActive;
-
     private const float SpawnX = 300f;
-
     // ミナの表情（案C では語り手はミナ一人＝行ごとに顔を差し替える）。
     // ユーザー承認済み: docs/20260914/ストーリー添削_2026-09-14.md 【3】
     //   感情アークの厳格運用：ミナは「困る（あかり後）→笑う（こはる後）→泣く（レイ後）」の順に獲得する。
@@ -32,7 +29,6 @@ public partial class StageAkari : Node
     // あかりの顔。平常＝akari_face／画面の光を浴びた＝akari_face_lit／泣き＝akari_face_cry。
     private const string AFace = "res://char/v3/akari_face.png";
     private const string AFaceLit = "res://char/v3/akari_face_lit.png";
-
     private Spawner _spawner = null!;
     private int _waveBase;
     private const int MidWave0 = 30;
@@ -43,69 +39,58 @@ public partial class StageAkari : Node
     // あかり＝怯え・自責で、攻撃も悲嘆寄り。撃破（HP/サイクル削り切り＝改心）まで Stage は進まない。保険退場は廃止。
     private CameoBoss _cameo = null!;
     private bool _cameoIntroStarted, _cameoIntroDone;
-
-    // S1-1 フロア・導入（仮台本 06）。雨の、誰もいない退勤後のオフィス。
-    //   一面目なので「飛んでくるのは言葉であって本人ではない／奥の本人へ届けに行く」という
-    //   この世界の決まりの提示をここが担う（06 の但し書き）。
     // who: 0=あなた（送信された下書き） / 1=ミナ / 2=あかり / 3=システム表示 / 4=投稿。who=5（中継）は使わない。
     private static readonly (int who, string text, string face)[] Intro =
     {
         (4, "すき、すき、すき。……ひとつでいいから、本物になって。", ""),
         (0, "到着した。回線はつながってる。ミナ、聞こえる？", ""),
-        (1, "はい。雨が、下から上へ……。机も椅子も、天井へ落ちていきます。", "res://char/mina_face.png"),
-        (0, "あかりさんの心が映る場所だ。会社そのものじゃない。飛んでくる言葉はよけて。進み方は、一つずつ伝える。", ""),
-        (1, "はい。あの方のところへ、行きましょう。", "res://char/mina_face.png"),
+        (1, "はい。机が、逆さまです。……わたくしが逆さま、ではありませんよね。", "res://char/mina_face.png"),
+        (0, "君はちゃんと立ってるよ。ここは、あかりさんのフェイクレルム。送れなかった言葉が、手紙の道になってる。", ""),
+        (1, "よかった。……では、あの方のところまで、案内をお願いします。", "res://char/mina_face.png"),
     };
-
     // S1-9 ボス戦「あふれるわたし」の頭（仮台本 06）。ボスは出現済みだが会話中は止まる。
     //   宣言はカットイン『ねえ、こっち見て』と弾幕名の宣告（BossAkari.Spells / AnnounceSpell）に対応する。
     //   RECLOSE と最終形の宣言（「……返して。読んだなら、返してよ。」）は BossAkari 側に置いた。
     private static readonly (int who, string text, string face)[] BossIntro =
     {
         (2, "ねえ、こっち見て。", "res://char/v3/akari_face.png"),
-        (2, "すきって言って。あたしも言う。……ずっと一緒。離さないから。", "res://char/v3/akari_face.png"),
+        (2, "向かいの席、空けてあるの。……また一緒に帰ろうよ。すきって、今度はちゃんと言うから。", "res://char/v3/akari_face.png"),
         (1, "わたくしはミナです。あなたが待っている方ではありません。でも、ここでお話を聞かせてほしいのです。", "res://char/mina_face.png"),
         (2, "代わりじゃ、だめなの。……誰でもいいわけじゃ、ないの。", "res://char/v3/akari_face.png"),
     };
-
-    // S1-2 小話 Mid（仮台本 06）。「返して」「すき」の声。ホワイトボードの字と置き傘を、ミナが自分で見つける。
-    //   相方は「あなた」＝返事をしない相手なので、掛け合いではなく観測とひとり漫才で運ぶ。
     //   先頭2行は S1-5（中ボス）のミナ行。CameoBoss の一行オーバーレイは本人(who=2)しか流さないので、
     //   中ボスが消えた直後に開くこの step が受け皿になる（step 構成は変えない前提での置き場所）。
     //   17（道中の選択肢 案C）: この先頭2行＋「問いだけが残っています」の2行までを MidPre（きっかけ）に切り、
     //   下書き選択（s1_5）を挟んでから、受け＋この配列（S1-2 の小話）へ戻る。
     private static readonly (int who, string text, string face)[] MidPre =
     {
-        (1, "雨の奥へ、行ってしまいました。……追っても、よろしいですか。", "res://char/mina_face.png"),
+        (1, "非常階段の先にも、手紙の道が。……あの方を追っても、よろしいですか。", "res://char/mina_face.png"),
         (0, "道はつながってる。ただ、僕らを待っていた人と取り違えている。誰かの代わりに、約束はできない。", ""),
         (1, "分かっています。それでも、あのまま一人にはしたくありません。", "res://char/mina_face.png"),
         (0, "僕もだ。ミナ、君と一緒に、もう一度会いに行きたい。", ""),
     };
+
     private static readonly (int who, string text, string face)[] Mid =
     {
         (1, "ここの声は……どれも、「返して」「すき」と、すがりついてきます。……返事の声だけが、ひとつも、混じっていません。", "res://char/mina_face.png"),
         (0, "アンチャーがほどけて、道が広がってる。ミナ、身体は重くない？", ""),
         (1, "少し肩が軽くなった気がします。……今のところは。", "res://char/mina_face.png"),
-        (1, "ホワイトボードに、字が。「あたしのせいだ」。……消しても消しても、浮いてくる、そういう字です。", "res://char/mina_face.png"),
-        (0, "傘が二本あるね。片方には、まだ値札がついてる。", ""),
-        (1, "……ちなみに。片方の柄に、値札が付いたままです。八百円。", "res://char/mina_face.png"),
-        (0, "そこまで読んだの？　僕は色しか見てなかった。", ""),
-        (1, "八百円でも、置いていくには惜しい傘です。……誰も取りに来ないのでしょうか。", "res://char/mina_face.png"),
+        (1, "「あたしのせいだ」……同じ声が、何度も戻ってきます。階段を下りても、ここから帰れないような。", "res://char/mina_face.png"),
+        (0, "出口のそばに、傘が二本あるね。黄色と、紺色。", ""),
+        (1, "二本とも置いたままです。……一人で二本、さすのでしょうか。", "res://char/mina_face.png"),
+        (0, "それだと両手がふさがるね。誰かと一本ずつ、使いたかったのかもしれない。", ""),
+        (1, "では、持ち主に伺いましょう。……傘だけでなく、待っている方のことも。", "res://char/mina_face.png"),
         (1, "雨の音は、嫌いではありません。……うるさい、と思いながら、消していないので。", "res://char/mina_face.png"),
     };
-
-    // S1-7 道中B／MidStory／道中C（仮台本 06）。向かいの席の暗いモニタと読めない付箋。「同じ部署」の声。
-    //   返事の声だけが無い。「ぜんぶ浴びる」をミナ自身の方針として言う＝S1-10 の「証人」の仕込み。
     private static readonly (int who, string text, string face)[] BossTalk =
     {
-        (1, "……向かいの席。モニタは、暗いまま。キーボードの上に、付箋が一枚。……字は、読めません。", "res://char/mina_face.png"),
+        (1, "……手紙の道が、浮かんだオフィスへ続いています。どの机にも、人はいないのですね。", "res://char/mina_face.png"),
         (4, "「向かいの席、空いたまま。……三日目。」", ""),
         (1, "「気づいてほしい、でも気づかれたら困る」……そういう声が、「同じ部署」という言葉と、いっしょに流れていきます。", "res://char/mina_face.png"),
         (1, "……返事の声だけが、ここまで来ても、ひとつも、ありません。", "res://char/mina_face.png"),
         (0, "消された言葉が残ってる。全部を一度に抱えなくていい。聞こえた順に、僕にも教えて。", ""),
-        (1, "……はい。自分だけで持たなくてよいのですね。では、まずこの付箋から。", "res://char/mina_face.png"),
+        (1, "……はい。自分だけで持たなくてよいのですね。では、いま聞こえた声から。", "res://char/mina_face.png"),
     };
-
     // S1-5 中ボス あかり（仮台本 06）。先出しの本人。退勤後のカーディガンに社員証、片手のスマホの光が顔に当たっている。
     //   CameoBoss は who=2（本人）の行だけを一行オーバーレイで流す（IntroLines＝第一声／TauntLines＝RECLOSE／
     //   DefeatLines＝捨て台詞）。ミナの2行はオーバーレイに乗らないので S1-4 の締めと Mid の頭に置いてある。
@@ -123,66 +108,38 @@ public partial class StageAkari : Node
         (2, "ひとりにしないで。……ねえ、ひとりに、しないでってば。", "res://char/v3/akari_face.png"),
         (2, "来ないで……っ。……ちがう、来て。……来ないで。", "res://char/v3/akari_face.png"),
     };
+
     private static readonly (int who, string text, string face)[] CameoPost =
     {
         (2, "ぜったい、また会いに来てよね。ぜったいだよ?", "res://char/v3/akari_face.png"),
         (1, "また会いに来ます。今度は、お名前を聞かせてください。", "res://char/mina_face.png"),
     };
-
     // ───────── S1-4 束（ミッドシナリオ枠＝後半Bと終盤Cの境・ボス前の“溜め”）─────────
-    // 仮台本 06 の S1-4。宙に浮いた机に、社内チャットの「メッセージの送信を取り消しました」だけが縦に積み上がった束。
-    // 本文はひとつも残っていない。拾うかどうかを「あなた」に聞く＝この面唯一の下書き選択（ChoiceOverlay）。
     // 吹き出し会話（Step_Lines）で出す＝弾は止まる。
     private static readonly (int who, string text, string face)[] MidStory =
     {
         (4, "「送信取消。今日で十二回目。……全部、同じ人宛。」", ""),
-        (1, "ご主人様、机の上に束が。「メッセージの送信を取り消しました」。こればかりです。", "res://char/mina_face.png"),
+        (1, "ご主人様。道になった手紙から、同じ通知が聞こえます。「メッセージの送信を取り消しました」と。", "res://char/mina_face.png"),
         (0, "十二通。さっきの投稿と同じだ。本文が見えないぶん、何を書こうとしたのか気になる。", ""),
         (1, "わたくしもです。……一通、開いてみても？", "res://char/mina_face.png"),
     };
 
     private static readonly string[] S14Choices = { "あの人の言葉、消えたままにしたくない", "一つずつ聞こう。ミナも無理しないで" };
-    private static (int who, string text, string face)[] S14Reply(int sel) => sel switch
-    {
-        0 => new (int, string, string)[] {
-        (0, "あの人の言葉、消えたままにしたくない", ""),
-        (1, "……はい。消す前には、伝えたかった言葉があったはずです。一つずつ、聞いていきましょう。", "res://char/mina_face.png"),
-        (1, "十二件ぶん。……ご主人様も、一緒に聞いていてください。", "res://char/mina_face.png"),
-    },
-        _ => new (int, string, string)[] {
-        (0, "一つずつ聞こう。ミナも無理しないで", ""),
-        (1, "……わたくしのことまで。ありがとうございます。では、いちばん上の一通から。", "res://char/mina_face.png"),
-        (1, "残りは、今は開かずにおきます。……急がなくてよいと、言っていただけたので。", "res://char/mina_face.png"),
-    },
-    };
     // 選択の受けの後に必ず流す締め（中ボスが来る予感）。
     private static readonly (int who, string text, string face)[] S14Tail =
     {
         (0, "前方に反応。雨の奥から、あかりさんが来る。ミナ、いったん足を止めて。", ""),
         (1, "見えました。……今度は、こちらを見てくださるでしょうか。", "res://char/mina_face.png"),
     };
-
     // ───────── 道中の下書き選択（正典: wiki/08_仮台本/17_道中の選択肢_案C.md・承認 2026-09-06）─────────
     //   s1_5 … 中ボスの捨て台詞の直後（Mid の頭＝step 4）。効果＝ハブ返信（ミナ→@akari）に一語混ざる。
 
     private static readonly string[] S15Choices = { "ミナ、もう一度会いに行こう。放っておけない。", "うまく言えないけど、ひとりにしたくない" };
-    private static (int who, string text, string face)[] S15Reply(int sel) => sel switch
-    {
-        0 => new (int, string, string)[] {
-        (0, "ミナ、もう一度会いに行こう。放っておけない。", ""),
-        (1, "はい。今度は、わたくしたちの名前も伝えましょう。", "res://char/mina_face.png"),
-    },
-        _ => new (int, string, string)[] {
-        (0, "うまく言えないけど、ひとりにしたくない", ""),
-        (1, "……いまの言葉で、伝わりました。うまく言えなくても、そばへ行くことはできます。わたくしも、ご一緒します。", "res://char/mina_face.png"),
-    },
-    };
     private static readonly (int who, string text, string face)[] S15Tail =
     {
-        (0, "返事はまだない。雨の奥へ続く道が見えた。ミナ、右の通路へ。", ""),
+        (0, "返事はまだない。でも、出口の先へ道は続いてる。ミナ、手紙の橋をたどろう。", ""),
         (1, "はい。……次は、置き去りの問いだけにしません。", "res://char/mina_face.png"),
     };
-
     // S1-8 小話 MidEnd（仮台本 06）。投稿の直後、通知の吹き出しが「1」のまま四つ同じ形で降ってくる。
     //   フロアが「すき」で埋まっていく。ボス戦直前の引き。
     private static readonly (int who, string text, string face)[] MidEnd =
@@ -191,12 +148,11 @@ public partial class StageAkari : Node
         (1, "……公開された本文の下に、何度も書き直した跡が、重なっています。", "res://char/mina_face.png"),
         (4, "「いいねが、ひとつ。……増えてないの、知ってるのに、今日だけで四回も、見にきちゃった。」", ""),
         (0, "同じ通知を、何度も確かめた跡だ。増えていないと知ってても、開いてしまうんだね。", ""),
-        (1, "ホワイトボードも、モニタも、窓も……ぜんぶ「すき」で、埋まっていきます。取り消したぶんが、フロアじゅうに、あふれている。", "res://char/mina_face.png"),
+        (1, "手紙が、幾重にも道を作っています。どこからも「すき」と……。取り消した言葉が、行き場を探しているようです。", "res://char/mina_face.png"),
         (1, "吹き出しに、全部「またね」と。……ご主人様、これを祓うのは、少し嫌です。", "res://char/mina_face.png"),
-        (0, "消すのは言葉じゃない。言葉を閉じ込めているアンチャーのほうだ。狙う場所を示すよ。", ""),
+        (0, "消すのは言葉じゃない。言葉を閉じ込めているアンチャーのほうだ。声の続きが聞けるように、道を開こう。", ""),
         (1, "奥に、あの人が。……行きます。今度こそ、奥まで。", "res://char/mina_face.png"),
     };
-
     // S1-11 クリア（仮台本 06）。あかりの投稿が変わる。空の問い（一度目）。
     //   2026-09-26（docs/20260926/主人公の存在_診断と本文 §3.1(c)）：あかりが「知らない声」の言い回しに聞き覚えを言い、
     //   ミナが「たぶん」と受ける＝ミナの声の出所（あなたの未送信414件）に最初のひびが入る対句。説明はしない。
@@ -219,12 +175,77 @@ public partial class StageAkari : Node
         (0, "ずっと画面を見てたから、分からないや。", ""),
         (1, "道案内の方にも、見落としがあるのですね。……あとで、教えてください。", "res://char/mina_face.png"),
     };
-
     // 迷い秒ゲートの行（★）と、フィルム前／後の割り目。
     //   割り目は行数（旧 Take(2)）ではなく本文「……♥が、ひとつ。」で引く＝ゲートで前半の行数が揺れても崩れない。
 
     private const string ClearFilmSplit = "帰還の道を開くよ。ミナ、お疲れさま。";
     private static readonly string[] SkyChoices = { "あとで空を見よう。ミナと一緒に。", "今は、ミナが無事でほっとしてる。" };
+    // クリア確定時（Step_Clear のバナー表示）に台帳を読んで組む。既定はゲート無しの並び。
+    private (int who, string text, string face)[] _clearBefore = ClearBeforeFor(null);
+    private (int who, string text, string face)[] _clearAfter = ClearAfterFor(null);
+    private (int who, string text, string face)[] _playerIntro = null!;
+    private (int who, string text, string face)[] _playerMid = null!;
+    private (int who, string text, string face)[] _playerBoss = null!;
+    // ── 他ジョブ潜行（2026-09-15）──
+    //   結び手以外で潜ったとき true。ミナの行（who=1/3）・下書き選択を抑止し、
+    //   ビート枠（出撃／道中3節目／ボス前／帰還）を CharacterStory のテーブルへ全面置換する。
+    //   改心相当シーン（山場）は BossAkari 側が CharacterStory.Redemption で差し替える。
+    private bool _charStory;
+    private (int who, string text, string face)[] _storyMid1 = System.Array.Empty<(int, string, string)>();
+    private (int who, string text, string face)[] _storyMid2 = System.Array.Empty<(int, string, string)>();
+    private (int who, string text, string face)[] _storyMid3 = System.Array.Empty<(int, string, string)>();
+    private (int who, string text, string face)[] _storyReturn = System.Array.Empty<(int, string, string)>();
+    // 他ジョブ潜行の撃破後アフター（CharacterStory.Aftermath＝潜行キャラ×この面のボスの9通り）。
+    //   フィルムの代わりに会話で流し、そのあと _storyReturn（帰還ビート）へ続ける。
+    private (int who, string text, string face)[] _storyAftermath = System.Array.Empty<(int, string, string)>();
+    private bool _lunatic;
+    // ルナティックのクリア：アフターの代わりに、リザルトのバナーを読む間だけ置いてから帰る。
+    private const double LunaticClearHold = 3.0;
+    private double _lunaticClearT;
+    private bool _startBannerShown;
+    private ChoiceOverlay? _s14Choice;
+    private double _s14ChoiceT;                       // 提示からの経過＝迷い秒数（RecordChoice へ渡す）
+    private (int who, string text, string face)[] _s14After = System.Array.Empty<(int, string, string)>();
+    private int _s14Phase;                            // 0=問いかけまで / 1=選択提示中 / 2=受け＋締め
+    private ChoiceOverlay? _choice;
+    private double _choiceT;                          // 提示からの経過＝迷い秒数（RecordChoice へ渡す）
+    private (int who, string text, string face)[] _choiceAfter = System.Array.Empty<(int, string, string)>();
+    private int _choicePhase;                         // 0=きっかけ / 1=選択提示中 / 2=受け＋締め
+    // 流し切ってもバブルを閉じない（＝直後に選択が重なる）か。RunLinesInPlace の終端処理だけが見る。
+    private bool _holdForChoice;
+    // 撃破後に Finished が立たないまま固まる進行不能への保険（StageMina と同方式）。
+    // 撃破前は一切計らないので長期戦を打ち切ることはなく、通常プレイでは発動しない。
+    private const double BossFinishGrace = 150.0;
+    private double _postDefeatT;
+    private bool _clearBannerShown;
+    private int _clearPhase;
+    private bool _clearing;
+
+    private static (int who, string text, string face)[] S14Reply(int sel) => sel switch
+    {
+        0 => new (int, string, string)[] {
+        (0, "あの人の言葉、消えたままにしたくない", ""),
+        (1, "……はい。消す前には、伝えたかった言葉があったはずです。一つずつ、聞いていきましょう。", "res://char/mina_face.png"),
+        (1, "十二件ぶん。……ご主人様も、一緒に聞いていてください。", "res://char/mina_face.png"),
+    },
+        _ => new (int, string, string)[] {
+        (0, "一つずつ聞こう。ミナも無理しないで", ""),
+        (1, "……わたくしのことまで。ありがとうございます。では、いちばん上の一通から。", "res://char/mina_face.png"),
+        (1, "残りは、今は開かずにおきます。……急がなくてよいと、言っていただけたので。", "res://char/mina_face.png"),
+    },
+    };
+
+    private static (int who, string text, string face)[] S15Reply(int sel) => sel switch
+    {
+        0 => new (int, string, string)[] {
+        (0, "ミナ、もう一度会いに行こう。放っておけない。", ""),
+        (1, "はい。今度は、わたくしたちの名前も伝えましょう。", "res://char/mina_face.png"),
+    },
+        _ => new (int, string, string)[] {
+        (0, "うまく言えないけど、ひとりにしたくない", ""),
+        (1, "……いまの言葉で、伝わりました。うまく言えなくても、そばへ行くことはできます。わたくしも、ご一緒します。", "res://char/mina_face.png"),
+    },
+    };
 
     private static (int who, string text, string face)[] SkyReply(int sel) => sel switch
     {
@@ -245,33 +266,8 @@ public partial class StageAkari : Node
         => ClearFor(game).TakeWhile(l => l.text != ClearFilmSplit).ToArray();
     private static (int who, string text, string face)[] ClearAfterFor(GameManager? game)
         => ClearFor(game).SkipWhile(l => l.text != ClearFilmSplit).ToArray();
-    // クリア確定時（Step_Clear のバナー表示）に台帳を読んで組む。既定はゲート無しの並び。
-    private (int who, string text, string face)[] _clearBefore = ClearBeforeFor(null);
-    private (int who, string text, string face)[] _clearAfter = ClearAfterFor(null);
-
-    private (int who, string text, string face)[] _playerIntro = null!;
-    private (int who, string text, string face)[] _playerMid = null!;
-    private (int who, string text, string face)[] _playerBoss = null!;
-
-    // ── 他ジョブ潜行（2026-09-15）──
-    //   結び手以外で潜ったとき true。ミナの行（who=1/3）・下書き選択を抑止し、
-    //   ビート枠（出撃／道中3節目／ボス前／帰還）を CharacterStory のテーブルへ全面置換する。
-    //   改心相当シーン（山場）は BossAkari 側が CharacterStory.Redemption で差し替える。
-    private bool _charStory;
-    private (int who, string text, string face)[] _storyMid1 = System.Array.Empty<(int, string, string)>();
-    private (int who, string text, string face)[] _storyMid2 = System.Array.Empty<(int, string, string)>();
-    private (int who, string text, string face)[] _storyMid3 = System.Array.Empty<(int, string, string)>();
-    private (int who, string text, string face)[] _storyReturn = System.Array.Empty<(int, string, string)>();
-    // 他ジョブ潜行の撃破後アフター（CharacterStory.Aftermath＝潜行キャラ×この面のボスの9通り）。
-    //   フィルムの代わりに会話で流し、そのあと _storyReturn（帰還ビート）へ続ける。
-    private (int who, string text, string face)[] _storyAftermath = System.Array.Empty<(int, string, string)>();
-
-    private bool _lunatic;
     // 会話・選択の step 一覧（1 イントロ／4 s1_5／6 道中会話／8 S1-4 束／10 MidEnd／12 ボス口上）。ルナティックはここを飛ばす。
     private static bool IsTalkStep(int step) => step is 1 or 4 or 6 or 8 or 10 or 12;
-    // ルナティックのクリア：アフターの代わりに、リザルトのバナーを読む間だけ置いてから帰る。
-    private const double LunaticClearHold = 3.0;
-    private double _lunaticClearT;
 
     public override void _Ready()
     {
@@ -324,8 +320,6 @@ public partial class StageAkari : Node
         if (_step == 1) _playerIntro = _playerIntro.Concat(StageTutorial.TakeSkillIntros(game, includeCharge: false)).ToArray();
         if (_step == 1) Step_Lines(0, _playerIntro);
     }
-
-    private bool _startBannerShown;
 
     public override void _Process(double delta)
     {
@@ -483,11 +477,6 @@ public partial class StageAkari : Node
         //   道中チュートリアル本文の行でなければ内部で畳む＝通常の会話には一切干渉しない。
         StageTutorial.SyncCard(Hud, lines, _introLine);
     }
-
-    private ChoiceOverlay? _s14Choice;
-    private double _s14ChoiceT;                       // 提示からの経過＝迷い秒数（RecordChoice へ渡す）
-    private (int who, string text, string face)[] _s14After = System.Array.Empty<(int, string, string)>();
-    private int _s14Phase;                            // 0=問いかけまで / 1=選択提示中 / 2=受け＋締め
     private void Step_MidStory(double delta)
     {
         switch (_s14Phase)
@@ -526,16 +515,6 @@ public partial class StageAkari : Node
         ChoiceEffects.Record(game, "s1_4", S14Choices, sel, (float)_s14ChoiceT);
         _s14After = S14Reply(sel).Concat(S14Tail).ToArray();
     }
-
-    // ---- 道中の下書き選択（17）の汎用三フェーズ：きっかけ → 選択 → 受け＋締め（＋残りの会話）----
-    // 型は S1-4（Step_MidStory）と同じで、id・候補・受け・締めを引数で受けるようにしただけ。
-    //   提示中もバブルは保持（HoldBubble）＝BubblePaused が続いて弾・敵は止まったまま。
-    //   自動プレイ（--qa/--demo）は BubblePaused 中 Z をパルスし続けるので既定カーソル
-    //   のまま即決される＝詰まらない。tail の後ろに rest を繋げば、選択のあとに元の会話の続きを流せる。
-    private ChoiceOverlay? _choice;
-    private double _choiceT;                          // 提示からの経過＝迷い秒数（RecordChoice へ渡す）
-    private (int who, string text, string face)[] _choiceAfter = System.Array.Empty<(int, string, string)>();
-    private int _choicePhase;                         // 0=きっかけ / 1=選択提示中 / 2=受け＋締め
     private void Step_Choice(double delta, string id,
         (int who, string text, string face)[] cue, string[] choices,
         System.Func<int, (int who, string text, string face)[]> reply,
@@ -574,9 +553,6 @@ public partial class StageAkari : Node
         }
     }
 
-    // 流し切ってもバブルを閉じない（＝直後に選択が重なる）か。RunLinesInPlace の終端処理だけが見る。
-    private bool _holdForChoice;
-
     // 会話配列を「この step に留まったまま」流すヘルパ（Step_Lines と同じ送り作法。終端で onEnd を呼ぶ）。
     private void RunLinesInPlace(double delta, (int who, string text, string face)[] lines, System.Action onEnd)
     {
@@ -614,87 +590,67 @@ public partial class StageAkari : Node
 
     private void Step_MidWave0(double delta)
     {
-        var game = GetNodeOrNull<GameManager>("/root/Game");
         if (!_stepStarted)
         {
             _stepStarted = true;
-            _waveBase = game?.PurifiedCount ?? 0;
             StartMidwaveSpawner(MidWave0);
         }
-        if (game != null && (game.PurifiedCount - _waveBase >= MidWave0 || game.StageCleared))
-        {
-            _spawner?.Stop(); _spawner = null!;
-            ClearStageEnemies();
-            GetNodeOrNull<BulletPool>("/root/Pool")?.DespawnAll();
-            Advance();
-        }
+        if (!_spawner.Finished || !Spawner.BattlefieldClear(GetTree())) return;
+        _spawner.QueueFree();
+        _spawner = null!;
+        GetNode<BulletPool>("/root/Pool").DespawnAll();
+        Advance();
     }
 
     // ---- 道中ザコ戦“前半”：Spawner起動→MidWaveA体浄化で考察（BossTalk）へ（型崩し後：カメオは既に済み） ----
     private void Step_MidwaveA(double delta)
     {
-        var game = GetNodeOrNull<GameManager>("/root/Game");
         if (!_stepStarted)
         {
             _stepStarted = true;
-            _waveBase = game?.PurifiedCount ?? 0;
             StartMidwaveSpawner(MidWaveA);
         }
-        // 規定数浄化（or 目標到達）で節目＝スポーン停止＋倒し残しの居座りザコを片付けて進む。
-        // 最後の1体探しを要求しない＝進行不能を防ぐ。戦闘中の居座りは維持。
-        if (game != null && (game.PurifiedCount - _waveBase >= MidWaveA || game.StageCleared))
-        {
-            _spawner?.Stop(); _spawner = null!;
-            ClearStageEnemies();
-            GetNodeOrNull<BulletPool>("/root/Pool")?.DespawnAll(); // 会話（考察）前に片付ける
-            Advance();
-        }
+        if (!_spawner.Finished || !Spawner.BattlefieldClear(GetTree())) return;
+        _spawner.QueueFree();
+        _spawner = null!;
+        GetNode<BulletPool>("/root/Pool").DespawnAll();
+        Advance();
     }
 
     // ---- 道中ザコ戦“B（後半）”：考察（BossTalk）の後。やや詰めて始める。MidWaveB体でミッドシナリオへ ----
     private void Step_MidwaveB(double delta)
     {
-        var game = GetNodeOrNull<GameManager>("/root/Game");
         if (!_stepStarted)
         {
             _stepStarted = true;
-            _waveBase = game?.PurifiedCount ?? 0;
             StartMidwaveSpawner(MidWaveB, 0.35f);
         }
-        // 規定数浄化（or 目標到達）で節目＝スポーン停止＋居座り片付け＋ミッドシナリオへ（全滅ハント不要＝進行不能を防ぐ）。
-        if (game != null && (game.PurifiedCount - _waveBase >= MidWaveB || game.StageCleared))
-        {
-            _spawner?.Stop(); _spawner = null!;
-            ClearStageEnemies();
-            GetNodeOrNull<BulletPool>("/root/Pool")?.DespawnAll();
-            Advance();
-        }
+        if (!_spawner.Finished || !Spawner.BattlefieldClear(GetTree())) return;
+        _spawner.QueueFree();
+        _spawner = null!;
+        GetNode<BulletPool>("/root/Pool").DespawnAll();
+        Advance();
     }
 
     // ---- 道中ザコ戦“C（終盤）”：ミッドシナリオの後。最大密度でボス直前の山を作る。MidWaveC体で本ボスへ ----
     private void Step_MidwaveC(double delta)
     {
-        var game = GetNodeOrNull<GameManager>("/root/Game");
         if (!_stepStarted)
         {
             _stepStarted = true;
-            _waveBase = game?.PurifiedCount ?? 0;
             StartMidwaveSpawner(MidWaveC, 0.7f);
         }
-        // 規定数浄化（or 目標到達）で節目＝スポーン停止＋居座り片付け＋本ボスへ（全滅ハント不要＝進行不能を防ぐ）。
-        if (game != null && (game.PurifiedCount - _waveBase >= MidWaveC || game.StageCleared))
-        {
-            _spawner?.Stop(); _spawner = null!;
-            ClearStageEnemies();
-            GetNodeOrNull<BulletPool>("/root/Pool")?.DespawnAll();
-            Advance();
-        }
+        if (!_spawner.Finished || !Spawner.BattlefieldClear(GetTree())) return;
+        _spawner.QueueFree();
+        _spawner = null!;
+        GetNode<BulletPool>("/root/Pool").DespawnAll();
+        Advance();
     }
 
     private void StartMidwaveSpawner(int count, float startIntensity = 0f)
     {
         if (_spawner != null) return;
-        (GetTree().GetFirstNodeInGroup("stagebg") as StageBackground)?.BeginRoute();
+        _waveBase = GameManager.Instance!.PurifiedCount;
         // 道中の段の頭（0/A/B/C の各波）＝直前の波で盤面の弾とザコを掃き切ってから湧き直す仕切り直し。
         //   敵がゼロから湧き直すのに自機だけ前の段の位置に残るのが非対称なので、自機も初期位置へ戻す。
         //   ・ルナティックは除外：会話の区切りを全部飛ばして戦闘を途切れさせない難易度なので、ここで
@@ -704,12 +660,8 @@ public partial class StageAkari : Node
         _spawner = new Spawner { Name = "Spawner", World = World, Theme = StageTheme.Akari, SpawnLimit = count, StartIntensity = startIntensity };
         AddChild(_spawner);
         _spawner.Begin();
-    }
-
-    private void ClearStageEnemies()
-    {
-        foreach (Node n in GetTree().GetNodesInGroup("enemies"))
-            if (n is Enemy e) e.QueueFree();
+        var (from, to) = _step switch { 2 => (0f, 1.95f), 5 => (2f, 2.65f), 7 => (2.65f, 3.2f), _ => (3.2f, 4f) };
+        GetParent().GetNode<StageBackground>("StageBackground").TrackRoute(_spawner, from, to);
     }
 
     // ---- ボスの“チラ見せ”：CameoBoss（本戦ボスと同じ Enemy 派生・シールド制・BossMover）を1体スポーン ----
@@ -797,12 +749,6 @@ public partial class StageAkari : Node
             Advance();
         }
     }
-
-    // ---- 3: ボス戦（浄化＆会話完了まで） ----
-    // 撃破後に Finished が立たないまま固まる進行不能への保険（StageMina と同方式）。
-    // 撃破前は一切計らないので長期戦を打ち切ることはなく、通常プレイでは発動しない。
-    private const double BossFinishGrace = 150.0;
-    private double _postDefeatT;
     private void Step_BossWait(double delta)
     {
         if (!IsInstanceValid(_boss) || _boss.Finished)
@@ -818,10 +764,6 @@ public partial class StageAkari : Node
         _bossActive = false;
         Advance();
     }
-
-    // ---- 5: クリア（帰還の会話を手動送り） ----
-    private bool _clearBannerShown;
-    private int _clearPhase;
     private void Step_Clear(double delta)
     {
         if (!_clearBannerShown)
@@ -880,9 +822,6 @@ public partial class StageAkari : Node
             _zEdge = false;
         });
     }
-
-    // ---- 6: STAGE2（こはる）へ ----
-    private bool _clearing;
     private void Step_Transition()
     {
         if (_clearing) return;

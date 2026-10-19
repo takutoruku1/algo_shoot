@@ -118,8 +118,6 @@ public partial class AreaSpellCaster : Node2D
             _finalePending = !ended.Completed && !_owner.IsPurified;
         };
     }
-    public float WarnMul() => GameManager.Instance!.Difficulty switch
-    { GameManager.Diff.Hard => 0.9f, GameManager.Diff.Lunatic => 0.8f, _ => 1f };
     internal static bool HasRemainingShots(SceneTree tree) => tree.GetNodesInGroup("enemy_bullets").OfType<Bullet>().Any(b => b.Active);
     public override void _ExitTree()
     {

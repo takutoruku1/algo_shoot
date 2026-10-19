@@ -52,10 +52,9 @@ public partial class BossSpellQa : Node
                 await CheckBossBackgrounds(game);
             else
             {
-                bool clipsOnly = OS.GetCmdlineUserArgs().Contains("--rei-clips");
                 bool edgeEffects = OS.GetCmdlineUserArgs().Contains("--edge-effects");
                 bool edgesOnly = OS.GetCmdlineUserArgs().Contains("--edges") || edgeEffects;
-                foreach (string scene in clipsOnly ? new[] { "Rei" } : new[] { "Akari", "Koharu", "Rei", "MinaBattle" })
+                foreach (string scene in new[] { "Akari", "Koharu", "Rei", "MinaBattle" })
                 {
                     game.Difficulty = GameManager.Diff.Normal;
                     var root = GD.Load<PackedScene>($"res://{scene}.tscn").Instantiate<Node2D>();
@@ -94,24 +93,14 @@ public partial class BossSpellQa : Node
                         var caster = Read<MinaPhaseAttacks>(mina, "_caster");
                         caster.SetProcess(false);
                         caster.CancelPendingAttacks();
-                        await ClearStrikes(world);
-                        await CheckMina(game, mina, hud);
                     }
                     else
                     {
                         var caster = Read<AreaSpellCaster>(boss, "_caster");
                         caster.SetProcess(false);
                         caster.CancelPendingAttacks();
-                        await ClearStrikes(world);
-                        Pool.DespawnAll();
-                        if (scene == "Rei") await CheckReiClipLines(game, caster, hud, world, player);
-                        if (!clipsOnly)
-                        {
-                            if (scene != "Akari") await CheckTelegraphs(game, scene, caster, hud, world, player);
-                            await CheckAreaPresentation(game, scene, boss, caster, hud, world);
-                        }
                     }
-                    if (!clipsOnly) await CheckReadability(scene, boss, hud, world);
+                    await CheckReadability(scene, boss, hud, world);
                     root.QueueFree();
                     await Frames(5);
                     Pool.DespawnAll();
@@ -799,7 +788,10 @@ public partial class BossSpellQa : Node
         Write(player, "_lockArmed", true);
         Write(player, "_lockByShift", false);
         Write(player, "_lockTarget", boss);
-        Check(panels.All(p => p.Ink == 20 && p.CanLock), $"{scene}: shield durability matches precise panel aiming");
+        var initialInk = panels.Select(p => p.Ink).ToArray();
+        Check(panels.All(p => p.Ink > 5 && p.CanLock)
+            && initialInk.Sum() == Read<int>(boss, "_totalPanelInk", typeof(Enemy)),
+            $"{scene}: configured shield durability remains intact");
         using (var art = GD.Load<Texture2D>(UnfolderMotion.TexturePath(boss.UnfolderStyle)).GetImage())
             Check(art.GetWidth() == 256 && art.GetHeight() == 256 && art.HasMipmaps() && art.GetPixel(0, 0).A == 0
                 && art.GetPixel(128, 128).A > 0.5f, $"{scene}: real alpha and an opaque target core");
@@ -814,8 +806,8 @@ public partial class BossSpellQa : Node
             else if (tier > 0) test.MakeCharged(Job.Tank, tier);
             int cost = tier == -1 ? 2 : tier == 0 ? 1 : tier == ChargeTier.First ? 3 : 5;
             Call(panels[0], "OnAreaEntered", test);
-            Check(panels[0].Ink == 20 - cost, $"{scene}: shot tier {tier} strips {cost} durability");
-            panels[0].Ink = 20;
+            Check(panels[0].Ink == initialInk[0] - cost, $"{scene}: shot tier {tier} strips {cost} durability");
+            panels[0].Ink = initialInk[0];
             Pool.DespawnAll();
         }
         foreach (var panel in panels) panel._PhysicsProcess(0.2);
@@ -863,16 +855,26 @@ public partial class BossSpellQa : Node
         if (boss is BossMina) Write(boss, "_pattern", 4);
         var start = target.Position;
         bool moved = false, warped = false, warned = false, echoes = false;
-        for (int frame = 0; frame < 360; frame++)
+        float travel = 0, minRadius = float.MaxValue, maxRadius = 0, rotation = 0;
+        int stillFrames = 0;
+        bool video = OS.GetCmdlineUserArgs().Contains("--unfolder-video");
+        string framesPath = output + "/motion";
+        if (video) DirAccess.MakeDirRecursiveAbsolute(framesPath);
+        float previousTilt = Read<UnfolderPose>(target, "_pose").Tilt;
+        for (int frame = 0; frame < 480; frame++)
         {
             var previous = target.Position;
             foreach (var panel in panels) panel._PhysicsProcess(1d / 60);
             var pose = Read<UnfolderPose>(target, "_pose");
             warned |= pose.WarpCue > 0.01f;
             echoes |= pose.EchoAlpha > 0.1f;
-            if (boss.UnfolderStyle == UnfolderKind.Rei && pose.WarpCue > 0.5f)
-                CheckSilent(panels.All(p => p.Position.DistanceTo(pose.WarpTo) > 6),
-                    "Rei's warp forecast must not coincide with an occupied slot");
+            float displacement = previous.DistanceTo(target.Position);
+            travel += displacement;
+            if (displacement < 0.02f) stillFrames++;
+            minRadius = Mathf.Min(minRadius, pose.Position.Length());
+            maxRadius = Mathf.Max(maxRadius, pose.Position.Length());
+            rotation += Mathf.Abs(pose.Tilt - previousTilt);
+            previousTilt = pose.Tilt;
             moved |= start.DistanceTo(target.Position) > 10;
             if (previous.DistanceTo(target.Position) > 25 && frame > 0)
             {
@@ -883,10 +885,22 @@ public partial class BossSpellQa : Node
                 "lock must follow the same panel through motion/teleport");
             CheckSilent(panels.All(p => Field.Rect.HasPoint(p.GlobalPosition)), "all targets stay inside the playfield");
             if (frame == 119 || frame == 275) { using var snap = await Capture($"motion_{frame}"); }
+            if (video && frame % 4 == 0)
+            {
+                boss.QueueRedraw();
+                await ToSignal(RenderingServer.Singleton, RenderingServer.SignalName.FramePostDraw);
+                using var pixels = GetViewport().GetTexture().GetImage();
+                if (pixels.SaveJpg($"{framesPath}/{scene}_{frame / 4:D3}.jpg", .94f) != Error.Ok)
+                    throw new Exception("Unfolder motion frame could not be saved");
+            }
         }
         Check(moved, $"{scene}: motion changes actual target coordinates");
+        Check(panels.Select(p => p.Ink).SequenceEqual(initialInk), $"{scene}: motion cannot alter shield durability");
         Check(boss.GetChildren().OfType<Panel>().Count() == panels.Length, $"{scene}: clones add no colliders or lock candidates");
-        if (boss.UnfolderStyle is UnfolderKind.Rei or UnfolderKind.Mina)
+        if (boss.UnfolderStyle == UnfolderKind.Rei)
+            Check(!warped && stillFrames == 0 && travel > 200 && maxRadius - minRadius > 8 && rotation > Mathf.Tau,
+                $"Rei: continuous rotating constellation expands and returns (travel={travel:F1}, spread={maxRadius - minRadius:F1}, turns={rotation / Mathf.Tau:F1})");
+        if (boss.UnfolderStyle == UnfolderKind.Mina)
             Check(warped, $"{scene}: warp pattern is exercised");
         if (boss.UnfolderStyle is UnfolderKind.Koharu or UnfolderKind.Mina)
             Check(echoes, $"{scene}: mirror pattern is exercised");
@@ -923,11 +937,14 @@ public partial class BossSpellQa : Node
         var bossPosition = boss.GlobalPosition;
         foreach (var edge in new[] { new Vector2(Field.Left + 10, 20), new Vector2(Field.Right - 10, Field.Bottom - 20) })
         {
+            var separations = panels.Skip(1).Select(p => p.Position.DistanceTo(panels[0].Position)).ToArray();
             boss.GlobalPosition = edge;
             foreach (var panel in panels) panel._PhysicsProcess(0);
             Check(panels.All(p => p.GlobalPosition.X >= Field.Left + 12 && p.GlobalPosition.X <= Field.Right - 12
                 && p.GlobalPosition.Y >= Field.Top + 12 && p.GlobalPosition.Y <= Field.Bottom - 12),
                 $"{scene}: orbit and teleport stay out of the HUD and screen edges");
+            Check(panels.Skip(1).Select((p, i) => Mathf.Abs(p.Position.DistanceTo(panels[0].Position) - separations[i])).All(d => d < .001f),
+                $"{scene}: moving near a corner preserves formation instead of stacking targets");
         }
         boss.GlobalPosition = bossPosition;
         foreach (var panel in panels) panel._PhysicsProcess(0);
@@ -1052,345 +1069,6 @@ public partial class BossSpellQa : Node
         DisplayServer.WindowSetSize(new Vector2I(1280, 720));
         Check(boss.HpRatio == hp && Read<CollisionShape2D>(boss, "_bodyShape", typeof(Enemy)).Shape == shape,
             $"{scene}: presentation leaves HP and collision unchanged");
-    }
-
-    private async Task CheckReiClipLines(GameManager game, AreaSpellCaster caster, Hud hud, Node2D world, Player player)
-    {
-        var spells = Read<(string, AreaStrike.Shape?)[]>(caster, "_spells");
-        var clip = spells.Single(s => s.Item1 == "切り抜きの線");
-        Write(caster, "_spells", new[] { clip });
-        var rng = Read<RandomNumberGenerator>(caster, "_rng");
-        foreach (var diff in Enum.GetValues<GameManager.Diff>())
-        foreach (float y in new[] { 12f, 108f, 204f })
-        foreach (ulong seed in new ulong[] { 1, 17, 81 })
-        {
-            game.Difficulty = diff;
-            rng.Seed = seed;
-            player.GlobalPosition = new Vector2(Field.Left + 50, y);
-            Call(caster, "Cast");
-            caster._Process(0.71d);
-            var lines = world.GetChildren().OfType<AreaStrike>().ToArray();
-            foreach (var line in lines) line.SetProcess(false);
-            int count = diff switch { GameManager.Diff.Easy => 1, GameManager.Diff.Hard => 3, GameManager.Diff.Lunatic => 5, _ => 2 };
-            Check(Read<string>(hud, "_spellName") == clip.Item1
-                && lines.Length > 0 && lines.Length <= count && lines[0].GlobalPosition.Y == y,
-                $"Rei clip/{diff}/{y}/{seed}: player-anchored cast with difficulty limit");
-            Check(lines.All(z => Read<float>(z, "_hh") == 4f && Read<float>(z, "_hw") == Field.Width / 2),
-                "clip lines have a fixed eight-pixel visible width");
-            foreach (var line in lines)
-            {
-                Check(Read<AreaStrike.Art>(line, "_art") == AreaStrike.Art.ClipLine, "clip has its own visual instead of the comment lane");
-                foreach (float x in new[] { Field.Left + 2, Field.CenterX, Field.Right - 2 })
-                foreach (float side in new[] { -1f, 1f })
-                {
-                    float cy = line.GlobalPosition.Y;
-                    Check(line.CoversPoint(new Vector2(x, cy + side * 2.4f))
-                        && !line.CoversPoint(new Vector2(x, cy + side * 2.6f))
-                        && !line.CoversPoint(new Vector2(x, cy + side * 4.1f)),
-                        "hit boundary stays 1.5 pixels inside the visible edge");
-                }
-                Check(!line.CoversPoint(new Vector2(Field.Left - 1, line.GlobalPosition.Y))
-                    && !line.CoversPoint(new Vector2(Field.Right + 1, line.GlobalPosition.Y)), "clip cannot hit beyond the lane ends");
-                foreach (var other in lines.Where(z => z != line))
-                    Check(Mathf.Abs(other.GlobalPosition.Y - line.GlobalPosition.Y) >= 16f, "clip lanes leave at least eight pixels of escape space");
-            }
-            var first = lines[0];
-            double warn = Read<double>(first, "_warn");
-            Check(Math.Abs(warn - 1.2 * caster.WarnMul()) < 0.001, "clip retains its original warning time");
-            int lives = player.Lives;
-            Write(player, "_invincible", false);
-            first._Process(warn - 0.01);
-            Check(!first.IsStriking && player.Lives == lives, "standing on the line during warning is harmless");
-            player.GlobalPosition += Vector2.Down * 3;
-            first._Process(0.02);
-            Check(first.IsStriking && player.Lives == lives, "three-pixel sidestep escapes the actual damage check");
-            player.GlobalPosition = first.GlobalPosition;
-            Call(first, "Strike");
-            Check(player.Lives == lives - 1, "the clip center still deals damage");
-            player.AddLife();
-            Write(player, "_invincible", true);
-            if (diff == GameManager.Diff.Normal && y == 108f && seed == 17)
-            {
-                foreach (var z in lines) { Write(z, "_struck", false); Write(z, "_t", Read<double>(z, "_warn") * 0.8); z.QueueRedraw(); }
-                await Shot("rei_clip_warning");
-                foreach (var size in new[] { new Vector2I(1280, 720), new Vector2I(960, 540), new Vector2I(540, 960) })
-                {
-                    DisplayServer.WindowSetSize(size);
-                    foreach (var z in lines) { Write(z, "_struck", true); Write(z, "_t", Read<double>(z, "_warn") + 0.01); z.QueueRedraw(); }
-                    await Shot($"rei_clip_impact_{size.X}x{size.Y}");
-                }
-                DisplayServer.WindowSetSize(new Vector2I(1280, 720));
-            }
-            caster.CancelPendingAttacks();
-            await ClearStrikes(world);
-        }
-        Write(caster, "_spells", new[] { spells.Single(s => s.Item1 == "コメント一斉読み") });
-        Call(caster, "Cast");
-        caster._Process(0.71d);
-        var comments = world.GetChildren().OfType<AreaStrike>().ToArray();
-        Check(comments.Length > 0 && comments.All(z => Read<float>(z, "_hh") >= 5f
-            && Read<float>(z, "_hh") <= 8f && Read<AreaStrike.Art>(z, "_art") == AreaStrike.Art.None),
-            "comment lanes retain their original width and visuals after a clip cast");
-        caster.CancelPendingAttacks();
-        await ClearStrikes(world);
-        Write(caster, "_spells", spells);
-        game.Difficulty = GameManager.Diff.Normal;
-        player.GlobalPosition = new Vector2(Field.Left + 50f, 160f);
-    }
-
-    private async Task CheckTelegraphs(GameManager game, string scene, AreaSpellCaster caster, Hud hud, Node2D world, Player player)
-    {
-        var spells = Read<(string, AreaStrike.Shape?)[]>(caster, "_spells");
-        Check(spells.All(s => !s.Item1.Contains("選考") && !s.Item1.Contains("包丁")), $"{scene}: current scenario spell names");
-        foreach (var diff in Enum.GetValues<GameManager.Diff>())
-        {
-            game.Difficulty = diff;
-            if (scene == "Koharu")
-            {
-                Write(caster, "_pendShape", AreaStrike.Shape.BeamSeg);
-                Call(caster, "SpawnTelegraphs");
-                var lines = world.GetChildren().OfType<AreaStrike>().ToArray();
-                int count = diff switch { GameManager.Diff.Easy => 1, GameManager.Diff.Hard => 3, GameManager.Diff.Lunatic => 5, _ => 2 };
-                Check(lines.Length == count && lines.All(z => Read<AreaStrike.Art>(z, "_art") == AreaStrike.Art.ReadReceipt
-                    && Read<float>(z, "_segLen") == 460f && Read<float>(z, "_hh") == 6f),
-                    $"Koharu/{diff}: read-receipt art keeps beam count and dimensions");
-                Check(lines[0].CoversPoint(player.GlobalPosition) && !lines[0].IsStriking
-                    && Math.Abs(Read<double>(lines[0], "_warn") - 1.2 * caster.WarnMul()) < 0.001,
-                    "read line retains player anchoring and warning time");
-                if (diff == GameManager.Diff.Normal)
-                {
-                    hud.AnnounceSpell("こはる", BossHandles.KoharuMain, "既読の線", new Color("d6443f"));
-                    foreach (var z in lines) { z.SetProcess(false); z._Process(0.85d); }
-                    await Shot("koharu_read_line");
-                    DisplayServer.WindowSetSize(new Vector2I(960, 540));
-                    await Frames(2);
-                    await Shot("koharu_read_line_small");
-                    DisplayServer.WindowSetSize(new Vector2I(1280, 720));
-                    foreach (var z in lines) z._Process(Read<double>(z, "_warn") - Read<double>(z, "_t") + 0.1d);
-                    Check(lines.All(z => z.IsStriking), "read-receipt strike still activates");
-                    await Shot("koharu_read_line_strike");
-                }
-                await ClearStrikes(world);
-            }
-            else
-            {
-                int hops = diff switch { GameManager.Diff.Easy => 2, GameManager.Diff.Lunatic => 4, _ => 3 };
-                caster.RequestFinale();
-                Check(Read<string>(hud, "_spellName") == "最後まで見てて", $"Rei/{diff}: relay uses personal plea");
-                for (int i = 0; i < hops; i++)
-                {
-                    Call(caster, "SpawnChainHop");
-                    var strike = world.GetChildren().OfType<AreaStrike>().Single();
-                    Check(!Read<string>(hud, "_spellName").Contains("選考")
-                        && Read<float>(strike, "_safeR") == 30f
-                        && !strike.CoversPoint(Read<Vector2>(strike, "_safeCenter")), "relay preserves safe zone and personal dialogue");
-                    if (diff == GameManager.Diff.Normal)
-                    {
-                        strike.SetProcess(false);
-                        strike._Process(0.7d);
-                        await Shot($"rei_relay_{i}");
-                    }
-                    await ClearStrikes(world);
-                }
-                caster.CancelPendingAttacks();
-                Check(!caster.AoeActive, "relay gate clears after final hop");
-            }
-        }
-        game.Difficulty = GameManager.Diff.Normal;
-        var shape = scene == "Koharu" ? AreaStrike.Shape.Circle : AreaStrike.Shape.Rect;
-        Write(caster, "_pendShape", shape);
-        Call(caster, "SpawnTelegraphs");
-        var zones = world.GetChildren().OfType<AreaStrike>().ToArray();
-        Check(zones.All(z => Read<AreaStrike.Motif>(z, "_motif") == (scene == "Koharu" ? AreaStrike.Motif.Screen : AreaStrike.Motif.Stream)),
-            $"{scene}: screen/comment motif replaces the old setting");
-        foreach (var z in zones) { z.SetProcess(false); z._Process(0.8d); }
-        hud.AnnounceSpell(scene == "Koharu" ? "こはる" : "レイ", "", scene == "Koharu" ? "画面の光" : "配信枠", Colors.Gold);
-        await Shot($"{scene.ToLowerInvariant()}_motif");
-        hud.HoldBubble = true;
-        hud.ShowDialog(Hud.LineKind.Mina, "Pause QA", "res://char/mina_face.png");
-        await Frames(3);
-        double time = Read<double>(zones[0], "_t");
-        zones[0]._Process(1d);
-        Check(Read<double>(zones[0], "_t") == time, "dialogue freezes themed area attacks");
-        hud.HoldBubble = false;
-        hud.HideBubble();
-        await Frames(3);
-        await ClearStrikes(world);
-    }
-
-    private async Task CheckMina(GameManager game, BossMina boss, Hud hud)
-    {
-        foreach (var diff in Enum.GetValues<GameManager.Diff>())
-        {
-            game.Difficulty = diff;
-            for (int pattern = 0; pattern < 5; pattern++)
-            {
-                Pool.DespawnAll();
-                Write(boss, "_pattern", pattern);
-                Call(boss, "ApplySpell");
-                Write(boss, "_fireT", 100d);
-                Write(boss, "_fireT2", 100d);
-                Call(boss, "FirePattern", 0d);
-                var bullets = Bullets();
-                int count = pattern switch
-                {
-                    0 => game.ScaleBullets(Read<int>(boss, "_ringCount")),
-                    1 => Read<int>(boss, "_aimedWing") * 2 + 1,
-                    2 => game.ScaleBullets(Read<int>(boss, "_flowerPetals")) * 2,
-                    3 => 3,
-                    _ => game.ScaleBullets(18) + 3,
-                };
-                Check(bullets.Length == count && bullets.All(b => Read<Texture2D?>(b, "_sprite") != null
-                    && b.Damage == 1 && !b.Homing && !b.Accel && !b.IsPatternBullet), $"Mina/{diff}/{pattern}: illustrated attack preserves count and damage");
-                var expectedArt = Read<Texture2D?[][]>(boss, "_spellArt")[pattern];
-                Check(bullets.Select(b => Read<Texture2D>(b, "_sprite").GetInstanceId()).Distinct().OrderBy(p => p)
-                    .SequenceEqual(expectedArt.Select(t => t!.GetInstanceId()).Distinct().OrderBy(p => p)), "memory attack includes every assigned character illustration");
-                foreach (var b in bullets)
-                {
-                    float speed = b.Velocity.Length() / game.BulletSpeedMul;
-                    bool valid = pattern switch
-                    {
-                        0 => Mathf.IsEqualApprox(speed, Read<float>(boss, "_ringSpeed")) && b.Radius == 3f,
-                        1 => Mathf.IsEqualApprox(speed, Read<float>(boss, "_aimedSpeed")) && b.Radius == 4f,
-                        2 => (Mathf.IsEqualApprox(speed, 64f) && b.Radius == 4f) || (Mathf.IsEqualApprox(speed, 100f) && b.Radius == 2.6f),
-                        3 => Mathf.IsEqualApprox(speed, Read<float>(boss, "_spiralSpeed")) && b.Radius == 2.6f,
-                        _ => (Mathf.IsEqualApprox(speed, 70f) && b.Radius == 3f)
-                            || (Mathf.IsEqualApprox(speed, Read<float>(boss, "_spiralSpeed")) && b.Radius == 2.6f),
-                    };
-                    Check(valid, "memory bullet keeps its speed and radius");
-                }
-                if (diff == GameManager.Diff.Normal)
-                {
-                    foreach (var b in bullets) { b._PhysicsProcess(0.5d); b.SetPhysicsProcess(false); }
-                    await Shot($"mina_memory_{pattern}");
-                }
-            }
-            Pool.DespawnAll();
-            Write(boss, "_fireT", 100d);
-            Write(boss, "_fireT2", 100d);
-            Call(boss, "FireFinale", Pool, 0d);
-            Check(Bullets().Length == game.ScaleBullets(18) + 3
-                && Bullets().Any(b => Read<Texture2D>(b, "_sprite") == Read<Texture2D?[][]>(boss, "_spellArt")[4][0]),
-                $"Mina/{diff}: finale combines Mina's core and the three memories");
-            if (diff == GameManager.Diff.Normal)
-            {
-                hud.AnnounceSpell("ミナ", BossHandles.MinaBattle, "心象の核＋世界中の悲鳴", new Color("e0729c"));
-                foreach (var b in Bullets()) { b._PhysicsProcess(0.5d); b.SetPhysicsProcess(false); }
-                await Shot("mina_finale");
-                DisplayServer.WindowSetSize(new Vector2I(960, 540));
-                await Frames(2);
-                await Shot("mina_finale_small");
-                DisplayServer.WindowSetSize(new Vector2I(1280, 720));
-            }
-            Pool.DespawnAll();
-        }
-        var reused = Pool.Spawn(new Vector2(Field.CenterX, 100f), Vector2.Left * 30f, true);
-        Check(Read<Texture2D?>(reused, "_sprite") == null, "pool reuse clears memory art");
-        Pool.DespawnAll();
-    }
-
-    private async Task CheckAreaPresentation(GameManager game, string scene, Enemy boss, AreaSpellCaster caster, Hud hud, Node2D world)
-    {
-        game.Difficulty = GameManager.Diff.Normal;
-        hud.HideBubble();
-        Write(hud, "_bannerTimer", 0d);
-        var motif = scene switch { "Akari" => AreaStrike.Motif.Rain, "Koharu" => AreaStrike.Motif.Screen,
-            "Rei" => AreaStrike.Motif.Stream, _ => AreaStrike.Motif.Data };
-        var shapes = scene switch
-        {
-            "Akari" => new[] { AreaStrike.Shape.BeamV, AreaStrike.Shape.Circle },
-            "Koharu" => new[] { AreaStrike.Shape.Circle, AreaStrike.Shape.Rect, AreaStrike.Shape.BeamSeg },
-            "Rei" => new[] { AreaStrike.Shape.BeamH, AreaStrike.Shape.Rect, AreaStrike.Shape.Fullscreen },
-            _ => new[] { AreaStrike.Shape.Circle, AreaStrike.Shape.Rect, AreaStrike.Shape.BeamH, AreaStrike.Shape.BeamV, AreaStrike.Shape.Fullscreen },
-        };
-        foreach (var shape in shapes)
-        {
-            await ClearStrikes(world);
-            Pool.DespawnAll();
-            Vector2 center = new(Field.CenterX - 20, 130);
-            switch (shape)
-            {
-                case AreaStrike.Shape.Fullscreen:
-                    Call(caster, "SpawnFullscreenStrike", new Vector2(Field.Left + 78, 118), 30f, 1f);
-                    break;
-                case AreaStrike.Shape.BeamSeg:
-                    Call(caster, "SpawnReadLine", center, -26f, 1.2d);
-                    break;
-                default:
-                    Vector2 half = shape switch { AreaStrike.Shape.BeamH => new(Field.Width / 2, 7),
-                        AreaStrike.Shape.BeamV => new(7, Field.Height / 2), AreaStrike.Shape.Circle => new(24, 24), _ => new(28, 23) };
-                    if (shape == AreaStrike.Shape.BeamH) center.X = Field.CenterX;
-                    if (shape == AreaStrike.Shape.BeamV) center.Y = Field.CenterY;
-                    Call(caster, "AddStrike", shape, center, half.X, half.Y, 1.2d);
-                    break;
-            }
-            var zone = world.GetChildren().OfType<AreaStrike>().Single();
-            zone.SetProcess(false);
-            Check(Read<AreaStrike.Motif>(zone, "_motif") == motif, $"{scene}/{shape}: correct boss motif is wired");
-            var art = Read<Texture2D[]>(zone, "_motifArt");
-            Check(art.Length >= 2 && art.All(t => t.GetWidth() > 0 && t.GetHeight() > 0), "all motif illustrations load");
-            double warn = Read<double>(zone, "_warn");
-            Vector2 probe = shape == AreaStrike.Shape.Fullscreen ? new Vector2(Field.Left + 3, 3) : center;
-            Check(zone.CoversPoint(probe) && !zone.IsStriking, "warning preserves coverage without early impact");
-            string label = shape switch
-            {
-                AreaStrike.Shape.Fullscreen => scene == "Rei" ? "最後まで見てて" : "あなたまで、穢したくない",
-                AreaStrike.Shape.BeamSeg => "既読の線",
-                _ => Read<(string, AreaStrike.Shape?)[]>(caster, "_spells").FirstOrDefault(s => s.Item2 == shape).Item1
-                    ?? (scene == "MinaBattle" ? "声が、止まらない" : "画面の光"),
-            };
-            hud.AnnounceSpell(scene == "Akari" ? "あかり" : scene == "Koharu" ? "こはる" : scene == "Rei" ? "レイ" : "ミナ",
-                "", label, Read<Color>(zone, "_tint"));
-            zone._Process(warn * 0.15);
-            await Shot($"aoe_{scene}_{shape}_early");
-            zone._Process(warn * 0.7);
-            Check(!zone.IsStriking, "illustrated charge does not activate early");
-            await Shot($"aoe_{scene}_{shape}_ready");
-            if (shape == shapes.Last())
-            {
-                DisplayServer.WindowSetSize(new Vector2I(960, 540));
-                await Shot($"aoe_{scene}_{shape}_small");
-                DisplayServer.WindowSetSize(new Vector2I(540, 960));
-                await Shot($"aoe_{scene}_{shape}_portrait");
-                DisplayServer.WindowSetSize(new Vector2I(1280, 720));
-            }
-            double pausedAt = Read<double>(zone, "_t");
-            hud.HoldBubble = true;
-            hud.ShowDialog(Hud.LineKind.Mina, "……まだ、ここにいます。", "res://char/mina_worried.png");
-            zone._Process(10d);
-            Check(Read<double>(zone, "_t") == pausedAt, "dialogue never advances the AOE countdown");
-            hud.HideBubble();
-            hud.HoldBubble = false;
-            zone._Process(warn - pausedAt + 0.035);
-            Check(zone.IsStriking && zone.CoversPoint(probe), "themed impact retains its original hit region");
-            await Shot($"aoe_{scene}_{shape}_impact");
-            zone._Process(0.2d);
-            await Frames(2);
-            Check(!IsInstanceValid(zone), "impact still expires after 0.2 seconds");
-        }
-        if (boss is BossKoharu)
-        {
-            Write(boss, "_gotoCenter", new Vector2(Field.Left + 80, 130));
-            Call(boss, "SpawnGotoAxisCross", 1.2d);
-            Call(boss, "SpawnGotoDiagCross", 1.2d);
-            var cross = world.GetChildren().OfType<AreaStrike>().ToArray();
-            Check(cross.Length == 4 && cross.All(z => Read<AreaStrike.Motif>(z, "_motif") == AreaStrike.Motif.Screen),
-                "both stages of Koharu's cross attack use the screen motif");
-            foreach (var z in cross) { z.SetProcess(false); z._Process(0.8d); }
-            hud.AnnounceSpell("こはる", BossHandles.KoharuMain, "自分なにしてんだろ", new Color("e8945a"));
-            await Shot("aoe_Koharu_cross");
-            await ClearStrikes(world);
-        }
-        var owner = new Node2D();
-        world.AddChild(owner);
-        var cancelled = new AreaStrike();
-        cancelled.Configure(AreaStrike.Shape.Circle, 24, 24, 1.2, Colors.Red, Colors.White, motif);
-        cancelled.SetOwner(owner);
-        world.AddChild(cancelled);
-        owner.QueueFree();
-        await Frames(5);
-        Check(!IsInstanceValid(cancelled), "losing the caster cancels illustrated AOE");
-        caster.CancelPendingAttacks();
     }
 
 

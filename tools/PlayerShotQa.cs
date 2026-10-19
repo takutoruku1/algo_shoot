@@ -342,7 +342,7 @@ public partial class PlayerShotQa : Node
         _pool.DespawnAll();
 
         var panel = new Panel();
-        panel.Setup(enemy, 0, 18, 0, false, 0, 20);
+        panel.Setup(enemy, 0, 18, 0, 20);
         enemy.AddChild(panel);
         panel.SetPhysicsProcess(false);
         charge = Fire();
@@ -355,7 +355,7 @@ public partial class PlayerShotQa : Node
         for (int i = 0; i < expected.pierce; i++)
         {
             var next = new Panel();
-            next.Setup(enemy, 0, 18, 0, false, 0, 20);
+            next.Setup(enemy, 0, 18, 0, 20);
             enemy.AddChild(next);
             next.SetPhysicsProcess(false);
             panelHit.Invoke(next, new object[] { charge });
@@ -380,7 +380,7 @@ public partial class PlayerShotQa : Node
         foreach (int tier in new[] { 0, ChargeTier.First, ChargeTier.Second })
         {
             var shield = new Panel();
-            shield.Setup(owner, 0, 18, 0, false, 0, 20);
+            shield.Setup(owner, 0, 18, 0, 20);
             owner.AddChild(shield);
             shield.SetPhysicsProcess(false);
             var shot = _pool.Spawn(player.Position, Vector2.Right * 360, false, 3, 20);

@@ -5,6 +5,7 @@ using System.Linq;
 internal sealed class BulletFootprint
 {
     public Shape2D[] Shapes { get; }
+    public Rect2[] ShapeBounds { get; }
     public float Radius { get; }
     public Rect2 Bounds { get; }
     public Vector2[] Hull { get; }
@@ -16,6 +17,7 @@ internal sealed class BulletFootprint
     private BulletFootprint(Shape2D[] shapes, float radius, Vector2[][]? contours = null)
     {
         Shapes = shapes;
+        ShapeBounds = shapes.Select(shape => shape.GetRect()).ToArray();
         Contours = contours ?? System.Array.Empty<Vector2[]>();
         Radius = radius;
         if (shapes.Length == 1 && shapes[0] is CircleShape2D)

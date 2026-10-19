@@ -20,6 +20,8 @@ public partial class StageImagery : Node2D
 
     private const float W = 384f, H = 216f;
     private FontFile _font = null!;
+    private sealed record CardLayout(string Name, float NameWidth, string Handle, string[] Lines);
+    private readonly System.Collections.Generic.Dictionary<(int, string, bool), CardLayout> _cardLayouts = new();
     private double _t;
     private float _bulletDamp = 1f; // 弾密度が高いほど背景を引く係数（致命情報を最前面の明るさに＝§3 視認性）
     private double _revT = -1;      // S3 画の反転：<0=未発火。TriggerReversal() から 0 で進行を始める
@@ -30,6 +32,21 @@ public partial class StageImagery : Node2D
         ZAsRelative = false;
         AddToGroup("imagery");
         _font = UiKit.Zen; // 非ピクセル（滑らかゴシック）
+        if (Kind == StageKind.Rei)
+        {
+            // New timeline cards must not rasterize Japanese glyphs or load icons during a barrage.
+            for (int i = 0; i < ReiBodies.Length; i++)
+            {
+                IconTex(VoiceIndex(i));
+                var layout = Layout(i, ReiBodies[i], false);
+                WarmFont(UiKit.ZenBold, layout.Name, CardNameSize);
+                WarmFont(UiKit.Mono, layout.Handle + "0123456789.,万", CardMetaSize);
+                foreach (string line in layout.Lines) WarmFont(UiKit.Zen, line, CardBodySize);
+            }
+            _reiIcon ??= GD.Load<Texture2D>(CompanionDialogue.AccountIcon("rei"));
+            WarmFont(UiKit.ZenBold, "星逢レイ", 7);
+            WarmFont(UiKit.Zen, "登録者", 5);
+        }
     }
 
     // S3 画の反転：改心成立（cry→post 遷移）の瞬間に各ボスの OnCryEnd から呼ばれる。
@@ -174,6 +191,28 @@ public partial class StageImagery : Node2D
         }
     }
 
+    private static void WarmFont(FontFile font, string text, int size)
+    {
+        foreach (var rune in text.EnumerateRunes())
+            if (font.HasChar(rune.Value)) font.RenderRange(0, new Vector2I(size, 0), rune.Value, rune.Value);
+    }
+
+    private CardLayout Layout(int i, string body, bool quote)
+    {
+        var key = (i, body, quote);
+        if (_cardLayouts.TryGetValue(key, out var cached)) return cached;
+        string name = Elide(UiKit.ZenBold, DisplayName(i), CardNameSize, 52);
+        float nameWidth = UiKit.TextW(UiKit.ZenBold, name, CardNameSize);
+        float hx = 23 + nameWidth + 3 + (Verified(i) ? 6 : 0);
+        string handle = Elide(UiKit.Mono, Handle(i), CardMetaSize, CardW - 6 - hx - 7);
+        float width = CardW - 6 - 23 - (quote ? 4 : 0);
+        var lines = UiKit.WrapLines(UiKit.Zen, body.StartsWith("> ") ? body.Substring(2) : body, CardBodySize, width);
+        var visible = new string[Mathf.Min(lines.Count, 2)];
+        for (int line = 0; line < visible.Length; line++)
+            visible[line] = line == 1 && lines.Count > 2 ? Elide(UiKit.Zen, lines[line] + "…", CardBodySize, width) : lines[line];
+        return _cardLayouts[key] = new CardLayout(name, nameWidth, handle, visible);
+    }
+
     private void DrawCard(float x, float y, float pa, float fade, Color panel, Color text, Color accent,
                           int i, string body, int replies, int reposts, int likes, int views,
                           bool liked = false, bool quote = false)
@@ -188,29 +227,27 @@ public partial class StageImagery : Node2D
         DrawLine(new Vector2(x + pad, y + CardH), new Vector2(right, y + CardH),
             new Color(white, a * 0.7f), 0.4f);
         DrawAvatar(new Vector2(x + pad + avatar, y + pad + avatar), avatar, VoiceIndex(i), accent, a);
-        string name = Elide(UiKit.ZenBold, DisplayName(i), CardNameSize, 52);
+        var layout = Layout(i, body, quote);
+        string name = layout.Name;
         UiKit.Text(this, UiKit.ZenBold, new Vector2(tx, y + pad), name, CardNameSize,
             new Color(white, Mathf.Min(a * 2f, 0.34f)));
-        float hx = tx + UiKit.TextW(UiKit.ZenBold, name, CardNameSize) + 3;
+        float hx = tx + layout.NameWidth + 3;
         if (Verified(i))
         {
             UiKit.VerifiedBadge(this, new Vector2(hx + 2, y + 10), 1.8f, accent, Mathf.Min(a * 2, 0.35f));
             hx += 6;
         }
-        string handle = Elide(UiKit.Mono, Handle(i), CardMetaSize, right - hx - 7);
+        string handle = layout.Handle;
         UiKit.Text(this, UiKit.Mono, new Vector2(hx, y + pad + 1), handle, CardMetaSize, meta);
         for (int k = 0; k < 3; k++) DrawCircle(new Vector2(right - 4 + k * 1.6f, y + 9), 0.35f, meta);
-        string content = body.StartsWith("> ") ? body.Substring(2) : body;
         float bodyX = tx + (quote ? 4 : 0);
-        float bodyWidth = right - bodyX;
         float bodyLineHeight = Mathf.Ceil(UiKit.Zen.GetHeight(CardBodySize));
-        var lines = UiKit.WrapLines(UiKit.Zen, content, CardBodySize, bodyWidth);
-        if (quote) DrawLine(new Vector2(tx, y + 16), new Vector2(tx, y + 16 + bodyLineHeight * Mathf.Min(lines.Count, 2)),
+        var lines = layout.Lines;
+        if (quote) DrawLine(new Vector2(tx, y + 16), new Vector2(tx, y + 16 + bodyLineHeight * Mathf.Min(lines.Length, 2)),
             new Color(accent, a * 1.6f), 0.7f);
-        for (int line = 0; line < Mathf.Min(lines.Count, 2); line++)
+        for (int line = 0; line < Mathf.Min(lines.Length, 2); line++)
         {
-            string s = line == 1 && lines.Count > 2
-                ? Elide(UiKit.Zen, lines[line] + "…", CardBodySize, bodyWidth) : lines[line];
+            string s = lines[line];
             UiKit.Text(this, UiKit.Zen, new Vector2(bodyX, y + 16 + line * bodyLineHeight), s, CardBodySize,
                 new Color(white, Mathf.Min(a * 2.8f, 0.46f)));
         }

@@ -55,6 +55,8 @@ public partial class BossTechniqueVideo
             _game.Difficulty = args.FirstOrDefault(arg => arg.StartsWith("--difficulty=")) is { } difficulty
                 ? Enum.Parse<GameManager.Diff>(difficulty[13..]) : GameManager.Diff.Easy;
             _game.SelectedJob = _scene == "MinaBattle" ? Job.Magic : Job.Tank;
+            if (args.FirstOrDefault(arg => arg.StartsWith("--job=")) is { } job)
+                _game.SelectedJob = Enum.Parse<Job>(job[6..]);
             _game.TrainingSetAllUpgrades(false);
             foreach (string tutorial in new[] { "once_midboss_shield", "once_tutorial_route", "once_tutorial_shield",
                 "once_tutorial_lock", "once_tutorial_bomb", "once_skill_charge", "once_ankers_rei" })
@@ -120,6 +122,12 @@ public partial class BossTechniqueVideo
             for (int phase = 0; phase < phases; phase++)
             {
                 await SetEasyPhase(phase);
+                if (args.Contains("--rei-collision-qa"))
+                {
+                    EasyRequire(_scene == "Rei", "Rei collision QA requires Rei.");
+                    await RunReiCollisionQa(phase);
+                    continue;
+                }
                 if (args.Contains("--peel-qa"))
                 {
                     if (phase == 1) await RunEasyPeelQa();
@@ -142,7 +150,8 @@ public partial class BossTechniqueVideo
                     string id = $"{phase}:{slot.Kind}:{slot.Variant}";
                     if (only != null && !only.Contains(id)) continue;
                     int starts = probes ? EasyStarts.Length : qa ? 2 : 1;
-                    for (int start = 0; start < starts; start++) await RunEasyClip(phase, slot, start, probes, qa);
+                    if (args.Contains("--performance")) await RunEasyPerformance(phase, slot);
+                    else for (int start = 0; start < starts; start++) await RunEasyClip(phase, slot, start, probes, qa);
                 }
             }
             System.IO.File.WriteAllText(_output + "/chapters.json", JsonSerializer.Serialize(_easyCases,
@@ -208,12 +217,79 @@ public partial class BossTechniqueVideo
         await EasyPhysicsFrames(5);
     }
 
+    private async Task RunEasyPerformance(int phase, BossAttackCycle.Slot slot)
+    {
+        _running = false;
+        _pilot.Release();
+        _easyStationary = true;
+        _easyStart = EasyStarts[0];
+        _player.GlobalPosition = _easyStart;
+        _hud.HideSpellCard();
+        await EasyPhysicsFrames(12);
+        _easyAttack = BossCharacterTechnique.Begin(_boss, slot.Kind, slot.Variant);
+        string key = _easyAttack.MechanicKey;
+        var frames = new List<double>();
+        var process = new List<double>();
+        var physics = new List<double>();
+        var draws = new List<double>();
+        var slowFrames = new List<object>();
+        int contacts = 0;
+        int peakShots = 0, peakCollisionParts = 0, peakContours = 0;
+        bool ended = false, completed = false;
+        _easyAttack.Ended += attack => { completed = attack.Completed; ended = true; };
+        _running = true;
+        ulong previous = Godot.Time.GetTicksUsec();
+        while (!ended && _easyAttack.Elapsed < 180)
+        {
+            await Frames(1);
+            if (ended) break;
+            ulong now = Godot.Time.GetTicksUsec();
+            frames.Add((now - previous) / 1000d);
+            previous = now;
+            process.Add(Performance.GetMonitor(Performance.Monitor.TimeProcess) * 1000);
+            physics.Add(Performance.GetMonitor(Performance.Monitor.TimePhysicsProcess) * 1000);
+            draws.Add(Performance.GetMonitor(Performance.Monitor.RenderTotalDrawCallsInFrame));
+            if (frames[^1] > 33.34)
+                slowFrames.Add(new { at = _easyAttack.Elapsed, frame_ms = frames[^1], shots = _easyAttack.ShotsCreated,
+                    draw_calls = draws[^1], physics_ms = physics[^1], gc0 = GC.CollectionCount(0), gc1 = GC.CollectionCount(1), gc2 = GC.CollectionCount(2) });
+            if (frames.Count % 30 == 0)
+            {
+                var shots = _easyAttack.OwnedShots.ToArray();
+                peakShots = Math.Max(peakShots, shots.Length);
+                peakCollisionParts = Math.Max(peakCollisionParts, shots.Sum(shot => shot.Footprint?.Shapes.Length ?? 1));
+                peakContours = Math.Max(peakContours, shots.Sum(shot => shot.Footprint?.Contours.Length ?? 0));
+            }
+            if (_easyAttack.CoversPoint(_player.GlobalPosition)) contacts++;
+        }
+        _running = false;
+        EasyRequire(ended && completed, "Performance capture did not complete naturally: " + key);
+        object Summary(List<double> values)
+        {
+            values.Sort();
+            return new { mean = values.Average(), p95 = values[(int)((values.Count - 1) * .95)],
+                p99 = values[(int)((values.Count - 1) * .99)], maximum = values[^1] };
+        }
+        var result = new { character = _scene, difficulty = _game.Difficulty.ToString(), phase, mechanic = key,
+            completed, shots = _easyAttack.ShotsCreated, frames = frames.Count, frame_ms = Summary(frames), process_ms = Summary(process),
+            physics_ms = Summary(physics), draw_calls = Summary(draws), frames_over_33ms = frames.Count(value => value > 33.34),
+            peak_shots = peakShots, peak_collision_parts = peakCollisionParts, peak_contours = peakContours,
+            invincible = true, stationary = true, shooting = false, live_hazard_contact_frames = contacts,
+            geometry_audit = false, human_difficulty_test = false };
+        System.IO.File.WriteAllText($"{_output}/slow_{phase}_{slot.Kind}_{slot.Variant}.json", JsonSerializer.Serialize(slowFrames));
+        _easyCases.Add(result);
+        GD.Print("[PERFORMANCE] " + JsonSerializer.Serialize(result));
+        _easyAttack = null;
+        await EasyPhysicsFrames(48);
+    }
+
     private async Task RunEasyClip(int phase, BossAttackCycle.Slot slot, int start, bool stationary, bool qa)
     {
         _running = false;
         _pilot.Release();
         _easyStationary = stationary;
         _easyStart = EasyStarts[start];
+        if (OS.GetCmdlineUserArgs().Contains("--edge-starts"))
+            _easyStart = start % 2 == 0 ? Field.Rect.Position : Field.Rect.End;
         _boss.GlobalPosition = new Vector2(Field.BossCenterX, Field.BossZoneCenterY);
         if (_boss is BossMina mina && mina.AttackPhase >= BossMina.DragonPhase)
             _boss.GlobalPosition = mina.KeepDragonInField(_boss.GlobalPosition);
@@ -237,16 +313,25 @@ public partial class BossTechniqueVideo
         };
         _running = true;
         GD.Print($"[EASY] START {_scene} phase={phase} {slot.Kind}/{slot.Variant} {key} start={start} stationary={stationary}");
+        var bodyPoses = new HashSet<string>();
         for (int frame = 0; frame < 180 * 60 && !ended; frame++)
         {
             await EasyPhysicsFrames(1);
-            if (!ended) audit.Observe(_easyAttack, _player.GlobalPosition);
+            if (!ended)
+            {
+                EasyRequire(_hud.ActiveTechniqueNames == name, "Active technique name disappeared: " + name);
+                audit.Observe(_easyAttack, _player.GlobalPosition);
+                bodyPoses.Add(Read<Sprite2D>(_boss, "_bodySprite").Texture.ResourcePath);
+            }
         }
         _running = false;
         _pilot.Release();
         EasyRequire(ended && completed && (shots > 0 || hazardFrames > 0),
             $"Technique did not complete naturally: {key} ended={ended} completed={completed} elapsed={_easyAttack.Elapsed} shots={shots} hazards={hazardFrames}");
         audit.Validate();
+        if (_scene == "Rei" && phase == 0)
+            foreach (string pose in new[] { "glide_v3/frame_00", "cast_v3/frame_02", "cast_v3/frame_04" })
+                EasyRequire(bodyPoses.Contains($"res://char/v3/boss_motion/rei_{pose}.png"), "Rei pose was not shown: " + pose);
         EasyRequire(!stationary || _easyDisplacement < .01f, "Stationary probe moved.");
         long lastFrame = (long)Engine.GetProcessFrames();
         var result = new {
@@ -254,11 +339,13 @@ public partial class BossTechniqueVideo
             name, mechanic = key, start = firstFrame, end = lastFrame, fps = 60, completed, shots, hazardFrames,
             start_index = start, stationary, maximum_player_displacement = _easyDisplacement,
             capture = new { invincible = true, shooting = false, bombs = false, dodge = false,
+                start_position = new { x = _easyStart.X, y = _easyStart.Y },
                 mouse_follow = false,
                 visual_comprehension_test = false, human_difficulty_test = false, qa,
                 player_job = _game.SelectedJob.ToString(), movement_speed = _player.MoveSpeed,
                 movement = stationary ? "stationary fresh start" : EasyPilotPolicy() },
             audit = audit.Result(),
+            body_poses = bodyPoses,
         };
         _easyCases.Add(result);
         System.IO.File.WriteAllText(_output + "/chapters.json", JsonSerializer.Serialize(_easyCases,
@@ -271,7 +358,10 @@ public partial class BossTechniqueVideo
     private async Task EasyBattleCycle(int phase)
     {
         var danmaku = Read<BossDanmaku>(_boss, "_danmaku");
-        var slots = BossAttackCycle.EasySlots(_boss, phase);
+        bool cycle = _boss.UsesTechniqueCycle;
+        int Cursor() => cycle ? danmaku.CycleSlot : danmaku.EasySlot;
+        int Rounds() => cycle ? danmaku.CycleRounds : danmaku.EasyRounds;
+        var slots = cycle ? BossAttackCycle.Slots(_boss, BossAttackCycle.Segment(_boss)) : BossAttackCycle.EasySlots(_boss, phase);
         var started = new List<object>();
         var seen = new HashSet<BossCharacterTechnique>();
         int completed = 0;
@@ -284,36 +374,36 @@ public partial class BossTechniqueVideo
             danmaku.Tick(1d / 60);
             if (danmaku.ActiveTechnique is { } attack && seen.Add(attack))
             {
-                int cursor = danmaku.EasySlot;
+                int cursor = Cursor();
                 var expected = slots[cursor];
                 EasyRequire(attack.TechniqueKind == expected.Kind && attack.TechniqueVariant == expected.Variant,
-                    "Runtime EASY selection differed from canonical slot.");
+                    "Runtime selection differed from canonical slot.");
                 started.Add(new { slot = cursor, kind = attack.TechniqueKind.ToString(), variant = attack.TechniqueVariant, mechanic = attack.MechanicKey });
                 attack.Ended += ended => { EasyRequire(ended.Completed, "Runtime slot was interrupted."); completed++; };
             }
             await EasyPhysicsFrames(1);
         }
         _running = false;
-        EasyRequire(completed == slots.Count && danmaku.EasyRounds == 1 && danmaku.EasySlot == 0, "EASY round did not advance only after natural completion.");
+        EasyRequire(completed == slots.Count && Rounds() == 1 && Cursor() == 0, "Round did not advance only after natural completion.");
         var first = slots[0];
         for (int frame = 0; frame < 120 && (danmaku.ActiveTechnique == null || danmaku.ActiveTechnique.Finished); frame++)
         { danmaku.Tick(1d / 60); await EasyPhysicsFrames(1); }
         var cancelled = danmaku.ActiveTechnique!;
         EasyRequire(cancelled != null && !cancelled.Finished, "Retry check did not start.");
         cancelled!.Cancel();
-        EasyRequire(danmaku.EasySlot == 0 && danmaku.EasyRounds == 1, "Cancellation advanced the EASY cursor.");
+        EasyRequire(Cursor() == 0 && Rounds() == 1, "Cancellation advanced the cursor.");
         for (int frame = 0; frame < 120 && (danmaku.ActiveTechnique == null || danmaku.ActiveTechnique.Finished); frame++)
         { danmaku.Tick(1d / 60); await EasyPhysicsFrames(1); }
         var retry = danmaku.ActiveTechnique!;
         EasyRequire(retry != null && !retry.Finished && retry.TechniqueKind == first.Kind && retry.TechniqueVariant == first.Variant,
-            "Cancelled EASY slot was not retried.");
+            "Cancelled slot was not retried.");
         retry!.Cancel();
         await EasyPhysicsFrames(2);
-        _easyCycles.Add(new { phase, passed = true, natural_completions = completed, rounds = danmaku.EasyRounds,
-            cursor = danmaku.EasySlot, cancellation_preserves_cursor = true, retry_same_slot = true, started });
+        _easyCycles.Add(new { phase, difficulty = _game.Difficulty.ToString(), segment = BossAttackCycle.Segment(_boss), passed = true,
+            natural_completions = completed, rounds = Rounds(), cursor = Cursor(), cancellation_preserves_cursor = true, retry_same_slot = true, started });
         if (_boss is BossMina phaseBoss)
             EasyRequire(Read<MinaPhaseAttacks>(phaseBoss, "_caster").OpenerCompleted, "Mina phase opener completion was not acknowledged.");
-        if (phase == 1 && _boss is not BossMina)
+        if (phase == 1 && _boss is not BossMina && !cycle)
         {
             var caster = Read<AreaSpellCaster>(_boss, "_caster");
             caster.RequestFinale();
@@ -334,6 +424,7 @@ public partial class BossTechniqueVideo
     private void TickEasyPilot(double delta)
     {
         if (!_running) return;
+        Call(_boss, "TickBodyMotion", delta);
         if (_easyStationary) _pilot.Release();
         else DriveEasyPilot(delta);
         Input.FlushBufferedEvents();
@@ -372,8 +463,14 @@ public partial class BossTechniqueVideo
         private int _frames, _samples, _dangerSamples, _safeMinimum = int.MaxValue, _noSafe, _created;
         private int _emptyStreak, _maximumInternalEmpty, _lastDangerFrame = -1, _remainingAtEnd, _liveHazardsAtEnd;
         private double _densitySum, _densityMaximum, _firstDanger = -1;
+        private long _liveShotSum;
+        private int _peakLiveShots;
         private double _lastEmission = -1, _maximumEmissionGap, _routeElapsed;
         private bool _routeLost;
+        private readonly bool _preciseRoute = OS.GetCmdlineUserArgs().Contains("--precise-routes");
+        private float GridSpacing => _preciseRoute ? 2 : 6;
+        private int SampleFrames => _preciseRoute ? 2 : 6;
+        private double SampleSeconds => SampleFrames / 60d;
         private int? _expectedShots;
         private string? _failure;
         public int Contacts { get; private set; }
@@ -384,8 +481,8 @@ public partial class BossTechniqueVideo
             _boss = boss;
             _player = player;
             var points = new List<Vector2>();
-            for (float y = Field.Top + 6; y <= Field.Bottom - 6; y += 6)
-                for (float x = Field.Left + 6; x <= Field.Right - 6; x += 6) points.Add(new(x, y));
+            for (float y = Field.Top + 6; y <= Field.Bottom - 6; y += GridSpacing)
+                for (float x = Field.Left + 6; x <= Field.Right - 6; x += GridSpacing) points.Add(new(x, y));
             _points = points.ToArray();
             _columns = Enumerable.Range(0, _points.Length).Count(i => _points[i].Y == _points[0].Y);
             _dangerFrames = new int[_points.Length];
@@ -525,6 +622,8 @@ public partial class BossTechniqueVideo
                 }
             }
             var live = attack.OwnedShots.Where(b => !b.LeadIn && b.CollisionLayer != 0).Select(SampleShot).ToArray();
+            _liveShotSum += live.Length;
+            _peakLiveShots = Math.Max(_peakLiveShots, live.Length);
             int newShots = attack.ShotsCreated - _created;
             if (newShots > 0)
             {
@@ -535,16 +634,18 @@ public partial class BossTechniqueVideo
             }
             if (attack.CoversPoint(player) || live.Any(b => BulletHit(b, player))) Contacts++;
             if (BodyHit(player)) BodyContacts++;
-            if (_frames % 6 != 0) return;
+            if (_frames % SampleFrames != 0) return;
             _samples++;
             var blocked = new bool[_points.Length];
             int dangerous = 0, safe = 0;
+            bool striking = attack.IsStriking;
             for (int i = 0; i < _points.Length; i++)
             {
                 var point = _points[i];
-                bool attackHit = attack.CoversPoint(point) || live.Any(b => BulletHit(b, point));
+                bool attackHit = striking && attack.CoversPoint(point) || live.Any(b => BulletHit(b, point));
                 bool bodyHit = BodyHit(point);
-                blocked[i] = attack.DangerDistance(point, false) <= 4.25f || live.Any(b => BulletHit(b, point, true)) || BodyHit(point, true);
+                blocked[i] = striking && attack.DangerDistance(point, false) <= (_preciseRoute ? .25f : 4.25f)
+                    || live.Any(b => BulletHit(b, point, !_preciseRoute)) || BodyHit(point, !_preciseRoute);
                 if (!attackHit && !bodyHit) safe++;
                 if (!attackHit) continue;
                 dangerous++;
@@ -567,9 +668,11 @@ public partial class BossTechniqueVideo
                 _emptyStreak = 0;
             }
             else _emptyStreak++;
-            _routeElapsed += .1;
-            if (_routeElapsed * _player.SlowestMoveSpeed >= 6)
+            _routeElapsed += SampleSeconds;
+            bool moved = false;
+            while (_routeElapsed * _player.SlowestMoveSpeed >= GridSpacing)
             {
+                moved = true;
                 var next = new bool[_points.Length];
                 for (int i = 0; i < _points.Length; i++)
                 {
@@ -578,14 +681,14 @@ public partial class BossTechniqueVideo
                     foreach (int previous in new[] { i - 1, i + 1, i - _columns, i + _columns })
                     {
                         if (previous < 0 || previous >= _points.Length || !_reachable[previous] || _previousBlocked[previous] || _previousBlocked[i]) continue;
-                        if (_points[previous].DistanceSquaredTo(_points[i]) <= 36.001) { next[i] = true; break; }
+                        if (_points[previous].DistanceSquaredTo(_points[i]) <= GridSpacing * GridSpacing + .001) { next[i] = true; break; }
                     }
                 }
                 _reachable = next;
-                _routeElapsed -= 6 / _player.SlowestMoveSpeed;
+                _routeElapsed -= GridSpacing / _player.SlowestMoveSpeed;
                 if (!next.Any(v => v)) _routeLost = true;
             }
-            else
+            if (!moved)
             {
                 for (int i = 0; i < _reachable.Length; i++) _reachable[i] &= !blocked[i];
                 if (!_reachable.Any(v => v)) _routeLost = true;
@@ -606,20 +709,22 @@ public partial class BossTechniqueVideo
             EasyRequire(_failure == null, _failure ?? "");
             EasyRequire(_cues.Count > 0 && _cues.Values.All(c => c.Cancelled || c.Full != null && c.Actual != null), "Missing complete warning or actual attack event.");
             EasyRequire(_noSafe == 0, "Attack filled the entire reachable field.");
+            EasyRequire(!_preciseRoute || !_routeLost, "Precise normal-speed escape route was lost.");
             EasyRequire(_expectedShots == null || _expectedShots == _created && _pathChecks.Count == _expectedShots,
                 "Planned projectiles, physical spawns or all burst trajectories are missing.");
             EasyRequire(_remainingAtEnd == 0 && _liveHazardsAtEnd == 0, "Natural completion removed active bullets or hazards.");
         }
 
         public object Result() => new {
-            frames = _frames, samples = _samples, spacing = 6, regions_reached = _regions.Count(v => v), regions = _regions,
+            frames = _frames, samples = _samples, spacing = GridSpacing, regions_reached = _regions.Count(v => v), regions = _regions,
             minimum_safe_points = _safeMinimum, samples_without_safe_region = _noSafe,
             mean_frame_density = _samples == 0 ? 0 : _densitySum / _samples, peak_frame_density = _densityMaximum,
-            area_time_seconds = _densitySum * .1, danger_seconds = _dangerSamples * .1,
-            first_danger_at = _firstDanger, maximum_internal_empty_seconds = _maximumInternalEmpty * .1,
+            mean_live_projectiles = _frames == 0 ? 0 : _liveShotSum / (double)_frames, peak_live_projectiles = _peakLiveShots,
+            area_time_seconds = _densitySum * SampleSeconds, danger_seconds = _dangerSamples * SampleSeconds,
+            first_danger_at = _firstDanger, maximum_internal_empty_seconds = _maximumInternalEmpty * SampleSeconds,
             maximum_emission_gap_seconds = _maximumEmissionGap, emissions = _emissions,
             untouched_points = _dangerFrames.Count(c => c == 0), points = _points.Length,
-            maximum_point_danger_seconds = _dangerFrames.Max() * .1,
+            maximum_point_danger_seconds = _dangerFrames.Max() * SampleSeconds,
             attack_contact_frames = Contacts, body_contact_frames = BodyContacts,
             active_owned_bullets_before_natural_cleanup = _remainingAtEnd,
             live_hazards_before_natural_cleanup = _liveHazardsAtEnd,
@@ -629,8 +734,10 @@ public partial class BossTechniqueVideo
             projectile_geometry = _pathChecks.Select(pair => new { key = pair.Key, samples = pair.Value.Samples,
                 first_observed_origin_error = pair.Value.OriginError, maximum_path_error = pair.Value.PathError,
                 maximum_width_error = pair.Value.WidthError }),
-            route = new { spacing = 6, sampled_seconds = .1, speed = _player.SlowestMoveSpeed, lost = _routeLost,
-                input_dependent_counterfactual_verified = false, diagnostic_grid_only = true, clearance = 4.25,
+            route = new { spacing = GridSpacing, sampled_seconds = SampleSeconds, speed = _player.SlowestMoveSpeed, lost = _routeLost,
+                input_dependent_counterfactual_verified = false, diagnostic_grid_only = true,
+                hazard_margin_beyond_player_radius = _preciseRoute ? .25 : 4.25,
+                projectile_and_body_probe_radius = _preciseRoute ? Player.HitRadius : Player.HitRadius + 4.25,
                 rejects_current_and_previous_blocked_cells = true, fractional_movement_budget_retained = true },
             cue_events = _cues.Select(pair => new { key = pair.Key, starts_at = pair.Value.Start, fires_at = pair.Value.Fire,
                 full_at = pair.Value.Full, actual_at = pair.Value.Actual,

@@ -1,5 +1,6 @@
 using Godot;
 using System.Collections.Generic;
+using System.Linq;
 
 // Hud : ゲーム中HUD（CanvasLayer）。RefrainHTML/Refrain HUD A.dc.html を忠実移植（非ピクセル「Clean Glass」）。
 //   左上 LIFE/BOMB ガラスパネル・中央上 浄化カプセル・右上 SCORE＋テレメトリ・中央 ボスXカード・
@@ -101,6 +102,19 @@ public partial class Hud : CanvasLayer
     // スペル宣言（Xツイート風オーバーレイ：Refrain Danmaku v3 spellOverlay）
     private string _spellName = "";
     private bool _spellCompact;
+    private readonly HashSet<BossCharacterTechnique> _activeTechniques = new();
+    internal string ActiveTechniqueNames => string.Join(" ＋ ", _activeTechniques.Select(t => t.SpellName));
+    internal void TrackTechnique(BossCharacterTechnique technique)
+    {
+        _activeTechniques.Add(technique);
+        _spellName = ActiveTechniqueNames;
+    }
+    internal void EndTechnique(BossCharacterTechnique technique)
+    {
+        if (!_activeTechniques.Remove(technique)) return;
+        _spellName = ActiveTechniqueNames;
+        if (_activeTechniques.Count == 0) _spellTimer = 0;
+    }
     private string _spellWho = "";
     private string _spellHandle = "";
     private Color _spellCol = Colors.White;
@@ -269,28 +283,15 @@ public partial class Hud : CanvasLayer
 
     // 操作子トークン（全割り当て版）：選択中の表示モードに属する割り当てを“全部”並べる。
     // 練習面（StageZero）の指示帯（DrawTutorialKeys）が使う。視認性のため区切りは細い「/」。
-    // ※ 2026-09-07 に本番プレイ中の常駐操作ガイド（DrawControls）を廃止したので、ここは
-    //   「教える画面」専用になった。本番の盤面には操作の案内を一切出さない（Esc メニューと
-    //   「あそびかた」で見られる＝弾に案内を重ねない。ユーザー実機指摘「操作の UI がじゃま」）。
     private static string AllShot  => "オート";                                        // 射撃ボタン廃止＝常時オート射撃
     //   2026-09-27：帯のキーは UiKit.KeyCapRow で描く＝" / " の並記はキャップを並べ、矢印は1つのキャップにまとめる。
     private static string AllMove  => Pad.UsingPad ? "L スティック / 十字"
                                      : Pad.UsingMouse ? "カーソル" : "↑↓←→";
-    // ※低速移動（旧 AllFocus＝Shift / LB）は 2026-09-13 ユーザー決定で機能ごと廃止した。
     private static string AllBomb  => TokBomb;
     private static string AllDodge => Pad.UsingPad ? Pad.Face(JoyButton.LeftStick)
                                      : Pad.UsingMouse ? "右クリック" : "Space";
 
-    // ティッカー（降ってくる言葉）＝「Yの川」のノイズ。
-    // 「下に流れているコメント」と「投稿弾」が同じ“声”を出すため、どちらも PostPool から引く。
-    // 正典は wiki/08_仮台本/09_投稿文集_Y風.md（ユーザー承認済み・2026-09-05）の「言葉弾の文言リスト」で、
-    // 面のテーマ（あかり／こはる／レイ／FINAL）ごとに層1（日常）：層2（病みサイン）：層3（本人）を
-    // 09 の比率で混ぜる。旧・共通8語のハードコードは廃止した。
-    // 帯は毎フレーム全語の幅を測るので、面ごとに一度だけ組んだ固定の並びをキャッシュして使う
-    //（毎フレーム抽選しない＝帯が踊らない）。ハンドル空欄は帯側で幅を詰める（TickerHandleW）。
     private double _t;
-    private (string h, string w)[]? _ticker;
-    private (string h, string w)[] TickerWords => _ticker ??= PostPool.Words(PostPool.CurrentTheme(this));
 
     public override void _Ready()
     {
@@ -372,6 +373,11 @@ public partial class Hud : CanvasLayer
         // （ボス _Ready の宣言が開幕イントロのバブルに食われて見落とされていた問題への対処。
         //   発動＝宣言の同期はそのままに、見せ場だけ非バブル中に揃える。）
         if (_spellTimer > 0 && !BubblePaused) { _spellTimer -= delta; }
+        if (_activeTechniques.Count > 0 && !BubblePaused && !SuppressCallouts)
+        {
+            _spellName = ActiveTechniqueNames;
+            _spellTimer = System.Math.Max(_spellTimer, SpellFadeDur + .1);
+        }
         if (_spellGlow > 0 && !BubblePaused) { _spellGlow = Mathf.Max(0.0, _spellGlow - delta / 0.45); } // 約0.45秒で収束
         // カットインも会話バブル中は時間を止める（カードと同じく“戦闘の瞬間”に確実に見せる）。
         if (_cutinTimer > 0 && !BubblePaused) { _cutinTimer -= delta; if (_cutinTimer <= 0) _cutinTex = null; }
@@ -596,6 +602,8 @@ public partial class Hud : CanvasLayer
     //   後続ページが残る間は false を返す＝Step_Lines の2段目送りが RevealDialogNow に回り、次ページへ進む。
     public bool DialogRevealed =>
         _dlgText.Length == 0 || (OnLastPage && PageReady);
+    internal int DialogPageIndex => _dlgPage;
+    internal bool DialogPageRevealed => PageReady;
 
     // Zの1段目：現在ページが未完なら全文表示。完了していて後続ページがあるなら次ページへ送る。
     public void RevealDialogNow()
@@ -704,6 +712,7 @@ public partial class Hud : CanvasLayer
     private double _bossLineDuration;
     public void ShowBossLine(string speaker, string text, Color col, double dur)
     {
+        if (GameManager.BossRushActive) return;
         _bossLineSpeaker = speaker; _bossLine = text; _bossLineCol = col; _bossLineTimer = dur;
         _bossLineDuration = dur;
     }
@@ -908,7 +917,6 @@ public partial class Hud : CanvasLayer
         DrawShotMode(ci);
         DrawPowerups(ci);
         if (_focusHas) DrawFocusChip(ci);
-        if (TickerEnabled) DrawTicker(ci);
         if (_tutorialHint.Length > 0) DrawTutorialHint(ci);
         if (_tutorialOp.Length > 0) DrawTutorialKeys(ci);
         if (_shotModeToast > 0) DrawShotModeToast(ci);
@@ -973,8 +981,6 @@ public partial class Hud : CanvasLayer
         ci.DrawRect(new Rect2(0, 0, pw, 112), SideRaised);
         ci.DrawRect(new Rect2(PanelX, 0, 38, 3), AccountAccent);
         ci.DrawRect(new Rect2(pw - 1f, 0, 1f, UiKit.DesignH), SideRule);
-        ci.DrawRect(new Rect2(pw, 0, Field.DLeft - pw, UiKit.DesignH), new Color(0, 0, 0, 0.12f));
-        ci.DrawRect(new Rect2(Field.DLeft, 0, 1f, UiKit.DesignH), new Color(1f, 1f, 1f, 0.07f));
         foreach (float y in new[] { 112f, RowPurify - 6f, RowScore - 14f })
             ci.DrawRect(new Rect2(PostX, y, PostInnerW, 1), SideRule);
     }
@@ -1243,7 +1249,7 @@ public partial class Hud : CanvasLayer
         DrawMeter(ci, new Rect2(x, y + 35f, w, 3f), comboRatio, SideRose);
     }
 
-    // 弾より奥の中央に表示する技名POST。
+    // 弾より奥に表示する技名POST。
     private void DrawSpellCard(CanvasItem ci)   // CanvasItem＝HudCanvas（保険）と BubbleLayer（通常）の両方から描ける
     {
         double age = _spellDuration - _spellTimer;
@@ -1292,7 +1298,7 @@ public partial class Hud : CanvasLayer
         int titleSize = 30;
         while (titleSize > 16 && UiKit.TextW(UiKit.ZenBold, title, titleSize) > w - 60) titleSize--;
         float h = 128f;
-        float y = 360f - h / 2f + slide;
+        float y = 18f + slide;
         Vector2 center = new(Field.DCenterX, y + h / 2f);
 
         Color col = _spellCol;
@@ -1321,12 +1327,6 @@ public partial class Hud : CanvasLayer
         UiKit.Text(ci, UiKit.ZenBold, new Vector2(tx, top + 12), _spellWho, 19, new Color(1, 1, 1, a));
         float nw = UiKit.TextW(UiKit.ZenBold, _spellWho, 19);
         UiKit.Text(ci, UiKit.Mono, new Vector2(tx + nw + 10, top + 16), _spellHandle, 14, new Color(UiKit.Text3, a));
-        // 右肩「● スペル発動」（発動直後は明滅で“今来た”を主張）
-        string tag = "スペル発動";
-        float tagW = UiKit.TrackedW(UiKit.SmallLabel, tag) + 14;
-        float tagPulse = 0.7f + 0.3f * Mathf.Sin((float)age * 12f);
-        ci.DrawCircle(new Vector2(-w / 2f + w - tagW - 8, top + 15), 3.4f, new Color(col, a * tagPulse));
-        UiKit.Draw(ci, UiKit.SmallLabel, new Vector2(-w / 2f + w - tagW, top + 8), tag, new Color(col, a * tagPulse));
         // スペル名（少し大きく・明るく＝視認のピーク）
         ci.DrawLine(new Vector2(left + 26, top + 49), new Vector2(w / 2 - 26, top + 49), new Color(col, 0.3f * a), 1f);
         UiKit.Text(ci, UiKit.ZenBold, new Vector2(left + 30, top + 65), title, titleSize,
@@ -1462,10 +1462,10 @@ public partial class Hud : CanvasLayer
             var kind = (PowerKind)i;
             int level = player.PowerLevel(kind);
             if (level == 0) continue;
-            float x = 26f + i * 25f;
-            PowerPickupArt.Draw(ci, new Rect2(x - 9f, 78f, 18f, 18f), kind);
+            float x = 112f + i * 46f;
+            PowerPickupArt.Draw(ci, new Rect2(x, 64f, 18f, 18f), kind);
             for (int pip = 0; pip < Player.PowerLevelCap; pip++)
-                ci.DrawRect(new Rect2(x - 5f + pip * 6f, 99f, 4f, 2f),
+                ci.DrawRect(new Rect2(x + 22f + pip * 6f, 71f, 4f, 4f),
                     pip < level ? PowerPickupArt.ColorFor(kind) : SideRule);
         }
     }
@@ -1487,6 +1487,8 @@ public partial class Hud : CanvasLayer
         if (_game.DebugAttackGuides)
             UiKit.Text(ci, UiKit.Mono, new Vector2(PanelX, 69f), "DEBUG: GUIDE", 9, SideTeal);
         string status = _gameOverTitle.Length > 0 ? "終了" : BubblePaused ? "対話中" : "ダイブ中";
+        if (_gameOverTitle.Length == 0 && GetTree().GetFirstNodeInGroup("boss_rush") is BossRushRoot rush)
+            status = rush.Completed ? "CLEAR" : $"RUSH {rush.Round + 1}/4";
         Color statusColor = BubblePaused ? SideMuted : SideTeal;
         float statusWidth = UiKit.TextW(UiKit.Zen, status, 11);
         ci.DrawCircle(new Vector2(Field.PanelW - PanelX - statusWidth - 8f, 93f), 2f, statusColor);
@@ -1651,81 +1653,6 @@ public partial class Hud : CanvasLayer
         if (hl > al) ci.DrawRect(new Rect2(al, ht, hl - al, hb - ht), col);   // 左
         if (hr < ar) ci.DrawRect(new Rect2(hr, ht, ar - hr, hb - ht), col);   // 右
     }
-
-    // 2026-09-16: 下部ティッカー（降ってくる言葉）は表示OFF（ユーザー指摘＝画面下部の帯を消す）。
-    //   投稿弾（PostBullets）が同じ PostPool の“声”を降らせるので情報は失われない。
-    //   コードは復活可能な形で残置（TickerEnabled のフラグだけで止める）。
-    private static readonly bool TickerEnabled = false;
-    private void DrawTicker(HudCanvas ci)
-    {
-        // 帯は盤面の中だけに敷く（サイドパネルの上を横切らせない）。左端＝盤面の左端。
-        float barH = 38, y = 720 - barH;
-        UiKit.VGradient(ci, new Rect2(Field.DLeft, y, Field.DWidth, barH),
-            new[] { new Color(10 / 255f, 8 / 255f, 16 / 255f, 0f), new Color(10 / 255f, 8 / 255f, 16 / 255f, 0.82f) }, new[] { 0f, 1f });
-        ci.DrawRect(new Rect2(Field.DLeft, y, Field.DWidth, 1f), new Color(UiKit.Kegare, 0.18f));
-        // ラベル
-        ci.DrawRect(new Rect2(Field.DLeft + 1f, y, 150, barH), new Color(UiKit.Kegare, 0.14f));
-        UiKit.Draw(ci, UiKit.SmallLabel, new Vector2(Field.DLeft + 16, y + barH / 2f - 8), "降ってくる言葉", new Color("f0a8cf"));
-        // スクロール
-        float startX = Field.DLeft + 164, gap = 40;
-        float block = 0f;
-        foreach (var (h, wd) in TickerWords) block += TickerHandleW(h) + UiKit.TextW(UiKit.Zen, wd, 14) + gap;
-        float scroll = ((float)_t * 70f) % block;
-        float cx = startX - scroll + block; // 1ブロック先行
-        // ───────── コメントの入退場演出（ログイン/ログ アウト風／SNSの接続・切断の手触り）─────────
-        //   ティッカーは連続スクロールなので「右端で接続して入る／左ラベル際で切断して抜ける」を
-        //   各セルの横位置から導く。入＝右端域でα0→1にポップ＋ハンドル頭に小さな接続ドットが点灯し
-        //   外周リングが一拍広がる（ログイン）。出＝左ラベル際でα1→0へ薄れつつ僅かに上へスッと退く（ログアウト）。
-        //   弾の視認は損なわない（下部ティッカー帯の中だけ・加算グローは極小・本数を増やさない）。
-        const float bandL = Field.DLeft + 150f, bandR = Field.DRight; // 可視帯（左ラベル境界〜盤面右端）
-        const float inSpan = 130f;                    // 右端からこの幅ぶんが「接続中（入場）」
-        const float outSpan = 96f;                    // 左ラベル際このぶんが「切断中（退場）」
-        float midY = y + barH / 2f;
-        for (int rep = 0; rep < 3; rep++)
-        {
-            foreach (var (h, wd) in TickerWords)
-            {
-                float hw = TickerHandleW(h);
-                float cellW = hw + UiKit.TextW(UiKit.Zen, wd, 14);
-                float cellL = cx, cellR = cx + cellW;
-                if (cellR > bandL && cellL < bandR)
-                {
-                    // 入場t：右端 inSpan に入った瞬間 0、抜け切ったら 1（ログイン進捗）
-                    float tIn = Mathf.Clamp((bandR - cellL) / inSpan, 0f, 1f);
-                    // 退場t：左ラベル際 outSpan に入ると 1→0（ログアウト進捗）
-                    float tOut = Mathf.Clamp((cellR - bandL) / outSpan, 0f, 1f);
-                    float life = Mathf.Min(tIn, tOut);              // 0=端／1=安定表示
-                    float alpha = Mathf.SmoothStep(0f, 1f, life);
-                    // ログイン：入場側だけ下からスッと持ち上げる小さなポップ。退場側は上へ抜ける。
-                    float rise = (1f - tIn) * 5f;                   // 入＝下から
-                    float exitLift = (1f - tOut) * 4f;             // 出＝上へ
-                    float dy = rise - exitLift;
-                    float th = y + barH / 2f - 7 - dy;
-                    if (hw > 0f) UiKit.Text(ci, UiKit.Mono, new Vector2(cx, th), h, UiKit.FontSmall, new Color(UiKit.Text3, alpha));
-                    UiKit.Text(ci, UiKit.Zen, new Vector2(cx + hw, th - 1), wd, 14, new Color(UiKit.Text2, alpha));
-                    // 接続ドット：ハンドル頭の左に小点。入場の一拍だけ光って“ログインした”を示す。
-                    float dotX = cx - 9f, dotY = midY - dy;
-                    // 入場の立ち上がり（tIn が 0→~0.5）で外周リングが広がるログイン・パルス。
-                    if (tIn < 0.55f)
-                    {
-                        float p = tIn / 0.55f;                      // 0→1
-                        float ringR = 3f + p * 7f;                 // 広がる
-                        float ringA = (1f - p) * 0.5f * alpha;     // 薄れる
-                        ci.DrawArc(new Vector2(dotX, dotY), ringR, 0, Mathf.Tau, 18, new Color("8fe9c0", ringA), 1.3f, true);
-                    }
-                    // 接続インジケータ本体（緑＝オンライン）。退場側では赤寄りに転じ消灯（切断）。
-                    Color dotCol = tOut < 0.5f ? new Color("ff7a90") : new Color("7fe6b0");
-                    ci.DrawCircle(new Vector2(dotX, dotY), 2.2f, new Color(dotCol, alpha));
-                }
-                cx += cellW + gap;
-            }
-        }
-    }
-
-    // ティッカー1件ぶんのハンドル列幅。空欄（#11 文面改稿＝ハンドル無し投稿）は 0 を返して本文を詰める
-    //（旧実装は空欄でも +6px のギャップが残った）。block 計算とセル描画の両方でこれを使い、幅を一致させる。
-    private static float TickerHandleW(string h)
-        => string.IsNullOrEmpty(h) ? 0f : UiKit.TextW(UiKit.Mono, h, UiKit.FontSmall) + 6f;
 
     private void DrawDialog(CanvasItem ci)
     {

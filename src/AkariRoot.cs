@@ -14,19 +14,44 @@ public partial class AkariRoot : Node2D
 
     public static readonly BgLayers.Layer[] RouteLayers =
     {
-        new BgLayers.Layer("res://char/bg2/route/akari_far.png", 0.22f, -95, Colors.White, loop: true, fitToField: true),
-        new BgLayers.Layer("res://char/bg2/route/akari_mid.png", 0.62f, -92, Colors.White, loop: true, fitToField: true),
-        new BgLayers.Layer("res://char/bg2/route/akari_near.png", 1.20f, -91, Colors.White, loop: true, fitToField: true),
+        new BgLayers.Layer("res://char/bg2/route/akari_far.png", 0.22f, -95, Colors.White, fitToField: true, travel: true),
+        new BgLayers.Layer("res://char/bg2/route/akari_mid.png", 0.62f, -92, Colors.White, fitToField: true, travel: true),
+        new BgLayers.Layer("res://char/bg2/route/akari_near.png", 1.20f, -91, Colors.White, fitToField: true, travel: true),
+    };
+
+    public static readonly BgLayers.Layer[] PassageLayers =
+    {
+        new BgLayers.Layer("res://char/bg2/route/akari_passage_far.png", 0.22f, -95, Colors.White, fitToField: true, travel: true),
+        new BgLayers.Layer("res://char/bg2/route/akari_passage_mid.png", 0.62f, -92, Colors.White, fitToField: true, travel: true),
+        new BgLayers.Layer("res://char/bg2/route/akari_passage_near.png", 1.20f, -91, Colors.White, fitToField: true, travel: true),
+    };
+
+    public static readonly BgLayers.Layer[] ClimaxLayers =
+    {
+        new BgLayers.Layer("res://char/bg2/route/akari_climax_far.png", 0.18f, -95, Colors.White, fitToField: true, travel: true),
+        new BgLayers.Layer("res://char/bg2/route/akari_climax_mid.png", 0.65f, -92, Colors.White, fitToField: true, travel: true),
+        new BgLayers.Layer("res://char/bg2/route/akari_climax_near.png", 1.40f, -91, Colors.White, fitToField: true, travel: true),
+    };
+
+    public static readonly BgLayers.Layer[] LateRouteLayers =
+    {
+        new BgLayers.Layer("res://char/bg2/route/akari_late_far.png", 0.18f, -95, Colors.White, fitToField: true, travel: true),
+        new BgLayers.Layer("res://char/bg2/route/akari_late_mid.png", 0.65f, -92, Colors.White, fitToField: true, travel: true),
+        new BgLayers.Layer("res://char/bg2/route/akari_late_near.png", 1.40f, -91, Colors.White, fitToField: true, travel: true),
     };
 
     public static readonly BgLayers.Layer[] MidbossLayers =
     {
-        new BgLayers.Layer("res://char/bg2/midboss/akari_v1.png", 0.15f, -95, Colors.White, fitToField: true),
+        new BgLayers.Layer("res://char/bg2/midboss/akari_far_v2.png", 0.08f, -95, Colors.White, fitToField: true),
+        new BgLayers.Layer("res://char/bg2/midboss/akari_mid_v2.png", 0.50f, -92, Colors.White, fitToField: true),
+        new BgLayers.Layer("res://char/bg2/midboss/akari_near_v2.png", 1.00f, -91, Colors.White, fitToField: true),
     };
 
     public static readonly BgLayers.Layer[] BossLayers =
     {
-        new BgLayers.Layer("res://char/bg2/boss/akari_v1.png", 0.15f, -95, Colors.White, fitToField: true),
+        new BgLayers.Layer("res://char/bg2/boss/akari_far_v2.png", 0.08f, -95, Colors.White, fitToField: true),
+        new BgLayers.Layer("res://char/bg2/boss/akari_mid_v2.png", 0.50f, -92, Colors.White, fitToField: true),
+        new BgLayers.Layer("res://char/bg2/boss/akari_near_v2.png", 1.00f, -91, Colors.White, fitToField: true),
     };
 
     private CanvasModulate _tint = null!;
@@ -52,6 +77,10 @@ public partial class AkariRoot : Node2D
         {
             Name = "StageBackground",
             RouteLayerDefs = RouteLayers,
+            LateRouteLayerDefs = LateRouteLayers,
+            PassageLayerDefs = PassageLayers,
+            ClimaxLayerDefs = ClimaxLayers,
+            StartInLateRoute = g?.SelectedEntry == GameManager.StageEntry.AfterMidBoss,
             MidbossLayerDefs = MidbossLayers,
             LayerBossBehavior = BgLayers.BossBehavior.Illustrated,
             BossLayerDefs = BossLayers,

@@ -213,7 +213,7 @@ public partial class BossTechniqueVideo
         else
         {
             threshold = Read<float>(_boss, "_gotoHp");
-            Write(_boss, "_mealFired", true);
+            Write(_boss, "_midpointPassed", true);
             Write(_boss, "_gotoFired", false);
             Write(_boss, "_gotoPhase", 0);
         }

@@ -22,18 +22,18 @@ public partial class ShieldBreakCallout : Node2D
 
     public void Show(Enemy owner, Job job)
     {
+        if (GameManager.BossRushActive) return;
         _owner = owner;
         _age = 0;
         _speaker = Jobs.Get(job).CharacterName;
         _accent = CompanionDialogue.Accent(job);
-        _line = job switch
+        (_breakLine, _line) = job switch
         {
-            Job.Melee => "シールド、壊れた！\n今がチャンス！　本体を狙おう！",
-            Job.Heal => "シールドが壊れたよ！\n今なら届くよ。一緒に、本体を狙おう！",
-            Job.Magic => "シールドは壊れたわ。\n今がチャンスよ。本体を狙って！",
-            _ => "シールドを破壊しました。\nご主人様、今こそ本体を狙いましょう！",
+            Job.Melee => ("シールド、壊れた！", "本体を狙おう！"),
+            Job.Heal => ("シールドが壊れたよ！", "今なら届くよ。本体を狙おう！"),
+            Job.Magic => ("シールドは壊れたわ。", "今よ。本体を狙って！"),
+            _ => ("シールドを破壊しました。", "ご主人様、本体を狙いましょう！"),
         };
-        _breakLine = _line.Split('\n')[0];
         _portrait = GD.Load<Texture2D>(job switch
         {
             Job.Melee => "res://char/v3/akari_face.png",
@@ -60,9 +60,6 @@ public partial class ShieldBreakCallout : Node2D
         var box = DialogueBox.Board;
         box.Position += new Vector2(-(1 - enter) * 22, 0);
         DialogueBox.DrawFrame(this, box, _speaker, _accent, _portrait, alpha: alpha);
-        UiKit.Text(this, UiKit.Zen, new Vector2(box.End.X - 244, box.Position.Y + 17),
-            _owner.GaugeBodyExposed ? "本体にダメージが通る" : "シールド破壊", 15,
-            new Color(DialogueBox.Ink, alpha), HorizontalAlignment.Right, 220);
         var pages = DialogueBox.Paginate(_owner.GaugeBodyExposed ? _line : _breakLine, DialogueBox.WrapWidth(box));
         DialogueBox.DrawBody(this, box, pages[0], pages[0].Length, alpha);
         var start = new Vector2(box.Position.X + DialogueBox.Padding, box.End.Y - 15);

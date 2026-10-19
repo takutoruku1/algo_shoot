@@ -30,22 +30,29 @@ public partial class ScenarioRevisionQa : Node
         try
         {
             Check(OS.GetUserDataDir().Replace('\\', '/').Contains("/build/qa_story/"), "isolated save data");
+            typeof(Settings).GetProperty(nameof(Settings.PauseWhenUnfocused))!.GetSetMethod(true)!.Invoke(null, new object[] { false });
             _game = GetNode<GameManager>("/root/Game");
             _game.AutoSaveEnabled = false;
             _game.ResetPersistent();
             _game.MsgCharsPerSec = 300;
             _game.AutoAdvanceDialog = true;
             await Frames(2);
-            CheckChoices();
-            CheckCompanions();
-            await CheckPrologue();
-            await CheckKoharuOpening();
-            await CheckAkariChoicePayoff();
-            foreach (var id in new[] { "Akari", "Koharu", "Rei" }) await CheckMemory(id);
-            foreach (var job in new[] { Job.Tank, Job.Melee, Job.Heal, Job.Magic }) await CheckFinalEntry(job);
-            await CheckMinaArt();
-            await CheckEndings();
-            await CheckEndingArt();
+            if (OS.GetCmdlineUserArgs().Contains("--midboss-visuals"))
+                await CheckKoharuOpening();
+            else
+            {
+                CheckChoices();
+                CheckCompanions();
+                await CheckPrologue();
+                await CheckKoharuOpening();
+                await CheckAkariChoicePayoff();
+                foreach (var id in new[] { "Akari", "Koharu", "Rei" }) await CheckMemory(id);
+                foreach (var job in new[] { Job.Tank, Job.Melee, Job.Heal, Job.Magic }) await CheckFinalEntry(job);
+                await CheckMinaArt();
+                await CheckEndings();
+                await CheckEndingArt();
+            }
+            await CheckReiMidAvatar();
             GetNode<BulletPool>("/root/Pool").DespawnAll();
             Audio.Instance?.StopMusic(0);
             foreach (var audio in GetNode<Audio>("/root/Audio").GetChildren().OfType<AudioStreamPlayer>())
@@ -224,13 +231,20 @@ public partial class ScenarioRevisionQa : Node
             Check(spawner != null && Read<int>(root.Stage, "_step") == 2
                 && !Hud.BubblePaused && !_game.HasChoiceAt("s2_1"), scenario.Item1 + " starts combat after the introduction and before the schedule choice");
             spawner!.SetProcess(false);
-            Check(Read<(int who, string text, string face)[]>(root.Stage, "_playerIntro").Length == 8,
-                "Koharu opening retains eight story lines before the first battle");
+            Check(Read<(int who, string text, string face)[]>(root.Stage, "_playerIntro").Length == 7,
+                "Koharu opening retains seven story lines before the first battle");
             int quota = Field<int>(typeof(StageKoharu), "MidWaveA");
-            for (int i = 0; i < quota - 1; i++) _game.AddPurify(0);
             root.Stage._Process(0);
-            Check(Read<int>(root.Stage, "_step") == 2, "reordering keeps the first wave's completion threshold");
-            _game.AddPurify(0);
+            Check(Read<int>(root.Stage, "_step") == 2, "the first wave waits for its spawner to finish");
+            for (int i = 0; i < quota * 4 && !spawner.Finished; i++)
+            {
+                spawner._Process(1);
+                foreach (Node enemy in GetTree().GetNodesInGroup("enemies")) enemy.QueueFree();
+                GetNode<BulletPool>("/root/Pool").DespawnAll();
+                await Frames(1);
+            }
+            Check(spawner.Finished && spawner.SpawnedCount == quota && Spawner.BattlefieldClear(GetTree()),
+                "the opening wave finishes all scheduled spawns and clears the battlefield");
             root.Stage._Process(0);
             Check(Read<int>(root.Stage, "_step") == 3, "the completed wave reaches the penlight conversation");
             await Frames(2);
@@ -272,12 +286,126 @@ public partial class ScenarioRevisionQa : Node
                 var expected = Field<(int who, string text, string face)[]>(typeof(StageKoharu), scenario.Item2 == 0 ? "CameoTalk1_S21Rest" : "CameoTalk1_S21Keep");
                 Check(Read<(int who, string text, string face)[]>(encounter!, "_lines").SequenceEqual(expected),
                     "the actual midboss encounter retains the selected response " + scenario.Item2);
+                encounter!.SetProcess(false);
+                root.Hud.SetProcess(true);
+                Check(Read<Texture2D>(encounter, "_enemyPortrait").ResourcePath == "res://char/v3/koharu_face.png",
+                    "Koharu's portrait is ready before Mina opens the conversation");
+                var shown = new System.Collections.Generic.HashSet<int>();
+                for (int i = 0; i < 400 && IsInstanceValid(encounter); i++)
+                {
+                    encounter._Process(0.1);
+                    await Frames(1);
+                    if (!IsInstanceValid(encounter)) break;
+                    int line = Read<int>(encounter, "_line");
+                    if (Read<bool>(encounter, "_talking") && line < expected.Length
+                        && Read<double>(encounter, "_lineTime") >= 0.4 && shown.Add(line))
+                    {
+                        Check(Read<Texture2D>(encounter, "_enemyPortrait").ResourcePath == "res://char/v3/koharu_face.png"
+                            && Read<Texture2D>(encounter, "_playerPortrait").ResourcePath == "res://char/v3/mina_conversation_v1.png",
+                            "Koharu stays on the enemy side and Mina stays on the player side");
+                        Check(Read<string>(root.Hud, "_dlgText") == expected[line].text,
+                            $"Koharu choice {scenario.Item2} preserves dialogue line {line}");
+                        if (line < 2) await Shot($"koharu_mid_choice_{scenario.Item2}_line_{line}");
+                    }
+                }
+                Check(!IsInstanceValid(encounter) && shown.Count == expected.Length,
+                    "both speakers finish the selected exchange before combat resumes");
+                root.Stage._Process(0);
+                Check(root.World.GetNodeOrNull<CameoBoss>("KoharuCameo") != null && !root.Hud.CinematicMode,
+                    "Koharu's midboss spawns after the choice dialogue");
+                foreach (var job in new[] { Job.Melee, Job.Heal, Job.Magic })
+                {
+                    var lines = ((int who, string text, string face)[])typeof(CameoIntroScene).GetMethod("Dialogue", Static)!
+                        .Invoke(null, new object[] { job, "koharu", expected })!;
+                    Check(lines[0].who == (int)Hud.LineKind.Other && lines[0].text == expected[1].text
+                        && lines[1].who == (int)Hud.LineKind.Companion && lines.All(line => line.who != (int)Hud.LineKind.Mina),
+                        $"{job}: the choice reaction keeps Koharu's reply on the enemy side");
+                }
             }
             root.QueueFree();
             await Frames(4);
             GetNode<BulletPool>("/root/Pool").DespawnAll();
         }
         _game.Difficulty = GameManager.Diff.Normal;
+    }
+
+    private async Task CheckReiMidAvatar()
+    {
+        foreach (var job in Enum.GetValues<Job>())
+        {
+            _game.ResetPersistent();
+            _game.AutoSaveEnabled = false;
+            _game.AutoAdvanceDialog = false;
+            _game.SelectedJob = job;
+            _game.SelectedEntry = GameManager.StageEntry.MidBoss;
+            _game.Difficulty = GameManager.Diff.Normal;
+            _game.MarkIdleDialogSeen("once_midboss_shield");
+            var root = GD.Load<PackedScene>("res://Rei.tscn").Instantiate<ReiRoot>();
+            GetTree().Root.AddChild(root);
+            GetTree().CurrentScene = root;
+            root.SetProcess(false);
+            root.Stage.SetProcess(false);
+            root.Player.SetPhysicsProcess(false);
+            root.Stage._Process(0);
+            var intro = root.Hud.GetNode<CameoIntroScene>("CameoIntroScene");
+            intro.SetProcess(false);
+            var lines = Read<(int who, string text, string face)[]>(intro, "_lines");
+            Check(lines.Where(line => line.who == 2).All(line => line.face == CompanionDialogue.ReiAvatarPortrait),
+                $"{job}: Rei's midboss dialogue uses the VTuber avatar");
+            bool captured = false;
+            for (int i = 0; i < 400 && IsInstanceValid(intro); i++)
+            {
+                intro._Process(0.1);
+                var post = Read<PostToast?>(intro, "_post");
+                if (IsInstanceValid(post)) post!._Process(0.1);
+                await Frames(1);
+                if (!IsInstanceValid(intro)) break;
+                if (Read<Texture2D>(intro, "_enemyPortrait").ResourcePath != CompanionDialogue.ReiAvatarPortrait)
+                    throw new Exception($"{job}: Rei's midboss portrait left avatar form");
+                if (!captured && Read<bool>(intro, "_talking") && Read<double>(intro, "_lineTime") >= 0.4)
+                {
+                    captured = true;
+                    if (job == Job.Tank) await Shot("rei_mid_avatar_dialogue");
+                }
+            }
+            Check(!IsInstanceValid(intro) && captured, $"{job}: Rei's avatar introduction completes");
+            root.Stage._Process(0);
+            var boss = root.World.GetNode<CameoBoss>("ReiCameo");
+            boss.SetProcess(false);
+            boss.SetPhysicsProcess(false);
+            void EnemyCall(string name, params object[] args)
+                => typeof(Enemy).GetMethod(name, Private)!.Invoke(boss, args);
+            EnemyCall("TickEntrance", 0d);
+            EnemyCall("TickEntrance", 2d);
+            EnemyCall("TickSwapAnim", 1d);
+            var body = Read<Sprite2D>(boss, "_bodySprite", typeof(Enemy));
+            const string avatar = "res://char/v3/boss_rei_body_idle.png";
+            Check(body.Texture.ResourcePath == avatar && boss.Theme.PreTex == avatar
+                && boss.Theme.CryTex == avatar && boss.Theme.PostTex == avatar,
+                $"{job}: Rei's midboss keeps the avatar throughout combat and defeat");
+            Check(boss.Theme.Face == CompanionDialogue.ReiAvatarPortrait
+                && boss.Theme.TauntLines.Concat(boss.Theme.DefeatLines).Where(line => line.who == 2)
+                    .All(line => line.face == CompanionDialogue.ReiAvatarPortrait),
+                $"{job}: Rei's midboss taunts and farewell keep the avatar portrait");
+            if (job == Job.Tank) await Shot("rei_mid_avatar_battle");
+            EnemyCall("TickBodyMotion", .1d);
+            Check(body.Texture.ResourcePath.StartsWith("res://char/v3/boss_motion/rei_glide_v3/"), "Rei's midboss uses the new motion artwork");
+            EnemyCall("SetDownBody", true);
+            Check(body.Texture.ResourcePath.StartsWith("res://char/v3/down/breathing/rei_breath_"),
+                "shield break uses the avatar's down pose");
+            if (job == Job.Tank) await Shot("rei_mid_avatar_down");
+            EnemyCall("SetDownBody", false);
+            EnemyCall("Redeem");
+            EnemyCall("TickSwapAnim", 1d);
+            Check(body.Texture.ResourcePath == avatar, "purification does not reveal Rei's human form");
+            if (job == Job.Tank) await Shot("rei_mid_avatar_defeat");
+            EnemyCall("EndCryNow");
+            EnemyCall("TickSwapAnim", 1d);
+            Check(boss.Finished && body.Texture.ResourcePath == avatar, "Rei's midboss exits in avatar form");
+            root.QueueFree();
+            await Frames(6);
+            GetNode<BulletPool>("/root/Pool").DespawnAll();
+        }
     }
 
     private async Task CheckAkariChoicePayoff()

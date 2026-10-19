@@ -1,45 +1,20 @@
 using Godot;
 using System.Collections.Generic;
 
-// BgLayers : 背景の「層」をデータ駆動で敷くコントローラ（StageBackground の1枚絵タイル経路の一般化）。
-//
-//   1枚絵を横タイルするだけの旧経路に対し、こちらは奥行きの違う複数の層（遠景／中景／近景／光）を
-//   別々のスクロール比・Z・色掛け・合成で重ねる。素材は 1280x720 前提で、内部解像度(384x216)へ
-//   高さフィット（216/720 = 0.3）すると幅も 384 にちょうど収まる＝全画面層はタイル1枚で足りる。
-//
-//   Z の割り当て（ScrollFx -70..-55 / StageImagery -50 には触れない）:
-//     L1 遠景 -95 / L2 中景 -92 / L3 近景 -91 / L4 光 -88
-//
-//   スクロール比 scrollMul は層ごとの固定値（L1 0.15 / L2 0.45 / L3 1.0 / L4 0.0）。
-//   これに BgScroll の位置係数（自機が右にいるほど速い 0.65..1.45）を乗算して共存させる＝
-//   StageBackground / ScrollFx と同じ「左へ流れる＝左→右に前進」の語彙。
-//
-//   loop=true の層だけ横に2枚並べて左へシームレスに流す。loop=false の層は1枚を置いたままにし、
-//   scrollMul は「流す速さ」ではなく「自機の左右位置に紐づく視差スウェイの大きさ」として効く
-//   （近景の一枚物＝傘や看板が画面外へ流れ去って二度と戻らないのを防ぐ）。
-//
-//   加算層（additive=true）は CanvasItemMaterial{Add} を各 Sprite2D に載せる（WorldGrade / FxLayer と同じ作法）。
-//   色掛け（tint）は層ごとの Modulate。WorldGrade の CanvasModulate グレーディングとは別系統で二重掛けにしない
-//   （tint は Root が持ち、WorldGrade は従来どおり CanvasModulate 側に残す）。
-//
-//   層セットの入れ替え（CrossfadeTo）: 道中パノラマ→中ボスの部屋→ボスの部屋（StageBackground の
-//   BeginRoute / BeginMidboss / EnterBoss）と FINAL の巡回のために、新しい層セットを α0 で敷いてから
-//   0.8〜1.2 秒で入れ替え、旧セットを解放する。唐突に切らない（StageBackground.CrossfadeBossTo と同じ作法）。
 public partial class BgLayers : Node2D
 {
     private const float ScreenWidth = 384f;
     private const float ScreenHeight = 216f;
-    private const float PanoramaOverlap = 0.08f;
 
     // 層の定義（Root から配列で注入する）。
     //   Path      : res:// のテクスチャ。読めない層は黙って飛ばす（他の層は敷かれる＝事故らない）。
     //   ScrollMul : loop=true なら左へ流れる速さの倍率、loop=false なら視差スウェイの大きさ。0 で静止（光の層）。
-    //   Z         : 絶対 ZIndex（L1 -95 / L2 -92 / L3 -91 / L4 -88 を想定）。
+    //   Z         : 絶対 ZIndex。
     //   Tint      : Modulate。無彩色素材への色掛けにも使う。
     //   Additive  : true で加算合成（光の層）。
-    //   Loop      : true のとき横に2枚並べてシームレスループ。全画面の一枚物は false。
-    //   Offset    : 画面座標での配置位置（既定 0,0）。素材座標(1280x720基準)から置きたいときは
-    //               Root 側で 0.3 倍してから渡す（BgLayers は素材座標を知らない）。
+    //   Loop      : true のとき横へループ。
+    //   Travel    : 道中の区間進行に沿って一度だけ横へ通過する。
+    //   Offset    : FitToField=false の素材を置く画面座標。
     public readonly struct Layer
     {
         public readonly string Path;
@@ -50,22 +25,20 @@ public partial class BgLayers : Node2D
         public readonly bool Loop;
         public readonly Vector2 Offset;
         public readonly bool FitToField;
+        public readonly bool Travel;
 
         public Layer(string path, float scrollMul, int z, Color tint, bool additive = false, bool loop = false,
-                     Vector2 offset = default, bool fitToField = false)
+                     Vector2 offset = default, bool fitToField = false, bool travel = false)
         {
             Path = path; ScrollMul = scrollMul; Z = z; Tint = tint;
             Additive = additive; Loop = loop; Offset = offset; FitToField = fitToField;
+            Travel = travel;
         }
     }
 
     // Root から代入する層リスト（奥→手前の順に並べる。空なら何も敷かない）。
     public Layer[] Layers = System.Array.Empty<Layer>();
 
-    // ボス突入で何が起きるか。面ごとに Root から選ぶ。
-    //   Dim   : 既定。光(L4)のαを 0 へ、L1〜L3 を 0.55 倍へ落として世界を沈める（STAGE1 あかり/STAGE2 こはる）。
-    //   Brighten : 逆に光を増やす（STAGE3 レイ）。L1〜L3 は 0.7 倍に留め、BossLayers の層セットへ
-    //              クロスフェードして金の光を足す＝舞台が煌々と点く。
     public enum BossBehavior { Dim, Brighten, Illustrated }
     public BossBehavior OnBoss = BossBehavior.Dim;
 
@@ -74,13 +47,14 @@ public partial class BgLayers : Node2D
 
     // 基準スクロール速度（px/s）。StageBackground.MidScrollSpeed と同じ控えめな値に揃える。
     public float ScrollSpeed = 13f;
+    public float TravelProgress;
 
     // 非ループ層の視差スウェイ幅（px）と追従速度（px/s）。自機が左端→右端で最大この幅だけ左へ寄る。
     // 一枚物が画面外へ流れ去らないよう、非ループ層は「流す」のではなく「自機位置に紐づけて揺らす」。
     private const float ParallaxSway = 22f;
     private const float ParallaxFollow = 26f;
 
-    // ── 隠れている左側を見せる視差（2026-09-07）──
+    // 隠れている左側を見せる視差。
     //   ユーザー実機指摘「背景の左側がもったいないから、画面の右側に入ったら右側が、左側に入ったら
     //   左側が見えるように背景を動かして」。
     //
@@ -123,16 +97,12 @@ public partial class BgLayers : Node2D
         public Vector2 Offset;
         public bool FitToField;
         public ShaderMaterial? PanoramaMaterial;
+        public float TravelProgress;
         public float Fade = 1f;   // 層セットのクロスフェード用のα（旧セットは 1→0、新セットは 0→1）
     }
 
     private readonly List<Live> _live = new List<Live>();
 
-    // ───── ボス突入の明暗 ─────
-    // Dim（既定）: L4（加算＝光）は α を 0 へ、それ以外は Modulate を 0.45 倍へ、0.8 秒でフェードする。
-    // 0.55 では浄化が進んだ面で WorldGrade の加算光（段階3の琥珀）と相殺し「空気が変わった」と分からなかった。
-    // 係数を 0.45 まで下げ、併せて WorldGrade 側の加算光もボス中は半分に落とす（暗転を相殺させない）。
-    // Brighten（STAGE3）: L4 はそのまま、L1〜L3 を 0.7 倍まで（暗転より浅く）落として本体を立たせる。
     private const float BossDimDur = 0.8f;
     private const float BossDimMul = 0.45f;
     private const float BossBrightMul = 0.70f;
@@ -152,7 +122,6 @@ public partial class BgLayers : Node2D
     private float _swapT, _swapDur;
     private bool _swapping;
 
-
     public override void _Ready()
     {
         ZIndex = -95;
@@ -170,8 +139,7 @@ public partial class BgLayers : Node2D
             var tex = ResourceLoader.Load<Texture2D>(def.Path);
             if (tex == null || tex.GetHeight() <= 0) continue;
 
-            // 1280x720 の素材を内部解像度の高さに合わせる（216/720 = 0.3）。
-            // 部分素材（L3 の一枚物など）も同じ 0.3 倍で置く＝素材どうしの大きさの関係が崩れない。
+            // 部分素材は元の配置比率を保ち、盤面用の背景だけ表示範囲へフィットさせる。
             float scale = def.FitToField
                 ? Mathf.Max((Field.Width + 8f) / tex.GetWidth(), (ScreenHeight + 8f) / tex.GetHeight())
                 : ScreenHeight / 720f;
@@ -180,11 +148,10 @@ public partial class BgLayers : Node2D
                 ? new Vector2(Field.CenterX, ScreenHeight * 0.5f) - tex.GetSize() * scale * 0.5f
                 : def.Offset;
             ShaderMaterial? panorama = null;
-            if (def.FitToField && def.Loop)
+            if (def.Travel)
             {
                 origin.X = Field.Left - 4f;
                 panorama = new ShaderMaterial { Shader = GD.Load<Shader>("res://shaders/route_panorama.gdshader") };
-                panorama.SetShaderParameter("edge_blend", PanoramaOverlap);
             }
 
             // ループ層は画面幅を覆う枚数＋1（巻き戻し用に最低2枚）。非ループは1枚。
@@ -224,6 +191,7 @@ public partial class BgLayers : Node2D
                 Loop = def.Loop, Additive = def.Additive, BaseTint = def.Tint, Offset = origin,
                 FitToField = def.FitToField,
                 PanoramaMaterial = panorama,
+                TravelProgress = TravelProgress,
                 Fade = fade,
                 // ループ層の X はループ用オフセット(0起点)、非ループ層の X は現在の画面X（初期位置＝配置位置）。
                 // 全画面の一枚物は「盤面の左端が素材の左端」を初期位置にする（_reveal は 0 から立ち上がる）
@@ -289,10 +257,6 @@ public partial class BgLayers : Node2D
         if (BossLayers.Length > 0) CrossfadeTo(BossLayers, BossDimDur);
     }
 
-    // 層セットと「ボス中の見え方」を同時に差し替える（FINAL の巡回専用）。
-    // FINAL は最初からボス中（_dimK=1）なので、巡る先ごとにその面のボス時の係数（Dim/Brighten）へ
-    // 切り替えないと、レイの面だけ「煌々と点く」見え方が再現できない。層の入れ替えは CrossfadeTo に委ね、
-    // ここは係数の差し替えだけを足す＝道中の面（Akari/Koharu/Rei Root）の挙動には一切触らない。
     public void CrossfadeToBoss(BossBehavior onBoss, Layer[] defs, float dur = 1.0f)
     {
         OnBoss = onBoss;
@@ -308,7 +272,7 @@ public partial class BgLayers : Node2D
         {
             _dimT += dt;
             float k = Mathf.Clamp(_dimT / BossDimDur, 0f, 1f);
-            _dimK = k * k * (3f - 2f * k);   // smoothstep＝唐突に切らない（CrossfadeBossTo と同じ作法）
+            _dimK = k * k * (3f - 2f * k);
             if (k >= 1f) { _dimK = 1f; _dimming = false; }
             ApplyTint();
         }
@@ -340,10 +304,13 @@ public partial class BgLayers : Node2D
         {
             if (l.PanoramaMaterial != null)
             {
-                // 端の重ね幅を周期から引き、静止した切り抜き窓の中だけを連続して左へ流す。
-                if (!Hud.BubblePaused)
+                if (!Hud.BubblePaused && !Pad.UiBlocked(this))
                 {
-                    l.X = (l.X + ScrollSpeed * l.ScrollMul * posMul * dt) % (l.TileW * (1f - PanoramaOverlap));
+                    // フェード中の旧景は通過地点を保ち、新景だけを先へ進める。
+                    if (!_fadingOut.Contains(l)) l.TravelProgress = TravelProgress;
+                    float span = Mathf.Max(0f, l.TileW - Field.Width - 8f);
+                    float depth = Mathf.Clamp(l.ScrollMul / 1.4f, 0f, 1f);
+                    l.X = span * Mathf.Clamp(l.TravelProgress, 0f, 1f) * depth;
                     l.PanoramaMaterial.SetShaderParameter("scroll_offset", l.X / l.TileW);
                 }
                 continue;
@@ -351,7 +318,7 @@ public partial class BgLayers : Node2D
             if (l.FitToField)
             {
                 // 専用一枚絵は盤面内に収め、余白の範囲だけ動かして継ぎ目と大きな横流れを防ぐ。
-                float target = l.Offset.X + (0.5f - nx) * 4f;
+                float target = l.Offset.X + (0.5f - nx) * 8f * Mathf.Clamp(l.ScrollMul, 0f, 1f);
                 l.X = Mathf.Lerp(l.X, target, 1f - Mathf.Exp(-RevealFollow * dt));
                 foreach (var s in l.Tiles) s.Position = new Vector2(l.X, l.Offset.Y);
                 continue;

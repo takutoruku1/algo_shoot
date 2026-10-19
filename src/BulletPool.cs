@@ -9,6 +9,28 @@ public enum BossShotStyle { Ring, Aimed }
 // 生成した Bullet は Pool 自身の子として add する。
 public partial class BulletPool : Node2D
 {
+    private readonly HashSet<Bullet> _reiBullets = new();
+    private readonly List<Bullet> _reiFrameBullets = new();
+
+    private sealed partial class ReiUpdater : Node
+    {
+        internal BulletPool Pool = null!;
+        public override void _PhysicsProcess(double delta)
+        {
+            // Despawning during movement mutates the active set.
+            Pool._reiFrameBullets.Clear();
+            Pool._reiFrameBullets.AddRange(Pool._reiBullets);
+            foreach (var bullet in Pool._reiFrameBullets) bullet.StepRei(delta);
+        }
+    }
+    internal void TrackReiBullet(Bullet bullet) => _reiBullets.Add(bullet);
+    internal void UntrackReiBullet(Bullet bullet) => _reiBullets.Remove(bullet);
+
+    public override void _PhysicsProcess(double delta)
+    {
+        foreach (var bullet in _reiBullets) bullet.SyncReiCollision();
+    }
+
     private const int PreallocCount = 512;
     public const float BossRadius = 2.2f;
     public const float BossChargeRadius = 2.6f;
@@ -21,6 +43,9 @@ public partial class BulletPool : Node2D
 
     public override void _Ready()
     {
+        // Sync collision pieces after both the player and every bullet have moved.
+        ProcessPhysicsPriority = 100;
+        AddChild(new ReiUpdater { Pool = this, ProcessPhysicsPriority = -1 });
         // 512 発を事前生成しプール（非アクティブ）
         for (int i = 0; i < PreallocCount; i++)
         {

@@ -255,7 +255,6 @@ public static class EnemyTable
     {
         var (_, drifter) = For(StageTheme.Koharu);
         // 欠片 0.45：パネル2×インク1＝2ヒット＝通常ザコ(6)の 1/3 の手間。points も 60（平均90の 0.67倍）。
-        // そのうえ本体を落とせば祈り弾3発ぶんの AddPrayerCleared が別経路で必ず入る＝報酬の本体はそちら。
         // ここで欠片まで通常量出すと「一番楽な敵が一番おいしい」＝ノーリスクの稼ぎ（§7）になる。
         // 5〜7粒＝“ボーナス種を拾った”ことは分かるが、稼ぎの最適解にはならない量に抑える。
         return new EnemySpec(drifter.PreTexPath, drifter.PostTexPath, points: 60,

@@ -583,8 +583,8 @@ public partial class Shop : Node2D
             // 効果の文面に「→」を混ぜない（表示側が値と値を矢印でつなぐので、二重の矢印になって読めなくなる）。
             // 溜め打ちは最初から使える（2026-09-25）＝この段が売るのは「もう一段」。
             //   左右とも「何秒ためて、どれだけの一発が出るか」を並べる（秒と倍率は ChargeTier が正典）。
-            case "n_charge":    return ($"チャージ {g.ChargeNeedSec:0.00}秒 まで",
-                                        $"チャージ {g.ChargeNeedSec * ChargeTier.HoldMul:0.00}秒 まで\n二段目は 威力 ×{ChargeTier.PowerMul:0.0} / 弾 ×{ChargeTier.RadiusMul:0.0}");
+            case "n_charge":    return ($"1段目 {g.ChargeNeedSec:0.00}秒",
+                                        $"2段目 {g.ChargeNeedSec * ChargeTier.HoldMul:0.00}秒\n威力×{ChargeTier.PowerMul:0.0}・大きさ×{ChargeTier.RadiusMul:0.0}");
             case "n_hitbox":    return ("当たり判定 2.0px", "当たり判定 1.0px");
             case "n_lines":
             {
@@ -592,7 +592,7 @@ public partial class Shop : Node2D
             }
             case "n_move_15x":  return ($"移動速度 {75 * g.JobDef.MoveMul:0.0}", $"移動速度 {112.5f * g.JobDef.MoveMul:0.0}");
             case "n_slow":      return ("未習得", "敵の時間 ×0.35 / 1.5秒\n再使用 20秒");
-            case "n_pierce":    return ("弾は1体で消える", "どの撃ち方でも 敵1体を貫く");
+            case "n_pierce":    return ("通常弾は命中すると消える", "通常弾が1回貫通する");
             case "n_option":    return ("オプション なし", "オプション 1基\n威力 ×0.5 で同時射撃");
             default:            return ("—", Def(i).Desc);
         }

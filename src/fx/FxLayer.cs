@@ -254,10 +254,6 @@ public partial class FxLayer : Node2D
     // スコア総量（basePoints/10 のクランプ）は据え置き＝ショップ economy は不変。増やすのは「粒の数」だけ。
     public enum PurifyTier { Zako, MidBoss, Boss }
 
-    // 旧シグネチャ（bool boss）の互換オーバーロード。引数なし呼び出し（Player の演出転用など）は Zako 扱い。
-    public void PurifyBurst(Vector2 pos, int basePoints = 0, bool boss = false)
-        => PurifyBurst(pos, basePoints, boss ? PurifyTier.Boss : PurifyTier.Zako);
-
     // 浄化バースト（敵の改心＝倒した瞬間の一拍）。
     // 視認性の要（2026-09-08 実機指摘）：倒した敵が最後に撃った弾がこの演出に隠れて、
     // 避けようのない被弾になっていた。原因は層（FxLayer が ZIndex 20/21＝弾 0 の上）。
@@ -274,7 +270,7 @@ public partial class FxLayer : Node2D
     //   ★経済には影響しない。impBase も points も「総和保存」で n 粒へ割るので、n をいくつに変えても
     //     拾い切ったときの合計は同じ。変わるのは撒かれる粒の数＝見た目の量と拾う回数だけ。
     //     （ボス/中ボスは種の概念が無いので既定 1f のまま＝従来値を一切動かさない。）
-    public void PurifyBurst(Vector2 pos, int basePoints, PurifyTier tier, int impBase = 0, float countMul = 1f, PowerKind? power = null)
+    public void PurifyBurst(Vector2 pos, int basePoints = 0, PurifyTier tier = PurifyTier.Zako, int impBase = 0, float countMul = 1f, PowerKind? power = null)
     {
         bool boss = tier != PurifyTier.Zako;
         // 芯の一拍だけ手前。小さく短命（16→11px / 0.45→0.28s）＝弾を覆う面積と時間を削る。

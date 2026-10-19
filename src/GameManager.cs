@@ -17,6 +17,9 @@ public partial class GameManager : Node
         if (Instance == this) Instance = null;
         // Release the native cursor texture before the rendering server shuts down.
         Input.SetCustomMouseCursor(null);
+        GetWindow().SizeChanged -= ApplyCursor;
+        _cursorTexture?.Dispose();
+        _cursorTexture = null;
     }
 
     public long Score { get; private set; }
@@ -134,6 +137,8 @@ public partial class GameManager : Node
     //   判定はこの1本に集約する（各 Stage*/Boss* が参照）。Easy/Normal/Hard の経路はこの判定が false のまま＝従来どおり。
     public bool IsLunatic => Difficulty == Diff.Lunatic;
     public static bool LunaticActive => Instance?.IsLunatic == true;
+    public static bool BossRushActive => Instance?.GetTree().GetFirstNodeInGroup("boss_rush") != null;
+    public static bool SkipBossStory => LunaticActive || BossRushActive;
 
     // ── 撃破時に散る「心の欠片」の難易度倍率（2026-09-17 ユーザー要望）──
     //   粒の個数と、欠片が運ぶスコア総量の両方に掛ける（FxLayer.PurifyBurst）。
@@ -155,6 +160,10 @@ public partial class GameManager : Node
     public float BossHpMul => Difficulty switch
     {
         Diff.Normal => 1.25f, Diff.Hard => 1.5f, Diff.Lunatic => 1.75f, _ => 1f,
+    };
+    public float BossPanelHpMul => Difficulty switch
+    {
+        Diff.Hard => 1.25f, Diff.Lunatic => 1.5f, _ => 1f,
     };
     public float RoadHpMul => Difficulty switch
     {
@@ -390,10 +399,6 @@ public partial class GameManager : Node
             if (s.Scene == scene) return s.Id;
         return null;
     }
-    // ※ StageHasMidBoss（中ボス持ちか＝チェックポイント入口を出す対象か）は 2026-09-07 に削除した。
-    //   唯一の読み手だった「どこから始めますか?」の入口ダイアログを廃止し、呼び出し元が消えたため
-    //   （DiffSelect.cs / Hub.cs の該当コメント参照）。IsMidBossCleared / SelectedEntry は現役。
-
     private readonly HashSet<string> _cleared = new();
     private readonly HashSet<string> _companionClears = new();
     public bool ClearedWithCompanion(string id) => _companionClears.Contains(id);
@@ -490,6 +495,15 @@ public partial class GameManager : Node
                 if (GetBestTime(FinalStageId, d) != null) return true;
             return false;
         }
+    }
+    public bool EndingRollSeen { get; private set; }
+    public bool BossRushUnlocked => IsFinalCleared
+        && (EndingRollSeen || HasChoiceAt("e6") || IsLineRead(Epilogue.AfterCreditsLine));
+
+    public void MarkEndingRollSeen()
+    {
+        EndingRollSeen = true;
+        AutoSave();
     }
     public int HeartsSaved { get { int n = 0; foreach (var s in Stages) if (_cleared.Contains(s.Id)) n++; return n; } }
     public bool AllStoryCleared
@@ -667,12 +681,12 @@ public partial class GameManager : Node
         new() { Id = "n_dodge_cd", Name = "回避強化", Desc = "回避が早く戻り、距離も伸びる",         MaxLevel = 1, BaseCost =  300, ParentId = "n_dodge" },
         new() { Id = "n_bomb_1",   Name = "ボム +1",               Desc = "はじまりのボムが1つ増える",             MaxLevel = 1, BaseCost =  450, ParentId = "n_dodge_cd" },
         new() { Id = "n_life_2",   Name = "ハート +1",             Desc = "はじまりの♥がもう1つ増える",           MaxLevel = 1, BaseCost =  900, ParentId = "n_bomb_1" },
-        new() { Id = "n_charge",   Name = "溜め打ち 二段",         Desc = "もう一段ためると、重く大きい一発になる", MaxLevel = 1, BaseCost = 1200, ParentId = "n_life_2" },
+        new() { Id = "n_charge",   Name = "溜め打ち 二段",         Desc = "もう一段ためると、弾の威力と大きさが増す", MaxLevel = 1, BaseCost = 1200, ParentId = "n_life_2" },
         new() { Id = "n_hitbox",   Name = "当たり判定 半分",       Desc = "被弾判定の半径が半分になる",            MaxLevel = 1, BaseCost = 1500, ParentId = "n_charge" },
-        new() { Id = "n_lines",    Name = "ライン +1",           Desc = "撃ち方ごとに光の筋が1本増える",         MaxLevel = 1, BaseCost = 1800, ParentId = "n_hitbox" },
+        new() { Id = "n_lines",    Name = "ライン +1",           Desc = "通常弾の同時発射数が増える",             MaxLevel = 1, BaseCost = 1800, ParentId = "n_hitbox" },
         new() { Id = "n_move_15x", Name = "移動速度 1.5倍",        Desc = "移動が1.5倍速くなる",                   MaxLevel = 1, BaseCost = 2200, ParentId = "n_lines" },
         new() { Id = "n_slow",     Name = "集中モード",    Desc = "敵の時間だけ遅くする",                  MaxLevel = 1, BaseCost = 2600, ParentId = "n_move_15x" },
-        new() { Id = "n_pierce",   Name = "貫通",      Desc = "どの撃ち方でも弾が敵1体を貫通する",     MaxLevel = 1, BaseCost = 3500, ParentId = "n_slow" },
+        new() { Id = "n_pierce",   Name = "貫通",      Desc = "通常弾が敵やアンフォールダーを1つ貫通する", MaxLevel = 1, BaseCost = 3500, ParentId = "n_slow" },
         new() { Id = "n_option",   Name = "オプション +1",         Desc = "追従オプションが1基つく（威力×0.5）",   MaxLevel = 1, BaseCost = 4000, ParentId = "n_pierce" },
     };
 
@@ -1055,6 +1069,7 @@ public partial class GameManager : Node
         data["midBossCleared"] = mb;
         // 初回ショップ説明の既読フラグ。後方互換：キー無し＝false 扱い。
         data["shopTutorialSeen"] = ShopTutorialSeen;
+        data["endingRollSeen"] = EndingRollSeen;
         // ステージ進行（クリア済みステージID＝救った人数・解放・到達度の本体）。後方互換：キー無し＝空。
         var cl = new Godot.Collections.Array();
         foreach (var id in _cleared)
@@ -1164,6 +1179,7 @@ public partial class GameManager : Node
         }
         // 初回ショップ説明の既読（キー無し＝旧セーブは false＝後方互換）。
         ShopTutorialSeen = data.ContainsKey("shopTutorialSeen") && data["shopTutorialSeen"].AsBool();
+        EndingRollSeen = data.ContainsKey("endingRollSeen") && data["endingRollSeen"].AsBool();
         // ステージ進行（クリア済み）復元。キー無し＝旧セーブは空＝後方互換。
         _cleared.Clear();
         if (data.ContainsKey("cleared"))
@@ -1276,6 +1292,7 @@ public partial class GameManager : Node
         if (!JobForcedByCmdline) SelectedJob = Job.Tank;
         _midBossCleared.Clear();
         ShopTutorialSeen = false;
+        EndingRollSeen = false;
         SelectedEntry = StageEntry.Start;
         _bossRetryScore = 0;
         _cleared.Clear();          // ステージ進行（クリア済み）も初期化＝救った人数0から（回避は _upgrades と一緒に消える）
@@ -1420,6 +1437,8 @@ public partial class GameManager : Node
         LoadPrefs();
         LoadReadLog();
         Settings.ApplySaved(this);
+        GetWindow().SizeChanged += ApplyCursor;
+        ApplyCursor();
 
         // --job=melee|heal|tank|magic : このランのジョブを強制する（ハブの選択画面ができるまでの入口、
         //   かつ以後も残すデバッグ機能）。立てると JobForcedByCmdline が立ち、セーブのロードや
@@ -1774,12 +1793,6 @@ public partial class GameManager : Node
         Score += 5;
     }
 
-    // こはる戦の「祈り弾」（消せる下方向弾）を自機弾で受け止めた時の加点（#12 機構側／#20）。
-    public void AddPrayerCleared()
-    {
-        Score += 15;
-    }
-
     // ボムを使う。残があれば消費して true。
     // チュートリアル練習モード中は残数を減らさず発動成功を返す（詰み防止＝何度でも練習できる）。
     public bool UseBomb()
@@ -1846,7 +1859,10 @@ public partial class GameManager : Node
     // 残機0と同フレーム帯で飛翔中の弾がボスを浄化したエッジケースで、ゲームオーバーの
     // 「R/Q」抜けプロンプトを改心演出〜帰還会話に重ねないための判定（HandleGameOverExit が参照）。
     public bool RedemptionActive { get; private set; }
-    public void NotifyRedemptionStart() => RedemptionActive = true;
+    public void NotifyRedemptionStart()
+    {
+        if (!BossRushActive) RedemptionActive = true;
+    }
 
     // ───────────────────────────────────────────────────────────
     // ゲームオーバー時の選択（やり直す／最初から／抜ける）共通処理。
@@ -1891,7 +1907,7 @@ public partial class GameManager : Node
         if (_gameOverChoice == null || !IsInstanceValid(_gameOverChoice))
         {
             if (hud == null) return false;
-            _gameOverFirst = (game?.BossReached ?? false) ? 0 : 1;
+            _gameOverFirst = !BossRushActive && (game?.BossReached ?? false) ? 0 : 1;
             _gameOverChoice = ChoiceOverlay.Show(hud, GameOverChoices[_gameOverFirst..],
                 defaultSel: 0, onBoard: true);   // 既定は先頭＝いちばん続けやすい手（ボスから／未到達なら最初から）
             // ここで戦闘曲をゲームオーバー曲へ落とす（2026-09-14〜）。従来は**道中/ボス曲が鳴り続けていて**、

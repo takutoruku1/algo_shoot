@@ -364,7 +364,7 @@ public partial class HowToCanvas : Node2D
             UiKit.Gold, hasDodge, hasDodge ? "" : "未習得");
 
         Add(tab switch { 1 => Pad.Face(JoyButton.X), 2 => "中クリック", _ => "X" },
-            "ボム", "敵にダメージを与え短時間無敵。残数ぶん", UiKit.Mina, false);
+            "ボム", "敵を攻撃し、短時間無敵になる。\n敵弾は消えない。残数を1つ使う", UiKit.Mina, false);
 
         // 集中モード（ショップの「集中モード」＝n_slow で覚える）。キーボードは C（2026-09-27。旧 V）。
         Add(tab switch { 1 => Pad.Face(JoyButton.LeftShoulder), 2 => "サイドボタン", _ => "C" },
@@ -374,7 +374,7 @@ public partial class HowToCanvas : Node2D
             hasFocus ? "" : tab == 2 ? "未習得 — ショップ" : "未習得");
 
         Add(tab switch { 1 => Pad.Face(JoyButton.A), 2 => "左クリック", _ => "Z / Enter / Space" },
-            "会話を送る", "1回目で全文表示、2回目で次の行へ", UiKit.Info, false);
+            "会話を送る", "1回目で今のページを全文表示、2回目で続きを表示", UiKit.Info, false);
         Add(tab == 1 ? Pad.Face(JoyButton.RightShoulder) + " 長押し" : tab == 2 ? "左クリック" : "Ctrl 長押し",
             "既読スキップ", tab == 2 ? "会話ボックス上の「▶▶」を押して開始・停止"
                                     : "会話中、一度読んだ行だけ高速で送る", UiKit.Text2, false);
@@ -452,19 +452,19 @@ public partial class HowToCanvas : Node2D
         // (icon種別, 名前, 説明, 色)。icon: 0=ハート 1=色チップ円 2=ゲージ片
         var rows = new (int icon, string name, string desc, Color col)[]
         {
-            (0, "LIFE",        "残りの体力。弾に当たると1つ減る",                      UiKit.Hp),
+            (0, "LIFE",        "残りの体力。攻撃を受けると1つ減る",                    UiKit.Hp),
             (1, "BOMB",        "ボムの残り。" + TokBomb + " で攻撃しながら無敵になれる",        UiKit.Mina),
-            (2, "浄化 ％",     "ステージの進み具合。100%でボスへ",                     UiKit.Purify),
+            (2, "浄化 ％",     "道中でどれだけ浄化が進んだかを表す",                   UiKit.Purify),
             (1, "コンボ",      "連続で浄化するとSCOREも、こぼれる心の量も増える。猶予内に次を倒せないと途切れる", UiKit.Mina),
             (1, "SCORE",       "遊びの得点。ハイスコアを狙える",                       UiKit.Gold),
             // ★2026-09-17 経済改修：通貨は撃破時ではなく「散った欠片を拾ったとき」に入る。
             //   拾う動作が報酬だと一目で分かる説明にする（実装と表記の一致＝§3 わかりやすさ）。
             // ショップはハブのスマホのアプリから開く（旧「ハブで X」の文字キーは廃止済み）。
-            (0, "浄化した心",  "通貨。浄化でこぼれた欠片を拾うと貯まる。ショップ（ハブのスマホ）でミナを強化できる", UiKit.Hp),
+            (0, "浄化した心",  "欠片を拾うと貯まる通貨。ハブのショップで仲間共通の強化に使える", UiKit.Hp),
             (1, "フォロワー",  "届けた証。増えるほど全弾ダメージが微増（上限+50%）とインプレに上乗せ", UiKit.Info),
             (1, "TIME",        "クリアタイム。記録に挑戦",                            UiKit.Text2),
             (1, "ロックオン",  "待機中は対象探し。追尾中は下の文字でシールド／本体を確認", UiKit.Purify),
-            (2, "ボスの状態",  "「本体に攻撃」が攻撃の合図。「回避」と出たら技が終わるまで避ける", UiKit.Gold),
+            (2, "ボスの状態",  "「攻撃終了待ち」の間は避け続け、「本体に攻撃」で本体を狙う", UiKit.Gold),
         };
         float rowH = 40f;
         for (int i = 0; i < rows.Length; i++)
@@ -518,7 +518,7 @@ public partial class HowToCanvas : Node2D
             "◇ 光・移動の強化は重ねて拾うと段が上がる（上限あり）。いま持っているものは左のパネル、LIFE の上に出る",
             UiKit.FontLabel, UiKit.PurifyHi, HorizontalAlignment.Left, w);
         UiKit.Text(this, UiKit.Zen, new Vector2(x, ny + 24f),
-            "※ 攻撃を受けると失う。持ち越しはなく、そのステージのあいだだけ",
+            "※ 光・移動の強化は被弾すると失い、次のステージには持ち越せない。LIFE回復は拾った時に適用",
             UiKit.FontLabel, UiKit.Gold, HorizontalAlignment.Left, w);
     }
 
@@ -528,14 +528,14 @@ public partial class HowToCanvas : Node2D
         var cards = new (string title, string body, Color accent)[]
         {
             ("ボム",
-             "ピンチの保険。" + TokBomb + " で攻撃しながら無敵に。残数は限られる。",
+             TokBomb + " で敵を攻撃し、短時間無敵に。敵弾は消えないので、安全な場所へ移動しよう。残数は限られる。",
              UiKit.Mina),
-            ("弾強化",
-             "ハブのスマホ →ショップ。「浄化した心」で 連射 / 拡散 / ホーミング / 加速球（タメて撃つロケット弾） を解放・強化。",
+            ("仲間と強化",
+             "撃ち方は仲間ごとに異なる。ハブのショップでは「浄化した心」を使い、回避・溜め打ち二段・弾数などを順番に強化できる。",
              UiKit.Gold),
             // 後方弾カード：2026-09-15 後方弾の廃止（Player.cs 側で発射停止）に合わせて削除。
             ("浄化と汚染",
-             "敵を浄化＝救うこと。汚染は物語が進むほど自然に上がる演出で、画面の濁りとして表れる。澄んだ心I/IIで上昇をゆるやかにできる。",
+             "アンチャーを浄化し、閉じ込められた心へ近づく。汚染による光や画面の濁りは、ミナが抱えていく負担を表す物語の演出。ショップでは減らせない。",
              UiKit.Kegare),
         };
         float cardH = 96f, gap = 14f;

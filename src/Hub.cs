@@ -1022,7 +1022,7 @@ public partial class Hub : Node2D
     // トースト：1行目＝世界の言葉（通知文）、2行目＝現状の数値（小さく・任意）。
     private void Toast(string msg, string sub, Color col) { _toast = msg; _toastSub = sub; _toastCol = col; _toastT = 2.6; }
 
-    private static readonly string[] HomeApps = { "SNS", "強化ショップ", "記録", "写真", "カスタマイズ" };
+    private static readonly string[] HomeApps = { "SNS", "強化ショップ", "記録", "写真", "カスタマイズ", "BOSSラッシュ" };
     private const int HomeAppIdBase = 22000;
 
     private Rect2 HomeAppRect(int index)
@@ -1037,7 +1037,13 @@ public partial class Hub : Node2D
         return new Rect2(rect.Position + new Vector2((rect.Size.X - 80f) / 2f, 8f), new Vector2(80f, 80f));
     }
 
-    private bool HomeAppUnlocked(int index) => index == 0 || index >= 3 || (index == 1 ? ShopUnlocked : RecordsUnlocked);
+    private bool HomeAppUnlocked(int index) => index switch
+    {
+        1 => ShopUnlocked,
+        2 => RecordsUnlocked,
+        5 => _game?.BossRushUnlocked == true,
+        _ => true,
+    };
 
     private void ProcessHome()
     {
@@ -1078,7 +1084,8 @@ public partial class Hub : Node2D
         if (!HomeAppUnlocked(index))
         {
             Audio.Instance?.PlayUiDeny();
-            Toast($"{HomeApps[index]}は準備中", index == 1 ? "STAGE 1 クリアで利用可能" : "ステージクリアで利用可能", UiKit.Text3);
+            Toast($"{HomeApps[index]}は準備中", index == 5 ? "ミナをクリアし、エンドロールを見ると解放"
+                : index == 1 ? "STAGE 1 クリアで利用可能" : "ステージクリアで利用可能", UiKit.Text3);
             return;
         }
         Audio.Instance?.PlayUiConfirm();
@@ -1108,6 +1115,12 @@ public partial class Hub : Node2D
             return;
         }
         _dived = true;
+        if (index == 5)
+        {
+            _game.PendingStageScene = BossRushRoot.ScenePath;
+            PhoneAppTransition.Open(this, "res://DiffSelect.tscn");
+            return;
+        }
         PhoneAppTransition.Open(this, index == 1 ? "res://Shop.tscn" : index == 4 ? "res://Customize.tscn" : "res://Records.tscn");
     }
 
@@ -1533,9 +1546,19 @@ public partial class Hub : Node2D
                 DrawArc(c + new Vector2(1f, 1f), 11f, 0, Mathf.Tau, 32, ink, 3f, true);
                 DrawCircle(c + new Vector2(1f, 1f), 4f, ink);
             }
-            else
+            else if (i == 4)
             {
                 DrawTextureRect(_customizeIcon, new Rect2(c - new Vector2(17f, 20f), new Vector2(34f, 40f)), false);
+            }
+            else
+            {
+                DrawArc(c, 24f, 0, Mathf.Tau, 32, ink, 3f, true);
+                for (int point = 0; point < 4; point++)
+                {
+                    Vector2 direction = Vector2.FromAngle(point * Mathf.Pi / 2f);
+                    DrawLine(c + direction * 14f, c + direction * 29f, ink, 3f, true);
+                }
+                DrawCircle(c, 7f, ink);
             }
             if (!unlocked || activation == 0f)
             {
@@ -3589,9 +3612,9 @@ public partial class Hub : Node2D
 
     private static readonly (string sp, string tx, string face)[] ShopTutorialLines =
     {
-        ("あなた", "ダイブで拾った心の欠片は、ここに集まる。表示されてるハートが、今使えるぶんだ。", ""),
+        ("あなた", "ダイブで拾った心の欠片は、ショップで使えるよ。残りは「浄化した心」の数字で確認できる。", ""),
         ("ミナ", "あかりさんのところで、少しずつ増えていたものですね。", "res://char/mina_face.png"),
-        ("あなた", "うん。強化ショップで、君の力に変えられる。上から順に、一段ずつ。", ""),
+        ("あなた", "うん。強化ショップで、仲間みんなの力に変えられる。上から順に、一段ずつ。", ""),
         ("ミナ", "急に最終形態には、なれないのですね。", "res://char/mina_face.png"),
         ("あなた", "なれても、僕が驚いて案内を忘れそう。", ""),
         ("ミナ", "それは困ります。順番どおりに、お願いします。", "res://char/mina_face.png"),

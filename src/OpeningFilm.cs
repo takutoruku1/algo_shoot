@@ -39,13 +39,13 @@ public partial class OpeningFilm : Node2D
     };
     private static readonly string[] Characters = { "akari", "koharu", "rei", "mina" };
     private static readonly string[] DailyLines =
-    { "……好きって、\n言えばよかった。", "ちゃんと、応援しなきゃ。\n……好きで、始めたはずなのに。", "今日はちょっと、疲れてて……。\n……なんて。始めるわよ。" };
+    { "おめでとう。\n……それしか、送れなかった。", "明日も、学校なのに。\n……配信、最後まで見なきゃ。", "今日はちょっと、疲れてて……。\n……なんて。始めるわよ。" };
     private static readonly string[] CutinLines =
-    { "今度は、あたしの言葉で。", "あたしの「好き」を、\n嫌いになりたくない。", "わたしの声で、\n話したいことがあるの。", "……聞こえています。\nあなたが、消した言葉も。" };
+    { "まだ、伝えてないことがある。", "好きなはずなのに、\n休むのが、怖い。", "笑っていないと、\n誰も聞いてくれない？", "ご主人様が開いた道を、\nわたくしが進みます。" };
     // 単独の字幕（DrawOverlay が描く本文と同じ文字列。会話ログにも同じものを積む＝LogCaption）。
-    private const string HeardLine = "……聞こえました。";
-    private const string GoLine = "行きましょう。\nあの声の向こうへ。";
-    private const string WaitingLine = "まだ届いていない声が、待っている。";
+    private const string HeardLine = "……投稿できなかった言葉が、聞こえます。";
+    private const string GoLine = "ご主人様、道を探してください。";
+    private const string WaitingLine = "行きましょう。\nあの人が、言えなかったことを聞きに。";
     private const string TaglineLine = "消された言葉は、消えていない。";
     private static readonly Color[] Accents = { new("f0c969"), new("a6dac8"), new("de91b9"), new("87d7ed") };
     private static readonly Vector2[] PortraitFocus = { new(0.52f, 0.24f), new(0.64f, 0.25f), new(0.51f, 0.24f), new(0.45f, 0.2f) };
@@ -229,13 +229,7 @@ public partial class OpeningFilm : Node2D
         TypeCaptions(previousTime);
     }
 
-    // 字幕の文字送り音（2026-10-03／1文字ごと 2026-10-09）。話者は LogCaption の割り当てと揃える
-    //   ＝三人は相手（Other＝くぐもった音色）／ミナは Mina（澄んだ音色）／カット9の語りは Narration。
-    //   カット10（消された言葉は、消えていない。）は1文字ずつ打ち出さず、タイトルと一緒にフェードで出る
-    //   ＝**意図して鳴らさない**（"Refrain" もロゴで台詞でない）。
-    //   同じく1文字ずつ出ないので鳴らさないもの：スマホUIの固定文字（下書き／保存／かな／キー）・@ハンドル・
-    //   砕けるパネルに焼かれた投稿本文。どれも1文字ずつ出てこない飾りで、ここに音を足すと
-    //   チャージ/ショットの合図（PlayChargeReady 等）を潰す（mitsuda pitfalls P1/P2）。
+    // Only revealed dialogue ticks; static post text and the title must not mask shot cues.
     private void TypeCaptions(double previousTime)
     {
         int shot = Shot;
@@ -244,7 +238,7 @@ public partial class OpeningFilm : Node2D
                 shot == 8 ? Hud.LineKind.Mina : Hud.LineKind.Other);
         if (shot is < 1 or > 9) return;
         var now = DialogueBox.CaptionAt(_captionPages[shot], Elapsed - Cuts[shot] - CaptionStart(shot), _captionPacing[shot]);
-        DialogueBox.TypeSound(shot == 9 ? Hud.LineKind.Narration : shot is 4 or 8 ? Hud.LineKind.Mina : Hud.LineKind.Other,
+        DialogueBox.TypeSound(shot is 4 or 8 or 9 ? Hud.LineKind.Mina : Hud.LineKind.Other,
             now.Page, now.Shown, ref _typeCursor);
     }
 
@@ -285,9 +279,6 @@ public partial class OpeningFilm : Node2D
         QueueFree();
     }
 
-    // カットの字幕を会話ログ（L / Tab で開く Backlog）へ積む（2026-09-26）。本文は DrawOverlay と同じ文字列。
-    //   1〜3＝三人の日常の一言／4＝ミナ（無名で出るが語り手はミナ）／5〜8＝カットイン（8 はミナ）／
-    //   9・10＝地の一行（ナレ扱い）。0（下書きの「たすけて」）は打って消す映像で台詞ではないので積まない。
     private void LogCaption(int shot)
     {
         if (shot is >= 1 and <= 3)
@@ -303,7 +294,7 @@ public partial class OpeningFilm : Node2D
             if (i == 3) Hud.PushLog(Hud.LineKind.Mina, "", CutinLines[i]);
             else Hud.PushLog(Hud.LineKind.Other, _cast[i].CharacterName, CutinLines[i], Accents[i]);
         }
-        else if (shot == 9) Hud.PushLog(Hud.LineKind.Narration, "", WaitingLine);
+        else if (shot == 9) Hud.PushLog(Hud.LineKind.Mina, "", WaitingLine);
         else if (shot == 10) Hud.PushLog(Hud.LineKind.Narration, "", TaglineLine);
     }
 
@@ -326,6 +317,7 @@ public partial class OpeningFilm : Node2D
         int shot = Shot;
         _mina.Visible = shot is 4 or 9;
         if (!_mina.Visible) return;
+        float duration = (float)(Cuts[shot + 1] - Cuts[shot]);
         if (shot == 9)
         {
             float time = (float)(Elapsed - Cuts[9]);
@@ -334,7 +326,7 @@ public partial class OpeningFilm : Node2D
             _mina.Scale = Vector2.One * Mathf.Lerp(0.83f, 0.77f, reveal);
             _wind.SetShaderParameter("motion_time", (float)Elapsed);
             _wind.SetShaderParameter("blink", Ease(Mathf.Max(0, 1 - Mathf.Abs(time - 3.1f) / 0.13f)));
-            _wind.SetShaderParameter("opacity", Ease((time - 1.2f) / 0.4f) * (1 - Ease((time - 3.6f) / 0.4f)));
+            _wind.SetShaderParameter("opacity", Ease((time - 1.2f) / 0.4f) * (1 - Ease((time - duration + 0.4f) / 0.4f)));
             return;
         }
         float t = (float)(Elapsed - Cuts[4]);
@@ -346,7 +338,7 @@ public partial class OpeningFilm : Node2D
         float blink = 1f - Ease(t / 0.55f);
         float secondBlink = Mathf.Max(0, 1f - Mathf.Abs(t - 3.2f) / 0.13f);
         _wind.SetShaderParameter("blink", Mathf.Max(blink, Ease(secondBlink)));
-        _wind.SetShaderParameter("opacity", Ease(t / 0.45f) * (1f - Ease((t - 4.7f) / 0.3f)));
+        _wind.SetShaderParameter("opacity", Ease(t / 0.45f) * (1f - Ease((t - duration + 0.3f) / 0.3f)));
     }
 
     public override void _Draw()
@@ -912,8 +904,9 @@ public partial class OpeningFilm : Node2D
 
     private void DrawDialogueCaption(Node2D canvas, string speaker, Color accent, float alpha)
     {
+        if (alpha <= 0) return;
         var box = DialogueBox.FullScreen;
-        DialogueBox.DrawFrame(canvas, box, speaker, accent);
+        DialogueBox.DrawFrame(canvas, box, speaker, accent, alpha: alpha);
         var caption = DialogueBox.CaptionAt(_captionPages[Shot], Elapsed - Cuts[Shot] - CaptionStart(Shot), _captionPacing[Shot]);
         DialogueBox.DrawBody(canvas, box, caption.Page, caption.Shown, alpha, pacing: caption.Pacing);
     }

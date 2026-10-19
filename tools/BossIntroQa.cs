@@ -33,6 +33,20 @@ public partial class BossIntroQa : Node
             DisplayServer.WindowSetMode(DisplayServer.WindowMode.Windowed);
             DisplayServer.WindowSetSize(new Vector2I(1280, 720));
             await Frames(2);
+            if (OS.GetCmdlineUserArgs().Contains("--dialogue-only"))
+            {
+                typeof(Settings).GetProperty(nameof(Settings.PauseWhenUnfocused))!.SetValue(null, false);
+                GetTree().Paused = false;
+                DisplayServer.WindowSetPosition(new Vector2I(-16000, -16000));
+                await CheckDialogueBranches();
+                Audio.Instance?.StopMusic(0);
+                foreach (var audio in GetNode<Audio>("/root/Audio").GetChildren().OfType<AudioStreamPlayer>())
+                { audio.Stop(); audio.Stream = null; }
+                await Frames(10);
+                GD.Print("[BossIntroQA] DIALOGUE PASS");
+                GetTree().Quit();
+                return;
+            }
             foreach (string id in new[] { "akari", "koharu", "rei", "mina" })
             {
                 foreach (Job job in Enum.GetValues<Job>()) await Encounter(id, job);
@@ -80,6 +94,90 @@ public partial class BossIntroQa : Node
         GetTree().CurrentScene = root;
         root.SetProcess(false);
         return root;
+    }
+
+    private async Task CheckDialogueBranches()
+    {
+        var transcript = new List<object>();
+        foreach (string id in new[] { "akari", "koharu", "rei", "mina" })
+        foreach (Job requestedJob in Enum.GetValues<Job>())
+        {
+            var root = Load(id, requestedJob);
+            await Frames(3);
+            Stage(root, id).SetProcess(false);
+            var intro = (CameoIntroScene)GetTree().GetFirstNodeInGroup("boss_intro");
+            intro.SetProcess(false);
+            var hud = root.GetNode<Hud>("Hud");
+            var lines = Read<(int who, string text, string face)[]>(intro, "_lines");
+            var opening = Read<(int who, string text, string face)[]>(intro, "_opening");
+            Job job = _game.SelectedJob;
+            Check(lines.All(l => l.face == "" || ResourceLoader.Exists(l.face)), $"{id}/{job}: portraits exist");
+            if (job == Job.Tank)
+                Check(lines.SequenceEqual(opening), $"{id}: Mina keeps her complete exchange");
+            else
+                Check(lines.All(l => l.who != 1), $"{id}/{job}: no absent Mina speaker");
+            if (id == "rei")
+            {
+                int actor = job == Job.Tank ? 1 : 6;
+                int question = Array.FindIndex(lines, l => l.who == actor && l.text.Contains("本"));
+                int answer = Array.FindIndex(lines, l => l.who == 2 && l.text.Contains("退屈"));
+                Check(question >= 0 && answer == question + 1, $"Rei/{job}: fear of boring listeners answers the book invitation");
+                if (job != Job.Tank)
+                    Check(lines.Select(l => l.who).SequenceEqual(new[] { 2, 6, 2, 6 }),
+                        $"Rei/{job}: greeting, invitation, fear and reassurance alternate without orphaned replies");
+            }
+            if (id == "akari" && job != Job.Tank)
+                Check(lines.Select(l => l.who).SequenceEqual(new[] { 2, 2, 6, 2, 6 }),
+                    $"Akari/{job}: the companion answers before the boss responds");
+            if (id == "koharu" && job != Job.Tank)
+                Check(lines.Take(opening.Length).SequenceEqual(opening), $"Koharu/{job}: personal pre-boss story retained");
+
+            intro._Process(3);
+            intro._Process(0.6);
+            intro._Process(2.3);
+            await Frames(40);
+            intro._Process(0.1);
+            for (int i = 0; i < lines.Length; i++)
+            {
+                Check(Read<int>(intro, "_line") == i && Read<string>(hud, "_dlgText") == lines[i].text,
+                    $"{id}/{job}: line {i} reaches the dialogue box in order");
+                transcript.Add(new { stage = id, job = job.ToString(), index = i, who = lines[i].who, text = lines[i].text });
+                if (id == "rei" && lines[i].text.Contains("本"))
+                {
+                    intro._Process(0.5);
+                    await Shot($"dialogue_rei_{job}");
+                }
+                var pages = Read<List<string>>(hud, "_dlgPages").ToArray();
+                for (int page = 0; page < pages.Length; page++)
+                {
+                    Check(Read<int>(intro, "_line") == i && Read<int>(hud, "_dlgPage") == page
+                        && Read<float>(hud, "_dlgRevealed") >= pages[page].Length,
+                        $"{id}/{job}: line {i} page {page + 1}/{pages.Length} is shown before advancing");
+                    if (id == "koharu" && job == Job.Tank && i == 0 && page == 0 && pages.Length > 1)
+                    {
+                        _game.AutoAdvanceDialog = true;
+                        hud._Process(5);
+                        hud._Process(5);
+                        intro._Process(0.01);
+                        Check(hud.DialogPageIndex == 1 && Read<int>(intro, "_line") == i
+                            && Read<double>(intro, "_lineTime") < 0.1,
+                            "AUTO page changes retain the speaker and restart reading time");
+                        _game.AutoAdvanceDialog = false;
+                    }
+                    else intro._Process(6);
+                }
+            }
+            intro._Process(0.6);
+            await Frames(3);
+            Check(!IsInstanceValid(intro), $"{id}/{job}: exchange finishes and releases the scene");
+            await Clean(root);
+        }
+        string folder = ProjectSettings.GlobalizePath("res://build/qa_story/boss_intro");
+        DirAccess.MakeDirRecursiveAbsolute(folder);
+        System.IO.File.WriteAllText(folder + "/dialogue_branches.json",
+            System.Text.Json.JsonSerializer.Serialize(transcript, new System.Text.Json.JsonSerializerOptions {
+                WriteIndented = true, Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
+            }));
     }
 
     private async Task Encounter(string id, Job job)

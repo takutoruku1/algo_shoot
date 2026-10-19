@@ -14,7 +14,6 @@ public partial class TrainingDummy : Enemy
         // Keep boss phases inactive while sharing the live body damage rules.
         BarCount = 0;
         PanelCount = 0;
-        PanelsFire = false;
         BodyRadius = Radius;
         AutoBank = false;
     }

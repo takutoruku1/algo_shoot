@@ -177,9 +177,12 @@ public partial class BossTechniqueVideo
                 if (sample.Mode == 4)
                 {
                     CheckKoharuEyeIntersection(entry, sample);
-                    bool horizontal = sample.Pulses.Any(offset => at >= sample.Fire + offset - .42 && at < sample.Fire + offset + sample.Duration);
-                    bool vertical = sample.Pulses.Any(offset => at >= sample.Fire + offset && at < sample.Fire + offset + .66);
-                    if (at >= sample.Fire - .42 && at < sample.End)
+                    int tier = Read<int>(attack, "Tier");
+                    double lead = tier == 0 ? .42 : (1.2 - tier * .1 - sample.Duration) * .35;
+                    double tail = tier == 0 ? .66 : sample.Duration + lead;
+                    bool horizontal = sample.Pulses.Any(offset => at >= sample.Fire + offset - lead && at < sample.Fire + offset + sample.Duration);
+                    bool vertical = sample.Pulses.Any(offset => at >= sample.Fire + offset && at < sample.Fire + offset + tail);
+                    if (at >= sample.Fire - lead && at < sample.End)
                     {
                         if (horizontal && !vertical) entry.HorizontalOnly++;
                         else if (vertical && !horizontal) entry.VerticalOnly++;
@@ -246,6 +249,8 @@ public partial class BossTechniqueVideo
             _koharuNaturalShots = attack.NaturalEndRemainingShots;
             var samples = KoharuSweepSnapshots(attack);
             int tier = Read<int>(attack, "Tier");
+            int gaze = 3 + tier * 2 + (attack.IsEnhanced ? 1 : 0);
+            int flashes = 3 + tier + (attack.IsEnhanced ? 1 : 0);
             foreach (var sample in samples)
             {
                 if (!_koharuSweeps.TryGetValue(sample.Key, out var entry))
@@ -265,16 +270,16 @@ public partial class BossTechniqueVideo
             }
             if (_koharuNaturalHazards != 0 || _koharuNaturalShots != 0)
                 KoharuSweepFail("natural completion still owned live geometry or physical bullets");
-            if (_koharuSweepMode == 4 && (samples.Length != 15 || samples.Any(sample => sample.Mode != 4)
-                || samples.Any(sample => !sample.Pulses.SequenceEqual(Enumerable.Range(0, 3 + tier).Select(pulse => pulse * (1.2 - tier * .03))))
+            if (_koharuSweepMode == 4 && (samples.Length != 3 * (5 + tier * 4) || samples.Any(sample => sample.Mode != 4)
+                || samples.Any(sample => !sample.Pulses.SequenceEqual(Enumerable.Range(0, gaze).Select(pulse => pulse * (1.2 - tier * .1))))
                 || !samples.Select(sample => sample.Wave).Distinct().OrderBy(wave => wave).SequenceEqual(new[] { 0, 1, 2 })
-                || !samples.GroupBy(sample => sample.Wave).All(wave => wave.Select(sample => sample.Pair).OrderBy(pair => pair).SequenceEqual(new[] { 0, 1, 2, 3, 4 }))))
-                KoharuSweepFail("expected all fifteen eye pairs and every difficulty-scaled paired beat");
-            if (_koharuSweepMode == 6 && (samples.Length != 12 || samples.Any(sample => sample.Mode != 3)
-                || samples.Any(sample => !sample.Pulses.SequenceEqual(Enumerable.Range(0, 3 + tier).Select(pulse => pulse * 1.68 / (2 + tier))))
+                || !samples.GroupBy(sample => sample.Wave).All(wave => wave.Select(sample => sample.Pair).OrderBy(pair => pair).SequenceEqual(Enumerable.Range(0, 5 + tier * 4)))))
+                KoharuSweepFail("expected all difficulty-scaled eye pairs and every difficulty-scaled paired beat");
+            if (_koharuSweepMode == 6 && (samples.Length != 3 * (4 + tier * 2) || samples.Any(sample => sample.Mode != 3)
+                || samples.Any(sample => !sample.Pulses.SequenceEqual(Enumerable.Range(0, flashes).Select(pulse => pulse * Math.Max(.4, 1.68 / (flashes - 1)))))
                 || !samples.Select(sample => sample.Wave).Distinct().OrderBy(wave => wave).SequenceEqual(new[] { 0, 1, 2 })
-                || !samples.GroupBy(sample => sample.Wave).All(wave => wave.Select(sample => sample.Height).OrderBy(axis => axis).SequenceEqual(new[] { 0f, 1f, 2f, 3f }))))
-                KoharuSweepFail("expected all twelve finale axes and every difficulty-scaled physical flash");
+                || !samples.GroupBy(sample => sample.Wave).All(wave => wave.Select(sample => sample.Height).OrderBy(axis => axis).SequenceEqual(Enumerable.Range(0, 4 + tier * 2).Select(axis => (float)axis)))))
+                KoharuSweepFail("expected all difficulty-scaled finale axes and every difficulty-scaled physical flash");
             if (_koharuSweepMode == 5)
             {
                 var jumps = samples.Where(sample => sample.Mode == 1).ToArray();
@@ -289,7 +294,8 @@ public partial class BossTechniqueVideo
                     || Math.Abs(landing.Width - (((BossKoharu)_boss).BodyExtent + 8)) > .015f)
                     KoharuSweepFail("jump footprint and landing do not form one physical cause and consequence");
                 var paths = Read<IEnumerable>(attack, "_easyPaths").Cast<object>().ToArray();
-                if (paths.Length != 12 * (3 + tier) || Math.Abs(paths.Min(path => Read<double>(path, "FiresAt")) - landing.Fire - .2) > .00001)
+                int lights = (tier switch { 0 => 3, 1 => 5, 2 => 7, _ => 10 }) + (attack.IsEnhanced ? 2 : 0);
+                if (paths.Length != (12 + tier * 10) * lights || Math.Abs(paths.Min(path => Read<double>(path, "FiresAt")) - landing.Fire - .2) > .00001)
                     KoharuSweepFail("landing omitted or prematurely released its difficulty-scaled physical bloom lights");
             }
             else if (_koharuSweepMode is 1 or 2 or 3 && samples.Length != 0)

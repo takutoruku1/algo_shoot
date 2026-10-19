@@ -10,11 +10,6 @@ public partial class GlyphMote : Enemy
     private float _vy;      // 居座り中の上下往復
     protected override float PanelHpMul => GameManager.Instance?.RoadHpMul ?? 1f;
 
-    // かつては「弾を撃つ本体を無害化する」ためのスイッチだったが、GlyphMote自体は
-    // 発射ロジックを持たず常に非発火（下のPanelsFire=falseの通り）。現状は挙動に差はないが、
-    // 呼び出し側（StageZero のチュートリアル演出意図）を残すためフィールドのみ存置する。
-    public bool Harmless;
-
     protected override void OnEnemyReady()
     {
         Points = 100;
@@ -24,7 +19,6 @@ public partial class GlyphMote : Enemy
         OrbitRadius = 11.5f;
         PanelDisplayScale = 0.82f; // 一回り小さく
         SpinSpeed = 1.4f;
-        PanelsFire = false; // GlyphMoteは発射ループを持たないため常に非発火（Panel側のfires引数は既に無視される＝盾専念）。
 
         // 生成済みドット絵素材
         PreTexPath = "res://char/enemy_anti_pre.png";

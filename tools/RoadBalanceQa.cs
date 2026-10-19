@@ -40,6 +40,8 @@ public partial class RoadBalanceQa : Node
     private bool Durability => OS.GetCmdlineUserArgs().Contains("--durability");
     private bool Stationary => OS.GetCmdlineUserArgs().Contains("--stationary");
     private bool RouteLength => OS.GetCmdlineUserArgs().Contains("--route-length");
+    private bool PressureComparison => OS.GetCmdlineUserArgs().Contains("--pressure-compare");
+    private readonly List<object> _pressureResults = new();
 
     public override async void _Ready()
     {
@@ -51,12 +53,21 @@ public partial class RoadBalanceQa : Node
             game.AutoSaveEnabled = false;
             game.ResetPersistent();
             game.SelectedJob = Job.Tank;
+            if (PressureComparison && Shots && DisplayServer.GetName() != "headless")
+            {
+                DisplayServer.WindowSetMode(DisplayServer.WindowMode.Windowed);
+                DisplayServer.WindowSetSize(new Vector2I(768, 432));
+            }
             await Frames(2);
             foreach (var theme in new[] { StageTheme.Akari, StageTheme.Koharu, StageTheme.Rei, StageTheme.Mina })
                 foreach (var diff in Enum.GetValues<GameManager.Diff>())
                 {
+                    if (PressureComparison && theme is not (StageTheme.Koharu or StageTheme.Mina)) continue;
+                    if (PressureComparison && OS.GetCmdlineUserArgs().FirstOrDefault(arg => arg.StartsWith("--theme=")) is { } selectedTheme
+                        && theme.ToString() != selectedTheme[8..]) continue;
+                    if (OS.GetCmdlineUserArgs().Contains("--easy-only") && diff != GameManager.Diff.Easy) continue;
                     if (OS.GetCmdlineUserArgs().Contains("--hud") && theme != StageTheme.Akari) continue;
-                    if ((Spawns || (Shots && !OS.GetCmdlineUserArgs().Contains("--normal-only"))
+                    if ((Spawns || (Shots && !PressureComparison && !OS.GetCmdlineUserArgs().Contains("--normal-only"))
                         || OS.GetCmdlineUserArgs().Contains("--hard-only")) && diff != GameManager.Diff.Hard) continue;
                     if (OS.GetCmdlineUserArgs().Contains("--normal-only") && diff != GameManager.Diff.Normal) continue;
                     if (OS.GetCmdlineUserArgs().Contains("--lunatic-only") && diff != GameManager.Diff.Lunatic) continue;
@@ -69,6 +80,13 @@ public partial class RoadBalanceQa : Node
                     else await Encounter(game, theme, diff);
                 }
             Audio.Instance?.StopMusic(0);
+            if (PressureComparison)
+            {
+                string output = OS.GetCmdlineUserArgs().First(arg => arg.StartsWith("--output="))[9..];
+                System.IO.Directory.CreateDirectory(output);
+                System.IO.File.WriteAllText(output + "/road_pressure.json", System.Text.Json.JsonSerializer.Serialize(_pressureResults,
+                    new System.Text.Json.JsonSerializerOptions { WriteIndented = true }));
+            }
             foreach (var audio in GetNode<Audio>("/root/Audio").GetChildren().OfType<AudioStreamPlayer>())
             { audio.Stop(); audio.Stream = null; }
             await Task.Delay(250);
@@ -242,7 +260,7 @@ public partial class RoadBalanceQa : Node
     private async Task Encounter(GameManager game, StageTheme theme, GameManager.Diff diff)
     {
         game.ResetPersistent();
-        game.SelectedJob = Job.Tank;
+        game.SelectedJob = PressureComparison ? Job.Magic : Job.Tank;
         GD.Seed(7123);
         game.Difficulty = diff;
         string scene = theme == StageTheme.Mina ? "MinaBattle" : theme.ToString();
@@ -262,6 +280,16 @@ public partial class RoadBalanceQa : Node
         hud.HoldBubble = false;
         hud.HideBubble();
         await Frames(3);
+        if (PressureComparison)
+        {
+            for (int wave = 0; wave < 3; wave++)
+                if (OS.GetCmdlineUserArgs().FirstOrDefault(arg => arg.StartsWith("--wave=")) is not { } selectedWave
+                    || wave == int.Parse(selectedWave[7..]))
+                    await RoadPressureSample(game, root, world, player, theme, diff, wave);
+            root.QueueFree();
+            await Frames(5);
+            return;
+        }
         if (OS.GetCmdlineUserArgs().Contains("--hud"))
         {
             Check(UiKit.TextW(UiKit.Mono, game.DiffName, 14) < 104, game.DiffName + " fits before the activity status");
@@ -396,6 +424,106 @@ public partial class RoadBalanceQa : Node
         Pool.DespawnAll();
         root.QueueFree();
         await Frames(5);
+    }
+
+    private async Task RoadPressureSample(GameManager game, Node2D root, Node2D world, Player player,
+        StageTheme theme, GameManager.Diff diff, int wave)
+    {
+        int seed = OS.GetCmdlineUserArgs().FirstOrDefault(arg => arg.StartsWith("--seed=")) is { } seedArg ? int.Parse(seedArg[7..]) : 1741;
+        GD.Seed((ulong)(seed + wave * 31));
+        Pool.DespawnAll();
+        foreach (Node enemy in GetTree().GetNodesInGroup("enemies")) enemy.QueueFree();
+        foreach (var ripple in world.GetChildren().OfType<Ripple>()) ripple.QueueFree();
+        await Frames(3);
+        game.TrainingMode = true;
+        game.SetStageTarget(99999);
+        player.Position = global::Field.PlayerStart;
+        var stage = (Node)root.GetType().GetProperty("Stage")!.GetValue(root)!;
+        Spawner spawner;
+        if (theme == StageTheme.Mina)
+        {
+            Write(stage, "_wave", wave);
+            Call(stage, "StartEchoWave");
+            spawner = Read<Spawner>(stage, "_echoSpawner");
+        }
+        else
+        {
+            Write(stage, "_spawner", null!);
+            string field = new[] { "MidWaveA", "MidWaveB", "MidWaveC" }[wave];
+            int count = (int)typeof(StageKoharu).GetField(field, BindingFlags.Static | BindingFlags.NonPublic)!.GetRawConstantValue()!;
+            Call(stage, "StartMidwaveSpawner", count, new[] { 0f, .35f, .7f }[wave]);
+            spawner = Read<Spawner>(stage, "_spawner");
+        }
+        int plannedCount = spawner.SpawnLimit;
+        float openingIntensity = spawner.StartIntensity;
+        spawner.SpawnLimit = 100000;
+        spawner.IgnoreStageCleared = true;
+        Read<RandomNumberGenerator>(spawner, "_rng").Seed = (ulong)seed;
+        var hud = root.GetNode<Hud>("Hud");
+        hud.HideBubble();
+        Hud.BubblePaused = false;
+        player.SetPhysicsProcess(true);
+        var input = new AutoplayInput(GetTree(), game);
+        double elapsed = 0, samples = 0, liveSum = 0, empty = 0, gap = 0, longestGap = 0;
+        double density = 0, peakDensity = 0;
+        int peak = 0, contacts = 0, densitySamples = 0, kills = game.PurifiedCount;
+        var seen = new HashSet<(ulong, ulong)>();
+        var points = Enumerable.Range(0, 15).SelectMany(x => Enumerable.Range(0, 9).Select(y =>
+            new Vector2(global::Field.Left + (x + .5f) * global::Field.Width / 15,
+                global::Field.Top + (y + .5f) * global::Field.Height / 9))).ToArray();
+        int frame = 0;
+        ulong startFrame = Engine.GetProcessFrames();
+        var camera = GameCamera.Instance;
+        GameCamera.Instance = null!;
+        try
+        {
+            while (elapsed < 36)
+            {
+                input.Update(GetProcessDeltaTime(), bombs: false, dodge: false);
+                await Frames(1);
+                double dt = GetProcessDeltaTime();
+                elapsed += dt;
+                var live = Bullets().Where(b => !b.LeadIn && b.CollisionLayer != 0).ToArray();
+                foreach (var b in live) seen.Add((b.GetInstanceId(), b.ActivationId));
+                if (Shots && DisplayServer.GetName() != "headless" && elapsed >= 20 && elapsed - dt < 20)
+                {
+                    await ToSignal(RenderingServer.Singleton, RenderingServer.SignalName.FramePostDraw);
+                    using var image = GetViewport().GetTexture().GetImage();
+                    string output = OS.GetCmdlineUserArgs().First(arg => arg.StartsWith("--output="))[9..];
+                    System.IO.Directory.CreateDirectory(output);
+                    image.SavePng($"{output}/{theme}_{diff}_{wave}.png");
+                }
+                if (elapsed < 8) continue;
+                samples += dt;
+                liveSum += live.Length * dt;
+                peak = Math.Max(peak, live.Length);
+                if (live.Length == 0) { empty += dt; gap += dt; longestGap = Math.Max(longestGap, gap); }
+                else gap = 0;
+                if (live.Any(b => BossCharacterShotQa.HitsPlayer(b, player.GlobalPosition))) contacts++;
+                if (++frame % 12 != 0) continue;
+                double covered = points.Count(point => live.Any(b => BossCharacterShotQa.HitsPlayer(b, point))) / (double)points.Length;
+                density += covered;
+                peakDensity = Math.Max(peakDensity, covered);
+                densitySamples++;
+            }
+        }
+        finally { input.Release(); GameCamera.Instance = camera; }
+        var result = new { theme = theme.ToString(), difficulty = diff.ToString(), wave, seed, planned_count = plannedCount,
+            opening_intensity = openingIntensity, attack_density = spawner.AttackDensity, job = game.SelectedJob.ToString(),
+            mean_live_projectiles = liveSum / samples, peak_live_projectiles = peak, created = seen.Count,
+            mean_frame_density = density / densitySamples, peak_frame_density = peakDensity,
+            empty_fraction = empty / samples, longest_empty_seconds = longestGap, contact_frames = contacts,
+            kills = game.PurifiedCount - kills, elapsed, sampled_seconds = samples,
+            capture_start_frame = startFrame, capture_end_frame = Engine.GetProcessFrames(),
+            conditions = "Same Magic job, no shop or pickup upgrades, invincible automatic movement and shooting, no bomb/dodge. Hitstop disabled in this fixture to remove real-time scheduling differences. Production wave configuration with unlimited spawn quota for a fixed-length pressure sample; first eight seconds excluded." };
+        _pressureResults.Add(result);
+        GD.Print("[RoadQA] PRESSURE " + System.Text.Json.JsonSerializer.Serialize(result));
+        Check(game.SelectedJob == Job.Magic && player.LinePower == 0, "comparison keeps the same job and unpowered shot");
+        player.SetPhysicsProcess(false);
+        spawner.Stop();
+        spawner.QueueFree();
+        Pool.DespawnAll();
+        while (Engine.TimeScale < .99) await Frames(1);
     }
 
     private async Task CombatSample(GameManager game, Node2D world, Player player, StageTheme theme, GameManager.Diff diff)

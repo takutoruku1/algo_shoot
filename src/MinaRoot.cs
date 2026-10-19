@@ -6,21 +6,54 @@ public partial class MinaRoot : Node2D
 {
     public const int ScreenWidth = 384;
     public const int ScreenHeight = 216;
+    public static readonly BgLayers.Layer[] RouteLayers =
+    {
+        new BgLayers.Layer("res://char/bg2/route/mina_far.png", 0.22f, -98, Colors.White, fitToField: true, travel: true),
+        new BgLayers.Layer("res://char/bg2/route/mina_mid.png", 0.62f, -97, Colors.White, fitToField: true, travel: true),
+        new BgLayers.Layer("res://char/bg2/route/mina_near.png", 1.20f, -96, Colors.White, fitToField: true, travel: true),
+    };
+
+    public static readonly BgLayers.Layer[] PassageLayers =
+    {
+        new BgLayers.Layer("res://char/bg2/route/mina_passage_far.png", 0.22f, -98, Colors.White, fitToField: true, travel: true),
+        new BgLayers.Layer("res://char/bg2/route/mina_passage_mid.png", 0.62f, -97, Colors.White, fitToField: true, travel: true),
+        new BgLayers.Layer("res://char/bg2/route/mina_passage_near.png", 1.20f, -96, Colors.White, fitToField: true, travel: true),
+    };
+
+    public static readonly BgLayers.Layer[] ClimaxLayers =
+    {
+        new BgLayers.Layer("res://char/bg2/route/mina_climax_far.png", 0.18f, -98, Colors.White, fitToField: true, travel: true),
+        new BgLayers.Layer("res://char/bg2/route/mina_climax_mid.png", 0.65f, -97, Colors.White, fitToField: true, travel: true),
+        new BgLayers.Layer("res://char/bg2/route/mina_climax_near.png", 1.40f, -96, Colors.White, fitToField: true, travel: true),
+    };
+
+    public static readonly BgLayers.Layer[] LateRouteLayers =
+    {
+        new BgLayers.Layer("res://char/bg2/route/mina_late_far.png", 0.18f, -98, Colors.White, fitToField: true, travel: true),
+        new BgLayers.Layer("res://char/bg2/route/mina_late_mid.png", 0.65f, -97, Colors.White, fitToField: true, travel: true),
+        new BgLayers.Layer("res://char/bg2/route/mina_late_near.png", 1.40f, -96, Colors.White, fitToField: true, travel: true),
+    };
+
+    public static readonly BgLayers.Layer[] BossLayers =
+    {
+        new BgLayers.Layer("res://char/bg2/boss/mina_far_v2.png", 0.08f, -98, Colors.White, fitToField: true),
+        new BgLayers.Layer("res://char/bg2/boss/mina_mid_v2.png", 0.50f, -97, Colors.White, fitToField: true),
+        new BgLayers.Layer("res://char/bg2/boss/mina_near_v2.png", 1.00f, -96, Colors.White, fitToField: true),
+    };
+
+    private readonly RetryHold _retry = new();
+    private bool _exitHeld;
+    private StageBackground _journeyBg = null!;
+    private int _journey;    // 0:ミナ(開幕) 1:あかり 2:こはる 3:レイ 4:ミナ(着地)
+    private static readonly BgLayers.Layer[][] Journey =
+    {
+        AkariRoot.BossLayers, KoharuRoot.BossLayers, ReiRoot.BossLayers,
+    };
 
     public Player Player { get; private set; } = null!;
     public Hud Hud { get; private set; } = null!;
     public StageMina Stage { get; private set; } = null!;
     public Node2D World { get; private set; } = null!;
-
-    public static readonly BgLayers.Layer[] RouteLayers =
-    {
-        new BgLayers.Layer("res://char/bg2/route/mina_far.png", 0.22f, -98, Colors.White, loop: true, fitToField: true),
-        new BgLayers.Layer("res://char/bg2/route/mina_mid.png", 0.62f, -97, Colors.White, loop: true, fitToField: true),
-        new BgLayers.Layer("res://char/bg2/route/mina_near.png", 1.20f, -96, Colors.White, loop: true, fitToField: true),
-    };
-
-    private readonly RetryHold _retry = new();
-    private bool _exitHeld;
 
     public override void _Ready()
     {
@@ -58,12 +91,11 @@ public partial class MinaRoot : Node2D
         var bg = new StageBackground
         {
             Name = "StageBackground",
-            LayerDefs = RouteLayers,
-            BossLayerDefs = new[]
-            {
-                new BgLayers.Layer("res://char/bg2/boss/mina_v1.png", 0.15f, -96,
-                    new Color(0.85f, 0.85f, 0.90f), fitToField: true),
-            },
+            RouteLayerDefs = RouteLayers,
+            LateRouteLayerDefs = LateRouteLayers,
+            PassageLayerDefs = PassageLayers,
+            ClimaxLayerDefs = ClimaxLayers,
+            BossLayerDefs = BossLayers,
             LayerBossBehavior = BgLayers.BossBehavior.Illustrated,
             BaseZ = -96,
         };
@@ -73,21 +105,12 @@ public partial class MinaRoot : Node2D
         var journey = new StageBackground
         {
             Name = "JourneyBackground",
-            ForceLayers = true,
             LayerBossBehavior = BgLayers.BossBehavior.Illustrated,
             StartInBoss = true,      // FINAL は常にボス中＝巡る先も各面の「ボス時の見え方」で敷く
         };
         AddChild(journey);
         _journeyBg = journey;
     }
-
-    private StageBackground _journeyBg = null!;
-    private int _journey;    // 0:ミナ(開幕) 1:あかり 2:こはる 3:レイ 4:ミナ(着地)
-
-    private static readonly BgLayers.Layer[][] Journey =
-    {
-        AkariRoot.BossLayers, KoharuRoot.BossLayers, ReiRoot.BossLayers,
-    };
 
     private void TickJourney()
     {

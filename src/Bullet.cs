@@ -389,23 +389,65 @@ public partial class Bullet : Area2D
         _spriteRotSpeed = 0;
         TextureFilter = TextureFilterEnum.LinearWithMipmaps;
         BossStyle = style;
-        Material = BossMaterial(GameManager.Instance!.SelectedJob, style);
         Rotation = Velocity.Angle();
-        RefreshFootprint();
-        QueueRedraw();
+        UseBossIllustration(_playerVisual);
     }
 
     internal void UseBossPatternVisual(Job character, int pattern)
     {
         BossPattern = pattern;
-        _playerVisual = BulletArt.BossPattern(character, pattern);
-        RefreshFootprint();
-        QueueRedraw();
+        UseBossIllustration(BulletArt.BossPattern(character, pattern));
+        if (character == Job.Magic && pattern == 1)
+        {
+            _reiIllustration = true;
+            SetPhysicsProcess(false);
+            GetNode<BulletPool>("/root/Pool").TrackReiBullet(this);
+            _reiCollisionTarget = GetTree().GetFirstNodeInGroup("player") as Node2D;
+            if (_reiIllustrationMaterial == null)
+            {
+                _reiIllustrationMaterial = new ShaderMaterial { Shader = new Shader { Code = @"
+shader_type canvas_item;
+render_mode unshaded;
+uniform vec4 rim : source_color;
+varying vec2 world_position;
+varying vec4 tint;
+void vertex() {
+    world_position = (MODEL_MATRIX * vec4(VERTEX, 0.0, 1.0)).xy;
+    tint = COLOR;
+}
+void fragment() {
+    vec4 art = texture(TEXTURE, UV);
+    float unit = max(length(dFdx(world_position)), 0.0001);
+    vec2 step_uv = vec2(length(vec2(dFdx(UV.x), dFdy(UV.x))), length(vec2(dFdx(UV.y), dFdy(UV.y)))) / unit;
+    float outer = 0.0;
+    float inner = 0.0;
+    for (int i = 0; i < 8; i++) {
+        float angle = float(i) * 0.7853981634;
+        vec2 offset = vec2(cos(angle), sin(angle)) * step_uv;
+        outer = max(outer, texture(TEXTURE, UV + offset * 0.8).a);
+        inner = max(inner, texture(TEXTURE, UV + offset * 0.375).a);
+    }
+    if (art.a >= 0.6) COLOR = art * tint;
+    else if (inner >= 0.6) COLOR = rim * tint;
+    else if (outer >= 0.6) COLOR = vec4(0.1294, 0.0745, 0.1608, 1.0) * tint;
+    else discard;
+}" } };
+                _reiIllustrationMaterial.SetShaderParameter("rim", _illustrationRim!.Value);
+            }
+            Material = _reiIllustrationMaterial;
+        }
     }
 
-    internal void UseBossIllustration(BulletArt.PlayerVisual art)
+    internal void UseBossIllustration(BulletArt.PlayerVisual art, Color? rim = null)
     {
+        if (_reiIllustration)
+        {
+            GetNode<BulletPool>("/root/Pool").UntrackReiBullet(this);
+            SetPhysicsProcess(Active);
+        }
+        _reiIllustration = false;
         _playerVisual = art;
+        _illustrationRim = rim ?? art.Accent;
         Material = _illustrationMaterial ??= new ShaderMaterial
         {
             Shader = new Shader { Code = @"
@@ -416,37 +458,24 @@ void fragment() {
 }" },
         };
         RefreshFootprint();
-        _illustrationEdges = _footprint!.Contours.Select(contour => contour.Append(contour[0]).ToArray()).ToArray();
+        if (!IllustrationEdges.TryGetValue(_footprint!, out _illustrationEdges))
+            IllustrationEdges[_footprint!] = _illustrationEdges = _footprint!.Contours
+                .Select(contour => contour.Append(contour[0]).ToArray()).ToArray();
         QueueRedraw();
     }
 
     private static ShaderMaterial? _illustrationMaterial;
+    private static ShaderMaterial? _reiIllustrationMaterial;
+    private bool _reiIllustration;
+    private Node2D? _reiCollisionTarget;
+    private static readonly Dictionary<BulletFootprint, Vector2[][]> IllustrationEdges = new();
     private Vector2[][]? _illustrationEdges;
-
-    private const string BossShotShader = @"
-shader_type canvas_item;
-render_mode unshaded;
-uniform vec4 ink : source_color;
-void fragment() {
-    vec3 c = COLOR.rgb;
-    float light = max(c.r, max(c.g, c.b));
-    vec3 color = mix(vec3(0.02, 0.018, 0.025), ink.rgb, smoothstep(0.035, 0.30, light));
-    COLOR.rgb = mix(color, vec3(1.0), smoothstep(0.72, 0.98, light) * 0.85);
-}";
-    private static readonly Dictionary<(Job, BossShotStyle), ShaderMaterial> BossMaterials = new();
+    private Color? _illustrationRim;
     internal static Color BossColor(Job player, BossShotStyle style) => style switch
     {
         BossShotStyle.Ring => new Color("ff5275"),
         _ => new Color(player == Job.Melee ? "62ff49" : "ffd34d"),
     };
-    private static ShaderMaterial BossMaterial(Job player, BossShotStyle style)
-    {
-        var key = (player, style);
-        if (BossMaterials.TryGetValue(key, out var material)) return material;
-        material = new ShaderMaterial { Shader = new Shader { Code = BossShotShader } };
-        material.SetShaderParameter("ink", BossColor(player, style));
-        return BossMaterials[key] = material;
-    }
 
     private const string EnemyShotShader = @"
 shader_type canvas_item;
@@ -748,6 +777,7 @@ void fragment() {
     private BulletFootprint? _footprint;
     private BulletFootprint? _appliedFootprint;
     private bool _collisionQueued;
+    private ulong _reiCollisionParts;
 
     internal static float BossArtSize(float radius, bool charged) => (charged ? 10f : 8f)
         * radius / (charged ? BulletPool.BossChargeRadius : BulletPool.BossRadius);
@@ -781,16 +811,52 @@ void fragment() {
     private void ApplyCollision()
     {
         _collisionQueued = false;
-        ShapeOwnerSetDisabled(_shapeOwner, !Active);
+        ulong parts = _reiIllustration && Active ? ReiCollisionParts() : ulong.MaxValue;
+        bool partsChanged = parts != _reiCollisionParts;
+        _reiCollisionParts = parts;
+        bool collisionCulled = Active && parts == 0;
+        ShapeOwnerSetDisabled(_shapeOwner, !Active || collisionCulled);
         if (!Active) return;
+        if (collisionCulled)
+        {
+            ShapeOwnerClearShapes(_shapeOwner);
+            _appliedFootprint = null;
+            return;
+        }
         if (_footprint == null) _circle.Radius = Radius;
-        if (!ReferenceEquals(_footprint, _appliedFootprint))
+        if (partsChanged || !ReferenceEquals(_footprint, _appliedFootprint) || ShapeOwnerGetShapeCount(_shapeOwner) == 0)
         {
             ShapeOwnerClearShapes(_shapeOwner);
             if (_footprint == null) ShapeOwnerAddShape(_shapeOwner, _circle);
-            else foreach (var shape in _footprint.Shapes) ShapeOwnerAddShape(_shapeOwner, shape);
+            else for (int index = 0; index < _footprint.Shapes.Length; index++)
+                if (!_reiIllustration || (parts & (1UL << index)) != 0) ShapeOwnerAddShape(_shapeOwner, _footprint.Shapes[index]);
             _appliedFootprint = _footprint;
         }
+    }
+
+    internal void StepRei(double delta)
+    {
+        if (_reiIllustration && Active) _PhysicsProcess(delta);
+    }
+
+    internal void SyncReiCollision()
+    {
+        if (_reiIllustration && ReiCollisionParts() != _reiCollisionParts) QueueCollisionUpdate();
+    }
+
+    private ulong ReiCollisionParts()
+    {
+        if (!IsInstanceValid(_reiCollisionTarget)) return 0;
+        var transform = GlobalTransform;
+        var target = new Transform2D(0, _reiCollisionTarget!.GlobalPosition);
+        float range = Player.GrazeRadius + 2 + CollisionRadius * Mathf.Max(transform.X.Length(), transform.Y.Length());
+        if (transform.Origin.DistanceSquaredTo(target.Origin) > range * range) return 0;
+        ulong parts = 0;
+        // Keep the original convex pieces; only pieces beyond the player's graze area can sleep.
+        for (int index = 0; index < _footprint!.Shapes.Length; index++)
+            if ((transform * _footprint.ShapeBounds[index]).Grow(Player.GrazeRadius + 2).HasPoint(target.Origin))
+                parts |= 1UL << index;
+        return parts;
     }
 
     public override void _Ready()
@@ -815,6 +881,9 @@ void fragment() {
         IsEnemy = isEnemy;
         _playerVisual = isEnemy ? null : BulletArt.PlayerShot(GameManager.Instance!.SelectedJob);
         _illustrationEdges = null;
+        _illustrationRim = null;
+        _reiIllustration = false;
+        _reiCollisionTarget = null;
         TextureFilter = isEnemy ? TextureFilterEnum.ParentNode : TextureFilterEnum.LinearWithMipmaps;
         // 自機の通常弾だけ加算ブレンド＝縁取りの無い光条（敵弾は通常ブレンド＝暗い縁取りが立つ）。
         Material = isEnemy ? EnemyMaterial : PlayerGlow;
@@ -914,6 +983,8 @@ void fragment() {
     // 非表示・monitoring 無効化・プールへ戻る準備。
     public void Deactivate()
     {
+        if (_reiIllustration) GetNode<BulletPool>("/root/Pool").UntrackReiBullet(this);
+        _reiCollisionTarget = null;
         Active = false;
         _overheadCast = null;
         _roadOwner = null;
@@ -960,6 +1031,7 @@ void fragment() {
             CollisionLayer = LayerEnemyBullet;
             CollisionMask = MaskEnemyBullet;
         }
+        QueueRedraw();
     }
 
     public void MakeAccel(float chargeSpeed, float fastSpeed, float delaySec, float rampSeconds = 0.22f)
@@ -1089,7 +1161,7 @@ void fragment() {
 
         // 経過時間を進める（会話停止中は上で return 済み＝弾停止と整合）。
         _age += (float)edelta;
-        if (Charged) QueueRedraw();
+        if (Charged && _illustrationEdges == null) QueueRedraw();
 
         if (Accel && !_accelDone)
         {
@@ -1142,7 +1214,7 @@ void fragment() {
         else if (_sprite == null && Word.Length == 0 && Shape is BulletShape.Needle or BulletShape.Rice
             && Velocity.LengthSquared() > 0.01f) Rotation = Velocity.Angle();
 
-        GlobalPosition += Velocity * (float)edelta;
+        if (Velocity != Vector2.Zero) GlobalPosition += Velocity * (float)edelta;
 
         // 自機のホーミング弾は 2.5 秒で寿命切れ（画面内を漂う“自機弾の雲”を作らない）。
         float homingLife = IsEnemy ? EnemyHomingLife : HomingLife;
@@ -1428,10 +1500,15 @@ void fragment() {
             float illustrationSize = BossArtSize(r, Charged);
             float illustrationScale = illustrationSize / Mathf.Max(art.Region.Size.X, art.Region.Size.Y);
             var illustrationRect = new Rect2((art.Region.Position - art.Pivot) * illustrationScale, art.Region.Size * illustrationScale);
+            if (_reiIllustration)
+            {
+                float padding = outlineScale / illustrationScale;
+                DrawTextureRectRegion(art.Texture, illustrationRect.Grow(outlineScale), art.Region.Grow(padding));
+                return;
+            }
+            foreach (var edge in _illustrationEdges) DrawPolyline(edge, new Color("211329"), 1.6f * outlineScale, true);
+            foreach (var edge in _illustrationEdges) DrawPolyline(edge, _illustrationRim!.Value, .75f * outlineScale, true);
             DrawTextureRectRegion(art.Texture, illustrationRect, art.Region);
-            foreach (var edge in _illustrationEdges) DrawPolyline(edge, new Color("24111c"), 2.0f * outlineScale, true);
-            foreach (var edge in _illustrationEdges) DrawPolyline(edge, new Color("ff4567"), 1.2f * outlineScale, true);
-            foreach (var edge in _illustrationEdges) DrawPolyline(edge, new Color("fff4ed"), .4f * outlineScale, true);
             return;
         }
         if (AccelCharging)

@@ -46,6 +46,8 @@ public partial class StoryFilmQa : Node
                 return;
             }
             var gameMode = game.ProcessMode;
+            game.Difficulty = burst ? GameManager.Diff.Easy : GameManager.Diff.Normal;
+            game.SelectedJob = Job.Tank;
             game.SelectedEntry = GameManager.StageEntry.Boss;
             game.MsgCharsPerSec = 300;
             game.AutoAdvanceDialog = false;
@@ -113,6 +115,7 @@ public partial class StoryFilmQa : Node
             await Frames(15);
             await AdvanceUntil(() => Read<int>(stage, "_step") == BossWaitStep(stageName));
             var boss = world.GetNode<Enemy>($"Boss{stageName}");
+            Check(!burst || !boss.UsesTechniqueCycle, "burst scenario respects the difficulty's story HP floors");
             // 撃破後演出（BossPostSequence＝下書きの札を自機が撃って割る）は、自機を動かさないこの走行では
             //   札が割れず、ボスの会話送りが _posts.Active で止まる（こはる／レイ）。フィルムの検証には
             //   関係しないので、しきい値を空にして発火させない（あかりは別実装＝AkariPost で、止まらない）。
@@ -129,6 +132,7 @@ public partial class StoryFilmQa : Node
             Write(game, "_comboTimer", 5.0);
             await Frames(10);
             if (!koharu && !rei) await CheckMemoryLeadIn(boss, hud, player, stage, game);
+            else await AdvanceUntil(() => GetTree().GetFirstNodeInGroup("storyfilm") != null);
             var film = GetTree().GetFirstNodeInGroup("storyfilm") as StoryFilm;
             Check(film != null && hud.CinematicMode, "memory sequence reaches flashback");
             Check(world.ProcessMode == ProcessModeEnum.Disabled && Hud.BubblePaused, "combat is suspended");
@@ -217,16 +221,14 @@ public partial class StoryFilmQa : Node
                       && !Read<bool>(boss, "_accelerated"), "battle transitions wait until the choice is resolved");
                 await Shot("memory_followup", grayscale: false);
                 await AdvanceUntil(() => Read<bool>(stage, "_midStoryShown") && Read<int>(stage, "_step") == 12);
-                Check(!hud.SuppressCallouts, "Mina choice releases callouts");
             }
+            await AdvanceUntil(() => !boss.Transforming);
+            if (rei) Check(!hud.SuppressCallouts, "Mina choice and transformation release callouts");
             Check(!hud.CinematicMode && !Hud.BubblePaused && world.ProcessMode == ProcessModeEnum.Inherit
                   && game.ProcessMode == gameMode, "flashback restores world and HUD");
             if (koharu)
             {
-                // 2026-09-17 ユーザー指示：配膳（うちわ）は削除（BossKoharu.MealEnabled=false）。
-                //   閾値を跨いだ一度だけ _mealFired が立ち、_mealPhase には入らず素通りする＝
-                //   保留（holds）が残らず、第二形態・スペル切替がその場で通ること自体が回帰テストになる。
-                Check(Read<bool>(boss, "_mealFired") && Read<int>(boss, "_mealPhase") == 0, "archive mechanic stays disabled after memory");
+                Check(Read<bool>(boss, "_midpointPassed"), "memory completes before the late-battle threshold");
                 if (burst)
                 {
                     Check(Read<int>(boss, "_gotoPhase") > 0, "large damage still reaches crossfire without archives");
@@ -246,6 +248,7 @@ public partial class StoryFilmQa : Node
                 }
             }
             else Check(Read<bool>(boss, "_form2", typeof(Enemy)) && GetTree().GetFirstNodeInGroup("corridor") == null, "second form starts after the memory without a corridor");
+            await AdvanceUntil(() => !boss.Transforming);
             Call(boss, "OnHpChanged");
             await Frames(15);
             Check(GetTree().GetNodesInGroup("storyfilm").Count == 0, "memory is one-shot");
@@ -263,7 +266,8 @@ public partial class StoryFilmQa : Node
                 Check(boss.ShellPeelBusy && Read<int>(boss, "_line") == peelLine, "advance cannot skip the avatar peel");
                 await Shot("avatar_peel", grayscale: false);
             }
-            await AdvanceUntil(() => hud.CinematicMode);
+            await AdvanceUntil(() => GetTree().GetNodesInGroup("storyfilm").OfType<StoryFilm>()
+                .Any(activeFilm => Read<bool>(activeFilm, "_aftermath")));
             film = GetTree().GetFirstNodeInGroup("storyfilm") as StoryFilm;
             Check(film != null && Read<bool>(film, "_aftermath"), "clear dialogue starts next-day aftermath");
             await Frames(90);
@@ -287,7 +291,11 @@ public partial class StoryFilmQa : Node
             game.AutoAdvanceDialog = true;
             ended = false;
             PlayFilm(true, () => ended = true);
-            await WaitUntil(() => ended, 2600);
+            var autoFilm = (StoryFilm)GetTree().GetFirstNodeInGroup("storyfilm");
+            int autoLines = Read<Array>(autoFilm, "_lines").Length;
+            for (int line = 0; line < autoLines; line++)
+                await WaitUntil(() => ended || Read<int>(autoFilm, "_line") > line, 600);
+            await WaitUntil(() => ended, 120);
             game.AutoAdvanceDialog = false;
             Check(ended, "auto mode completes aftermath");
 
@@ -355,10 +363,11 @@ public partial class StoryFilmQa : Node
         if (ff) KeyEvent(Key.Ctrl, false);
         game.AutoAdvanceDialog = false;
         var exchanges = Hud.Backlog.Skip(firstEntry).ToArray();
-        Check(exchanges.Length == 5 && exchanges.Select(e => e.Speaker).Distinct().Count() == 2,
-            "five exchanges between Akari and Mina precede the film");
-        Check(exchanges[^1].Text.Contains("三日前") && exchanges[^1].Text.Contains("席"),
-            "last exchange introduces the flashback's time and place");
+        Check(exchanges.Length == 9 && exchanges.Select(e => e.Speaker).Distinct().Count() == 2,
+            "nine exchanges between Akari and Mina precede the film");
+        Check(exchanges.Take(exchanges.Length - 1).Any(e => e.Text.Contains("三日前"))
+              && exchanges[^1].Text.Contains("席") && exchanges[^1].Text.Contains("電話"),
+            "lead-in establishes the time before the final exchange introduces the desk and phone");
         Check(!talk.Active, "lead-in finishes when the film takes over");
     }
 

@@ -8,6 +8,7 @@ using System.Reflection;
 public partial class BossTechniqueVideo
 {
     private string EasyPilotPolicy() => _easyAttack switch {
+        KoharuBossTechnique => "normal input using completed curved-path forecasts and live hazards",
         MinaBossTechnique { TechniqueVariant: 1 } => "normal input along the current row's verified card access path, holding after acknowledgement",
         MinaBossTechnique { TechniqueVariant: 2 } => "normal input through announced airlock doors using body-safe lanes inside the actual protected room",
         MinaBossTechnique { TechniqueVariant: 3 } => "normal input to a nearby unrecorded cell after the next generation forecast completes, waiting for the previous live cells to clear",
@@ -262,11 +263,17 @@ public partial class BossTechniqueVideo
         if (TryEasyGuidance(delta)) return;
         _pilot.Update(delta, shoot: false, bombs: false, dodge: false);
         var attack = _easyAttack;
-        if (attack == null || !attack.IsStriking) return;
+        if (attack == null || !attack.IsStriking && attack is not KoharuBossTechnique) return;
         Vector2 position = _player.GlobalPosition;
-        var bullets = attack.OwnedShots.Where(b => !b.LeadIn && b.CollisionLayer != 0)
+        var bullets = attack.OwnedShots.Where(b => attack is not KoharuBossTechnique && !b.LeadIn && b.CollisionLayer != 0)
             .Select(b => (At: b.GlobalPosition, b.Velocity, Radius: b.CollisionRadius
                 * Math.Max(b.GlobalTransform.X.Length(), b.GlobalTransform.Y.Length()))).ToArray();
+        var curves = attack is KoharuBossTechnique
+            ? Read<IEnumerable>(attack, "_easyPaths").Cast<object>()
+                .Where(path => Read<Vector2[]>(path, "Points").Length > 1 && attack.Elapsed >= Read<double>(path, "StartsAt") + .9)
+                .Select(path => (Points: Read<Vector2[]>(path, "Points"), Fire: Read<double>(path, "FiresAt"),
+                    Duration: Read<double>(path, "Duration"), Radius: Read<float>(path, "HalfWidth"))).ToArray()
+            : Array.Empty<(Vector2[] Points, double Fire, double Duration, float Radius)>();
         var preferred = Input.GetVector("ui_left", "ui_right", "ui_up", "ui_down");
         float best = float.NegativeInfinity;
         Vector2 chosen = Vector2.Zero;
@@ -281,6 +288,15 @@ public partial class BossTechniqueVideo
                     Field.Rect.Position + Vector2.One * 6, Field.Rect.End - Vector2.One * 6);
                 float gap = attack.DangerDistance(at, false);
                 foreach (var bullet in bullets) gap = Math.Min(gap, at.DistanceTo(bullet.At + bullet.Velocity * time) - bullet.Radius - Player.HitRadius);
+                foreach (var curve in curves)
+                {
+                    double age = attack.Elapsed + time - curve.Fire;
+                    if (age < 0 || age >= curve.Duration) continue;
+                    float sample = (float)(age / curve.Duration) * (curve.Points.Length - 1);
+                    int index = Math.Min((int)sample, curve.Points.Length - 2);
+                    Vector2 future = curve.Points[index].Lerp(curve.Points[index + 1], sample - index);
+                    gap = Math.Min(gap, at.DistanceTo(future) - curve.Radius - Player.HitRadius);
+                }
                 if (EasyBodyAt(at)) gap = Math.Min(gap, -20);
                 minimum = Math.Min(minimum, gap);
                 total += Mathf.Clamp(gap, -30, 24);

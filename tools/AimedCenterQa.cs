@@ -342,7 +342,7 @@ public partial class AimedCenterQa : Node
         if (theme == StageTheme.Koharu)
             Add(new("KoharuPrayerCarry", EnemyTable.PrayerCarrier(), Aim.Mute, Camp, Never,
                 "bonus species: fires nothing (BaseInterval 999). The prayer bullets it carries hang off its body and "
-                + "are the reward (erasable, AddPrayerCleared), not an attack aimed at the player"));
+                + "can be cleared and do not aim at the player"));
         if (withDefault)
         {
             var (anti, quiet) = EnemyTable.For(StageTheme.Default);

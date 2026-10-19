@@ -17,7 +17,6 @@ public sealed class BossDanmaku
     internal int CycleRounds => _cycleRounds;
     internal int EasyAkariSlot => _easyAkariSlot;
     internal int EasyAkariRounds => _easyAkariRounds;
-    internal int EasySegment => _easySegment;
     internal int EasySlot => _easySlot;
     internal int EasyRounds => _easyRounds;
     internal BossCharacterTechnique? ActiveTechnique => _attack;
@@ -66,11 +65,6 @@ public sealed class BossDanmaku
         if (_boss.GetTree().GetNodesInGroup("boss_character_techniques").OfType<BossCharacterTechnique>().Any(a => !a.Finished)) return;
         _timer -= delta;
         if (_timer > 0 || AreaSpellCaster.HasRemainingShots(_boss.GetTree())) return;
-        if (_boss is CameoBoss)
-        {
-            _attack = BossCharacterTechnique.Begin(_boss, BossTechniqueKind.Cameo, _phrase++ % 2);
-            return;
-        }
         if (_boss.UsesEasyTechniqueSlots)
         {
             var slots = BossAttackCycle.EasyAkariSlots;

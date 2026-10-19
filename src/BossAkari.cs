@@ -111,7 +111,6 @@ public partial class BossAkari : Enemy
         PanelInk = BossTuning.I("akari", "panel_ink", 36);
         OrbitRadius = BossTuning.F("akari", "orbit_radius", 26f);
         SpinSpeed = BossTuning.F("akari", "spin_speed", 0.9f);
-        PanelsFire = false;      // 攻撃は本体の自責弾
         EnemyBulletSpeed = BossTuning.F("akari", "bullet_speed", 80f);
 
         int bars = BossTuning.I("akari", "hp_bars", 0);
@@ -237,7 +236,7 @@ public partial class BossAkari : Enemy
                 return;
             }
         }
-        if (!_lowHpRallied && HpRatio <= 0.20f && (GameManager.LunaticActive || _posts.Count >= 4))
+        if (!_lowHpRallied && HpRatio <= 0.20f && (GameManager.SkipBossStory || _posts.Count >= 4))
         {
             _lowHpRallied = true;
             RallyShield();
@@ -257,8 +256,6 @@ public partial class BossAkari : Enemy
         _recloseIdx++;
     }
 
-    protected override void GrantFollower() { } // 新canonにフォロワーは無い
-
     protected override void OnCryStart()
     {
         SetBodyPose(BossParts.Pose.Cry);
@@ -272,7 +269,7 @@ public partial class BossAkari : Enemy
         // 会話を出せない状況（Hud が取れない／台詞が無い）なら会話に入らず即着地させる
         //   ＝送るものが無いのに EndCryNow を待ち続けて Finished が立たない詰まりを断つ。
         //   ルナティックも同じ経路＝改心のかけあい（弾を止める会話）を出さず、その場で着地して Finished へ。
-        if (hud == null || _lines.Length == 0 || GameManager.LunaticActive) { EndCryNow(); return; }
+        if (hud == null || _lines.Length == 0 || GameManager.SkipBossStory) { EndCryNow(); return; }
         hud.HoldBubble = true;
         _seq = true; _line = 0; _lineT = 0;
         ShowLine();
@@ -300,7 +297,7 @@ public partial class BossAkari : Enemy
             _memoryPlayed = true;
             // ルナティック：回想を挟まない。フィルム明けの復帰（第二形態→宣告→保留していた閾値の拾い直し）だけをその場で通す
             //   ＝弾幕も曲も途切れない。
-            if (GameManager.LunaticActive)
+            if (GameManager.SkipBossStory)
             {
                 AdvanceForm2();
                 ApplyMood();

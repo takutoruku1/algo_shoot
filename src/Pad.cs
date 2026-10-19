@@ -80,8 +80,6 @@ public static class Pad
     // ポーズ（メニュー）開閉の操作子表記：キーボード表示なら M、パッド表示なら Start(Menu(≡))。
     //   2026-09-26：Esc → M。Esc は全画面で「一つ前へもどる」（PauseMenu.cs 冒頭のコメント参照）。
     public static string PauseToken => ShowKeyboard ? "M" : Face(JoyButton.Start);
-    // 決定の操作子表記：キーボードなら Z、パッドなら A(〇)。
-    public static string ConfirmToken => ShowKeyboard ? "Z" : Face(JoyButton.A);
 
     // ───────── 共通の操作子表記（UI 横断の単一の真実）─────────
     // 各画面（Shop / Settings / Hud …）はボタン名を直書きせず、ここを通すことで Pad.Display(KB/PS/Xbox)
@@ -161,7 +159,7 @@ public static class Pad
     //   座標系は UI 全体と同じ「設計座標(1280×720)」に統一する（実ビューポート384系 ÷ UiKit.Scale）。
 
     // 直近デバイスにマウスを第3の値として追加。KB/パッドの2値(_autoUsingPad)は壊さず、マウス時は
-    // 別フラグで上書き表示を判断する。表記トークン(ConfirmToken 等)は KB/パッド2値前提なので、
+    // 別フラグで上書き表示を判断する。表記トークン(PauseToken 等)は KB/パッド2値前提なので、
     // マウス時は ShowKeyboard=true（キーボード表記）へフォールバックさせる（マウス専用アイコンは作らない）。
     private static bool _usingMouse;
     public static bool UsingMouse => _usingMouse;

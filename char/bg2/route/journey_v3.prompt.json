@@ -1,0 +1,103 @@
+{
+  "tool": "built-in image_gen",
+  "revision": "2026-10-19",
+  "processing": "Extract three equal horizontal atlas strips as PNG; preserve generated alpha. Finite left-to-right camera travel, four ordered locations per stage, no wrap.",
+  "assets": [
+    {
+      "id": "akari_passage",
+      "prompt": "Use case: stylized-concept. Create ONE NEW production parallax atlas for Refrain AKARI route, MIDDLE passage. Reference image is STYLE and WORLD reference only, not an edit target: use its suspended everyday office slabs, folded unsent-letter bridges, rain clouds, navy/ivory/amber palette. Move to a DIFFERENT landmark: a long zigzag chain of folded letter bridges passes beneath one huge sideways office slab with an empty paired desk by its warm window, smaller offices recede into rain. More turbulent than early route but less violent than the reference late route. No invented world elements. STRICT ATLAS square 1536x1536, THREE EQUAL full-width horizontal strips each 1536x512, no gutters or labels. They will be cut and overlaid. Top third: opaque far panorama, rain cloud layers and distant small offices, subdued central gameplay area. Middle third: genuine transparent background with independent midground bridges and offices, concentrated along upper and lower edges, 65 percent open transparent middle. Bottom third: genuine transparent background with dark close folded paper ledges and ordinary handrails across lower 15 percent, sparse upper corners; central 70 percent empty. Each strip is a long unique LEFT TO RIGHT journey with different landmarks, NOT a repeating tile and NO symmetry. Same coordinate registration between three strips. Muted premium hand-painted Japanese anime environment matching reference, atmospheric depth, clean silhouettes. No characters, text, UI, glowing bullet-like specks, checkerboard or painted black background. Preserve REAL ALPHA in lower two strips.",
+      "reference": "D:/dev/algo_shoot/char/raw/boss_worlds_20261018/atlases/route_akari_late.png",
+      "source": "C:\\Users\\takut\\.codex\\generated_images\\01a15007-5878-7531-8442-0c07a21402e3\\exec-35e8ec79-879d-45e6-b864-50c63ab1faf1.png",
+      "atlas": "char/raw/route_journey_20261019/akari_passage.png",
+      "outputs": [
+        "char/bg2/route/akari_passage_far.png",
+        "char/bg2/route/akari_passage_mid.png",
+        "char/bg2/route/akari_passage_near.png"
+      ]
+    },
+    {
+      "id": "akari_climax",
+      "prompt": "Use case: stylized-concept. ONE production PARALLAX ATLAS for Refrain side scrolling game. Reference is existing world and painting STYLE, not an edit target. SQUARE 1536x1536 canvas divided EXACTLY into THREE equal full-width horizontal strips of 1536x512 pixels, no gutters/no labels. The three strips will be cut and OVERLAID at identical coordinates. TOP: fully OPAQUE distant panorama with dark low-contrast central gameplay area. MIDDLE: TRUE TRANSPARENT background, independent medium-distance architecture at top and bottom, middle 65% left open. BOTTOM: TRUE TRANSPARENT background, close silhouettes confined mainly to bottom 18% and sparse top corners, central 70% empty. Genuine alpha, not black paint or checkerboard. Each long strip has UNIQUE landmarks from LEFT to RIGHT; asymmetrical, NOT repeating, no central vanishing point. Hand-painted Japanese anime environment exactly consistent with reference, no people, text, UI, new lore, glowing particles or bullet-like details. AKARI final approach, considerably more intense than reference. Rain clouds surge around a spiraling vertical accumulation of suspended everyday offices, distinct enormous tilted empty office island at right, ivory folded unsent-letter bridges densely twist around the edges, warm paired desks only seen through windows; rushing heavy rain atmosphere, dramatic navy cloud gulf but dim readable center, darker close folded paper and umbrella silhouettes. No flames or new fantasy structures.",
+      "reference": "D:/dev/algo_shoot/char/raw/boss_worlds_20261018/atlases/route_akari_late.png",
+      "source": "C:\\Users\\takut\\.codex\\generated_images\\01a15007-5878-7531-8442-0c07a21402e3\\exec-90a0b330-05da-4919-b00f-6614971c70eb.png",
+      "atlas": "char/raw/route_journey_20261019/akari_climax.png",
+      "outputs": [
+        "char/bg2/route/akari_climax_far.png",
+        "char/bg2/route/akari_climax_mid.png",
+        "char/bg2/route/akari_climax_near.png"
+      ]
+    },
+    {
+      "id": "koharu_passage",
+      "prompt": "Use case: stylized-concept. ONE production PARALLAX ATLAS for Refrain side scrolling game. Reference is existing world and painting STYLE, not an edit target. SQUARE 1536x1536 canvas divided EXACTLY into THREE equal full-width horizontal strips of 1536x512 pixels, no gutters/no labels. The three strips will be cut and OVERLAID at identical coordinates. TOP: fully OPAQUE distant panorama with dark low-contrast central gameplay area. MIDDLE: TRUE TRANSPARENT background, independent medium-distance architecture at top and bottom, middle 65% left open. BOTTOM: TRUE TRANSPARENT background, close silhouettes confined mainly to bottom 18% and sparse top corners, central 70% empty. Genuine alpha, not black paint or checkerboard. Each long strip has UNIQUE landmarks from LEFT to RIGHT; asymmetrical, NOT repeating, no central vanishing point. Hand-painted Japanese anime environment exactly consistent with reference, no people, text, UI, new lore, glowing particles or bullet-like details. KOHARU middle passage, between quiet early approach and reference late atmosphere. Traverse a different section of her endless fan audience balconies: tiered blue-violet stone arches rise left-to-right, blank calendar-like paper sheets hanging by turquoise/purple ribbons grow more numerous, distant warm windows amid clouds. Small penlight resting at a lower edge. No stage performer or device screens. Density grows along the route, restrained lavender twilight.",
+      "reference": "D:/dev/algo_shoot/char/raw/boss_worlds_20261018/atlases/route_koharu_late.png",
+      "source": "C:\\Users\\takut\\.codex\\generated_images\\01a15007-5878-7531-8442-0c07a21402e3\\exec-73bd9ffe-6b42-413a-9299-dac8369cfca0.png",
+      "atlas": "char/raw/route_journey_20261019/koharu_passage.png",
+      "outputs": [
+        "char/bg2/route/koharu_passage_far.png",
+        "char/bg2/route/koharu_passage_mid.png",
+        "char/bg2/route/koharu_passage_near.png"
+      ]
+    },
+    {
+      "id": "koharu_climax",
+      "prompt": "Use case: stylized-concept. ONE production PARALLAX ATLAS for Refrain side scrolling game. Reference is existing world and painting STYLE, not an edit target. SQUARE 1536x1536 canvas divided EXACTLY into THREE equal full-width horizontal strips of 1536x512 pixels, no gutters/no labels. The three strips will be cut and OVERLAID at identical coordinates. TOP: fully OPAQUE distant panorama with dark low-contrast central gameplay area. MIDDLE: TRUE TRANSPARENT background, independent medium-distance architecture at top and bottom, middle 65% left open. BOTTOM: TRUE TRANSPARENT background, close silhouettes confined mainly to bottom 18% and sparse top corners, central 70% empty. Genuine alpha, not black paint or checkerboard. Each long strip has UNIQUE landmarks from LEFT to RIGHT; asymmetrical, NOT repeating, no central vanishing point. Hand-painted Japanese anime environment exactly consistent with reference, no people, text, UI, new lore, glowing particles or bullet-like details. KOHARU final approach, more intense than reference. Her endless fan audience balconies accumulate into a vast sweeping wall on the right, long purple and turquoise ribbons pulled taut and streaming across upper margins, dozens of blank calendar sheets tangled around upper gallery rails, deep cloud currents rising through gaps, amber windows and gold star finials at edges. Unoccupied central air remains calm/dark, overwhelming yet beautiful blue-violet architecture. No performer, no new setting.",
+      "reference": "D:/dev/algo_shoot/char/raw/boss_worlds_20261018/atlases/route_koharu_late.png",
+      "source": "C:\\Users\\takut\\.codex\\generated_images\\01a15007-5878-7531-8442-0c07a21402e3\\exec-1f543daa-2b4d-48dc-8ab7-1b3c753358cd.png",
+      "atlas": "char/raw/route_journey_20261019/koharu_climax.png",
+      "outputs": [
+        "char/bg2/route/koharu_climax_far.png",
+        "char/bg2/route/koharu_climax_mid.png",
+        "char/bg2/route/koharu_climax_near.png"
+      ]
+    },
+    {
+      "id": "rei_passage",
+      "prompt": "Use case: stylized-concept. ONE production PARALLAX ATLAS for Refrain side scrolling game. Reference is existing world and painting STYLE, not an edit target. SQUARE 1536x1536 canvas divided EXACTLY into THREE equal full-width horizontal strips of 1536x512 pixels, no gutters/no labels. The three strips will be cut and OVERLAID at identical coordinates. TOP: fully OPAQUE distant panorama with dark low-contrast central gameplay area. MIDDLE: TRUE TRANSPARENT background, independent medium-distance architecture at top and bottom, middle 65% left open. BOTTOM: TRUE TRANSPARENT background, close silhouettes confined mainly to bottom 18% and sparse top corners, central 70% empty. Genuine alpha, not black paint or checkerboard. Each long strip has UNIQUE landmarks from LEFT to RIGHT; asymmetrical, NOT repeating, no central vanishing point. Hand-painted Japanese anime environment exactly consistent with reference, no people, text, UI, new lore, glowing particles or bullet-like details. REI middle passage before reference's fully broken late passage. Journey past a distinct tall open celestial virtual broadcast colonnade, a single tilted arch at left then ascending towers to right, violet nebula sky, floating book-page-like ivory panels without writing and deep violet stage drapery, first fragments separating from arches. Three tiny warm listener alcoves are distant. No physical camera/film equipment, no audience or performer. More pressure than early area, less destruction than reference.",
+      "reference": "D:/dev/algo_shoot/char/raw/boss_worlds_20261018/atlases/route_rei_late.png",
+      "source": "C:\\Users\\takut\\.codex\\generated_images\\01a15007-5878-7531-8442-0c07a21402e3\\exec-df64fad1-7f36-4af9-adcb-b5d1b11208e4.png",
+      "atlas": "char/raw/route_journey_20261019/rei_passage.png",
+      "outputs": [
+        "char/bg2/route/rei_passage_far.png",
+        "char/bg2/route/rei_passage_mid.png",
+        "char/bg2/route/rei_passage_near.png"
+      ]
+    },
+    {
+      "id": "rei_climax",
+      "prompt": "Use case: stylized-concept. ONE production PARALLAX ATLAS for Refrain side scrolling game. Reference is existing world and painting STYLE, not an edit target. SQUARE 1536x1536 canvas divided EXACTLY into THREE equal full-width horizontal strips of 1536x512 pixels, no gutters/no labels. The three strips will be cut and OVERLAID at identical coordinates. TOP: fully OPAQUE distant panorama with dark low-contrast central gameplay area. MIDDLE: TRUE TRANSPARENT background, independent medium-distance architecture at top and bottom, middle 65% left open. BOTTOM: TRUE TRANSPARENT background, close silhouettes confined mainly to bottom 18% and sparse top corners, central 70% empty. Genuine alpha, not black paint or checkerboard. Each long strip has UNIQUE landmarks from LEFT to RIGHT; asymmetrical, NOT repeating, no central vanishing point. Hand-painted Japanese anime environment exactly consistent with reference, no people, text, UI, new lore, glowing particles or bullet-like details. REI final approach more intense than reference. Her celestial virtual broadcast architecture has torn open into a great off-center violet rift; huge fractured arches and broken gold-edged columns lean diagonally into frame from upper right and lower left; violet drapery and blank ivory book-page panels swept to edges. Distant towers visibly break up into large slabs, luminous purple cloud current stays mostly at upper edge, central gameplay corridor dark and open. No cameras, no new lore, no figures.",
+      "reference": "D:/dev/algo_shoot/char/raw/boss_worlds_20261018/atlases/route_rei_late.png",
+      "source": "C:\\Users\\takut\\.codex\\generated_images\\01a15007-5878-7531-8442-0c07a21402e3\\exec-6518ad42-5470-4ff9-b38c-2c424e79f4aa.png",
+      "atlas": "char/raw/route_journey_20261019/rei_climax.png",
+      "outputs": [
+        "char/bg2/route/rei_climax_far.png",
+        "char/bg2/route/rei_climax_mid.png",
+        "char/bg2/route/rei_climax_near.png"
+      ]
+    },
+    {
+      "id": "mina_passage",
+      "prompt": "Use case: stylized-concept. ONE production PARALLAX ATLAS for Refrain side scrolling game. Reference is existing world and painting STYLE, not an edit target. SQUARE 1536x1536 canvas divided EXACTLY into THREE equal full-width horizontal strips of 1536x512 pixels, no gutters/no labels. The three strips will be cut and OVERLAID at identical coordinates. TOP: fully OPAQUE distant panorama with dark low-contrast central gameplay area. MIDDLE: TRUE TRANSPARENT background, independent medium-distance architecture at top and bottom, middle 65% left open. BOTTOM: TRUE TRANSPARENT background, close silhouettes confined mainly to bottom 18% and sparse top corners, central 70% empty. Genuine alpha, not black paint or checkerboard. Each long strip has UNIQUE landmarks from LEFT to RIGHT; asymmetrical, NOT repeating, no central vanishing point. Hand-painted Japanese anime environment exactly consistent with reference, no people, text, UI, new lore, glowing particles or bullet-like details. MINA middle passage, more strained than early route, before reference's late area. Traverse her dim flooded inner world: distinct offset ranks of tall mirror-like room panels and thin broken bridges, white return ribbons pulling across the upper edges to hold them together, increasingly uneven reflected planes and deep blue water. A single diagonal suspended walkway begins at left then gaps towards right. No new fantasy setting or people; soft distant amber horizon, quiet dark central water.",
+      "reference": "D:/dev/algo_shoot/char/raw/boss_worlds_20261018/atlases/route_mina_late.png",
+      "source": "C:\\Users\\takut\\.codex\\generated_images\\01a15007-5878-7531-8442-0c07a21402e3\\exec-674a9a11-2cab-45a5-9304-5b8d9d4e9295.png",
+      "atlas": "char/raw/route_journey_20261019/mina_passage.png",
+      "outputs": [
+        "char/bg2/route/mina_passage_far.png",
+        "char/bg2/route/mina_passage_mid.png",
+        "char/bg2/route/mina_passage_near.png"
+      ]
+    },
+    {
+      "id": "mina_climax",
+      "prompt": "Use case: stylized-concept. ONE production PARALLAX ATLAS for Refrain side scrolling game. Reference is existing world and painting STYLE, not an edit target. SQUARE 1536x1536 canvas divided EXACTLY into THREE equal full-width horizontal strips of 1536x512 pixels, no gutters/no labels. The three strips will be cut and OVERLAID at identical coordinates. TOP: fully OPAQUE distant panorama with dark low-contrast central gameplay area. MIDDLE: TRUE TRANSPARENT background, independent medium-distance architecture at top and bottom, middle 65% left open. BOTTOM: TRUE TRANSPARENT background, close silhouettes confined mainly to bottom 18% and sparse top corners, central 70% empty. Genuine alpha, not black paint or checkerboard. Each long strip has UNIQUE landmarks from LEFT to RIGHT; asymmetrical, NOT repeating, no central vanishing point. Hand-painted Japanese anime environment exactly consistent with reference, no people, text, UI, new lore, glowing particles or bullet-like details. MINA final approach, more intense and unstable than reference. In her flooded inner world the room-panel return bridges have collapsed into giant staggered mirror slabs, tall panels tilt towards a dark chasm at right, long white/gray return ribbons stretch and fray along upper and lower edges, deep blue water surges against broken bases, isolated warm distant horizon now nearly closed by slate cloud. A broken connection, not a new portal. Great depth and asymmetrical landmarks; darkest open center for gameplay.",
+      "reference": "D:/dev/algo_shoot/char/raw/boss_worlds_20261018/atlases/route_mina_late.png",
+      "source": "C:\\Users\\takut\\.codex\\generated_images\\01a15007-5878-7531-8442-0c07a21402e3\\exec-33b98205-226c-4e5c-986f-6cc20f8daced.png",
+      "atlas": "char/raw/route_journey_20261019/mina_climax.png",
+      "outputs": [
+        "char/bg2/route/mina_climax_far.png",
+        "char/bg2/route/mina_climax_mid.png",
+        "char/bg2/route/mina_climax_near.png"
+      ]
+    }
+  ]
+}

@@ -474,13 +474,15 @@ public partial class BossTechniqueVideo
             }
             if (_minaNaturalHazards != 0 || _minaNaturalShots != 0) MinaFail("natural completion still owned live geometry or bullets");
             int tier = Read<int>(attack, "Tier");
-            int[] required = _minaVariant switch { 0 => new[] { 9 * (4 + tier) }, 1 => new[] { 4 * (3 + tier) }, 4 => new[] { 12, 9 }, _ => Array.Empty<int>() };
+            int loads = (tier switch { 0 => 4, 1 => 6, 2 => 9, _ => 12 }) + (attack.IsEnhanced ? 2 : 0);
+            int chains = 3 + tier * 3 + (attack.IsEnhanced ? 1 : 0);
+            int[] required = _minaVariant switch { 0 => new[] { 3 * (3 + tier * 2) * loads }, 1 => new[] { (4 + tier * 2) * (3 + tier) }, 4 => new[] { chains * 4, chains * 3 }, _ => Array.Empty<int>() };
             if (_minaVariant == 0 && (cues.Length != required[0] || cues.Any(cue => cue.Mode != 0)
-                || !cues.GroupBy(cue => (cue.Round, cue.Index)).All(group => group.Count() == 4 + tier)))
+                || !cues.GroupBy(cue => (cue.Round, cue.Index)).All(group => group.Count() == loads)))
                 MinaFail("missing difficulty-scaled burden pages from the nine independently warned trains");
             if (_minaVariant == 1 && (cues.Length != required[0] || cues.Any(cue => cue.Mode != 1)
                 || cues.Count(cue => cue.Cancelled) < 3 + tier || cues.Count(cue => cue.Cancelled) > 2 * (3 + tier)
-                || !cues.GroupBy(cue => cue.Round).All(group => group.Select(cue => cue.Index).OrderBy(index => index).SequenceEqual(new[] { 0, 1, 2, 3 }))))
+                || !cues.GroupBy(cue => cue.Round).All(group => group.Select(cue => cue.Index).OrderBy(index => index).SequenceEqual(Enumerable.Range(0, 4 + tier * 2)))))
                 MinaFail("missing difficulty-scaled draft rounds or their pre-fire acknowledgements");
             if (_minaVariant == 2)
             {
@@ -512,11 +514,11 @@ public partial class BossTechniqueVideo
                     MinaFail("handoff/recoil warnings omitted a drawn centerline or width-boundary intersection");
                 if (cues.Any(cue => cue.Mode is not (4 or 7))) MinaFail("homeward relay contains an unrelated attack mode");
                 if (memories.Length != required[0] || releases.Length != required[1]
-                    || memories.Count(cue => cue.Transferred) != 9 || memories.Count(cue => cue.ReceivedFrom >= 0) != 9
-                    || memories.Count(cue => cue.Successor < 0) != 3 || cues.Any(cue => !cue.Fired || !cue.Exited))
-                    MinaFail("relay requires twelve real memories, nine handoffs and nine natural recoil exits");
-                if (!memories.Select(cue => cue.Round).Distinct().OrderBy(round => round).SequenceEqual(new[] { 0, 1, 2 })
-                    || releases.Select(cue => cue.Held).Distinct().Count() != 9)
+                    || memories.Count(cue => cue.Transferred) != chains * 3 || memories.Count(cue => cue.ReceivedFrom >= 0) != chains * 3
+                    || memories.Count(cue => cue.Successor < 0) != chains || cues.Any(cue => !cue.Fired || !cue.Exited))
+                    MinaFail("relay omitted difficulty-scaled memories, handoffs or natural recoil exits");
+                if (!memories.Select(cue => cue.Round).Distinct().OrderBy(round => round).SequenceEqual(Enumerable.Range(0, chains))
+                    || releases.Select(cue => cue.Held).Distinct().Count() != chains * 3)
                     MinaFail("relay omitted a connection chain or reused one held body for multiple exits");
                 foreach (var chain in memories.GroupBy(cue => cue.Round))
                 {

@@ -2,9 +2,36 @@ using Godot;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Runtime.InteropServices;
 
 public partial class ReiBossTechnique : BossCharacterTechnique
 {
+    private static bool _assetsPrepared;
+    internal static void PrepareAssets()
+    {
+        if (_assetsPrepared) return;
+        // First-use glyph rasterization and silhouette extraction must finish before combat.
+        var glyphs = new HashSet<int>();
+        foreach (string text in GlyphWarmer.ScriptOf(typeof(ReiBossTechnique)))
+            foreach (var rune in text.EnumerateRunes())
+                if (rune.Value > 127) glyphs.Add(rune.Value);
+        foreach (int glyph in glyphs)
+        {
+            if (UiKit.ZenBold.HasChar(glyph)) UiKit.ZenBold.RenderRange(0, new Vector2I(30, 0), glyph, glyph);
+            if (UiKit.Zen.HasChar(glyph)) UiKit.Zen.RenderRange(0, new Vector2I(24, 0), glyph, glyph);
+        }
+        var art = BulletArt.BossPattern(Job.Magic, 1);
+        foreach (bool charged in new[] { false, true })
+        for (int generation = 0; generation < 3; generation++)
+        {
+            float radius = (charged ? BulletPool.BossChargeRadius : BulletPool.BossRadius) * 1.5f * Mathf.Pow(.62f, generation);
+            Bullet.BossFootprint(Job.Magic, radius, charged);
+            BulletFootprint.Primitive(Jobs.Get(Job.Magic).ShotShape, radius);
+            BulletFootprint.Texture(art.Cropped, art.Pivot - art.Region.Position, Bullet.BossArtSize(radius, charged));
+        }
+        _assetsPrepared = true;
+    }
+
     private Vector2 _anchor, _source, _forward;
     private Vector2[] _points = Array.Empty<Vector2>();
     private double _warning;
@@ -32,11 +59,24 @@ public partial class ReiBossTechnique : BossCharacterTechnique
     private double _selectionBegan, _selectionLockedAt, _selectionRepostAt = -1;
     private static readonly Color Ink = new("bda2ef");
     private static readonly Color Original = new("ffe4a2");
+    private static readonly Color WarningInk = new("17101e");
+    private static Texture2D? _editorialEdge;
     private const double EasyCueGrow = 1.2, EasyCueLead = 3.4;
-    private int QuotePulses => 3 + Tier;
-    private double QuoteSpacing => 1 - Tier * .07;
+    private int QuotePulses => (Tier switch { 0 => 3, 1 => 10, 2 => 12, _ => 14 }) + (Evolved ? 2 : 0);
+    private double QuoteSpacing => 1 - Tier * .08 - (Evolved ? .06 : 0);
+    private int FanRows => Tier == 0 ? 4 : 6;
+    private double FanRowInterval => Tier switch { 0 => 1.35, 1 => 1.35, 2 => 1.05, _ => .82 };
+    private double TriangleInterval => Tier switch { 0 => 4.1, 1 => 2.8, 2 => 2.5, _ => 2 };
+    private int Paragraphs => Tier == 0 ? 3 : 4;
+    private double ParagraphInterval => Tier switch { 0 => 2.5, 1 => 2.1, 2 => 1.8, _ => 1.6 };
     private readonly List<EasyQuotePath> _easyPaths = new();
     private readonly List<EasyEditorialCut> _easyCuts = new();
+    private readonly HashSet<int> _easySplitParents = new();
+    private readonly Dictionary<double, WarningCanvas> _warningCanvases = new();
+    private readonly HashSet<double> _dirtyWarningGroups = new();
+    private WarningCanvas _warningCanvas = null!;
+    private bool _collectWarnings;
+    private float _sweepWarningProgress = -1;
     private double _easyEnd;
     private bool _easySelectionBuilt;
     private int _easySelectionRound, _easyParagraphsPrepared, _easyFanRowsPrepared, _easyTriangleFacesPrepared, _easyPagesPrepared;
@@ -49,12 +89,35 @@ public partial class ReiBossTechnique : BossCharacterTechnique
         || Kind is BossTechniqueKind.Signature or BossTechniqueKind.Finale);
     protected override bool UsesCustomHazardArt => EasyEditorial;
 
+    internal int AvatarFrame
+    {
+        get
+        {
+            double next = double.PositiveInfinity, last = double.NegativeInfinity;
+            void Observe(double at)
+            {
+                if (at > Time) next = Math.Min(next, at);
+                else last = Math.Max(last, at);
+            }
+            foreach (var path in _easyPaths)
+                if (path.Parent < 0) Observe(path.FiresAt);
+            foreach (var cut in _easyCuts) Observe(cut.FiresAt);
+            if (Kind is BossTechniqueKind.Area or BossTechniqueKind.Finale) Observe(EasyCueLead);
+            if (Time - last < .32) return Time - last < .16 ? 4 : 5;
+            if (next - Time < .75) return Mathf.Clamp((int)((.75 - (next - Time)) / .1875), 0, 3);
+            if (Time - last < .8) return Time - last < .56 ? 6 : 7;
+            return -1;
+        }
+    }
+
     private sealed class EasyQuotePath
     {
         internal string Key = "";
         internal double StartsAt, FiresAt, ArrivesAt, WarningEndsAt;
+        internal double LastChildFire = double.NegativeInfinity;
         internal Vector2 From, To, Scale = Vector2.One;
         internal float HalfWidth, Velocity;
+        internal float DrawnProgress = -1;
         internal int Parent = -1, Generation, Hits, SelectionRound = -1, EditGroup = -1;
         internal bool Draw, Fired, Waiting, Peel;
         internal Bullet? Shot;
@@ -67,11 +130,9 @@ public partial class ReiBossTechnique : BossCharacterTechnique
         internal double StartsAt, FiresAt, EndsAt;
         internal Vector2 A, B;
         internal float HalfWidth;
+        internal float DrawnProgress = -1;
         internal bool Box, Fired;
     }
-
-    private IReadOnlyList<EasyQuotePath> EasyPaths => _easyPaths;
-    private IReadOnlyList<EasyEditorialCut> EasyCuts => _easyCuts;
     private float EasyCueProgress(double start) => Mathf.Clamp((float)((Time - start) / EasyCueGrow), 0, 1);
     internal override IEnumerable<BossEasyCue> EasyCues
     {
@@ -265,6 +326,9 @@ public partial class ReiBossTechnique : BossCharacterTechnique
 
     private void StartEasyEditorial()
     {
+        TextureFilter = TextureFilterEnum.Linear;
+        _editorialEdge ??= GD.Load<Texture2D>("res://char/v3/fx/rei/frame_edge.png");
+        _ = BulletArt.Get("rei_film");
         _warning = EasyCueLead;
         switch (Kind)
         {
@@ -324,6 +388,7 @@ public partial class ReiBossTechnique : BossCharacterTechnique
         float halfWidth = BulletFootprint.Texture(art.Cropped, art.Pivot - art.Region.Position,
             Bullet.BossArtSize(radius, Evolved)).Radius;
         Vector2 scale = peel ? new Vector2(2.2f, 3) : Vector2.One;
+        if (Tier == 1) scale *= Mathf.Pow(1.1f, generation);
         float speed = Speed * Mathf.Pow(.9f, generation);
         var path = new EasyQuotePath
         {
@@ -333,6 +398,7 @@ public partial class ReiBossTechnique : BossCharacterTechnique
             SelectionRound = parent < 0 ? -1 : _easyPaths[parent].SelectionRound,
         };
         _easyPaths.Add(path);
+        if (parent >= 0) _easyPaths[parent].LastChildFire = Math.Max(_easyPaths[parent].LastChildFire, fire);
         _easyEnd = Math.Max(_easyEnd, path.ArrivesAt + .1);
         return _easyPaths.Count - 1;
     }
@@ -340,6 +406,22 @@ public partial class ReiBossTechnique : BossCharacterTechnique
     private void AddEasyFan(int parent, string key, Vector2[] destinations, double? fire = null, double? start = null)
     {
         var root = _easyPaths[parent];
+        if (Tier > 0)
+        {
+            int branches = Tier + 3;
+            var spread = new List<Vector2>();
+            for (int ray = 0; ray < destinations.Length; ray++)
+            {
+                spread.Add(destinations[ray]);
+                if (ray + 1 == destinations.Length) continue;
+                for (int branch = 1; branch <= branches; branch++)
+                {
+                    Vector2 between = destinations[ray].Lerp(destinations[ray + 1], branch / (float)(branches + 1));
+                    if (between.DistanceTo(root.To) > 1) spread.Add(between);
+                }
+            }
+            destinations = spread.ToArray();
+        }
         for (int child = 0; child < destinations.Length; child++)
         {
             Vector2 end = EasyExit(root.To, root.To.DirectionTo(destinations[child]));
@@ -408,13 +490,13 @@ public partial class ReiBossTechnique : BossCharacterTechnique
     {
         int row = _easyFanRowsPrepared++;
         Vector2 target = Player.GlobalPosition;
-        float y = new[] { 10f, 76f, 140f, 206f }[row];
+        float y = new[] { 10f, 76f, 140f, 206f }[row % 4];
         bool right = row % 2 == 0;
         Vector2 from = new(right ? Field.Left : Field.Right, y);
         Vector2 forward = right ? Vector2.Right : Vector2.Left;
         Vector2 fork = from + forward * 76;
         if (fork == target) target = fork + forward;
-        double start = row * 1.35, first = start + EasyCueLead;
+        double start = row * FanRowInterval, first = start + EasyCueLead;
         for (int pulse = 0; pulse < QuotePulses + 1; pulse++)
         {
             int root = AddEasyQuote($"fan:{row}:{pulse}:parent", from, fork, start,
@@ -444,7 +526,7 @@ public partial class ReiBossTechnique : BossCharacterTechnique
             2 => new[] { new Vector2(Field.Left - 8, Field.Bottom + 8), new Vector2(Field.Right + 8, Field.Bottom + 8), new Vector2(center.X, -8) },
             _ => new[] { new Vector2(Field.Left - 8, -8), new Vector2(Field.Left - 8, Field.Bottom + 8), new Vector2(Field.Right + 8, center.Y) },
         };
-        double start = face * 4.1, first = start + EasyCueLead;
+        double start = face * TriangleInterval, first = start + EasyCueLead;
         for (int edge = 0; edge < 3; edge++)
         {
             Vector2 a = vertices[edge], b = vertices[(edge + 1) % 3];
@@ -464,7 +546,7 @@ public partial class ReiBossTechnique : BossCharacterTechnique
     private void PrepareEasyParagraph()
     {
         int paragraph = _easyParagraphsPrepared++;
-        double start = paragraph * 2.5, first = start + EasyCueLead;
+        double start = paragraph * ParagraphInterval, first = start + EasyCueLead;
         Vector2 target = Player.GlobalPosition;
         bool right = target.X >= Field.CenterX;
         Vector2 forward = right ? Vector2.Right : Vector2.Left;
@@ -561,10 +643,10 @@ public partial class ReiBossTechnique : BossCharacterTechnique
         }
     }
 
-    private float EasyReaderSpeed => 24 + Tier * 4;
-    private float EasyReaderHalfGap => 31 - Tier * 2;
+    private float EasyReaderSpeed => 24 + Tier * 9 + (Evolved ? 3 : 0);
+    private float EasyReaderHalfGap => (Tier switch { 0 => 31, 1 => 22, 2 => 16, _ => 11 }) - (Evolved ? Tier == 0 ? 3 : 2 : 0);
     private double EasySentenceDuration => 9.8 - Tier * .8;
-    private float EasySentenceHalfGap => 34 - Tier * 2;
+    private float EasySentenceHalfGap => (Tier switch { 0 => 34, 1 => 25, 2 => 18, _ => 12 }) - (Evolved ? Tier == 0 ? 3 : 2 : 0);
     private double EasyReaderEnd => EasyCueLead + (Field.Height + 20) / EasyReaderSpeed;
     private float EasyReaderGap(float progress)
     {
@@ -656,14 +738,14 @@ public partial class ReiBossTechnique : BossCharacterTechnique
             if (Time >= _easySelectionRecordAt + 1.2) BuildEasySelectedFrame();
         }
         if (Kind == BossTechniqueKind.Extra && !Evolved && Variant == 0)
-            while (_easyParagraphsPrepared < 3 && Time >= _easyParagraphsPrepared * 2.5) PrepareEasyParagraph();
+            while (_easyParagraphsPrepared < Paragraphs && Time >= _easyParagraphsPrepared * ParagraphInterval) PrepareEasyParagraph();
         if (Kind == BossTechniqueKind.Normal && Variant == 1)
-            while (_easyFanRowsPrepared < 4 && Time >= _easyFanRowsPrepared * 1.35) PrepareEasyQuotationFan();
+            while (_easyFanRowsPrepared < FanRows && Time >= _easyFanRowsPrepared * FanRowInterval) PrepareEasyQuotationFan();
         if (Kind == BossTechniqueKind.Normal && Variant == 2)
-            while (_easyTriangleFacesPrepared < 4 && Time >= _easyTriangleFacesPrepared * 4.1) PrepareEasyKaleidoscope();
+            while (_easyTriangleFacesPrepared < 4 && Time >= _easyTriangleFacesPrepared * TriangleInterval) PrepareEasyKaleidoscope();
         if (Kind == BossTechniqueKind.Signature)
             while (_easyPagesPrepared < 2 && Time >= 2.2 + _easyPagesPrepared * 1.35) PrepareEasyEditedPage();
-        var splitParents = new HashSet<int>();
+        _easySplitParents.Clear();
         bool beginNextSelection = false;
         for (int index = 0; index < _easyPaths.Count; index++)
         {
@@ -680,7 +762,7 @@ public partial class ReiBossTechnique : BossCharacterTechnique
                 parent.Shot!.GlobalPosition = parent.To;
                 bullet = Pool.SpawnReiFragment(parent.Shot, path.From.DirectionTo(path.To), 0, 0, warnedLaunch: true);
                 Track(bullet);
-                splitParents.Add(path.Parent);
+                _easySplitParents.Add(path.Parent);
             }
             bullet.CancelLeadIn();
             bullet.MakeReiSplit(0);
@@ -697,7 +779,7 @@ public partial class ReiBossTechnique : BossCharacterTechnique
                 beginNextSelection = true;
         }
         // A parent remains allocated until all siblings inherit its physical properties.
-        foreach (int parent in splitParents) Pool.Despawn(_easyPaths[parent].Shot!);
+        foreach (int parent in _easySplitParents) Pool.Despawn(_easyPaths[parent].Shot!);
         if (beginNextSelection) BeginEasySelectionRecording(1);
         for (int index = 0; index < _easyPaths.Count; index++)
         {
@@ -705,7 +787,7 @@ public partial class ReiBossTechnique : BossCharacterTechnique
             if (!EasyQuoteExists(path)) continue;
             if (path.EditGroup >= 0 && Time >= path.ArrivesAt && !_easyRevisionsPrepared.Contains(path.EditGroup))
                 PrepareEasyRevision(path.EditGroup);
-            if (!path.Waiting && Time >= path.ArrivesAt && _easyPaths.Any(p => p.Parent == index && p.FiresAt > Time))
+            if (!path.Waiting && Time >= path.ArrivesAt && path.LastChildFire > Time)
             {
                 path.Waiting = true;
                 path.Shot!.GlobalPosition = path.To;
@@ -861,7 +943,6 @@ public partial class ReiBossTechnique : BossCharacterTechnique
         {
             float progress = _selectionLocked ? (float)((Time - _selectionLockedAt) / SelectionWarning) : 0;
             Box(_selectionRect, _selectionLocked && Time >= liveAt, progress);
-            Hint(new Vector2(Field.CenterX, 17), !_selectionLocked ? "始点の近くで、引用を小さく" : Time < liveAt ? "引用確定 → 囲みの外へ" : "引用中・外で待つ");
             return;
         }
         if (_selectionIndex + 1 < SelectionCount)
@@ -888,7 +969,6 @@ public partial class ReiBossTechnique : BossCharacterTechnique
         {
             Line(_selectionLaunch, _selectionLaunch + _forward * (Field.Width - 6), 21 + (originals - 1) * 4,
                 false, (float)(1 - (_selectionRepostAt - Time) / 1.3));
-            Hint(new Vector2(Field.CenterX, 17), "選ばれた引用が、二段に広がる");
         }
         if (At(_selectionRepostAt))
             for (int i = 0; i < originals; i++)
@@ -899,7 +979,6 @@ public partial class ReiBossTechnique : BossCharacterTechnique
     private void QuotedFan()
     {
         Cue(_source, _forward, 0, _warning, 100);
-        if (Time < _warning + 3) Hint(new Vector2(Field.CenterX, 29), "親の正面 → 扇が開いた内側");
         int originals = Tier + 1;
         for (int i = 0; i < originals; i++)
         {
@@ -946,7 +1025,6 @@ public partial class ReiBossTechnique : BossCharacterTechnique
                 Line(_points[cut], center, 3, Time >= begin, (float)((Time - begin + 1.15) / 1.15));
             if (At(begin)) Seed(_points[cut], _points[cut].DirectionTo(center));
         }
-        Hint(new Vector2(Field.CenterX, 205), "次に分かれる辺を見て、小部屋へ");
         DrainAfter(_warning + 6.5);
     }
 
@@ -974,8 +1052,6 @@ public partial class ReiBossTechnique : BossCharacterTechnique
             Line(new Vector2(visual, 0), new Vector2(visual, Field.Bottom), 2, false, .8f);
             for (int row = 0; row < 4; row++)
                 Hint(new Vector2(visual + direction * 12, 44 + row * 46), direction > 0 ? "→" : "←");
-            Hint(new Vector2(Field.CenterX, 18), direction > 0 ? "読み順 → 境界より先へ" : "← 読み順　境界より先へ");
-            Hint(new Vector2(Field.CenterX, 207), "順方向の横断は無害／逆向きにまたぐと危険");
             bool striking = Time >= at && (direction > 0
                 ? gate >= Field.Left && gate < Field.Right - 18
                 : gate <= Field.Right && gate > Field.Left + 18);
@@ -1001,7 +1077,6 @@ public partial class ReiBossTechnique : BossCharacterTechnique
         if (Time < begin)
         {
             Line(new Vector2(Field.Left + 32, first), new Vector2(Field.Right - 32, first), 7, false, (float)(Time / begin));
-            Hint(new Vector2(Field.CenterX, 24), "読まれた行の後ろへ／端も回れる");
         }
         else if (cursor < Field.Bottom + 8)
         {
@@ -1042,7 +1117,6 @@ public partial class ReiBossTechnique : BossCharacterTechnique
                 }
             }
         }
-        Hint(center + Vector2.Down * 8, "４番の辺へ");
         DrainAfter(_warning + 5);
     }
 
@@ -1092,7 +1166,6 @@ public partial class ReiBossTechnique : BossCharacterTechnique
                     Seed(_points[2] + Vector2.Down * ((i % 2 == 0 ? 1 : -1) * (28 + 10 * i)), _forward);
             }
         }
-        Hint(new Vector2(Field.CenterX, 204), "最後の編集点から分裂する");
         DrainAfter(_warning + 3);
     }
 
@@ -1111,7 +1184,6 @@ public partial class ReiBossTechnique : BossCharacterTechnique
             float x0 = Mathf.Max(Field.Left, startX - 46), x1 = Mathf.Min(Field.Right, startX + 46);
             Box(new Rect2(x0, 0, x1 - x0, 108 - room), false, (float)(Time / _warning));
             Box(new Rect2(x0, 108 + room, x1 - x0, Field.Bottom - 108 - room), false, (float)(Time / _warning));
-            Hint(new Vector2(startX, 91), "文の先へ");
         }
         else if (Time < _warning + duration)
         {
@@ -1127,9 +1199,6 @@ public partial class ReiBossTechnique : BossCharacterTechnique
             float warnA = _forward.X < 0 ? Field.Left : upcomingTail;
             float warnB = _forward.X < 0 ? upcomingTail : Field.Right;
             if (warnB > warnA) Box(new Rect2(warnA, 0, warnB - warnA, Field.Bottom), false);
-            float next = Mathf.Min(1, progress + .12f);
-            var ahead = new Vector2(Mathf.Lerp(startX, endX, next), 108 + Mathf.Sin(next * Mathf.Tau) * 24);
-            Hint(ahead, _forward.X < 0 ? "先へ →" : "← 先へ");
         }
         if (Time >= _warning + duration + .5) Finish();
     }
@@ -1166,7 +1235,6 @@ public partial class ReiBossTechnique : BossCharacterTechnique
             int count = 4 + Copies;
             for (int i = 0; i < count; i++) Seed(merge, Vector2.FromAngle(i * Mathf.Tau / count + .2f));
         }
-        Hint(merge + Vector2.Up * 38, "合流してから広がる");
         DrainAfter(arrive + 1.5);
     }
 
@@ -1241,7 +1309,6 @@ public partial class ReiBossTechnique : BossCharacterTechnique
             }
             if (At(at)) Seed(branch, _frontUp, i);
         }
-        Hint(new Vector2(Field.CenterX, 202), "幹が届くと枝が伸びる。枝の反対側へ");
         DrainAfter(end);
     }
 
@@ -1266,7 +1333,6 @@ public partial class ReiBossTechnique : BossCharacterTechnique
                     new Vector2(paper.End.X - 10, paper.GetCenter().Y + row * 17), halfWidth, sheet + 1, live, warning);
             Hint(new Vector2(paper.GetCenter().X, paper.Position.Y + 9), sheet == 0 ? "奥の引用" : "手前の引用");
         }
-        Hint(new Vector2(Field.CenterX, 205), "紙が覆った文字は消える／手前の文字は残る");
         if (Time >= _warning + duration) Finish();
     }
 
@@ -1333,7 +1399,6 @@ public partial class ReiBossTechnique : BossCharacterTechnique
             if (Time >= quote.At - 1.3 && Time < quote.At + .8)
                 Line(quote.A, quote.B, 4 + Tier * .5f, Time >= quote.At, (float)((Time - quote.At + 1.3) / 1.3));
         }
-        Hint(new Vector2(Field.CenterX, 204), "通った跡は、もう一度光る");
         DrainAfter(_warning + (lines - 1) * 1.3 + 3.3);
     }
 
@@ -1351,8 +1416,6 @@ public partial class ReiBossTechnique : BossCharacterTechnique
                 Line(new Vector2(x + offset, center.Y - 56), new Vector2(x + offset, center.Y + 56),
                     2.5f, Time >= _warning, (float)(Time / _warning));
             }
-            Hint(new Vector2(x, center.Y - 65), GameManager.Instance!.HasDodge
-                ? "回避で重なる線の向こうへ" : "線から離れ、分かれた中央へ");
         }
         if (Time >= split && Time < split + 1.1)
         {
@@ -1371,7 +1434,6 @@ public partial class ReiBossTechnique : BossCharacterTechnique
         {
             Line(Side(_source.Y), Across(Field.Width - 20, _source.Y), 24 + Copies * 2,
                 Time >= _warning, (float)(Time / _warning));
-            Hint(new Vector2(Field.CenterX, _source.Y - 34), "二度分かれるまで段落の外へ");
         }
         if (At(_warning))
         {
@@ -1404,7 +1466,6 @@ public partial class ReiBossTechnique : BossCharacterTechnique
                 }
             }
         }
-        if (Time >= enter) Hint(new Vector2(Field.CenterX, _source.Y), "分かれた段落の内側へ");
         DrainAfter(enter + 1);
     }
 
@@ -1418,7 +1479,6 @@ public partial class ReiBossTechnique : BossCharacterTechnique
         {
             Line(new Vector2(x, 12), new Vector2(x, seam - halfGap), 6 + Tier, Time >= _warning, (float)(Time / _warning));
             Line(new Vector2(x, seam + halfGap), new Vector2(x, 204), 6 + Tier, Time >= _warning, (float)(Time / _warning));
-            Hint(new Vector2(x, seam - 10), "つながる前に抜ける");
         }
         for (int fold = 0; fold < 2; fold++)
             if (At(_warning + fold * .9))
@@ -1463,7 +1523,6 @@ public partial class ReiBossTechnique : BossCharacterTechnique
             Box(state.Rect, Time >= _warning, (float)(Time / _warning));
             Hint(state.Rect.GetCenter() + Vector2.Right * 17, $"引用 {3 - state.Hits}");
         }
-        Hint(new Vector2(Field.CenterX, 202), "頁が来る。撃って剥がす／上下の端を回る");
         if (_pages.All(page => page.Hits >= 3)) Finish();
         else DrainAfter(fade + .2);
     }
@@ -1547,7 +1606,6 @@ public partial class ReiBossTechnique : BossCharacterTechnique
             Box(new Rect2(p - size * .5f, size), Time >= _warning, (float)(Time / _warning));
             Hint(p, (root + 1) + (double.IsPositiveInfinity(_citationDeletes[node]) ? " の引用" : " ほどける"));
         }
-        Hint(new Vector2(Field.CenterX, 210), "原稿が消えると、その子と孫だけが消える");
         if (_citationDeletes.All(at => Time >= at)) Finish();
     }
 
@@ -1576,8 +1634,6 @@ public partial class ReiBossTechnique : BossCharacterTechnique
                     Box(new Rect2(inner.Position.X, inner.End.Y, inner.Size.X, Field.Bottom - inner.End.Y), live, progress);
                 }
                 else Box(quote.Grow(overlap), live, progress);
-                Hint(new Vector2(Field.CenterX, 43), negateOutside ? "外が否定される → 括弧の内へ" : "内が否定される → 括弧の外へ");
-                Hint(new Vector2(Field.CenterX, 179), live ? "否定中" : "中立・いま境界をまたげる");
             }
             at += liveFor;
         }
@@ -1610,21 +1666,48 @@ public partial class ReiBossTechnique : BossCharacterTechnique
     private void DrawEasyEditorial()
     {
         bool warnings = GameManager.ShowAttackTelegraphs;
-        var warning = new Color("f47773") { A = .43f };
+        _dirtyWarningGroups.Clear();
+        foreach (var path in _easyPaths)
+        {
+            if (!path.Draw) continue;
+            float progress = warnings && Time >= path.StartsAt && Time < path.WarningEndsAt ? EasyCueProgress(path.StartsAt) : -1;
+            if (path.DrawnProgress != progress) _dirtyWarningGroups.Add(path.StartsAt);
+            path.DrawnProgress = progress;
+        }
+        foreach (var cut in _easyCuts)
+        {
+            float progress = warnings && Time >= cut.StartsAt && Time < cut.FiresAt ? EasyCueProgress(cut.StartsAt) : -1;
+            if (cut.DrawnProgress != progress) _dirtyWarningGroups.Add(cut.StartsAt);
+            cut.DrawnProgress = progress;
+        }
+        float sweep = warnings && (Kind is BossTechniqueKind.Area or BossTechniqueKind.Finale) && Time < EasyCueLead ? EasyCueProgress(0) : -1;
+        if (_sweepWarningProgress != sweep) _dirtyWarningGroups.Add(0);
+        _sweepWarningProgress = sweep;
+        foreach (double start in _dirtyWarningGroups)
+        {
+            if (!_warningCanvases.TryGetValue(start, out var canvas))
+            {
+                _warningCanvases[start] = canvas = new WarningCanvas { ZIndex = -1, UseParentMaterial = true };
+                AddChild(canvas);
+            }
+            foreach (var strokes in canvas.Builder.Values) strokes.Clear();
+            canvas.Routes.Clear();
+        }
+        var warning = new Color("ff9588", .95f);
         if (warnings)
         {
             if (Kind == BossTechniqueKind.Normal && Variant == 0 && !_easySelectionBuilt)
             {
                 DrawFilm(_selectionRect.GetCenter(), _selectionRect.Size, new Color(Ink, .65f));
                 DrawQuotation(_selectionStart, 6, new Color(Original, .75f));
-                DrawEditorialMark(_selectionRect.GetCenter() + Vector2.Up * 20, "引用範囲を選択", Original);
             }
             foreach (var path in _easyPaths)
             {
                 if (!path.Draw || Time < path.StartsAt) continue;
+                SelectWarningGroup(path.StartsAt);
                 if (Time < path.WarningEndsAt)
                     DrawEasyRoute(path.From, path.To, path.HalfWidth, EasyCueProgress(path.StartsAt), warning);
-                if (Time < path.ArrivesAt && _easyPaths.Any(p => p.Parent >= 0 && ReferenceEquals(_easyPaths[p.Parent], path)))
+                if (Time < path.ArrivesAt && !double.IsNegativeInfinity(path.LastChildFire))
                 {
                     DrawQuotation(path.To, 5, new Color(Original, .7f));
                     DrawArc(path.To, 4.5f, 0, Mathf.Tau, 12, new Color(warning, .6f), .65f, true);
@@ -1633,10 +1716,12 @@ public partial class ReiBossTechnique : BossCharacterTechnique
             foreach (var cut in _easyCuts)
             {
                 if (Time < cut.StartsAt || Time >= cut.FiresAt) continue;
+                SelectWarningGroup(cut.StartsAt);
                 float progress = EasyCueProgress(cut.StartsAt);
                 if (cut.Box) DrawEasyWarningBox(new Rect2(cut.A, cut.B - cut.A), progress, warning);
                 else DrawEasyRoute(cut.A, cut.B, cut.HalfWidth, progress, warning);
             }
+            SelectWarningGroup(0);
             if (Kind == BossTechniqueKind.Area && Time < EasyCueLead) DrawEasyReaderWarning(warning);
             if (Kind == BossTechniqueKind.Finale && Time < EasyCueLead) DrawEasySentenceWarning(warning);
             if (Kind == BossTechniqueKind.Signature && Time < 2.2)
@@ -1652,6 +1737,13 @@ public partial class ReiBossTechnique : BossCharacterTechnique
                 DrawFilm(editor, new Vector2(14, 22), new Color(Original, .8f));
             }
         }
+        foreach (double start in _dirtyWarningGroups)
+        {
+            var canvas = _warningCanvases[start];
+            canvas.Strokes = canvas.Builder.Where(pair => pair.Value.Count > 0).OrderBy(pair => pair.Key.Ink.R)
+                .Select(pair => (pair.Key.Ink, pair.Key.Width, pair.Value)).ToArray();
+            canvas.QueueRedraw();
+        }
         foreach (var path in _easyPaths)
         {
             if (!EasyQuoteExists(path)) continue;
@@ -1665,61 +1757,155 @@ public partial class ReiBossTechnique : BossCharacterTechnique
         }
         foreach (var h in HazardShapes.Where(h => h.Live))
         {
-            var fill = new Color("df737c") { A = .19f };
-            var edge = new Color("ffb09c") { A = .9f };
             if (h.Shape == 2)
-            {
-                var rect = new Rect2(h.A, h.B - h.A);
-                DrawRect(rect, fill);
-                DrawRect(rect, edge, false, 1, true);
-                for (float x = rect.Position.X + 7; x < rect.End.X; x += 20)
-                    DrawLine(new Vector2(x, rect.Position.Y + 2), new Vector2(Mathf.Min(x + 7, rect.End.X), Mathf.Min(rect.Position.Y + 9, rect.End.Y)), fill, .7f, true);
-            }
+                DrawEditorialFilm(new Rect2(h.A, h.B - h.A));
             else
             {
+                var fill = new Color("7251aa");
+                DrawLine(h.A, h.B, new Color("251735"), h.Radius * 2 + 1.2f, true);
                 DrawLine(h.A, h.B, fill, h.Radius * 2, true);
+                DrawCircle(h.A, h.Radius, fill);
+                DrawCircle(h.B, h.Radius, fill);
+                if (h.A.DistanceSquaredTo(h.B) > .01f)
+                {
+                    DrawSetTransform(h.A, h.A.DirectionTo(h.B).Angle());
+                    DrawTextureRect(_editorialEdge!, new Rect2(0, -h.Radius, h.A.DistanceTo(h.B), h.Radius * 2), false);
+                    DrawSetTransform(Vector2.Zero);
+                }
                 Vector2 side = h.A.DirectionTo(h.B).Orthogonal() * h.Radius;
-                DrawLine(h.A + side, h.B + side, edge, .9f, true);
-                DrawLine(h.A - side, h.B - side, edge, .9f, true);
-                DrawArc(h.A, h.Radius, 0, Mathf.Tau, 16, edge, .7f, true);
-                DrawArc(h.B, h.Radius, 0, Mathf.Tau, 16, edge, .7f, true);
+                DrawLine(h.A + side, h.B + side, Original, .7f, true);
+                DrawLine(h.A - side, h.B - side, Original, .7f, true);
+                DrawArc(h.A, h.Radius, 0, Mathf.Tau, 24, Original, .7f, true);
+                DrawArc(h.B, h.Radius, 0, Mathf.Tau, 24, Original, .7f, true);
             }
         }
     }
 
+    private void DrawEditorialFilm(Rect2 rect)
+    {
+        rect = rect.Intersection(Field.Rect);
+        if (rect.Size.X <= 0 || rect.Size.Y <= 0) return;
+        DrawRect(rect, new Color("372351", .86f));
+        float rail = Math.Min(3, rect.Size.Y * .16f);
+        DrawTextureRect(_editorialEdge!, new Rect2(rect.Position, new Vector2(rect.Size.X, rail)), false);
+        DrawTextureRect(_editorialEdge!, new Rect2(rect.Position.X, rect.End.Y - rail, rect.Size.X, rail), false);
+        if (Math.Min(rect.Size.X, rect.Size.Y) > 12)
+        {
+            var art = BulletArt.Get("rei_film")!;
+            Vector2 size = art.GetSize();
+            size *= Math.Min(34 / Math.Max(size.X, size.Y), Math.Min((rect.Size.X - 6) / size.X, (rect.Size.Y - 8) / size.Y));
+            DrawTextureRect(art, new Rect2(rect.GetCenter() - size * .5f, size), false);
+        }
+        DrawRect(rect, new Color("251735"), false, 2.2f, true);
+        DrawRect(rect, Original, false, .9f, true);
+    }
+
+    private sealed partial class WarningCanvas : Node2D
+    {
+        internal readonly Dictionary<(Color Ink, float Width), List<Vector2>> Builder = new();
+        internal readonly HashSet<(Vector2 From, Vector2 To, float Width, float Progress, Color Ink)> Routes = new();
+        internal (Color Ink, float Width, List<Vector2> Points)[] Strokes = Array.Empty<(Color, float, List<Vector2>)>();
+
+        public override void _Draw()
+        {
+            // Match the crisp dashed forecasts; antialias fringes swamp closely spaced lanes.
+            foreach (var stroke in Strokes) DrawMultiline(CollectionsMarshal.AsSpan(stroke.Points), stroke.Ink, stroke.Width);
+        }
+    }
+
+    private void SelectWarningGroup(double start)
+    {
+        _collectWarnings = _dirtyWarningGroups.Contains(start);
+        if (_collectWarnings) _warningCanvas = _warningCanvases[start];
+    }
+
     private void DrawEasyOrigin(Vector2 at, Color ink)
     {
+        if (!_collectWarnings) return;
         for (int dash = 0; dash < 4; dash++)
-            DrawArc(at, 3.5f, dash * Mathf.Pi / 2, dash * Mathf.Pi / 2 + .7f, 4, ink, .7f, true);
+        {
+            WarningArc(at, 3.5f, dash * Mathf.Pi / 2, .7f, 4, new Color(WarningInk, ink.A), 2.5f);
+            WarningArc(at, 3.5f, dash * Mathf.Pi / 2, .7f, 4, ink, 1f);
+        }
+    }
+
+    private void WarningSegments(Vector2 from, Vector2 to, Color ink, float width, float dash = 0)
+    {
+        if (!_collectWarnings) return;
+        var key = (ink, width);
+        if (!_warningCanvas.Builder.TryGetValue(key, out var points)) _warningCanvas.Builder[key] = points = new();
+        if (dash <= 0)
+        {
+            points.Add(from);
+            points.Add(to);
+            return;
+        }
+        float length = from.DistanceTo(to);
+        Vector2 direction = from.DirectionTo(to);
+        for (float at = 0; at < length; at += dash * 2)
+        {
+            points.Add(from + direction * at);
+            points.Add(from + direction * Math.Min(length, at + dash));
+        }
+    }
+
+    private void WarningArc(Vector2 at, float radius, float start, float sweep, int points, Color ink, float width)
+    {
+        if (!_collectWarnings) return;
+        Vector2 previous = at + Vector2.FromAngle(start) * radius;
+        for (int step = 1; step < points; step++)
+        {
+            Vector2 next = at + Vector2.FromAngle(start + sweep * step / (points - 1)) * radius;
+            WarningSegments(previous, next, ink, width);
+            previous = next;
+        }
+    }
+
+    private void DrawWarningStroke(Vector2 from, Vector2 to, Color ink, float dash = 0)
+    {
+        WarningSegments(from, to, new Color(WarningInk, ink.A), 2.3f, dash);
+        WarningSegments(from, to, ink, 1f, dash);
     }
 
     private void DrawEasyRoute(Vector2 from, Vector2 to, float halfWidth, float progress, Color ink)
     {
+        if (!_collectWarnings) return;
+        if (!_warningCanvas.Routes.Add((from, to, halfWidth, progress, ink))) return;
         DrawEasyOrigin(from, ink);
         float grow = Mathf.Clamp((progress * (float)EasyCueGrow - .4f) / .8f, 0, 1);
         if (grow <= 0) return;
         Vector2 end = from.Lerp(to, grow);
         Vector2 direction = from.DirectionTo(to), side = direction.Orthogonal() * halfWidth;
-        DrawDashedLine(from + side, end + side, ink, .6f, 4, true);
-        DrawDashedLine(from - side, end - side, ink, .6f, 4, true);
-        DrawDashedLine(from, end, new Color(ink, ink.A * .6f), .55f, 6, true);
-        DrawArc(end, halfWidth, 0, Mathf.Tau, 14, new Color(ink, ink.A * .6f), .5f, true);
+        DrawWarningStroke(from + side, end + side, ink, 4);
+        DrawWarningStroke(from - side, end - side, ink, 4);
+        DrawWarningStroke(from, end, new Color(ink, ink.A * .65f), 6);
+        for (int edge = 0; edge < 4; edge++)
+            if (WarningEdgeSpan(from, end, halfWidth, edge) is { } span && span.A.DistanceSquaredTo(span.B) > .01f)
+            {
+                WarningSegments(span.A, span.B, new Color("251321", .75f), 2.2f);
+                WarningSegments(span.A, span.B, new Color(ink, Math.Max(.8f, ink.A)), 1.1f, 2);
+            }
+        WarningArc(end, halfWidth, 0, Mathf.Tau, 14, new Color(WarningInk, ink.A * .65f), 2.3f);
+        WarningArc(end, halfWidth, 0, Mathf.Tau, 14, new Color(ink, ink.A * .65f), 1f);
         for (float distance = 26; distance < from.DistanceTo(end) - 8; distance += 76)
         {
             Vector2 tip = from + direction * distance;
-            DrawLine(tip - direction * 3 + direction.Orthogonal() * 2, tip, ink, .7f, true);
-            DrawLine(tip - direction * 3 - direction.Orthogonal() * 2, tip, ink, .7f, true);
+            DrawWarningStroke(tip - direction * 3 + direction.Orthogonal() * 2, tip, ink);
+            DrawWarningStroke(tip - direction * 3 - direction.Orthogonal() * 2, tip, ink);
         }
     }
 
     private void DrawEasyWarningBox(Rect2 rect, float progress, Color ink)
     {
+        if (!_collectWarnings) return;
         DrawEasyOrigin(rect.Position, ink);
         float grow = Mathf.Clamp((progress * (float)EasyCueGrow - .4f) / .8f, 0, 1);
         if (grow <= 0) return;
-        var end = rect.Position + rect.Size * grow;
-        Vector2[] corners = { rect.Position, new(end.X, rect.Position.Y), end, new(rect.Position.X, end.Y) };
-        for (int edge = 0; edge < 4; edge++) DrawDashedLine(corners[edge], corners[(edge + 1) % 4], ink, .65f, 4, true);
+        var visible = new Rect2(rect.Position, rect.Size * grow).Intersection(Field.Rect);
+        if (!visible.HasArea()) return;
+        var end = visible.End;
+        Vector2[] corners = { visible.Position, new(end.X, visible.Position.Y), end, new(visible.Position.X, end.Y) };
+        for (int edge = 0; edge < 4; edge++) DrawWarningStroke(corners[edge], corners[(edge + 1) % 4], ink, 4);
     }
 
     private void DrawEasyReaderWarning(Color ink)
@@ -1747,13 +1933,13 @@ public partial class ReiBossTechnique : BossCharacterTechnique
             var g = frames[frame];
             if (frame % 4 == 0)
             {
-                DrawDashedLine(g.A, g.B, new Color(ink, .22f), .55f, 5, true);
-                DrawDashedLine(g.C, g.D, new Color(ink, .22f), .55f, 5, true);
+                DrawWarningStroke(g.A, g.B, new Color(ink, .58f), 5);
+                DrawWarningStroke(g.C, g.D, new Color(ink, .58f), 5);
             }
             if (frame == 0) continue;
             var previous = frames[frame - 1];
-            DrawLine(previous.B + Vector2.Right * 4, g.B + Vector2.Right * 4, ink, .7f, true);
-            DrawLine(previous.C + Vector2.Left * 4, g.C + Vector2.Left * 4, ink, .7f, true);
+            DrawWarningStroke(previous.B + Vector2.Right * 4, g.B + Vector2.Right * 4, ink);
+            DrawWarningStroke(previous.C + Vector2.Left * 4, g.C + Vector2.Left * 4, ink);
         }
         if (progress >= 1)
         {
@@ -1780,14 +1966,14 @@ public partial class ReiBossTechnique : BossCharacterTechnique
             if (frame > 0)
             {
                 var previous = frames[frame - 1];
-                DrawLine(new Vector2(previous.Head, previous.Center - 34), new Vector2(g.Head, g.Center - 34), ink, .8f, true);
-                DrawLine(new Vector2(previous.Head, previous.Center + 34), new Vector2(g.Head, g.Center + 34), ink, .8f, true);
+                DrawWarningStroke(new Vector2(previous.Head, previous.Center - 34), new Vector2(g.Head, g.Center - 34), ink);
+                DrawWarningStroke(new Vector2(previous.Head, previous.Center + 34), new Vector2(g.Head, g.Center + 34), ink);
             }
             if (frame % 8 != 0) continue;
-            DrawEasyWarningBox(g.Upper, 1, new Color(ink, .22f));
-            DrawEasyWarningBox(g.Lower, 1, new Color(ink, .22f));
+            DrawEasyWarningBox(g.Upper, 1, new Color(ink, .58f));
+            DrawEasyWarningBox(g.Lower, 1, new Color(ink, .58f));
             float tail = _anchor.X < Field.CenterX ? g.Tail.End.X : g.Tail.Position.X;
-            DrawDashedLine(new Vector2(tail, 0), new Vector2(tail, Field.Bottom), new Color(ink, .2f), .55f, 6, true);
+            DrawWarningStroke(new Vector2(tail, 0), new Vector2(tail, Field.Bottom), new Color(ink, .58f), 6);
         }
     }
 
@@ -1974,7 +2160,6 @@ public partial class ReiBossTechnique : BossCharacterTechnique
                 break;
             }
             case BossTechniqueKind.Extra when !Evolved && Variant == 0:
-                DrawEditorialMark(new Vector2(Field.CenterX - 18, _source.Y - 43), "¶  一段目 → 二段目", paper);
                 if (Time > _warning + 2.7)
                 {
                     DrawQuotation(new Vector2(Field.CenterX, _source.Y), 22, quiet);
@@ -2029,7 +2214,6 @@ public partial class ReiBossTechnique : BossCharacterTechnique
                 var rect = new Rect2(Field.CenterX - 66, 62, 132, 92);
                 DrawLine(rect.Position + new Vector2(-5, 5), rect.Position + new Vector2(-5, 24), paper, .8f, true);
                 DrawLine(rect.End + new Vector2(5, -5), rect.End + new Vector2(5, -24), paper, .8f, true);
-                DrawEditorialMark(new Vector2(Field.CenterX, 27), "「　」 と、その外側", quiet);
                 break;
             }
         }

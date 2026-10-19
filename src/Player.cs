@@ -25,7 +25,7 @@ public partial class Player : Area2D
     // 当たり半径（極小）
     public const float HitRadius = 2f;
     // グレイズ半径（かすり判定の広さ）
-    private const float GrazeRadius = 11f;
+    internal const float GrazeRadius = 11f;
 
     // ボム入力のエッジ検出用
     private bool _bombHeld = false;
@@ -64,14 +64,7 @@ public partial class Player : Area2D
     // 同時タメ中の弾数に上限を設ける（AccelChargeCap）。ホーミングの寿命切れ対策と同種の“自機弾の雲”対策。
     private readonly List<Bullet> _accelCharging = new List<Bullet>();
     private const int AccelChargeCap = 6; // 3ペア＝6発まで。超過分は新規スポーンをスキップ
-    // 道中で浄化した人が自機に随伴する「フォロワー」機能のON/OFF。
-    // 2026-09-06 ユーザー指示によりOFF（戦闘中に随伴フォロワーを増やさない）。true にすれば復活する。
-    // ※ SNSのフォロワー数（GameManager.Followers / FollowerPowerMul）とは別物なので、そちらには影響しない。
-    // （const ではなく static readonly ＝ false 固定でも分岐が畳まれず CS0162 が出ない。切替は下の初期値のみ）
-    public static readonly bool StageFollowersEnabled = false;
     public const int MaxFollowers = 4;
-    public const int SavedPerFollower = 3; // この人数を救うごとに1体増える（増加を緩やかに）。HUDの進捗ドット表示にも使うため公開。
-    private int _savedCount = 0;
     private int _shotParity = 0;            // フォロワーの発射間引き用
     private static readonly Vector2[] FollowerSlots =
     {
@@ -114,22 +107,6 @@ public partial class Player : Area2D
         nf.PromoteToHikage();
         FxLayer.Instance?.PurifyBurst(nf.GlobalPosition);
         _followers.Add(nf);
-    }
-
-    // 人を救うたびに呼ばれる（Enemy.Redeem）。一定人数ごとにフォロワーが1体増える。
-    // 救った本人がフォロワー化したら true（呼び出し元の Enemy はその本体を退場させずフォロワーに引き継ぐ）。
-    public bool AddFollower(Vector2 globalFromPos)
-    {
-        // 随伴フォロワー無効時は何もしない＝生成も進捗通知もせず、呼び出し元(Enemy)は通常どおり退場する。
-        if (!StageFollowersEnabled) return false;
-        _savedCount++;
-        if (_followers.Count >= MaxFollowers) return false;
-        if (_savedCount % SavedPerFollower != 0) return false; // 3人救うごとに1体
-        var f = new Follower { SlotOffset = FollowerSlots[_followers.Count] };
-        AddChild(f);
-        f.Position = ToLocal(globalFromPos); // 浄化した位置（＝救った本人の場所）から飛んでくる
-        _followers.Add(f);
-        return true;
     }
 
     // プレイ領域（盤面の矩形の定義元は Field。ここは短い別名として残す）
@@ -285,26 +262,7 @@ public partial class Player : Area2D
     private const float LeadPx = 2.5f;        // 進行方向への体の先行量(px)
     private const float LeanResponse = 9f;    // 慣性の追従の速さ（大きいほど機敏／小さいほどたゆたう）
 
-    // ───────── 向き（射撃方向）─────────
-    // 入力＝F / パッド RB。押すたびに右(+X)⇔左(-X) をトグルする（押しっぱなし不要）。
-    // 射撃方向は必ずここを単一の真実として参照する（各射撃経路に符号を散らさない）。
-    //   ShotDir   … 射撃の基準ベクトル（(±1,0)）
-    //   ShotAngle … 扇（拡散/ホーミング/大波）の基準角。0=右 / π=左。基準角に足せば左右どちらでも自然に開く
-    //   Facing    … +1/-1。銃口オフセットや前後判定の符号に使う
-    // 同時に両方向へは撃たない＝火力は不変（向きが変わるだけ）。
-    // 向き反転そのものを殺すスイッチ（2026-09-06 ユーザー指示。true で復活）。
-    // false のあいだは反転入力を受け付けず _facing は +1（右向き）のまま固定される＝下流
-    //（ShotDir / ShotAngle / FlipH / バンクの前後判定）は従来どおり _facing を読むだけで整合が取れる。
-    public static readonly bool FacingFlipEnabled = false;
-
     private int _facing = 1;
-    // トグル入力のエッジ検出。初期値は true＝「既に押されている扱い」で始める。
-    // シーン遷移（ハブ→面／ショップ→面／リトライ）の決定クリックや F キーは、次のシーンの初フレームでも
-    // まだ押されたままのことがある。false 始まりだとそれが新品の押下エッジになって、開始直後に自機が
-    // 後ろを向いてしまう。一度離すまで反転しない＝持ち越しの入力を食わせない。
-    private bool _flipHeld = true;
-    private bool _mouseFlipLocked = false;      // 会話送りのクリックが会話明けに向き反転へ流れ込むのを止めるゲート（離すまで反転しない）
-    public int Facing => _facing;
 
     // ───────── ロックオン照準（全敵・巡回式・2026-09-08）─────────
     // 初出はボス戦専用（2026-09-07）。ユーザー指示で**雑魚・中ボス・ボスすべて**を対象にし、
@@ -330,7 +288,7 @@ public partial class Player : Area2D
     //   落ちるのは解除入力（Shift を離す／ロック中の左クリック／R3）だけ。HUD のサイドパネルがこれを表示する。
     private bool _lockArmed;
     public bool LockArmed => _lockArmed;
-    private bool _lockHeld = true;            // 送りのエッジ検出（_flipHeld と同じ理由で true 始まり）
+    private bool _lockHeld = true;            // シーン遷移の決定入力を対象送りに使わないよう、離すまで待つ。
     private bool _mouseLockLocked = false;    // 会話送りのクリックが会話明けにロック送りへ流れ込むのを止めるゲート（離すまで送らない）
 
     // ── 左クリックの短押し／長押し分岐（2026-09-13 ユーザー決定）──
@@ -430,7 +388,7 @@ public partial class Player : Area2D
     //   作法をそのまま使う＝会話中に押されたクリックは、離すまでゲームプレイ入力として起きてこない。
     private void TickMouseHold(float dt)
     {
-        bool down = !FacingFlipEnabled && Pad.MouseDown();
+        bool down = Pad.MouseDown();
         // 会話中に押されたクリックは、離すまで丸ごと無効（会話明けの1クリックが誤爆するのを止める）。
         if (Hud.BubblePaused && down) _mouseLockLocked = true;
         else if (!down) _mouseLockLocked = false;
@@ -837,7 +795,7 @@ public partial class Player : Area2D
         if (what != NotificationUnpaused) return;
         // UI の閉じ押下は物理フレームまで残るため、再開時に既存の入力ラッチで吸収する。
         _bombHeld = _dodgeHeld = true;
-        _chargeKeyLocked = _dodgeKeyLocked = _mouseLockLocked = _mouseFlipLocked = true;
+        _chargeKeyLocked = _dodgeKeyLocked = _mouseLockLocked = true;
         _chargeHeld = _mouseHoldValid = _mouseChargeHold = _mouseTapFire = false;
         _chargeT = _mouseHoldT = 0;
     }
@@ -994,24 +952,6 @@ public partial class Player : Area2D
             _modeInit = true;
         }
 
-        // 向き反転＝F / パッド RB / 左クリック。押した瞬間だけ反転するトグル（押しっぱなし不要）。会話中は不可。
-        // 反転は _facing のみを書き換える＝射撃方向も見た目(FlipH)も下流がここを読んで追従する。
-        // 左クリックは会話送りと兼用なので、会話中に押されていたクリックは離すまで反転に使わない
-        //（会話明けの1クリックが向き反転へ流れ込む誤爆を止める）。
-        // FacingFlipEnabled=false のあいだは入力を一切読まない（パッド側の結線はそのまま残す）。
-        bool mouseL = FacingFlipEnabled && Pad.MouseDown();
-        if (Hud.BubblePaused && mouseL) _mouseFlipLocked = true;
-        else if (!mouseL) _mouseFlipLocked = false;
-        bool flipKey = FacingFlipEnabled
-                    && (Input.IsKeyPressed(Key.F) || Pad.Pressed(JoyButton.RightShoulder)
-                     || (mouseL && !_mouseFlipLocked));
-        if (flipKey && !_flipHeld && !Hud.BubblePaused && !_gameOver)
-        {
-            _facing = -_facing;
-            FxLayer.Instance?.Muzzle(GlobalPosition + ShotDir * 20f); // 「向きが変わった」を銃口側の一閃で示す
-        }
-        _flipHeld = flipKey;
-
         // 溜め打ちの入力は常時生きている（2026-09-25 のユーザー決定＝習得ゲート廃止）。
         //   キーボードは Z（2026-09-26 ユーザー指示。それまでは C）。Z は会話送りと同じキーなので、会話中に
         //   押された押下は離すまで溜めとして読まない（最後の一行を送った指がそのまま溜め始めるのを防ぐ）。
@@ -1103,9 +1043,6 @@ public partial class Player : Area2D
         (GetTree().GetFirstNodeInGroup("hud") as Hud)?.SetFocusMode(
             _game?.HasFocusMode ?? false, _game?.FocusModeReady ?? false, _game?.FocusModeActive ?? false,
             (_game?.FocusModeActive ?? false) ? (_game?.FocusModeRatio ?? 0f) : 1f - (_game?.FocusModeCdRatio ?? 0f));
-        // ※ 回避CDの HUD 通知（SetDodgeReady）は 2026-09-07 に廃止。唯一の読み手だった常駐操作ガイド
-        //   （Hud.DrawControls）を撤去したため（案内は Esc メニュー →「あそびかた」に集約）。
-
         // 無敵・点滅更新
         if (_invincible)
         {

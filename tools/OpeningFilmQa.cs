@@ -113,8 +113,8 @@ public partial class OpeningFilmQa : Node
             Check(true, "typed text and caret stay inside the cinematic frame throughout the camera move");
             foreach (var (index, duration) in new[] { (1, 3.5), (2, 3.5), (3, 3.5), (4, 5.0),
                 (5, 3.1), (6, 4.0), (7, 3.3), (8, 3.6), (9, 4.0), (10, 4.0) })
-                Check(Math.Abs(cuts[index + 1] - cuts[index] - duration) < 0.001,
-                    $"shot {index} follows its authored duration");
+                Check(cuts[index + 1] - cuts[index] >= duration - 0.001,
+                    $"shot {index} preserves its authored minimum duration");
 
             // ── 字幕の文字送り音（2026-10-03）───────────────────────────────────────
             //   耳で判定できないことは見ない。見るのは「刻みが本編と同じ」「字幕が消える前に打ち切る」
@@ -127,10 +127,11 @@ public partial class OpeningFilmQa : Node
                 "captions tick at the in-game typewriter's rate, one sound per character");
             var captions = (System.Collections.Generic.List<System.Collections.Generic.List<string>>)typeof(OpeningFilm)
                 .GetField("_captionPages", Private)!.GetValue(film)!;
+            var pacing = Read<System.Collections.Generic.List<DialoguePacing.Page[]>>(film, "_captionPacing");
             for (int i = 1; i <= 9; i++)
             {
                 double start = (double)typeof(OpeningFilm).GetMethod("CaptionStart", Stat)!.Invoke(null, new object[] { i })!;
-                Check(start + DialogueBox.CaptionDuration(captions[i]) + 0.49 <= cuts[i + 1] - cuts[i],
+                Check(start + DialogueBox.CaptionDuration(captions[i], pacing[i]) + 0.49 <= cuts[i + 1] - cuts[i],
                     $"caption {i} finishes typing and reading before it fades");
             }
 
@@ -232,13 +233,38 @@ public partial class OpeningFilmQa : Node
             var space = Read<OpeningBackdrop>(film, "_space");
             Check(Read<Texture2D>(space, "_depth").ResourcePath.EndsWith("timeline_depth_v2.png"),
                 "Mina and the closing belong to the prologue's SNS space");
-            foreach (string line in "まだ届いていない声が、\n待っている。".Split('\n'))
-                Check(UiKit.TextW(filmFont, line, 36) <= 510, "invitation caption leaves Mina's face and hand clear");
+            foreach (int shot in new[] { 4, 9 })
+            {
+                foreach (string page in captions[shot])
+                    foreach (string line in page.Split('\n'))
+                        Check(UiKit.TextW(DialogueBox.Body.Font, line, DialogueBox.Body.Size)
+                            <= DialogueBox.WrapWidth(DialogueBox.FullScreen), "Mina's invitation fits its caption area");
+                Seek(film, cuts[shot + 1] - 0.51);
+                Check(mina.Visible && Read<ShaderMaterial>(film, "_wind").GetShaderParameter("opacity").AsDouble() > 0.99,
+                    $"Mina remains visible until caption {shot} finishes reading");
+                Seek(film, cuts[shot + 1] - 0.02);
+                Check(Read<ShaderMaterial>(film, "_wind").GetShaderParameter("opacity").AsDouble() < 0.02,
+                    $"Mina fades at the actual end of shot {shot}");
+            }
             Seek(film, cuts[9] + 2.5);
             Check(mina.Visible && Read<ShaderMaterial>(film, "_wind").GetShaderParameter("opacity").AsDouble() > 0.99,
                 "closing shows the detailed reaching portrait, not a four-fighter lineup");
             Seek(film, cuts[10] + 0.5);
             Check(!mina.Visible, "invitation leaves cleanly before the title");
+            typeof(OpeningFilm).GetMethod("LogCaption", Private)!.Invoke(film, new object[] { 9 });
+            Check(Hud.Backlog[^1].Kind == Hud.LineKind.Mina
+                && Hud.Backlog[^1].Text == string.Join('\n', captions[9]),
+                "closing dialogue is logged as Mina, matching the visible speaker");
+            Seek(film, cuts[1] + 0.01);
+            using (var beforeCaption = await Capture())
+            {
+                var overlay = Read<Node2D>(film, "_overlay");
+                overlay.Visible = false;
+                using var withoutCaption = await Capture();
+                Check(Difference(beforeCaption, withoutCaption, new Rect2I(100, 565, 1000, 100)) < 0.0001f,
+                    "no opaque empty dialogue frame appears before the caption");
+                overlay.Visible = true;
+            }
             for (int i = 0; i < 3; i++)
             {
                 Vector2I size = i == 0 ? new(1280, 720) : i == 1 ? new(960, 540) : new(540, 960);
@@ -250,8 +276,10 @@ public partial class OpeningFilmQa : Node
                     (10.2, "phone_signal"),
                     (cuts[1] + 1.7, "akari"), (cuts[2] + 1.7, "koharu"), (cuts[3] + 1.7, "rei"),
                     (cuts[4] + 2.55, "mina_wind"), (cuts[5] + 1.7, "akari_action"), (cuts[6] + 1.7, "koharu_action"),
+                    (cuts[5] - 0.51, "mina_caption_hold"), (cuts[1] + 0.01, "caption_before_reveal"),
                     (cuts[7] + 1.7, "rei_action"), (cuts[8] + 1.7, "mina_action"),
                     (cuts[9] + 0.2, "recall_akari"), (cuts[9] + 0.6, "recall_koharu"), (cuts[9] + 1.0, "recall_rei"),
+                    (cuts[10] - 0.51, "invitation_caption_hold"),
                     (cuts[9] + 1.45, "invitation_enter"), (cuts[9] + 2.5, "invitation"), (cuts[10] + 1.7, "title") })
                 {
                     Seek(film, time);

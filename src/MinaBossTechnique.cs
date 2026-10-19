@@ -54,6 +54,7 @@ public partial class MinaBossTechnique : BossCharacterTechnique
     private int Density => Tier == 0 ? 6 : 6 + Tier * 6;
     private float Speed => 42 + Tier * 7;
     private static readonly Color MemoryInk = new("efabd9");
+    private Texture2D _memoryIllustration = null!;
     protected override bool UsesCustomHazardArt => Kind == BossTechniqueKind.Area;
 
     protected override void Start()
@@ -371,7 +372,6 @@ public partial class MinaBossTechnique : BossCharacterTechnique
             Box(AirlockPressure(24), true);
             Box(AirlockPressure(60), sealedRoom, (float)Math.Min(1, (Time - _airlockOpenAt) / (_airlockExitAt - _airlockOpenAt)));
         }
-        Hint(new Vector2(Field.CenterX, 17), !entered ? "手前が閉じる前に、中へ" : !open ? "接続確認中。奥はまだ閉じています" : sealedRoom ? "部屋が閉じた。外側で待つ" : "奥が開いた。部屋が閉じる前に出る");
         if (Time > _airlockExitAt + .8) Finish();
     }
 
@@ -484,7 +484,6 @@ public partial class MinaBossTechnique : BossCharacterTechnique
             Disc(p, 5, t >= 0 && compressed);
             if (i > 0) Line(new Vector2(_springX[i - 1], _center.Y), p, 0.5f, false);
         }
-        Hint(new Vector2(Field.Left + 14, _center.Y - 12), "縮まった節が危険");
         if (t > 4 + Tier * 2.4) Finish();
     }
 
@@ -571,7 +570,6 @@ public partial class MinaBossTechnique : BossCharacterTechnique
             var rect = new Rect2(at + Vector2.One * 6, new Vector2(Field.Width / 7 - 12, Field.Height / 5 - 12));
             Box(rect, Time > _markedAt[i] + WarnFor(30));
         }
-        Hint(new Vector2(Field.Left + 15, 15), "二度目の記録に重さが残る");
         if (t > 9 + Tier) Finish();
     }
 
@@ -603,7 +601,6 @@ public partial class MinaBossTechnique : BossCharacterTechnique
                     incoming.Bullet.MakeHarmless();
                 }
             }
-        Hint(new Vector2(Field.Left + 80, 15), "触れた記憶へ、動きが渡る");
         if (Time > _warning + 8) Finish();
     }
 
@@ -657,7 +654,6 @@ public partial class MinaBossTechnique : BossCharacterTechnique
                     .Clamp(new Vector2(Field.Left + 8, 8), new Vector2(Field.Right - 8, Field.Bottom - 8));
                 connection.Extension = Math.Max(8, connection.End.DistanceTo(connection.Root) - connection.RestLength);
             }
-            Hint(_anchor + Vector2.Down * 36, "短く引く。張るほど反動が強まる");
             if (Time < ConnectionPullTime) return;
             _connectionsLocked = true;
             var order = _connections.OrderByDescending(c => c.Extension).ToArray();
@@ -703,7 +699,6 @@ public partial class MinaBossTechnique : BossCharacterTechnique
                 connection.Spent = true;
             }
         }
-        Hint(new Vector2(Field.CenterX, 202), "固定した線の横へ。張りの強い順に切断");
         if (Time > _connectionLastRelease + .35 && _connections.All(c => c.Spent)) Finish();
     }
 
@@ -781,7 +776,6 @@ public partial class MinaBossTechnique : BossCharacterTechnique
                 float side = Math.Sign(p.X - Boss.GlobalPosition.X);
                 memory.Bullet.Velocity = new Vector2(side * force, 22 + Math.Abs(p.X - Boss.GlobalPosition.X) * 0.12f);
             }
-        Hint(Boss.GlobalPosition + new Vector2(-50, -35), "←　翼　→");
         if (t > 8) Finish();
     }
 
@@ -814,7 +808,6 @@ public partial class MinaBossTechnique : BossCharacterTechnique
         public string Key = "", Group = "";
         public int Mode, Round, Index;
         public double StartsAt, FiresAt, EndsAt;
-        public double CompletesAt => StartsAt + 1.2;
         public Vector2[] Points = Array.Empty<Vector2>();
         public Rect2[] Bounds = Array.Empty<Rect2>();
         public Vector2 Size, Card, CardReserved;
@@ -841,8 +834,11 @@ public partial class MinaBossTechnique : BossCharacterTechnique
     private Vector2 _easyConnectionPull;
     private CircleShape2D? _easyCardProbe;
     private int EasyRounds => Variant switch { 0 => 3, 1 => 3 + Tier, 2 => 1, 3 => 4 + Tier, _ => 1 };
-    private double EasyRoundInterval => Variant switch { 0 => 5.4, 1 => 5.2, 2 => 0, 3 => 4.4, _ => 6.4 };
-    private IReadOnlyList<MinaEasyMemoryCue> EasyCueGeometry => _easyMemoryCues;
+    private int EasyBurdenLoads => (Tier switch { 0 => 4, 1 => 6, 2 => 9, _ => 12 }) + (Evolved ? 2 : 0);
+    private int EasyBurdenRows => 3 + Tier * 2;
+    private int EasyDraftRows => 4 + Tier * 2;
+    private int EasyRelayChains => 3 + Tier * 3 + (Evolved ? 1 : 0);
+    private double EasyRoundInterval => Variant switch { 0 => 5.4, 1 => 5.2, 2 => 0, 3 => 4.4 + Tier * .3 + (Evolved ? .4 : 0), _ => 6.4 };
     internal override IEnumerable<BossEasyCue> EasyCues => Kind == BossTechniqueKind.Area
         ? _easyMemoryCues.Select(c => new BossEasyCue(c.Key, c.StartsAt, c.FiresAt,
             EasyMemoryProgress(c), c.Fired, c.Cancelled))
@@ -859,6 +855,10 @@ public partial class MinaBossTechnique : BossCharacterTechnique
     {
         if (Kind != BossTechniqueKind.Area || Variant is < 0 or > 4)
             throw new InvalidOperationException("Mina uses one distinct Area technique per AttackPhase; retired Normal, Edge and Extra slots are not aliases.");
+        TextureFilter = TextureFilterEnum.Linear;
+        _memoryIllustration = BulletArt.Get(Variant switch {
+            0 => "mina_memory", 1 => "mina_unanswered", 2 => "mina_eraser", _ => "mina_butterfly",
+        })!;
         _id = 4 + Variant;
         _warning = 3.2;
         var identity = Variant switch
@@ -870,7 +870,8 @@ public partial class MinaBossTechnique : BossCharacterTechnique
             _ => ("つなぎ直す帰り道", "mina.connected-homeward-relay", "短く引いて張りを固定する。受渡した記憶は危険なまま止まるので、通った後ろへ戻らない"),
         };
         Identify(identity.Item1, identity.Item2, identity.Item3);
-        for (int i = 0; i < 35; i++) _easyRecordState[i] = (i % 7 + 2 * (i / 7)) % 3 == 0;
+        for (int i = 0; i < 35; i++) _easyRecordState[i] = Tier == 0 ? (i % 7 + 2 * (i / 7)) % 3 == 0
+            : (i % 7 + 2 * (i / 7)) % (Tier + 3) != 0;
     }
 
     private void StepEasyMemory()
@@ -949,15 +950,16 @@ public partial class MinaBossTechnique : BossCharacterTechnique
         Vector2 reserved = Player.GlobalPosition;
         if (Variant == 0)
         {
-            float[] rows = { 24, Mathf.Clamp(reserved.Y, 82, 134), Field.Bottom - 24 };
+            float[] rows = Tier == 0 ? new[] { 24, Mathf.Clamp(reserved.Y, 82, 134), Field.Bottom - 24 }
+                : Enumerable.Range(0, EasyBurdenRows).Select(row => (row + (round == 0 ? .5f : round == 1 ? 0 : 1)) * Field.Height / EasyBurdenRows).ToArray();
             int direction = round % 2 == 0 ? 1 : -1;
-            for (int row = 0; row < 3; row++)
-                for (int load = 0; load < 4 + Tier; load++)
+            for (int row = 0; row < EasyBurdenRows; row++)
+                for (int load = 0; load < EasyBurdenLoads; load++)
                 {
-                    float height = row == 1 ? 62 : 52;
+                    float height = Tier == 0 ? row == 1 ? 62 : 52 : Field.Height / EasyBurdenRows - 7;
                     Vector2 from = new(direction > 0 ? Field.Left - 20 : Field.Right + 20, rows[row]);
                     Vector2 to = new(direction > 0 ? Field.Right + 20 : Field.Left - 20, rows[row]);
-                    double fire = start + 3.2 + (2 - row) * .42 + load * (.38 - Tier * .035);
+                    double fire = start + 3.2 + (EasyBurdenRows - 1 - row) * (.42 / (1 + Tier * .5)) + load * (.38 - Tier * .045);
                     _easyMemoryCues.Add(new MinaEasyMemoryCue
                     {
                         Key = $"burden:{round}:{row}:{load}", Group = $"burden:{round}:{row}", Mode = 0,
@@ -970,16 +972,16 @@ public partial class MinaBossTechnique : BossCharacterTechnique
         }
         else if (Variant == 1)
         {
-            float rowHeight = Field.Height / 4;
-            int current = Mathf.Clamp((int)((reserved.Y - Field.Top) / rowHeight), 0, 3);
-            int answered = (current + 1 + round) % 4;
-            for (int row = 0; row < 4; row++)
+            float rowHeight = Field.Height / EasyDraftRows;
+            int current = Mathf.Clamp((int)((reserved.Y - Field.Top) / rowHeight), 0, EasyDraftRows - 1);
+            int answered = (current + 1 + round) % EasyDraftRows;
+            for (int row = 0; row < EasyDraftRows; row++)
             {
                 var card = EasyAccessibleDraftCard(reserved, row, row == current);
                 _easyMemoryCues.Add(new MinaEasyMemoryCue
                 {
                     Key = $"draft:{round}:{row}", Group = $"draft:{round}:{row}", Mode = 1,
-                    Round = round, Index = row, StartsAt = start, FiresAt = start + 3.2, EndsAt = start + 6 + Tier * .15,
+                    Round = round, Index = row, StartsAt = start, FiresAt = start + 3.2, EndsAt = start + 6 + Tier * .3 + (Evolved ? .4 : 0),
                     Card = card.Card, CardReserved = reserved,
                     Bounds = new[] { new Rect2(Field.Left, Field.Top + row * rowHeight, Field.Width, rowHeight) },
                     Cancelled = row == answered, CancelledAt = row == answered ? start : null,
@@ -990,7 +992,8 @@ public partial class MinaBossTechnique : BossCharacterTechnique
         }
         else if (Variant == 2)
         {
-            var half = new Vector2(52 - Tier * 3, 42 - Tier * 2);
+            var half = (Tier switch { 0 => new Vector2(52, 42), 1 => new Vector2(36, 28),
+                2 => new Vector2(27, 22), _ => new Vector2(20, 17) }) - (Evolved ? new Vector2(4, 3) : Vector2.Zero);
             Vector2 home = reserved.Clamp(Field.Rect.Position + half, Field.Rect.End - half);
             Vector2[] path = { home, new(home.X, Field.Top + half.Y), new(Field.Left + half.X, Field.Top + half.Y),
                 new(Field.Right - half.X, Field.Top + half.Y), new(Field.Right - half.X, Field.Bottom - half.Y),
@@ -1031,7 +1034,8 @@ public partial class MinaBossTechnique : BossCharacterTechnique
                         if ((dx != 0 || dy != 0) && x + dx >= 0 && x + dx < 7 && y + dy >= 0 && y + dy < 5
                             && _easyRecordState[(y + dy) * 7 + x + dx]) neighbors++;
                 next[i] = round == 0 ? _easyRecordState[i]
-                    : neighbors is >= 2 and <= 4 && (x + y + round) % 3 != 0;
+                    : Tier == 0 ? neighbors >= (Evolved ? 1 : 2) && neighbors <= 4 && (x + y + round) % 3 != 0
+                    : neighbors > 0 && (x + 2 * y + round) % (Tier + 3) != 0;
             }
             int playerX = Mathf.Clamp((int)((reserved.X - Field.Left) / (Field.Width / 7)), 0, 6);
             int playerY = Mathf.Clamp((int)((reserved.Y - Field.Top) / (Field.Height / 5)), 0, 4);
@@ -1045,7 +1049,7 @@ public partial class MinaBossTechnique : BossCharacterTechnique
                 _easyMemoryCues.Add(new MinaEasyMemoryCue
                 {
                     Key = $"generation:{round}:{i}", Group = $"generation:{round}:{i}", Mode = 3,
-                    Round = round, Index = i, StartsAt = start, FiresAt = start + 3.2, EndsAt = start + 5.8 + Tier * .18,
+                    Round = round, Index = i, StartsAt = start, FiresAt = start + 3.2, EndsAt = start + 5.8 + Tier * .3 + (Evolved ? .4 : 0),
                     Bounds = new[] { cell }, Card = cell.GetCenter(),
                 });
             }
@@ -1053,7 +1057,7 @@ public partial class MinaBossTechnique : BossCharacterTechnique
         else
         {
             Vector2 margin = Vector2.One * 28;
-            Vector2 target = reserved.Clamp(Field.Rect.Position + margin, Field.Rect.End - margin);
+            Vector2 target = reserved;
             Vector2 drift = _easyConnectionPull * .22f;
             Vector2 opposite = new(target.X < Field.CenterX ? Field.Right - 28 : Field.Left + 28,
                 target.Y < Field.CenterY ? Field.Bottom - 28 : Field.Top + 28);
@@ -1066,21 +1070,27 @@ public partial class MinaBossTechnique : BossCharacterTechnique
                     new Vector2(Field.Right - 28, 28), new Vector2(Field.Left + 28, Field.Bottom - 28),
                     new Vector2(Field.Right + 28, Field.Bottom + 28) },
             };
-            for (int chain = 0; chain < networks.Length; chain++)
+            for (int chain = 0; chain < EasyRelayChains; chain++)
             {
-                var network = networks[chain];
+                var network = networks[chain % networks.Length].ToArray();
+                if (chain >= networks.Length && Tier > 0)
+                    for (int node = 1; node < network.Length - 1; node++)
+                        network[node] = new Vector2(Field.Left + 28 + (chain * 3 + node * 2) % 7 * (Field.Width - 56) / 6,
+                            28 + (chain + node * 3) % 5 * (Field.Height - 56) / 4);
                 for (int node = 1; node < network.Length - 1; node++)
                     if (network[node] != target)
                         network[node] = (network[node] + drift).Clamp(Field.Rect.Position + margin, Field.Rect.End - margin);
                 for (int node = 1; node < network.Length - 1; node++)
                     if (network[node - 1].DistanceTo(network[node]) < 48)
                     {
-                        if (network[node] == target && node > 1) network[node - 1] = opposite;
+                        if (network[node] == target)
+                            network[node - 1] = opposite;
                         else network[node] = new Vector2(network[node - 1].X < Field.CenterX ? Field.Right - 28 : Field.Left + 28,
                             network[node - 1].Y < Field.CenterY ? Field.Bottom - 28 : Field.Top + 28);
                     }
                 int chainStart = _easyMemoryCues.Count;
-                double fire = start + .65 * chain + 3.2;
+                double chainStartAt = start + chain * (Tier switch { 0 => .65, 1 => .5, 2 => .36, _ => .25 });
+                double fire = chainStartAt + 3.2;
                 float speed = 52 + Tier * 7 + _easyConnectionPull.Length() * .5f;
                 float[] masses = { 1, 1.25f, 1.5f, 1.1f };
                 for (int node = 0; node < network.Length - 1; node++)
@@ -1093,7 +1103,7 @@ public partial class MinaBossTechnique : BossCharacterTechnique
                     _easyMemoryCues.Add(new MinaEasyMemoryCue
                     {
                         Key = $"handoff:{chain}:{node}", Group = $"handoff:{chain}:{node}", Mode = 4,
-                        Round = chain, Index = node, StartsAt = start + .65 * chain, FiresAt = fire,
+                        Round = chain, Index = node, StartsAt = chainStartAt, FiresAt = fire,
                         ArrivesAt = arrival, Points = new[] { network[node], contact }, Radius = radius,
                         Mass = masses[node], Speed = speed, Position = network[node], PriorPosition = network[node],
                         Predecessor = node == 0 ? -1 : chainStart + node - 1,
@@ -1149,7 +1159,7 @@ public partial class MinaBossTechnique : BossCharacterTechnique
     private (Vector2 Card, Vector2[] Path, double Seconds, bool Verified, bool InitialOverlap) EasyAccessibleDraftCard(
         Vector2 reserved, int row, bool current)
     {
-        float height = Field.Height / 4;
+        float height = Field.Height / EasyDraftRows;
         float top = Field.Top + row * height + 8, bottom = Field.Top + (row + 1) * height - 8;
         float[] ys = Math.Abs(reserved.Y - top) >= Math.Abs(reserved.Y - bottom)
             ? new[] { top, bottom } : new[] { bottom, top };
@@ -1411,8 +1421,6 @@ public partial class MinaBossTechnique : BossCharacterTechnique
             {
                 var bounds = EasyBurdenPageBounds(cue, age);
                 DrawEasyMemoryBox(bounds, live, true);
-                if (Field.Rect.Grow(-3).HasPoint(bounds.GetCenter()))
-                    DrawMemoryEnvelope(bounds.GetCenter(), bounds.Size * .36f, new Color(MemoryInk));
             }
             else if (cue.Mode is 1 or 3 or 5)
             {
@@ -1434,8 +1442,7 @@ public partial class MinaBossTechnique : BossCharacterTechnique
             else
             {
                 Vector2 at = cue.Position;
-                DrawEasyMemorySweep(cue.PriorPosition, at, cue.Radius, new Color("e79ad7", .85f));
-                if (Field.Rect.Grow(-8).HasPoint(at)) DrawMemoryEnvelope(at, new Vector2(7, 5), live);
+                DrawEasyMemorySweep(cue.PriorPosition, at, cue.Radius, new Color("6d4b74", .9f));
                 if (cue.Transferred && cue.ReleaseCue >= 0)
                     DrawRect(new Rect2(at - Vector2.One * (cue.Radius - 2), Vector2.One * (cue.Radius - 2) * 2),
                         new Color("fff0d9"), false, .8f, true);
@@ -1449,18 +1456,45 @@ public partial class MinaBossTechnique : BossCharacterTechnique
     {
         bounds = bounds.Intersection(Field.Rect);
         if (bounds.Size.X <= 0 || bounds.Size.Y <= 0) return;
-        DrawRect(bounds, new Color(live ? new Color("e87dc4") : ink, live ? .15f : .025f));
         if (live)
         {
+            DrawRect(bounds, new Color(Variant == 1 ? "31485c" : Variant == 2 ? "51413b" : "52384d", .78f));
+            DrawMemoryIllustrations(bounds);
             DrawRect(bounds, new Color("3e183d"), false, 2.5f, true);
             DrawRect(bounds, ink, false, 1.1f, true);
         }
         else
         {
+            DrawRect(bounds, new Color(ink, .025f));
             DrawDashedLine(bounds.Position, new Vector2(bounds.End.X, bounds.Position.Y), ink, .7f, 3, true);
             DrawDashedLine(new Vector2(bounds.End.X, bounds.Position.Y), bounds.End, ink, .7f, 3, true);
             DrawDashedLine(bounds.End, new Vector2(bounds.Position.X, bounds.End.Y), ink, .7f, 3, true);
             DrawDashedLine(new Vector2(bounds.Position.X, bounds.End.Y), bounds.Position, ink, .7f, 3, true);
+        }
+    }
+
+    private void DrawMemoryIllustrations(Rect2 bounds)
+    {
+        bounds = bounds.Intersection(Field.Rect).Grow(-2);
+        if (bounds.Size.X < 5 || bounds.Size.Y < 5) return;
+        if (Variant == 0)
+        {
+            Vector2 textureSize = _memoryIllustration.GetSize();
+            float scale = Math.Max(bounds.Size.X / textureSize.X, bounds.Size.Y / textureSize.Y);
+            Vector2 crop = bounds.Size / scale;
+            DrawTextureRectRegion(_memoryIllustration, bounds, new Rect2((textureSize - crop) * .5f, crop));
+            return;
+        }
+        int columns = Math.Max(1, Mathf.CeilToInt(bounds.Size.X / 64));
+        int rows = Math.Max(1, Mathf.CeilToInt(bounds.Size.Y / 52));
+        Vector2 cell = bounds.Size / new Vector2(columns, rows);
+        Vector2 size = _memoryIllustration.GetSize();
+        size *= Math.Min(30 / Math.Max(size.X, size.Y), Math.Min((cell.X - 2) / size.X, (cell.Y - 2) / size.Y));
+        for (int row = 0; row < rows; row++)
+        for (int column = 0; column < columns; column++)
+        {
+            Vector2 center = bounds.Position + new Vector2(column + .5f, row + .5f) * cell;
+            DrawTextureRect(_memoryIllustration, new Rect2(center - size * .5f, size), false);
         }
     }
 
@@ -1487,8 +1521,9 @@ public partial class MinaBossTechnique : BossCharacterTechnique
             Vector2 a = center + Vector2.FromAngle(i * Mathf.Tau / 48) * radius;
             Vector2 b = center + Vector2.FromAngle((i + 1) * Mathf.Tau / 48) * radius;
             if (EasyMemoryVisibleSegment(a, b) is { } visible)
-                DrawLine(visible.A, visible.B, new Color("ff6e78"), 1.1f, true);
+                DrawLine(visible.A, visible.B, new Color("ffe8d0"), 1.1f, true);
         }
+        DrawMemoryIllustrations(new Rect2(center - Vector2.One * radius * .65f, Vector2.One * radius * 1.3f));
     }
 
     private void DrawEasyMemorySweep(Vector2 from, Vector2 to, float radius, Color fill)
@@ -1528,7 +1563,7 @@ public partial class MinaBossTechnique : BossCharacterTechnique
             else Span(left, right);
         }
         DrawEasyMemoryDisc(to, radius, fill);
-        var edgeInk = new Color("ff6e78");
+        var edgeInk = new Color("ffe8d0");
         void Edge(Vector2 a, Vector2 b)
         {
             if (EasyMemoryVisibleSegment(a, b) is { } visible) DrawLine(visible.A, visible.B, edgeInk, 1.1f, true);
@@ -1567,6 +1602,7 @@ public partial class MinaBossTechnique : BossCharacterTechnique
             Segment(points[i - 1], end);
             if (radius > 0)
             {
+                DrawWarningEdgeCaps(points[i - 1], end, radius, ink);
                 Segment(points[i - 1] + side * radius, end + side * radius);
                 Segment(points[i - 1] - side * radius, end - side * radius);
                 if (Field.Rect.Grow(-radius).HasPoint(end)) DrawArc(end, radius, 0, Mathf.Tau, 28, new Color(ink, .3f), .5f, true);
@@ -1674,7 +1710,6 @@ public partial class MinaBossTechnique : BossCharacterTechnique
                     float height = Mathf.Lerp(6, 52 + Tier * 5, expansion);
                     for (int fold = -1; fold <= 1; fold++)
                         DrawLine(at + new Vector2(-3, fold * height / 3), at + new Vector2(3, fold * height / 3 + 2), quiet, .5f, true);
-                    DrawMemoryLabel(at + new Vector2(-_axis.X * 20, 0), expansion < .5f ? "圧縮" : "展開", ink);
                 }
                 break;
             case 2:
@@ -1759,7 +1794,6 @@ public partial class MinaBossTechnique : BossCharacterTechnique
                     else if (_nextCells[i])
                         DrawRect(new Rect2(at - Vector2.One * 4, Vector2.One * 8), new Color(received, .25f + .2f * Mathf.Sin((float)Time * 5)), false, .6f);
                 }
-                DrawMemoryLabel(new Vector2(Field.CenterX, 207), "記録 " + Math.Max(0, _generation) + " → " + (Math.Max(0, _generation) + 1), ink);
                 break;
             case 8:
             {
@@ -1798,7 +1832,6 @@ public partial class MinaBossTechnique : BossCharacterTechnique
                 {
                     Vector2 center = new(Field.Left + 72 + side * 174, 108);
                     DrawMemoryEnvelope(center + Vector2.Down * 61, new Vector2(14, 10), quiet);
-                    DrawMemoryLabel(center + Vector2.Down * 76, side == 0 ? "記憶 A" : "記憶 B", ink);
                     if (_exchangePending)
                         foreach (var memory in _memories.Where(m => m.Live && m.Index / (3 + Tier) == side))
                             DrawRect(new Rect2(memory.Origin - Vector2.One * 3, Vector2.One * 6), quiet, false, .55f);
@@ -1924,7 +1957,6 @@ public partial class MinaBossTechnique : BossCharacterTechnique
                     Vector2 at = center + Vector2.FromAngle(a) * 65;
                     DrawLine(at - Vector2.FromAngle(a) * 3, at + Vector2.FromAngle(a) * 3, received, .8f, true);
                 }
-                DrawMemoryLabel(center + Vector2.Down * 21, "帰る距離", new Color(received, .4f));
                 break;
             }
         }

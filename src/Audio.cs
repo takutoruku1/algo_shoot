@@ -382,6 +382,7 @@ public partial class Audio : Node
         float sourceGainDb = stream == BgmStageAkari ? -6.49f
             : stream == BgmStageKoharu ? -5.14f
             : stream == BgmStageRei ? -5.75f
+            : stream == BgmBossAkari ? -4.28f
             : stream == BgmBossKoharu ? -2.49f
             : stream == BgmBossRei ? -5.29f
             : stream == BgmFinalRoute ? -5.93f : 0f;
@@ -405,7 +406,7 @@ public partial class Audio : Node
 
         CancelOnceHook();
         _currentMusic = stream; // ステージ判定（BgmStage/BgmBoss なら濁し有効）に使う
-        if (stream != BgmBossAkari) StopAkariLayers();
+        if (stream != BgmBossAkari) StopAkariMusicEffects();
         if (stream != _postTheme) _postTheme = null;
 
         // 別曲へ切り替わるので再生速度を通常（1.0）へリセット＝ボス戦を抜けたら加速も解除。
@@ -1257,15 +1258,7 @@ public partial class Audio : Node
         return BuildBgmBossRei();
     }
 
-    // ───────── BgmBossAkari のロード（ライセンス実音源 → 失敗時は合成 BuildBgmBossAkari へフォールバック）─────────
-    //   res://audio/bgm_boss_akari.ogg＝「EpicBattle」（PeriTune・CC BY 4.0＝クレジット必須 → config/credits.ini）。
-    //   「切ない×熱い」弦+ピアノ BPM138＝あかり戦のスペック一致枠。
-    //   配布の公式ループ版 ogg（97.39秒）を使用＝**トリム・端フェードは掛けない**（継ぎ目を壊さない）。
-    //   -4.1dB のゲインのみ（強リミッター原盤＋vorbis超過分込みでピーク-3dB帯へ）。
-    //   出所と規約記録は BGM/acquisition_list.md §6。
-    //   ogg は loop を焼いてあるが、念のため AudioStreamOggVorbis.Loop も明示する（Music() は鳴らしっぱなし）。
-    //   実音源なので再生時に MusicTargetDb() の StageBgmRealDb(-10dB) が自動で乗る（突出しない）。
-    //   ロード失敗（インポート未済・差し替えミス等）の場合は従来の合成 BuildBgmBossAkari() に戻す（事故防止）。
+    // PeriTune「Flap」：ピアノと弦の切ない疾走で、届かない言葉を送り続けるあかりの焦りを支える（出典は config/credits.ini）。
     private AudioStream LoadBgmBossAkari()
     {
         var s = ResourceLoader.Load<AudioStream>("res://audio/bgm_boss_akari.ogg");

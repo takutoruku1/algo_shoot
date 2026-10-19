@@ -21,7 +21,7 @@ public partial class BossPostSequence : Node
         {
             Name = "PostSequence", _boss = boss, _story = BossPostStory.Get(id),
             _suspend = suspend, _changed = changed,
-            _thresholds = GameManager.LunaticActive ? Array.Empty<float>()
+            _thresholds = GameManager.SkipBossStory ? Array.Empty<float>()
                 : thresholds ?? new[] { .8f, .6f, .4f, .2f, .01f },
         };
         boss.AddChild(sequence);

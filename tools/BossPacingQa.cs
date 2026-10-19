@@ -53,6 +53,11 @@ public partial class BossPacingQa : Node
             var stages = args.Contains("--cameo") ? new[] { "Akari", "Koharu", "Rei" }
                 : args.Contains("--final-stages") ? new[] { "Rei", "MinaBattle" }
                 : new[] { "Akari", "Koharu", "Rei", "MinaBattle" };
+            if (args.FirstOrDefault(arg => arg.StartsWith("--boss=")) is { } bossArg)
+            {
+                Check(stages.Contains(bossArg[7..]), "requested pacing boss exists");
+                stages = new[] { bossArg[7..] };
+            }
             if (args.Contains("--health")) await AuditHealth(game);
             else foreach (bool powered in new[] { false, true })
             {
@@ -101,6 +106,19 @@ public partial class BossPacingQa : Node
                 };
                 boss.ProcessMode = ProcessModeEnum.Disabled;
                 world.AddChild(boss);
+                if (Read<bool>(boss, "_entering", typeof(Enemy)))
+                {
+                    Call(boss, "TickEntrance", typeof(Enemy), 0d);
+                    Call(boss, "TickEntrance", typeof(Enemy), 2d);
+                }
+                int count = Read<int>(boss, "PanelCount", typeof(Enemy));
+                int ink = Read<int>(boss, "PanelInk", typeof(Enemy));
+                float shieldScale = new[] { 1f, 1f, 1.25f, 1.5f }[(int)difficulty];
+                int totalInk = Mathf.CeilToInt(count * ink * shieldScale);
+                var panels = Read<List<Panel>>(boss, "_panels", typeof(Enemy));
+                Check(panels.Count == count && panels.Sum(panel => panel.Ink) == totalInk
+                    && panels.Max(panel => panel.Ink) - panels.Min(panel => panel.Ink) <= 1,
+                    $"{difficulty}/{id}: {count} unfolders share {totalInk} durability at {shieldScale:F2}x");
                 int hp = (id switch
                 {
                     "Akari" => new[] { 300, 375, 450, 525 },
@@ -128,6 +146,11 @@ public partial class BossPacingQa : Node
                 game.Difficulty = difficulty == GameManager.Diff.Easy ? GameManager.Diff.Lunatic : GameManager.Diff.Easy;
                 Check(boss.BarHp == barHp && Read<int>(boss, "_maxHp", typeof(Enemy)) == hp,
                     $"{difficulty}/{id}: existing encounter keeps its initialized HP scale");
+                foreach (var panel in panels) panel.QueueFree();
+                panels.Clear();
+                Call(boss, "SpawnPanels", typeof(Enemy));
+                Check(panels.Count == count && panels.Sum(panel => panel.Ink) == totalInk,
+                    $"{difficulty}/{id}: reformed unfolders keep the encounter's initialized durability");
                 game.Difficulty = difficulty;
                 boss.QueueFree();
                 await Frames(2);
@@ -139,9 +162,14 @@ public partial class BossPacingQa : Node
                     Call(stage, "Step_BossCameo", null, 0d);
                     var cameo = world.GetChildren().OfType<CameoBoss>().Single();
                     cameo.ProcessMode = ProcessModeEnum.Disabled;
+                    Call(cameo, "TickEntrance", typeof(Enemy), 0d);
+                    Call(cameo, "TickEntrance", typeof(Enemy), 2d);
                     int midHp = new[] { 200, 250, 300, 350 }[(int)difficulty];
                     Check(Read<int>(cameo, "_maxHp", typeof(Enemy)) == midHp && Read<int>(cameo, "_hp", typeof(Enemy)) == midHp,
                         $"{difficulty}/{id} midboss: stage-spawned HP {midHp}");
+                    Check(Read<List<Panel>>(cameo, "_panels", typeof(Enemy)).Sum(panel => panel.Ink)
+                        == Mathf.CeilToInt(3 * 18 * shieldScale),
+                        $"{difficulty}/{id} midboss: unfolder durability follows boss difficulty");
                 }
                 root.QueueFree();
                 await Frames(4);
@@ -313,24 +341,30 @@ public partial class BossPacingQa : Node
 
     private async Task Shields(GameManager game, Enemy boss, Player player, Hud hud, string id, bool powered, bool charged)
     {
+        for (int frame = 0; frame < 240 && Read<bool>(boss, "_entering", typeof(Enemy)); frame++) await Frames(1);
+        Check(!Read<bool>(boss, "_entering", typeof(Enemy)), $"{id}: entrance completed before shield measurement");
         int expectedInk = boss is CameoBoss ? 18 : id switch
         {
             "Akari" => 36, "Koharu" => 48, "Rei" => 54, "MinaBattle" => 66,
             _ => throw new ArgumentOutOfRangeException(nameof(id)),
         };
+        int count = Read<int>(boss, "PanelCount", typeof(Enemy));
+        int expectedTotal = Mathf.CeilToInt(count * expectedInk * game.BossPanelHpMul);
         Check(Read<int>(boss, "PanelInk", typeof(Enemy)) == expectedInk
-            && Read<List<Panel>>(boss, "_panels", typeof(Enemy)).All(panel => panel.Ink == expectedInk),
-            $"{id}: shield panels start with the increased durability ({expectedInk})");
+            && Read<List<Panel>>(boss, "_panels", typeof(Enemy)).Sum(panel => panel.Ink) == expectedTotal,
+            $"{id}: {count} shield panels start with {expectedTotal} total durability");
         var times = new List<double>();
         double elapsed = 0, fire = 0;
         string previous = "";
-        for (int frame = 0; frame < 12000 && times.Count < 3; frame++)
+        for (int frame = 0; frame < 36000 && times.Count < 3; frame++)
         {
             if (!Read<bool>(boss, "_entering", typeof(Enemy)) && !Hud.BubblePaused && !hud.CinematicMode)
             {
                 string phase = Read<object>(boss, "_phase", typeof(Enemy)).ToString()!;
-                if (phase == "Break" && previous == "Shielded")
+                if (phase is "Resolving" or "Break" && previous == "Shielded")
                 {
+                    Check(Read<List<Panel>>(boss, "_panels", typeof(Enemy)).All(panel => !IsInstanceValid(panel) || panel.Ink <= 0),
+                        $"{id}: shield break follows depletion of every unfolder");
                     times.Add(elapsed);
                     elapsed = 0;
                     Pool.DespawnAll();

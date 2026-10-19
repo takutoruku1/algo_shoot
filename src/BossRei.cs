@@ -44,8 +44,6 @@ public partial class BossRei : Enemy
     private int _tauntIdx;
 
     private float _relayHp = 0.26f;
-    // ボス戦のレイが被っている配信のガワ（笑顔固定）。中の人（rei_face 系）とは目と輪郭だけが同じ別の姿で、
-    // 姿が違うこと自体が仕込み＝道中の中ボスは中の人、ボスはガワ。
     private const string RGawa = CompanionDialogue.ReiAvatarPortrait;
 
     // 挑発（ボスの動的セリフ演出＝ShowBossLine。弾は止めない。中継 who=5 は使わない）。
@@ -120,7 +118,6 @@ public partial class BossRei : Enemy
         PanelInk = BossTuning.I("rei", "panel_ink", 54);
         OrbitRadius = BossTuning.F("rei", "orbit_radius", 26f);
         SpinSpeed = BossTuning.F("rei", "spin_speed", 0.9f);
-        PanelsFire = false;
         EnemyBulletSpeed = BossTuning.F("rei", "bullet_speed", 82f);
 
         // INI hp_bars > 0 で全難易度を固定本数に上書きできる。
@@ -134,6 +131,8 @@ public partial class BossRei : Enemy
 
         // v3 の本体＝ガワ（エフェクト無し・720px）。飾り枠・吹き出し・光の帯は BossParts が重ねる。
         PreTexPath = "res://char/v3/boss_rei_body_idle.png";
+        ConfigureReiAvatarMotion();
+        ReiBossTechnique.PrepareAssets();
         DownTexPath = BossDownArt.Path("rei");
         AttackTexPath = "res://char/v3/boss_rei_body_attack.png"; // 撃つ一拍だけ差し替えて戻る
         RecoveryTexPath = "res://char/v3/boss_motion/rei_recover_v1.png";
@@ -303,7 +302,7 @@ public partial class BossRei : Enemy
             _relayWatching = true;
             _relayStartLives = (GetTree().GetFirstNodeInGroup("player") as Player)?.Lives ?? -1;
         }
-        if (!_rallied && HpRatio <= 0.20f && (GameManager.LunaticActive || _posts.Count >= 4))
+        if (!_rallied && HpRatio <= 0.20f && (GameManager.SkipBossStory || _posts.Count >= 4))
         {
             _rallied = true;
             RallyShield();
@@ -337,8 +336,6 @@ public partial class BossRei : Enemy
         _recloseIdx++;
     }
 
-    protected override void GrantFollower() { }
-
     protected override void OnCryStart()
     {
         if (IsForm2 && DeferCryBodySwap)
@@ -354,7 +351,7 @@ public partial class BossRei : Enemy
         //   ＝送るものが無いのに EndCryNow を待ち続けて Finished が立たない詰まりを断つ。
         //   ルナティックも同じ経路＝改心のかけあい（弾を止める会話）を出さず、その場で着地して Finished へ
         //   （ガワ割れ ShellPeel は決定打の行で起こす演出なので、会話ごと出さない＝post の中の人へ直接着地）。
-        if (hud == null || _lines.Length == 0 || GameManager.LunaticActive) { EndCryNow(); return; }
+        if (hud == null || _lines.Length == 0 || GameManager.SkipBossStory) { EndCryNow(); return; }
         hud.HoldBubble = true;
         _seq = true; _line = 0; _lineT = 0;
         ShowLine();
@@ -383,7 +380,7 @@ public partial class BossRei : Enemy
             _memoryPlayed = true;
             // ルナティック：回想を挟まない。フィルム明けの復帰（第二形態・保留していた閾値の拾い直し）だけをその場で通す
             //   ＝弾幕も曲も途切れない（S3-7 の割り込みは StageRei 側がルナティックで抑止）。
-            if (GameManager.LunaticActive) { OnHpChanged(); return; }
+            if (GameManager.SkipBossStory) { OnHpChanged(); return; }
             _caster.CancelPendingAttacks();
             void ResumeBattle()
             {

@@ -2,30 +2,25 @@
   "generator": "builtin image_gen",
   "assets": [
     {
-      "file": "akari_v1.png",
-      "source": "C:\\Users\\takut\\.codex\\generated_images\\01a09a43-c0cc-7680-801d-568b0dbd7f24\\exec-488fb41c-eb00-4082-aa3b-8c94c8f5eaa7.png",
-      "style_reference": "char/bg2/boss/akari_v1.png",
-      "prompt": "Use case: stylized-concept. Create a high-quality painted anime background for an INTERMEDIATE BOSS encounter in the Japanese 2D shooter Refrain. Image 1 is STYLE AND LINEWORK REFERENCE ONLY: match its careful clean anime drawing, simplified painted textures and restrained night lighting, never photorealistic. DO NOT repeat its room or layout. New scene: the enclosed EMERGENCY STAIR LANDING of Akari's office building after a long workday, at rainy night. The staircase climbs along the far LEFT wall and disappears above; a scuffed solid gray fire door and dark structural beam at the rear; on far right, a narrow sheltered opening shows rain and just a sliver of city. Worn painted concrete, simple metal handrail, rubber stair treads, one small unlit umbrella stand with two different closed umbrellas near the door. Dim cool steel-blue ambient light with one weak amber maintenance lamp. Modest ordinary functional architecture, tense and lonely, an in-between place, not grand or supernatural. A broad empty flat landing fills lower 55% and central 65% of frame so shooter sprites and attacks remain readable. Interesting framing objects remain at far edges or upper third, no major obstacles through center. Slight three-quarter camera view across the landing, eye-level, no fisheye. Landscape 6:5 composition target 1440x1200, opaque full-bleed scene, high detail with no noisy texture. Avoid: office desks, computers, big panoramic windows, executive office, mirror-symmetrical arena, throne, stage, bedroom, giant moon, bright glare, strong white highlights, people, silhouettes, readable lettering, logos, UI, particles, projectiles, border and watermark. This small stair room must look clearly distinct from the reference final office arena while using the same anime finish."
+      "source": "char/raw/boss_worlds_20261018/layers/midboss_akari_composite.png",
+      "processing": "Composite of the three registered gameplay depth layers, also used for dream-realm fracture continuity.",
+      "revision_manifest": "char/bg2/layered_worlds_v2.prompt.json",
+      "generation": "midboss_akari",
+      "file": "akari_v1.png"
     },
     {
-      "file": "koharu_v1.png",
-      "source": "char/raw/room_redesign_20261018/generated/koharu_foyer.png",
-      "prompt": "Use case: precise-object-edit. Preserve this empty Japanese home entrance game background, same composition and aspect, door/mirror/shoe cabinet/shoes/step/bench/corridor and soft evening lighting. Remove the vine/potted plant and reed diffuser from top of shoe cabinet, leave small family photo and key tray. Remove three generic stacked cardboard boxes beside bench; leave clear practical passage. Remove violet penlight lying beside schoolbag because the single penlight belongs inside her bedroom, not duplicated in entry. Keep school bag and plain tote on bench, ordinary plausible family entrance. No new props, no humans, no text.",
-      "references": [
-        "char/raw/room_redesign_20261018/originals/char/bg2/midboss/koharu_v1.png"
-      ],
-      "revision_manifest": "char/bg2/room_continuity_v2.prompt.json",
-      "generation": "koharu_foyer"
+      "source": "char/raw/boss_worlds_20261018/layers/midboss_koharu_composite.png",
+      "processing": "Composite of the three registered gameplay depth layers, also used for dream-realm fracture continuity.",
+      "revision_manifest": "char/bg2/layered_worlds_v2.prompt.json",
+      "generation": "midboss_koharu",
+      "file": "koharu_v1.png"
     },
     {
-      "file": "rei_v1.png",
-      "source": "char/raw/room_redesign_20261018/generated/night_rei.png",
-      "prompt": "Use case: lighting-weather. Edit this exact empty Rei bedroom background, same dimensions and camera. Change to evening/night outside same neighboring house at LEFT window. The normal round CEILING lamp is ON, subdued evenly lit ordinary room. One monitor at FAR wall shows faint dark streaming software with small avatar preview and audio meters, no readable words. Black chair empty. Preserve keyboard directly in front of monitor with wrist space, mic boom LEFT, blue mug and mint-tab book, bare floor, bed LEFT, closet RIGHT. Do not add ringlights/cameras/acoustic foam/art/plants/bookshelf/rug/extra monitor. No humans.",
-      "references": [
-        "char/raw/room_redesign_20261018/generated/master_rei.png"
-      ],
-      "revision_manifest": "char/bg2/room_continuity_v2.prompt.json",
-      "generation": "night_rei"
+      "source": "char/raw/boss_worlds_20261018/layers/midboss_rei_composite.png",
+      "processing": "Composite of the three registered gameplay depth layers, also used for dream-realm fracture continuity.",
+      "revision_manifest": "char/bg2/layered_worlds_v2.prompt.json",
+      "generation": "midboss_rei",
+      "file": "rei_v1.png"
     }
   ],
   "room_continuity_revision": "char/bg2/room_continuity_v2.prompt.json"

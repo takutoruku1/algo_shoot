@@ -1,5 +1,4 @@
 using System.Collections.Generic;
-using System.Linq;
 
 internal static class BossAttackCycle
 {
@@ -8,12 +7,9 @@ internal static class BossAttackCycle
     internal static readonly Slot[] EasyAkariSlots = {
         new(BossTechniqueKind.Normal, 0), new(BossTechniqueKind.Normal, 2),
         new(BossTechniqueKind.Crossfire, 2), new(BossTechniqueKind.Normal, 1),
-        new(BossTechniqueKind.Extra, 0), new(BossTechniqueKind.Edge),
-        new(BossTechniqueKind.Area, 0), new(BossTechniqueKind.Extra, 1),
+        new(BossTechniqueKind.Edge), new(BossTechniqueKind.Area, 0),
         new(BossTechniqueKind.Area, 1), new(BossTechniqueKind.Crossfire, 3),
-        new(BossTechniqueKind.Extra, 0), new(BossTechniqueKind.Extra, 1),
     };
-    private static readonly Slot[] Akari = EasyAkariSlots.Where(slot => slot.Kind != BossTechniqueKind.Extra).ToArray();
     private static readonly Slot[] EasyReiBefore = {
         new(BossTechniqueKind.Normal, 0), new(BossTechniqueKind.Normal, 1),
         new(BossTechniqueKind.Area, 0), new(BossTechniqueKind.Extra, 0),
@@ -51,7 +47,9 @@ internal static class BossAttackCycle
         new(BossTechniqueKind.Extra, 1), new(BossTechniqueKind.Normal, 0),
         new(BossTechniqueKind.Normal, 2),
     };
-    private static readonly Slot[] Cameo = { new(BossTechniqueKind.Cameo, 0), new(BossTechniqueKind.Cameo, 1) };
+    private static readonly Slot[] AkariCameo = { new(BossTechniqueKind.Normal, 0), new(BossTechniqueKind.Normal, 2), new(BossTechniqueKind.Area, 0) };
+    private static readonly Slot[] KoharuCameo = { new(BossTechniqueKind.Normal, 0), new(BossTechniqueKind.Normal, 1), new(BossTechniqueKind.Area, 1) };
+    private static readonly Slot[] ReiCameo = { new(BossTechniqueKind.Normal, 0), new(BossTechniqueKind.Normal, 1), new(BossTechniqueKind.Area, 0) };
 
     internal static int Segment(Enemy boss) => boss switch
     {
@@ -64,8 +62,12 @@ internal static class BossAttackCycle
     internal static IReadOnlyList<Slot> Slots(Enemy boss, int segment) => boss switch
     {
         BossMina => EasyMina[segment],
-        CameoBoss => Cameo,
-        BossAkari => Akari,
+        CameoBoss cameo => cameo.Theme.Fire switch {
+            CameoFireTheme.AkariGrief => AkariCameo,
+            CameoFireTheme.KoharuFalling => KoharuCameo,
+            _ => ReiCameo,
+        },
+        BossAkari => EasyAkariSlots,
         BossKoharu => segment == 0 ? EasyKoharuBefore : segment == 1 ? EasyKoharuAfter : KoharuFinale,
         _ => segment == 0 ? EasyReiBefore : segment == 1 ? EasyReiAfter : ReiFinale,
     };

@@ -54,6 +54,30 @@ public partial class BossMotionQa : Node
             _root.Hud.HideBubble();
             _root.GetNode<StageBackground>("StageBackground").EnterBoss();
             await Frames(3);
+            if (OS.GetCmdlineUserArgs().Contains("--illustrations"))
+            {
+                await CheckIllustrations();
+                _root.QueueFree();
+                await Frames(6);
+                GetNode<BulletPool>("/root/Pool").DespawnAll();
+                Audio.Instance?.StopMusic(0);
+                foreach (var audio in GetNode<Audio>("/root/Audio").GetChildren().OfType<AudioStreamPlayer>())
+                {
+                    audio.Stop();
+                    audio.Stream = null;
+                }
+                await Frames(4);
+                GC.Collect();
+                GC.WaitForPendingFinalizers();
+                GetTree().Quit();
+                return;
+            }
+            if (OS.GetCmdlineUserArgs().Contains("--rei-avatar"))
+            {
+                await CheckReiAvatarMotion();
+            }
+            else
+            {
             _transformPreview = OS.GetCmdlineUserArgs().Contains("--transform-preview");
             bool preview = _transformPreview || OS.GetCmdlineUserArgs().Contains("--preview");
             if (OS.GetCmdlineUserArgs().Contains("--story-only"))
@@ -215,6 +239,7 @@ public partial class BossMotionQa : Node
             }
             }
             }
+            }
             _root.QueueFree();
             await Frames(6);
             GetNode<BulletPool>("/root/Pool").DespawnAll();
@@ -338,6 +363,214 @@ public partial class BossMotionQa : Node
         using var image = viewport.GetTexture().GetImage();
         Check(image.SavePng($"res://build/qa_story/boss_motion/{id}_motion_comparison.png") == Error.Ok, $"{id}: animation comparison saved");
         viewport.QueueFree();
+    }
+
+    private async Task CheckIllustrations()
+    {
+        _game.EndFury();
+        typeof(Player).GetField("_invincible", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(_root.Player, true);
+        var signatures = new HashSet<string>();
+        Enemy[] bosses = OS.GetCmdlineUserArgs().Contains("--illustration-mina")
+            ? new Enemy[] { new BossMina() }
+            : new Enemy[] { new BossAkari(), new BossKoharu(), new BossRei(), new BossMina() };
+        foreach (Enemy boss in bosses)
+        {
+            Spawn(boss);
+            _root.Hud.HideBubble();
+            var body = boss.GetNode<Sprite2D>("Body");
+            Vector2 position = boss.GlobalPosition;
+            Vector2 shot = boss.ShotCenter;
+            var heads = new HashSet<float>();
+            for (int frame = 0; frame < 360; frame++)
+            {
+                Call(boss, "TickBodyMotion", 1d / 60);
+                Call(boss, "TickIllustrationMotion", 1d / 60);
+                var material = (ShaderMaterial)body.Material;
+                heads.Add((float)material.GetShaderParameter("head_turn"));
+                if (frame == 90) await Shot(boss.GetType().Name + "_illustration");
+                if (frame == 180) signatures.Add(material.GetShaderParameter("head_turn").ToString());
+                if (boss.GlobalPosition != position || boss.ShotCenter != shot)
+                    throw new Exception(boss.GetType().Name + " illustration moved hitbox or muzzle");
+                await Frames(1);
+            }
+            Check(heads.Count > 300, boss.GetType().Name + " continuous body articulation");
+            Check(boss.GlobalPosition == position && boss.ShotCenter == shot,
+                boss.GetType().Name + " illustration preserves hitbox and muzzle");
+            var pausedMaterial = (ShaderMaterial)body.Material;
+            float phase = (float)pausedMaterial.GetShaderParameter("motion_phase");
+            await Frames(15);
+            Check((float)pausedMaterial.GetShaderParameter("motion_phase") == phase,
+                boss.GetType().Name + " illustration freezes with simulation");
+            Call(boss, "TriggerAttackPose");
+            for (int frame = 0; frame < 120; frame++)
+            {
+                Call(boss, "TickSwapAnim", 1d / 60);
+                Call(boss, "TickAttackPose", 1d / 60);
+                Call(boss, "TickBodyMotion", 1d / 60);
+                Call(boss, "TickIllustrationMotion", 1d / 60);
+                await Frames(1);
+            }
+            _game.Difficulty = GameManager.Diff.Easy;
+            var technique = BossCharacterTechnique.Begin(boss,
+                boss is BossMina ? BossTechniqueKind.Area : BossTechniqueKind.Normal, 0);
+            technique.SetPhysicsProcess(false);
+            var motion = Read<BossIllustrationMotion>(boss, "_illustrationMotion");
+            bool charged = false, released = false;
+            int contacts = 0;
+            for (int frame = 0; frame < 480 && !technique.Finished; frame++)
+            {
+                technique.Tick(1d / 60);
+                Call(boss, "TickBodyMotion", 1d / 60);
+                Call(boss, "TickIllustrationMotion", 1d / 60);
+                charged |= Read<float>(motion, "_charge") > .5f;
+                released |= (technique.ShotsCreated > 0 || technique.HazardFrames > 0)
+                    && Read<float>(motion, "_release") < .05f;
+                if (technique.CoversPoint(_root.Player.GlobalPosition)) contacts++;
+                await Frames(1);
+            }
+            Check(charged && released, $"{boss.GetType().Name} actual technique drives preparation and release: charge={charged}, release={released}");
+            GD.Print($"[BossMotionQA] {boss.GetType().Name} EASY visual check, invincible stationary player, hazard_contact_frames={contacts}, shots={technique.ShotsCreated}");
+            technique.Cancel();
+            GetNode<BulletPool>("/root/Pool").DespawnAll();
+            _game.Difficulty = GameManager.Diff.Lunatic;
+            Call(boss, "SetDownBody", true);
+            Call(boss, "TickSwapAnim", 1d);
+            Check(body.Material == null, boss.GetType().Name + " down pose clears deformation");
+            for (int frame = 0; frame < 45; frame++)
+            {
+                Call(boss, "TickDownBreathing", 1d / 60);
+                await Frames(1);
+            }
+            Call(boss, "SetDownBody", false);
+            Call(boss, "TickSwapAnim", 1d);
+            Call(boss, "TickBodyMotion", 1d / 60);
+            Call(boss, "TickIllustrationMotion", 1d / 60);
+            Check(body.Material is ShaderMaterial, boss.GetType().Name + " recovery resumes articulation");
+            if (boss is BossMina mina)
+            {
+                for (int form = 0; form < 2; form++)
+                {
+                    Call(mina, "BeginPhaseTransition");
+                    Call(mina, "CompletePhaseTransition");
+                    Call(mina, "TickSwapAnim", 1d);
+                    for (int frame = 0; frame < 60; frame++)
+                    {
+                        Call(mina, "TickBodyMotion", 1d / 60);
+                        Call(mina, "TickIllustrationMotion", 1d / 60);
+                        await Frames(1);
+                    }
+                    Check(body.Material is ShaderMaterial, "Mina costume/dragon animation remains active");
+                    await Shot("Mina_illustration_form_" + form);
+                }
+            }
+            else
+            {
+                Call(boss, "AdvanceForm2");
+                Call(boss, "TickSwapAnim", 1d);
+                var animalFrames = new HashSet<string>();
+                for (int frame = 0; frame < 120; frame++)
+                {
+                    Call(boss, "TickBodyMotion", 1d / 60);
+                    Call(boss, "TickIllustrationMotion", 1d / 60);
+                    animalFrames.Add(body.Texture.ResourcePath);
+                    await Frames(1);
+                }
+                Check(animalFrames.Count == 4 && animalFrames.All(p => p.Contains("animal_forms")),
+                    boss.GetType().Name + " four animal poses retain secondary motion");
+                await Shot(boss.GetType().Name + "_illustration_animal");
+            }
+            boss.QueueFree();
+            await Frames(2);
+        }
+        Check(signatures.Count == bosses.Length, "distinct character rhythms");
+        GD.Print("[BossMotionQA] illustration preview complete; invincible stationary player; visual animation only");
+    }
+
+    private async Task CheckReiAvatarMotion()
+    {
+        var boss = new BossRei();
+        Spawn(boss);
+        _game.EndFury();
+        _game.Difficulty = GameManager.Diff.Easy;
+        var body = boss.GetNode<Sprite2D>("Body");
+        var mover = Read<BossMover>(boss, "_mover");
+        var frames = new HashSet<string>();
+        float[] previousWeights = new float[16];
+        float maxWeightStep = 0;
+        void ObserveBlend()
+        {
+            var material = body.Material as ShaderMaterial;
+            if (material == null) throw new Exception("Rei avatar blending material is missing");
+            float blend = (float)material.GetShaderParameter("blend_amount");
+            int current = Read<int>(boss, "_reiMotionFrame"), next = Read<int>(boss, "_reiNextFrame");
+            float[] weights = new float[16];
+            weights[current] += 1 - blend;
+            weights[next] += blend;
+            if (previousWeights.Sum() > 0)
+                maxWeightStep = Math.Max(maxWeightStep, weights.Zip(previousWeights, (a, b) => Math.Abs(a - b)).Sum());
+            previousWeights = weights;
+        }
+        float maxStep = 0;
+        Vector2 previous = boss.GlobalPosition;
+        for (int frame = 0; frame < 600; frame++)
+        {
+            Call(boss, "UpdateMovement", 1d / 60);
+            Call(boss, "TickBodyMotion", 1d / 60);
+            Call(boss, "TickIllustrationMotion", 1d / 60);
+            ObserveBlend();
+            frames.Add(body.Texture.ResourcePath);
+            maxStep = Math.Max(maxStep, boss.GlobalPosition.DistanceTo(previous));
+            previous = boss.GlobalPosition;
+            await Frames(1);
+        }
+        Check(frames.Count > 1, "Rei glide remains animated");
+        Check(maxStep < 2, $"Rei movement stays continuous: max_step={maxStep:F3}");
+        GD.Print($"[BossMotionQA] glide_frames={frames.Count} flips={mover.FlipCount}");
+        var attack = BossCharacterTechnique.Begin(boss, BossTechniqueKind.Normal, 0);
+        var castFrames = new HashSet<int>();
+        for (int frame = 0; frame < 900 && !attack.Finished; frame++)
+        {
+            Call(boss, "TickBodyMotion", 1d / 60);
+            Call(boss, "TickIllustrationMotion", 1d / 60);
+            ObserveBlend();
+            castFrames.Add(Read<int>(boss, "_reiMotionFrame"));
+            await Frames(1);
+        }
+        Check(castFrames.Any(frame => frame >= 8), $"Rei casting animation runs: elapsed={attack.Elapsed:F2}");
+        attack.Cancel();
+        for (int frame = 0; frame < 120; frame++)
+        {
+            Call(boss, "TickBodyMotion", 1d / 60);
+            Call(boss, "TickIllustrationMotion", 1d / 60);
+            ObserveBlend();
+            await Frames(1);
+        }
+        Check(Read<int>(boss, "_reiMotionFrame") < 8, "Rei resumes glide after attack interruption");
+        Check(maxWeightStep < .43f, $"Rei pose transitions are bounded: max_weight_step={maxWeightStep:F3}");
+        double motionTime = Read<double>(boss, "_reiMotionTime");
+        Hud.BubblePaused = true;
+        boss._PhysicsProcess(.1);
+        Check(Read<double>(boss, "_reiMotionTime") == motionTime, "dialogue freezes Rei avatar animation");
+        Hud.BubblePaused = false;
+        Call(boss, "SetDownBody", true);
+        Call(boss, "TickSwapAnim", 1d);
+        Check(body.Material == null, "shield break clears avatar blending");
+        for (int frame = 0; frame < 90; frame++)
+        {
+            Call(boss, "TickDownBreathing", 1d / 60);
+            await Frames(1);
+        }
+        Call(boss, "SetDownBody", false);
+        Call(boss, "TickSwapAnim", 1d);
+        Call(boss, "TickBodyMotion", 1d / 60);
+        Call(boss, "TickIllustrationMotion", 1d / 60);
+        Check(body.Material is ShaderMaterial, "shield recovery restores avatar animation");
+        _game.Difficulty = GameManager.Diff.Lunatic;
+        Call(boss, "AdvanceForm2");
+        Call(boss, "TickSwapAnim", 1d);
+        Check(body.Material == null && BossAnimalArt.Contains(body.Texture), "form change does not retain avatar blending");
+        boss.QueueFree();
+        GD.Print("[BossMotionQA] Rei avatar preview complete; player disabled; not a no-hit demonstration");
     }
 
     private void Spawn(Enemy boss)

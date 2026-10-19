@@ -210,8 +210,8 @@ public static class Jobs
     public static string DodgeDistNote(JobTuning j) =>
         j.DodgeDistMul >= 1.35f ? "踏み込みも離脱も速い"
         : j.DodgeDistMul >= 1.05f ? "標準よりわずかに伸びる"
-        : j.DodgeDistMul >= 0.75f ? "ほぼその場。耐えて捌く"
-        : "ほとんど動かない。無敵だけもらう";
+        : j.DodgeDistMul >= 0.75f ? "標準より短い距離で避ける"
+        : "短い移動で、位置を保って避ける";
 
     public static JobTuning Get(Job j)
     {

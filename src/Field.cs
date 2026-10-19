@@ -34,7 +34,7 @@ public static class Field
     public const float DCenterX = CenterX / UiKit.Scale;
     public const float DWidth = Width / UiKit.Scale;
     public const float DRight = DLeft + DWidth;
-    public const float PanelW = 208f;
+    public const float PanelW = Left / UiKit.Scale;
 
     // ── ボスの徘徊ゾーン（BossMover.Configure に渡す既定値）──
     //   従来は「中心X=200 / 半幅=90」の直書きだった。盤面が動いても同じ“やや右寄り・盤面の1/4幅”に

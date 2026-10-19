@@ -57,9 +57,12 @@ public partial class PowerPickupQa : Node
             Check(Enum.GetNames<PowerKind>().SequenceEqual(new[] { "Line", "Speed", "Life" }), "shield item removed");
             Check(Jobs.Get(Job.Melee).MaxLifeDelta == 0, "Akari gains one starting life");
             CheckArtwork();
-            foreach (var job in Jobs.All) await CheckPlayer(job);
-            await CheckDrops();
-            await CheckStageRoots();
+            if (!OS.GetCmdlineUserArgs().Contains("--preview-only"))
+            {
+                foreach (var job in Jobs.All) await CheckPlayer(job);
+                await CheckDrops();
+                await CheckStageRoots();
+            }
             if (OS.GetCmdlineUserArgs().Contains("--shots")) await Preview();
             Audio.Instance?.StopMusic(0);
             foreach (var child in GetNode<Audio>("/root/Audio").GetChildren())
@@ -68,7 +71,7 @@ public partial class PowerPickupQa : Node
             GC.Collect();
             GC.WaitForPendingFinalizers();
             await Frames(5);
-            GD.Print("[PowerQA] ALL PASS");
+            GD.Print(OS.GetCmdlineUserArgs().Contains("--preview-only") ? "[PowerQA] PREVIEW PASS" : "[PowerQA] ALL PASS");
             GetTree().Quit();
         }
         catch (Exception ex)
@@ -221,7 +224,7 @@ public partial class PowerPickupQa : Node
         {
             Write(player, "_shotPowerRemainder", 0);
             var panel = new Panel { ProcessMode = ProcessModeEnum.Disabled };
-            panel.Setup(target == "road" ? road : boss, 0, 18, 0, false, 0, 10000);
+            panel.Setup(target == "road" ? road : boss, 0, 18, 0, 10000);
             (target == "road" ? (Enemy)road : boss).AddChild(panel);
             int hp = Read<int>(body, "_hp");
             for (int volley = 0; volley < 10; volley++)

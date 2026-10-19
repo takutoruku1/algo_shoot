@@ -207,7 +207,7 @@ public partial class ScoreShardQa : Node
                 Read<IList>(fx, "_p").Clear();
                 drops.GetType().GetField("_rush", Fields)!.SetValue(drops, 0f);
 
-                fx.PurifyBurst(new Vector2(350, 70), 1500, true);
+                fx.PurifyBurst(new Vector2(350, 70), 1500, FxLayer.PurifyTier.Boss);
                 int bossCount = Shards(drops).Count;
                 Check(bossCount >= 104 && bossCount <= 128, $"boss defeat scatters the largest shard count ({bossCount})");
                 Check(bossCount > midCount * 1.6f, "boss defeat is visibly denser than a mid-boss defeat");

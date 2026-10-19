@@ -1,7 +1,7 @@
 using Godot;
 
 // Panel : 悪魔化した人(Enemy)に貼りついた「黒い吹き出し（暴言）」パネル。
-// 本体の周囲を旋回し、①暴言弾の発生源 ②algoの弾を遮る盾 を兼ねる。
+// 本体の周囲を旋回し、algoの弾を遮る盾。
 // algoの光弾が当たるとインクが減り、0で砕けて剥がれる（＝浄化が一歩進む）。
 // 衝突: layer=16(パネル), mask=2(自機弾)。自機本体(mask)はパネルを含めないので接触では痛くない。
 public partial class Panel : Area2D
@@ -10,18 +10,13 @@ public partial class Panel : Area2D
     // 一時不可侵（Enemy.SetPanelsInvulnerable 経由）。演出でボスが画面外へ退場している間、
     // 流れ弾・ボム・波紋でパネルが剥がれて BREAK が空撃ちされるのを防ぐ（あかり戦「雨の帰り道」）。
     public bool Invulnerable;
-
     private Enemy _owner = null!;
-    private float _baseAngle, _orbitRadius, _spinSpeed, _spin, _fireInterval;
-    private bool _fires;
+    private float _baseAngle, _orbitRadius, _spinSpeed, _spin;
     private bool _dead;
     private int _maxInk;
     private float _motionTime;
     private UnfolderPose _pose;
     private CanvasModulate? _worldTint;
-    public bool CanLock => !_dead && !Invulnerable && !IsQueuedForDeletion();
-    private bool BossStyle => _owner.UnfolderStyle != UnfolderKind.None;
-    private float DisplayHeight => BossStyle ? 22f : DisplayH;
     private CollisionShape2D _shape = null!;
     private string _texPath = "";
     private Sprite2D _sprite = null!;
@@ -30,28 +25,30 @@ public partial class Panel : Area2D
     private const float DisplayH = 14f;
     private double _hitFlashT;                // 剥がし途中の一撃発光の残り（Enemy._hitFlashT と同方式）
     private const double HitFlashDur = 0.09;  // 一瞬。連射で点滅し続けないよう Enemy(0.16)よりさらに短く
+    // 穢れの吹き出し（設計色 #e072ac）。ドット絵ではなく、マゼンタのグロー＋明リング＋
+    // 暗マルーン核（radial-gradient rgba(70,24,52)→#180812 相当）＋滑らかな「・・・」。
+    private static readonly Color KegareRim = new Color(0.882f, 0.447f, 0.675f);   // #e072ac
+    private static readonly Color MaroonMid = new Color(0.274f, 0.094f, 0.204f);   // rgba(70,24,52)
+    private static readonly Color MaroonCore = new Color(0.094f, 0.031f, 0.071f);  // #180812
+    private static readonly Color BubbleDot = new Color(0.92f, 0.86f, 0.92f);
+
+    public bool CanLock => !_dead && !Invulnerable && !IsQueuedForDeletion();
+    private bool BossStyle => _owner.UnfolderStyle != UnfolderKind.None;
+    private float DisplayHeight => BossStyle ? 22f : DisplayH;
 
     public void Setup(Enemy owner, float baseAngle, float orbitRadius, float spinSpeed,
-                      bool fires, float fireInterval, int ink, string texPath = "", float displayScale = 1f)
+                      int ink, string texPath = "", float displayScale = 1f)
     {
         _displayScale = displayScale;
         _owner = owner;
         _baseAngle = baseAngle;
         _orbitRadius = orbitRadius;
         _spinSpeed = spinSpeed;
-        // 発射は本体(Enemy/MidEnemy)へ一括移管したため、パネル自前の発射は常に無効。
-        // パネルは「盾＝弾を遮る／剥がして浄化」の役割のみに専念する（引数 fires/fireInterval は後方互換のため残置。値は保持のみで未使用）。
-        _fires = false;
-        _fireInterval = fireInterval;
         Ink = ink;
         _maxInk = ink;
         _texPath = texPath;
     }
 
-    // 面ごとの盾の絵（案C・2026-09-06）。心のないコメントが投稿の穢れを守っている、という意味を面の闇で読ませる。
-    //   あかり: 送信取消（取り消し線の入った紙飛行機）／こはる: 視線（目）／レイ: 低評価（下向きの親指）／FINAL・その他: 非表示の返信（…）。
-    // 器は共通の暗い吹き出し（藍黒＋淡い藤の縁＋白い記号の 3 色）。剥がれ具合は DrawInkNotches の残量表示で示す。
-    // ボス・中ボス・道中の敵・カメオはすべて同じ面の絵を使う（Enemy 側が PanelTexPath を空で渡すとここで決まる）。
     public static string ResolveTexPath(string scenePath)
     {
         string id = GameManager.StageIdForScene(scenePath) ?? "final";
@@ -128,9 +125,12 @@ public partial class Panel : Area2D
 
     private Vector2 Bound(Vector2 local)
     {
-        var world = _owner.GlobalPosition + local;
-        return new Vector2(Mathf.Clamp(world.X, Field.Left + 13, Field.Right - 13),
-            Mathf.Clamp(world.Y, Field.Top + 13, Field.Bottom - 13)) - _owner.GlobalPosition;
+        var extent = UnfolderMotion.OrbitExtent(_owner.UnfolderStyle, _orbitRadius) + new Vector2(16, 16);
+        var center = _owner.GlobalPosition;
+        // 軌道全体を内側へ寄せ、画面端で個々の盾が同じ位置へ潰れるのを防ぐ。
+        center.X = Mathf.Clamp(center.X, Field.Left + extent.X, Field.Right - extent.X);
+        center.Y = Mathf.Clamp(center.Y, Field.Top + extent.Y, Field.Bottom - extent.Y);
+        return local + center - _owner.GlobalPosition;
     }
 
     public override void _PhysicsProcess(double delta)
@@ -150,7 +150,6 @@ public partial class Panel : Area2D
         }
         if (Hud.BubblePaused) return; // 吹き出し表示中は旋回を止める
         UpdateOrbit(delta);
-        // 発射は本体側へ移管済み（_fires は常に false）。ここでは旋回＝盾の挙動のみ。
     }
 
     private int InkCost(Bullet bullet)
@@ -194,7 +193,6 @@ public partial class Panel : Area2D
         }
     }
 
-    // やさしさの波紋で剥がす（MVPでは即砕く）。
     public void WeakenByRipple()
     {
         if (_dead || Invulnerable) return;
@@ -220,13 +218,6 @@ public partial class Panel : Area2D
         _owner?.OnPanelStripped(this);
         QueueFree();
     }
-
-    // 穢れの吹き出し（設計色 #e072ac）。ドット絵ではなく、マゼンタのグロー＋明リング＋
-    // 暗マルーン核（radial-gradient rgba(70,24,52)→#180812 相当）＋滑らかな「・・・」。
-    private static readonly Color KegareRim = new Color(0.882f, 0.447f, 0.675f);   // #e072ac
-    private static readonly Color MaroonMid = new Color(0.274f, 0.094f, 0.204f);   // rgba(70,24,52)
-    private static readonly Color MaroonCore = new Color(0.094f, 0.031f, 0.071f);  // #180812
-    private static readonly Color BubbleDot = new Color(0.92f, 0.86f, 0.92f);
 
     public override void _Draw()
     {
@@ -286,8 +277,10 @@ public partial class Panel : Area2D
         void Echo(Vector2 at, float alpha)
         {
             if (alpha <= 0.01f) return;
-            DrawTextureRect(_sprite.Texture, new Rect2(at - Position - size * 0.5f, size), false,
+            DrawSetTransform(at - Position, _pose.Tilt);
+            DrawTextureRect(_sprite.Texture, new Rect2(-size * 0.5f, size), false,
                 new Color(tint, alpha));
+            DrawSetTransform(Vector2.Zero);
         }
         Echo(_pose.EchoA, _pose.EchoAlpha);
         Echo(_pose.EchoB, _pose.EchoAlpha);

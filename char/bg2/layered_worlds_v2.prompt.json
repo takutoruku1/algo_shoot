@@ -1,0 +1,1108 @@
+{
+  "revision": "2026-10-18",
+  "tool": "built-in image_gen",
+  "scope": "Four character worlds: eight route panoramas, three midboss thresholds, four boss arenas; 45 separate depth layers and seven registered composites. Established real rooms and narrative illustrations are unchanged.",
+  "canon": [
+    "src/StageAkari.cs",
+    "src/StageKoharu.cs",
+    "src/StageRei.cs",
+    "src/StageMina.cs",
+    "src/BossPostStory.cs"
+  ],
+  "concepts": {
+    "akari": "A suspended office where the departing coworker's seat remains opposite hers; unsent letters form returning bridges, inverted offices and rain frame two umbrellas.",
+    "koharu": "A never-ending fan livestream seen from audience balconies, connected to her bedroom; Rei is only on the stream screen, with its chat column.",
+    "rei": "A celestial virtual broadcast stage for her own voice and favorite book, with three warm listener bays; no live-action filming rig.",
+    "mina": "Three friends' real rooms connected by fragile return bridges; her ideal of bringing everyone home is held together with ribbons while her own route is incomplete."
+  },
+  "runtime": {
+    "route": "Three independently scrolling alpha layers; late scenery crossfades after the midboss and accelerates to 1.45 times base speed. Mina intensifies from echo wave two.",
+    "midboss_and_boss": "Three static registered layers, depth-weighted parallax from player movement.",
+    "reveal": "All dream layers are replaced by the existing real room at the final reveal."
+  },
+  "scenes": [
+    {
+      "id": "route_akari_early",
+      "character": "akari",
+      "kind": "route",
+      "selected_atlas": "char/raw/boss_worlds_20261018/atlases/route_akari_early.png",
+      "outputs": [
+        "res://char/bg2/route/akari_far.png",
+        "res://char/bg2/route/akari_mid.png",
+        "res://char/bg2/route/akari_near.png"
+      ],
+      "generation_history": [
+        {
+          "prompt": "Use case: stylized-concept. Create ONE production parallax-layer ATLAS for Akari's early side-scrolling route in Refrain. Reference 1 is the established fantastical boss world we approach (upside-down office islands and folded-letter bridges); reference 2 is her real office, style/motif only. This route is an alluring quieter approach before the midboss, not the boss arena. STRICT ATLAS: exactly 1536x1536 SQUARE canvas divided into THREE equal full-width horizontal strips, each 1536x512 (3:1 aspect). No margins, no separator strokes, no labels. These strips will be cut and OVERLAID at the same coordinates in-game, not shown as a triptych. TOP THIRD y=0..511: fully OPAQUE far panorama of muted slate-blue rain clouds, distant tiny suspended office slabs, soft amber sunset under cloud, dark calm atmospheric gulf lower half. No close objects. MIDDLE THIRD y=512..1023: TRUE TRANSPARENT background, only midground suspended ordinary office window strips and modest folded-paper footbridges, warm occupied-looking but EMPTY office desks as silhouettes inside office slabs, at local y=50..190 and y=360..490, leave the broad local central band and large gaps fully transparent. BOTTOM THIRD y=1024..1535: TRUE TRANSPARENT background, only very close dark navy/ivory folded-letter ledges and a few ordinary umbrella/handrail silhouettes along bottom local y=430..512, plus sparse paper folds hanging from top local y=0..65; leave middle 70% completely transparent. Continuous left/right matching baselines, seamlessly horizontally repeating flat side-on panorama, no vanishing point at center. Different depths move left at different speeds, no exact duplicate object between layers. Quiet central gameplay band local y=110..380 every strip, no glowing specks, no figures, no text, no UI, no trees, no plants, no skyline. Premium 2D Japanese anime background paint matching reference. Beautiful angular silhouettes, restrained ivory and amber warmth in deep slate blue, no storm violence yet. IMPORTANT preserve actual alpha in empty portions of middle/bottom strips; no checkerboard or colored background drawn. All THREE equal strips on ONE square texture.",
+          "references": [
+            "char/raw/boss_worlds_20261018/generated/akari.png",
+            "char/bg2/boss/akari_real_v1.png"
+          ],
+          "result": "char/raw/boss_worlds_20261018/references/exec-cbce7023-f421-4631-b14d-f7607da7e63c.png"
+        }
+      ]
+    },
+    {
+      "id": "route_koharu_early",
+      "character": "koharu",
+      "kind": "route",
+      "selected_atlas": "char/raw/boss_worlds_20261018/atlases/route_koharu_early.png",
+      "outputs": [
+        "res://char/bg2/route/koharu_far.png",
+        "res://char/bg2/route/koharu_mid.png",
+        "res://char/bg2/route/koharu_near.png"
+      ],
+      "generation_history": [
+        {
+          "prompt": "Use case: stylized-concept. Production parallax atlas for Japanese anime side-scrolling shooter Refrain, entering this character's idealized mental world. The reference supplies palette/story motifs, not a composition to duplicate. ONE SQUARE 1536x1536 texture containing EXACTLY THREE equal horizontal strips, each 1536x512, no borders/gutters/labels. TOP third is the complete OPAQUE FAR panorama only. MIDDLE third is an actual transparent MIDGROUND overlay. BOTTOM third is an actual transparent NEAR overlay. They will be cropped then OVERLAID, each strip same local camera/baselines. Top strip fills its entire rectangle. Middle and bottom have real alpha, not black/checkerboard/matte. STRICT side-scrolling layout: side-on lateral environment, horizontal repeating panorama with matching end lighting/heights, no central vanishing point, no huge hero focal landmark. All important detail at local top/bottom edges; middle local y=140..370 broadly quiet and low contrast. No people, no readable text, no UI, no particles/bright attack-like dots. Sophisticated clean painted anime architecture, clear large silhouettes, no repeated stock plants/bookcase/city skyline. Do not put the boss character in any strip. Design purposeful layers at different scales so they create real parallax; no baked foreground inside far. Detailed but controlled grayscale hierarchy so bullets remain visible.\nEarly route before midboss: welcoming endless fan-night, soft dusky lavender, mint and peach. FAR: distant curved audience terraces suspended across a violet cloudy dusk with low-contrast deep central air and a warm far horizon, no giant display. MID alpha: varied audience balcony islands, calendar-sheet canopy with blank grids and broad lilac/mint welcoming ribbons at top and bottom outer bands, broad transparent gaps. NEAR alpha: dark rounded balcony rail along bottom15%, one unlit penlight on edge, loose fabric ends at top10%. Not an actual singer stage or skyscraper city, no giant glowing moon.",
+          "references": [
+            "char/raw/boss_worlds_20261018/generated/koharu.png"
+          ],
+          "result": null
+        },
+        {
+          "prompt": "Use case: stylized-concept. Production parallax atlas for Japanese anime side-scrolling shooter Refrain, entering this character's idealized mental world. The reference supplies palette/story motifs, not a composition to duplicate. ONE SQUARE 1536x1536 texture containing EXACTLY THREE equal horizontal strips, each 1536x512, no borders/gutters/labels. TOP third is the complete OPAQUE FAR panorama only. MIDDLE third is an actual transparent MIDGROUND overlay. BOTTOM third is an actual transparent NEAR overlay. They will be cropped then OVERLAID, each strip same local camera/baselines. Top strip fills its entire rectangle. Middle and bottom have real alpha, not black/checkerboard/matte. STRICT side-scrolling layout: side-on lateral environment, horizontal repeating panorama with matching end lighting/heights, no central vanishing point, no huge hero focal landmark. All important detail at local top/bottom edges; middle local y=140..370 broadly quiet and low contrast. No people, no readable text, no UI, no particles/bright attack-like dots. Sophisticated clean painted anime architecture, clear large silhouettes, no repeated stock plants/bookcase/city skyline. Do not put the boss character in any strip. Design purposeful layers at different scales so they create real parallax; no baked foreground inside far. Detailed but controlled grayscale hierarchy so bullets remain visible.\nEarly route before midboss: welcoming endless fan-night, soft dusky lavender, mint and peach. FAR: distant curved audience terraces suspended across a violet cloudy dusk with low-contrast deep central air and a warm far horizon, no giant display. MID alpha: varied audience balcony islands, calendar-sheet canopy with blank grids and broad lilac/mint welcoming ribbons at top and bottom outer bands, broad transparent gaps. NEAR alpha: dark rounded balcony rail along bottom15%, one unlit penlight on edge, loose fabric ends at top10%. Not an actual singer stage or skyscraper city, no giant glowing moon.",
+          "references": [
+            "char/raw/boss_worlds_20261018/generated/koharu.png"
+          ],
+          "result": "char/raw/boss_worlds_20261018/references/exec-9bfa9f2b-cdb1-45b0-91f8-c01a5bccf9f9.png"
+        }
+      ]
+    },
+    {
+      "id": "route_rei_early",
+      "character": "rei",
+      "kind": "route",
+      "selected_atlas": "char/raw/boss_worlds_20261018/atlases/route_rei_early.png",
+      "outputs": [
+        "res://char/bg2/route/rei_far.png",
+        "res://char/bg2/route/rei_mid.png",
+        "res://char/bg2/route/rei_near.png"
+      ],
+      "generation_history": [
+        {
+          "prompt": "Use case: stylized-concept. Production parallax atlas for Japanese anime side-scrolling shooter Refrain, entering this character's idealized mental world. The reference supplies palette/story motifs, not a composition to duplicate. ONE SQUARE 1536x1536 texture containing EXACTLY THREE equal horizontal strips, each 1536x512, no borders/gutters/labels. TOP third is the complete OPAQUE FAR panorama only. MIDDLE third is an actual transparent MIDGROUND overlay. BOTTOM third is an actual transparent NEAR overlay. They will be cropped then OVERLAID, each strip same local camera/baselines. Top strip fills its entire rectangle. Middle and bottom have real alpha, not black/checkerboard/matte. STRICT side-scrolling layout: side-on lateral environment, horizontal repeating panorama with matching end lighting/heights, no central vanishing point, no huge hero focal landmark. All important detail at local top/bottom edges; middle local y=140..370 broadly quiet and low contrast. No people, no readable text, no UI, no particles/bright attack-like dots. Sophisticated clean painted anime architecture, clear large silhouettes, no repeated stock plants/bookcase/city skyline. Do not put the boss character in any strip. Design purposeful layers at different scales so they create real parallax; no baked foreground inside far. Detailed but controlled grayscale hierarchy so bullets remain visible.\nEarly route before midboss: the dream of a voice reaching distant listeners. FAR: open celestial indigo sky with broad smooth blue-violet nebular haze and very distant star-shaped architectural silhouettes, no tiny star dots, calm empty dark middle. MID alpha: thin silver-gold proscenium fragments and modest curved audience terraces forming side-on horizontal paths in top25% and bottom20%, a few soft warm rectangular bays at edge, no repeated apartment buildings. NEAR alpha: long dark violet theater fabric at top8%, larger segmented stage rail and closed book/blue mug silhouettes only bottom12%. Refined flowing white, antique gold, cobalt. No filming lights/cameras/paintings.",
+          "references": [
+            "char/raw/boss_worlds_20261018/generated/rei.png"
+          ],
+          "result": null
+        },
+        {
+          "prompt": "Use case: stylized-concept. Production parallax atlas for Japanese anime side-scrolling shooter Refrain, entering this character's idealized mental world. The reference supplies palette/story motifs, not a composition to duplicate. ONE SQUARE 1536x1536 texture containing EXACTLY THREE equal horizontal strips, each 1536x512, no borders/gutters/labels. TOP third is the complete OPAQUE FAR panorama only. MIDDLE third is an actual transparent MIDGROUND overlay. BOTTOM third is an actual transparent NEAR overlay. They will be cropped then OVERLAID, each strip same local camera/baselines. Top strip fills its entire rectangle. Middle and bottom have real alpha, not black/checkerboard/matte. STRICT side-scrolling layout: side-on lateral environment, horizontal repeating panorama with matching end lighting/heights, no central vanishing point, no huge hero focal landmark. All important detail at local top/bottom edges; middle local y=140..370 broadly quiet and low contrast. No people, no readable text, no UI, no particles/bright attack-like dots. Sophisticated clean painted anime architecture, clear large silhouettes, no repeated stock plants/bookcase/city skyline. Do not put the boss character in any strip. Design purposeful layers at different scales so they create real parallax; no baked foreground inside far. Detailed but controlled grayscale hierarchy so bullets remain visible.\nEarly route before midboss: the dream of a voice reaching distant listeners. FAR: open celestial indigo sky with broad smooth blue-violet nebular haze and very distant star-shaped architectural silhouettes, no tiny star dots, calm empty dark middle. MID alpha: thin silver-gold proscenium fragments and modest curved audience terraces forming side-on horizontal paths in top25% and bottom20%, a few soft warm rectangular bays at edge, no repeated apartment buildings. NEAR alpha: long dark violet theater fabric at top8%, larger segmented stage rail and closed book/blue mug silhouettes only bottom12%. Refined flowing white, antique gold, cobalt. No filming lights/cameras/paintings.",
+          "references": [
+            "char/raw/boss_worlds_20261018/generated/rei.png"
+          ],
+          "result": "char/raw/boss_worlds_20261018/references/exec-ffd9da7e-c892-4321-a4da-faf6b2b045dc.png"
+        }
+      ]
+    },
+    {
+      "id": "route_mina_early",
+      "character": "mina",
+      "kind": "route",
+      "selected_atlas": "char/raw/boss_worlds_20261018/atlases/route_mina_early.png",
+      "outputs": [
+        "res://char/bg2/route/mina_far.png",
+        "res://char/bg2/route/mina_mid.png",
+        "res://char/bg2/route/mina_near.png"
+      ],
+      "generation_history": [
+        {
+          "prompt": "Use case: stylized-concept. Production parallax atlas for Japanese anime side-scrolling shooter Refrain, entering this character's idealized mental world. The reference supplies palette/story motifs, not a composition to duplicate. ONE SQUARE 1536x1536 texture containing EXACTLY THREE equal horizontal strips, each 1536x512, no borders/gutters/labels. TOP third is the complete OPAQUE FAR panorama only. MIDDLE third is an actual transparent MIDGROUND overlay. BOTTOM third is an actual transparent NEAR overlay. They will be cropped then OVERLAID, each strip same local camera/baselines. Top strip fills its entire rectangle. Middle and bottom have real alpha, not black/checkerboard/matte. STRICT side-scrolling layout: side-on lateral environment, horizontal repeating panorama with matching end lighting/heights, no central vanishing point, no huge hero focal landmark. All important detail at local top/bottom edges; middle local y=140..370 broadly quiet and low contrast. No people, no readable text, no UI, no particles/bright attack-like dots. Sophisticated clean painted anime architecture, clear large silhouettes, no repeated stock plants/bookcase/city skyline. Do not put the boss character in any strip. Design purposeful layers at different scales so they create real parallax; no baked foreground inside far. Detailed but controlled grayscale hierarchy so bullets remain visible.\nEarly final-stage route, before the echoed memories intensify: Mina trying to hold everyone's return paths together. FAR: calm deep teal reflective basin, layered translucent memory glass planes at distant sides, muted ivory dawn beyond, no detailed objects in middle. MID alpha: horizontal glass return bridges supported by white ribbon knots, three widely separated small unlit doorframe islands, side-on lower25% and upper15%, large transparent central gaps. NEAR alpha: dark charcoal broken bridge parapets and trailing ivory ribbons only bottom15%, tiny paper-fold canopy at uppercorners. No home for Mina, no mansion/library, no person, no map/UI.",
+          "references": [
+            "char/raw/boss_worlds_20261018/generated/mina.png"
+          ],
+          "result": null
+        },
+        {
+          "prompt": "Use case: stylized-concept. Production parallax atlas for Japanese anime side-scrolling shooter Refrain, entering this character's idealized mental world. The reference supplies palette/story motifs, not a composition to duplicate. ONE SQUARE 1536x1536 texture containing EXACTLY THREE equal horizontal strips, each 1536x512, no borders/gutters/labels. TOP third is the complete OPAQUE FAR panorama only. MIDDLE third is an actual transparent MIDGROUND overlay. BOTTOM third is an actual transparent NEAR overlay. They will be cropped then OVERLAID, each strip same local camera/baselines. Top strip fills its entire rectangle. Middle and bottom have real alpha, not black/checkerboard/matte. STRICT side-scrolling layout: side-on lateral environment, horizontal repeating panorama with matching end lighting/heights, no central vanishing point, no huge hero focal landmark. All important detail at local top/bottom edges; middle local y=140..370 broadly quiet and low contrast. No people, no readable text, no UI, no particles/bright attack-like dots. Sophisticated clean painted anime architecture, clear large silhouettes, no repeated stock plants/bookcase/city skyline. Do not put the boss character in any strip. Design purposeful layers at different scales so they create real parallax; no baked foreground inside far. Detailed but controlled grayscale hierarchy so bullets remain visible.\nEarly final-stage route, before the echoed memories intensify: Mina trying to hold everyone's return paths together. FAR: calm deep teal reflective basin, layered translucent memory glass planes at distant sides, muted ivory dawn beyond, no detailed objects in middle. MID alpha: horizontal glass return bridges supported by white ribbon knots, three widely separated small unlit doorframe islands, side-on lower25% and upper15%, large transparent central gaps. NEAR alpha: dark charcoal broken bridge parapets and trailing ivory ribbons only bottom15%, tiny paper-fold canopy at uppercorners. No home for Mina, no mansion/library, no person, no map/UI.",
+          "references": [
+            "char/raw/boss_worlds_20261018/generated/mina.png"
+          ],
+          "result": "char/raw/boss_worlds_20261018/references/exec-314b6465-0c34-44b3-9d7f-43e89fb8af07.png"
+        }
+      ]
+    },
+    {
+      "id": "route_akari_late",
+      "character": "akari",
+      "kind": "route",
+      "selected_atlas": "char/raw/boss_worlds_20261018/atlases/route_akari_late.png",
+      "outputs": [
+        "res://char/bg2/route/akari_late_far.png",
+        "res://char/bg2/route/akari_late_mid.png",
+        "res://char/bg2/route/akari_late_near.png"
+      ],
+      "generation_history": [
+        {
+          "prompt": "Use case: stylized-concept. Production parallax atlas for Japanese anime side-scrolling shooter Refrain, entering this character's idealized mental world. The reference supplies palette/story motifs, not a composition to duplicate. ONE SQUARE 1536x1536 texture containing EXACTLY THREE equal horizontal strips, each 1536x512, no borders/gutters/labels. TOP third is the complete OPAQUE FAR panorama only. MIDDLE third is an actual transparent MIDGROUND overlay. BOTTOM third is an actual transparent NEAR overlay. They will be cropped then OVERLAID, each strip same local camera/baselines. Top strip fills its entire rectangle. Middle and bottom have real alpha, not black/checkerboard/matte. STRICT side-scrolling layout: side-on lateral environment, horizontal repeating panorama with matching end lighting/heights, no central vanishing point, no huge hero focal landmark. All important detail at local top/bottom edges; middle local y=140..370 broadly quiet and low contrast. No people, no readable text, no UI, no particles/bright attack-like dots. Sophisticated clean painted anime architecture, clear large silhouettes, no repeated stock plants/bookcase/city skyline. Do not put the boss character in any strip. Design purposeful layers at different scales so they create real parallax; no baked foreground inside far. Detailed but controlled grayscale hierarchy so bullets remain visible.\nLATE route AFTER midboss: same suspended office/letter world as early atlas, now increasingly impossible and desperate. FAR: heavy deep slate-cyan storm layers, distant inverted office slabs leaning and rising, warm safe windows sparse, lower ocean nearly black, no bright lightning. MID alpha: larger rotated office islands and torn blank-message paper bridges bending back into loops along upper25% and lower20%, darker than early, broad central transparent gaps. NEAR alpha: forceful enormous folded navy/ivory paper edges crossing only top10% and bottom18%, snapped handrail silhouette and closed umbrella attached to lower ledge, no flying small debris. Strong diagonal pressure, colder heavier atmosphere, controlled brightness.\nThe first image is the EARLY three-strip atlas; keep the same layer separation and architectural identity while unmistakably escalating to the LATE atmosphere. The second image is the boss destination, not a template to clone.",
+          "references": [
+            "char/raw/boss_worlds_20261018/references/exec-cbce7023-f421-4631-b14d-f7607da7e63c.png",
+            "char/raw/boss_worlds_20261018/generated/akari.png"
+          ],
+          "result": null
+        },
+        {
+          "prompt": "Use case: stylized-concept. Production parallax atlas for Japanese anime side-scrolling shooter Refrain, entering this character's idealized mental world. The reference supplies palette/story motifs, not a composition to duplicate. ONE SQUARE 1536x1536 texture containing EXACTLY THREE equal horizontal strips, each 1536x512, no borders/gutters/labels. TOP third is the complete OPAQUE FAR panorama only. MIDDLE third is an actual transparent MIDGROUND overlay. BOTTOM third is an actual transparent NEAR overlay. They will be cropped then OVERLAID, each strip same local camera/baselines. Top strip fills its entire rectangle. Middle and bottom have real alpha, not black/checkerboard/matte. STRICT side-scrolling layout: side-on lateral environment, horizontal repeating panorama with matching end lighting/heights, no central vanishing point, no huge hero focal landmark. All important detail at local top/bottom edges; middle local y=140..370 broadly quiet and low contrast. No people, no readable text, no UI, no particles/bright attack-like dots. Sophisticated clean painted anime architecture, clear large silhouettes, no repeated stock plants/bookcase/city skyline. Do not put the boss character in any strip. Design purposeful layers at different scales so they create real parallax; no baked foreground inside far. Detailed but controlled grayscale hierarchy so bullets remain visible.\nLATE route AFTER midboss: same suspended office/letter world as early atlas, now increasingly impossible and desperate. FAR: heavy deep slate-cyan storm layers, distant inverted office slabs leaning and rising, warm safe windows sparse, lower ocean nearly black, no bright lightning. MID alpha: larger rotated office islands and torn blank-message paper bridges bending back into loops along upper25% and lower20%, darker than early, broad central transparent gaps. NEAR alpha: forceful enormous folded navy/ivory paper edges crossing only top10% and bottom18%, snapped handrail silhouette and closed umbrella attached to lower ledge, no flying small debris. Strong diagonal pressure, colder heavier atmosphere, controlled brightness.\nThe first image is the EARLY three-strip atlas; keep the same layer separation and architectural identity while unmistakably escalating to the LATE atmosphere. The second image is the boss destination, not a template to clone.",
+          "references": [
+            "char/raw/boss_worlds_20261018/references/exec-cbce7023-f421-4631-b14d-f7607da7e63c.png",
+            "char/raw/boss_worlds_20261018/generated/akari.png"
+          ],
+          "result": "char/raw/boss_worlds_20261018/references/exec-ea2d88e4-4cde-4d06-9f61-41f7ecd6df3d.png"
+        }
+      ]
+    },
+    {
+      "id": "route_koharu_late",
+      "character": "koharu",
+      "kind": "route",
+      "selected_atlas": "char/raw/boss_worlds_20261018/atlases/route_koharu_late.png",
+      "outputs": [
+        "res://char/bg2/route/koharu_late_far.png",
+        "res://char/bg2/route/koharu_late_mid.png",
+        "res://char/bg2/route/koharu_late_near.png"
+      ],
+      "generation_history": [
+        {
+          "prompt": "Use case: stylized-concept. Production parallax atlas for Japanese anime side-scrolling shooter Refrain, entering this character's idealized mental world. The reference supplies palette/story motifs, not a composition to duplicate. ONE SQUARE 1536x1536 texture containing EXACTLY THREE equal horizontal strips, each 1536x512, no borders/gutters/labels. TOP third is the complete OPAQUE FAR panorama only. MIDDLE third is an actual transparent MIDGROUND overlay. BOTTOM third is an actual transparent NEAR overlay. They will be cropped then OVERLAID, each strip same local camera/baselines. Top strip fills its entire rectangle. Middle and bottom have real alpha, not black/checkerboard/matte. STRICT side-scrolling layout: side-on lateral environment, horizontal repeating panorama with matching end lighting/heights, no central vanishing point, no huge hero focal landmark. All important detail at local top/bottom edges; middle local y=140..370 broadly quiet and low contrast. No people, no readable text, no UI, no particles/bright attack-like dots. Sophisticated clean painted anime architecture, clear large silhouettes, no repeated stock plants/bookcase/city skyline. Do not put the boss character in any strip. Design purposeful layers at different scales so they create real parallax; no baked foreground inside far. Detailed but controlled grayscale hierarchy so bullets remain visible.\nLATE route AFTER midboss: the same welcoming fan-night now feels endless and compulsory. FAR: deep purple night swallowed by banks of indigo cloud, distant audience tiers multiply and lean inward, peach warmth mostly gone. MID alpha: calendar pages blank grid curl into binding canopies in top25%, larger steep fan balconies and taut mint/lilac fabric bands along lower25%, no stage performer, broad central alpha gaps. NEAR alpha: dark plum rails and bundled broad ribbon loops framing top8% and bottom17%, isolated unlit penlight on lower edge. Stronger oppressive scale and diagonal forms, visibly darker and weightier than early; no particles or neon red, no readable schedule.\nThe first image is the EARLY three-strip atlas; keep the same layer separation and architectural identity while unmistakably escalating to the LATE atmosphere. The second image is the boss destination, not a template to clone.",
+          "references": [
+            "char/raw/boss_worlds_20261018/references/exec-9bfa9f2b-cdb1-45b0-91f8-c01a5bccf9f9.png",
+            "char/raw/boss_worlds_20261018/generated/koharu.png"
+          ],
+          "result": null
+        },
+        {
+          "prompt": "Use case: stylized-concept. Production parallax atlas for Japanese anime side-scrolling shooter Refrain, entering this character's idealized mental world. The reference supplies palette/story motifs, not a composition to duplicate. ONE SQUARE 1536x1536 texture containing EXACTLY THREE equal horizontal strips, each 1536x512, no borders/gutters/labels. TOP third is the complete OPAQUE FAR panorama only. MIDDLE third is an actual transparent MIDGROUND overlay. BOTTOM third is an actual transparent NEAR overlay. They will be cropped then OVERLAID, each strip same local camera/baselines. Top strip fills its entire rectangle. Middle and bottom have real alpha, not black/checkerboard/matte. STRICT side-scrolling layout: side-on lateral environment, horizontal repeating panorama with matching end lighting/heights, no central vanishing point, no huge hero focal landmark. All important detail at local top/bottom edges; middle local y=140..370 broadly quiet and low contrast. No people, no readable text, no UI, no particles/bright attack-like dots. Sophisticated clean painted anime architecture, clear large silhouettes, no repeated stock plants/bookcase/city skyline. Do not put the boss character in any strip. Design purposeful layers at different scales so they create real parallax; no baked foreground inside far. Detailed but controlled grayscale hierarchy so bullets remain visible.\nLATE route AFTER midboss: the same welcoming fan-night now feels endless and compulsory. FAR: deep purple night swallowed by banks of indigo cloud, distant audience tiers multiply and lean inward, peach warmth mostly gone. MID alpha: calendar pages blank grid curl into binding canopies in top25%, larger steep fan balconies and taut mint/lilac fabric bands along lower25%, no stage performer, broad central alpha gaps. NEAR alpha: dark plum rails and bundled broad ribbon loops framing top8% and bottom17%, isolated unlit penlight on lower edge. Stronger oppressive scale and diagonal forms, visibly darker and weightier than early; no particles or neon red, no readable schedule.\nThe first image is the EARLY three-strip atlas; keep the same layer separation and architectural identity while unmistakably escalating to the LATE atmosphere. The second image is the boss destination, not a template to clone.",
+          "references": [
+            "char/raw/boss_worlds_20261018/references/exec-9bfa9f2b-cdb1-45b0-91f8-c01a5bccf9f9.png",
+            "char/raw/boss_worlds_20261018/generated/koharu.png"
+          ],
+          "result": "char/raw/boss_worlds_20261018/references/exec-c65c0aa7-d5f8-4bca-a2a7-5cfee2721d6d.png"
+        }
+      ]
+    },
+    {
+      "id": "route_rei_late",
+      "character": "rei",
+      "kind": "route",
+      "selected_atlas": "char/raw/boss_worlds_20261018/atlases/route_rei_late.png",
+      "outputs": [
+        "res://char/bg2/route/rei_late_far.png",
+        "res://char/bg2/route/rei_late_mid.png",
+        "res://char/bg2/route/rei_late_near.png"
+      ],
+      "generation_history": [
+        {
+          "prompt": "Use case: stylized-concept. Production parallax atlas for Japanese anime side-scrolling shooter Refrain, entering this character's idealized mental world. The reference supplies palette/story motifs, not a composition to duplicate. ONE SQUARE 1536x1536 texture containing EXACTLY THREE equal horizontal strips, each 1536x512, no borders/gutters/labels. TOP third is the complete OPAQUE FAR panorama only. MIDDLE third is an actual transparent MIDGROUND overlay. BOTTOM third is an actual transparent NEAR overlay. They will be cropped then OVERLAID, each strip same local camera/baselines. Top strip fills its entire rectangle. Middle and bottom have real alpha, not black/checkerboard/matte. STRICT side-scrolling layout: side-on lateral environment, horizontal repeating panorama with matching end lighting/heights, no central vanishing point, no huge hero focal landmark. All important detail at local top/bottom edges; middle local y=140..370 broadly quiet and low contrast. No people, no readable text, no UI, no particles/bright attack-like dots. Sophisticated clean painted anime architecture, clear large silhouettes, no repeated stock plants/bookcase/city skyline. Do not put the boss character in any strip. Design purposeful layers at different scales so they create real parallax; no baked foreground inside far. Detailed but controlled grayscale hierarchy so bullets remain visible.\nLATE route AFTER midboss: same celestial broadcast dream fractures under fear of losing viewers. FAR: deep cobalt/ink-violet sky, broad dark nebula folds, far star architectural arcs fractured and tilting, no bright starfield. MID alpha: tilted thin mirror/screen-frame fragments and collapsed gold stage balconies along upper25% and bottom22%, exactly three sparse warm bays far apart, no content/text/faces, central transparent gap. NEAR alpha: broad dark violet curtain folds pulled taut across top10%, thick broken silver/gold stage molding and blank book-page ribbon at bottom17%. Elegant, dramatic, pressure and scale above early, no real filming rig, no neon attack beams.\nThe first image is the EARLY three-strip atlas; keep the same layer separation and architectural identity while unmistakably escalating to the LATE atmosphere. The second image is the boss destination, not a template to clone.",
+          "references": [
+            "char/raw/boss_worlds_20261018/references/exec-ffd9da7e-c892-4321-a4da-faf6b2b045dc.png",
+            "char/raw/boss_worlds_20261018/generated/rei.png"
+          ],
+          "result": null
+        },
+        {
+          "prompt": "Use case: stylized-concept. Production parallax atlas for Japanese anime side-scrolling shooter Refrain, entering this character's idealized mental world. The reference supplies palette/story motifs, not a composition to duplicate. ONE SQUARE 1536x1536 texture containing EXACTLY THREE equal horizontal strips, each 1536x512, no borders/gutters/labels. TOP third is the complete OPAQUE FAR panorama only. MIDDLE third is an actual transparent MIDGROUND overlay. BOTTOM third is an actual transparent NEAR overlay. They will be cropped then OVERLAID, each strip same local camera/baselines. Top strip fills its entire rectangle. Middle and bottom have real alpha, not black/checkerboard/matte. STRICT side-scrolling layout: side-on lateral environment, horizontal repeating panorama with matching end lighting/heights, no central vanishing point, no huge hero focal landmark. All important detail at local top/bottom edges; middle local y=140..370 broadly quiet and low contrast. No people, no readable text, no UI, no particles/bright attack-like dots. Sophisticated clean painted anime architecture, clear large silhouettes, no repeated stock plants/bookcase/city skyline. Do not put the boss character in any strip. Design purposeful layers at different scales so they create real parallax; no baked foreground inside far. Detailed but controlled grayscale hierarchy so bullets remain visible.\nLATE route AFTER midboss: same celestial broadcast dream fractures under fear of losing viewers. FAR: deep cobalt/ink-violet sky, broad dark nebula folds, far star architectural arcs fractured and tilting, no bright starfield. MID alpha: tilted thin mirror/screen-frame fragments and collapsed gold stage balconies along upper25% and bottom22%, exactly three sparse warm bays far apart, no content/text/faces, central transparent gap. NEAR alpha: broad dark violet curtain folds pulled taut across top10%, thick broken silver/gold stage molding and blank book-page ribbon at bottom17%. Elegant, dramatic, pressure and scale above early, no real filming rig, no neon attack beams.\nThe first image is the EARLY three-strip atlas; keep the same layer separation and architectural identity while unmistakably escalating to the LATE atmosphere. The second image is the boss destination, not a template to clone.",
+          "references": [
+            "char/raw/boss_worlds_20261018/references/exec-ffd9da7e-c892-4321-a4da-faf6b2b045dc.png",
+            "char/raw/boss_worlds_20261018/generated/rei.png"
+          ],
+          "result": "char/raw/boss_worlds_20261018/references/exec-d68a4cf7-cb0a-484a-9e6f-b8ea9f55dd93.png"
+        }
+      ]
+    },
+    {
+      "id": "route_mina_late",
+      "character": "mina",
+      "kind": "route",
+      "selected_atlas": "char/raw/boss_worlds_20261018/atlases/route_mina_late.png",
+      "outputs": [
+        "res://char/bg2/route/mina_late_far.png",
+        "res://char/bg2/route/mina_late_mid.png",
+        "res://char/bg2/route/mina_late_near.png"
+      ],
+      "generation_history": [
+        {
+          "prompt": "Use case: stylized-concept. Production parallax atlas for Japanese anime side-scrolling shooter Refrain, entering this character's idealized mental world. The reference supplies palette/story motifs, not a composition to duplicate. ONE SQUARE 1536x1536 texture containing EXACTLY THREE equal horizontal strips, each 1536x512, no borders/gutters/labels. TOP third is the complete OPAQUE FAR panorama only. MIDDLE third is an actual transparent MIDGROUND overlay. BOTTOM third is an actual transparent NEAR overlay. They will be cropped then OVERLAID, each strip same local camera/baselines. Top strip fills its entire rectangle. Middle and bottom have real alpha, not black/checkerboard/matte. STRICT side-scrolling layout: side-on lateral environment, horizontal repeating panorama with matching end lighting/heights, no central vanishing point, no huge hero focal landmark. All important detail at local top/bottom edges; middle local y=140..370 broadly quiet and low contrast. No people, no readable text, no UI, no particles/bright attack-like dots. Sophisticated clean painted anime architecture, clear large silhouettes, no repeated stock plants/bookcase/city skyline. Do not put the boss character in any strip. Design purposeful layers at different scales so they create real parallax; no baked foreground inside far. Detailed but controlled grayscale hierarchy so bullets remain visible.\nFinal-stage LATE route during second/third echoed memory waves (there is NO invented midboss here). Same return-route basin now almost unable to bear all three friends' memories. FAR: dark charcoal/teal flood, distant glass planes folded inward, dawn reduced to narrow muted horizon; no central bright portal. MID alpha: broken return-bridge segments, several snapped doorframes and doubled ivory-black ribbon knots in top25% and bottom22%, broad transparent central space, still discernible routes toward home. NEAR alpha: large jagged dark glass parapets tethered with broad black/ivory strips along top8% and bottom18%, no fine shards/confetti. Heavier and denser outer framing, remain calm center. No new home, no machinery or shrine.\nThe first image is the EARLY three-strip atlas; keep the same layer separation and architectural identity while unmistakably escalating to the LATE atmosphere. The second image is the boss destination, not a template to clone.",
+          "references": [
+            "char/raw/boss_worlds_20261018/references/exec-314b6465-0c34-44b3-9d7f-43e89fb8af07.png",
+            "char/raw/boss_worlds_20261018/generated/mina.png"
+          ],
+          "result": null
+        },
+        {
+          "prompt": "Use case: stylized-concept. Production parallax atlas for Japanese anime side-scrolling shooter Refrain, entering this character's idealized mental world. The reference supplies palette/story motifs, not a composition to duplicate. ONE SQUARE 1536x1536 texture containing EXACTLY THREE equal horizontal strips, each 1536x512, no borders/gutters/labels. TOP third is the complete OPAQUE FAR panorama only. MIDDLE third is an actual transparent MIDGROUND overlay. BOTTOM third is an actual transparent NEAR overlay. They will be cropped then OVERLAID, each strip same local camera/baselines. Top strip fills its entire rectangle. Middle and bottom have real alpha, not black/checkerboard/matte. STRICT side-scrolling layout: side-on lateral environment, horizontal repeating panorama with matching end lighting/heights, no central vanishing point, no huge hero focal landmark. All important detail at local top/bottom edges; middle local y=140..370 broadly quiet and low contrast. No people, no readable text, no UI, no particles/bright attack-like dots. Sophisticated clean painted anime architecture, clear large silhouettes, no repeated stock plants/bookcase/city skyline. Do not put the boss character in any strip. Design purposeful layers at different scales so they create real parallax; no baked foreground inside far. Detailed but controlled grayscale hierarchy so bullets remain visible.\nFinal-stage LATE route during second/third echoed memory waves (there is NO invented midboss here). Same return-route basin now almost unable to bear all three friends' memories. FAR: dark charcoal/teal flood, distant glass planes folded inward, dawn reduced to narrow muted horizon; no central bright portal. MID alpha: broken return-bridge segments, several snapped doorframes and doubled ivory-black ribbon knots in top25% and bottom22%, broad transparent central space, still discernible routes toward home. NEAR alpha: large jagged dark glass parapets tethered with broad black/ivory strips along top8% and bottom18%, no fine shards/confetti. Heavier and denser outer framing, remain calm center. No new home, no machinery or shrine.\nThe first image is the EARLY three-strip atlas; keep the same layer separation and architectural identity while unmistakably escalating to the LATE atmosphere. The second image is the boss destination, not a template to clone.",
+          "references": [
+            "char/raw/boss_worlds_20261018/references/exec-314b6465-0c34-44b3-9d7f-43e89fb8af07.png",
+            "char/raw/boss_worlds_20261018/generated/mina.png"
+          ],
+          "result": "char/raw/boss_worlds_20261018/references/exec-e34879f2-85e3-46cb-b082-21c1019e0cea.png"
+        }
+      ]
+    },
+    {
+      "id": "midboss_akari",
+      "character": "akari",
+      "kind": "midboss",
+      "selected_atlas": "char/raw/boss_worlds_20261018/atlases/midboss_akari.png",
+      "outputs": [
+        "res://char/bg2/midboss/akari_far_v2.png",
+        "res://char/bg2/midboss/akari_mid_v2.png",
+        "res://char/bg2/midboss/akari_near_v2.png",
+        "res://char/bg2/midboss/akari_v1.png"
+      ],
+      "generation_history": [
+        {
+          "prompt": "Use case: compositing / stylized-concept. Produce ONE three-layer parallax ATLAS for Refrain, a Japanese anime shooter. EXACT layout: tall portrait canvas 1536x3072, divided into THREE equal full-width horizontal rectangles each 1536x1024 (3:2). No margins, labels or separators. These rectangles will be cropped and OVERLAID at identical positions; they are NOT a comic, not three scenes. TOP THIRD: full OPAQUE distant background plate, with foreground/midground objects removed and their space naturally painted in. MIDDLE THIRD: actual transparent cutouts of midground architecture/props only, registered to the far plate. BOTTOM THIRD: actual transparent cutouts of nearest perimeter objects only, registered to the same full camera. Objects MUST NOT appear in more than one strip. Middle/near central 65% stays mostly transparent; true alpha everywhere without objects, no checkerboard/colored matte/black background. No drawn text, labels, people, HUD or particles. Match the refined painted anime style and exact character-world identity in references, monumental but readable depth. No random plants, repeated bookshelves, ordinary skyscraper skyline, generic shrine. Keep central play space low contrast and moderately dark behind bullets, bright accents only around outer architecture. No attacks/bright glowing specks. Layer images all have exactly the same size and alignment.\nCreate the intermediate threshold between references: the first is her familiar office emergency landing, the second is her full dream world. A recognizable rain-wet concrete stair landing with stairs LEFT, gray fire door on rear-left with small amber lamp, two closed yellow/navy umbrellas; the right wall is peeling open into suspended upside-down office slabs and curved blank-letter bridges over dark blue raincloud. Same emotional story of waiting to leave work together. This is a smaller unstable threshold, NOT the huge boss arena. FAR strip: gray door/wall/stairwell distant portion at left and rainy open gulf at right, broad empty low-contrast landing floor, no foreground rails. MID alpha strip: separate hovering office slab and broad white folded-letter canopy at upper-right edges, near stair flight at left, tiny soft amber wall lamp. NEAR alpha strip: dark concrete/handrail lower-left and one umbrella stand at extreme left-bottom, broad broken letter fold lower-right. Keep the player center unobstructed. No indoor plants, skyline, phone UI, prose, no bright rain streaks.",
+          "references": [
+            "char/raw/boss_worlds_20261018/originals/midboss/akari_v1.png",
+            "char/raw/boss_worlds_20261018/generated/akari.png"
+          ],
+          "result": null
+        },
+        {
+          "prompt": "Precise edit of this EXACT three-strip layered atlas. Keep canvas dimensions and exact one-third boundaries. Change ONLY TOP THIRD; preserve MIDDLE and BOTTOM thirds pixel-identically as much as possible, including their true alpha and positions. The three strips are composited on top of each other in the game. Currently some objects are duplicated across strips; remove these duplicates from TOP by painting natural background behind them. Remove the stair flight, handrails, amber lamp and gray fire door completely from TOP third, replace them with a continuous muted flat concrete wall of the same perspective and lighting. Remove the BIG nearby floating office slab and broad nearby white paper ribbons from TOP third; retain only distant smaller office silhouettes and rainy sky gulf. These removed things already exist in MIDDLE third; never draw them twice. No added objects. Retain original painted anime style and brightness. Preserve real transparent areas of middle/bottom; top remains opaque. No labels, border, checkerboard.",
+          "references": [
+            "char/raw/boss_worlds_20261018/references/exec-aaa95403-40c8-4b8c-8f5a-0dc04331ebe8.png"
+          ],
+          "result": "char/raw/boss_worlds_20261018/references/exec-48a03396-83d4-41af-93c9-af68b62001ee.png"
+        },
+        {
+          "prompt": "Use case: compositing / stylized-concept. Produce ONE three-layer parallax ATLAS for Refrain, a Japanese anime shooter. EXACT layout: tall portrait canvas 1536x3072, divided into THREE equal full-width horizontal rectangles each 1536x1024 (3:2). No margins, labels or separators. These rectangles will be cropped and OVERLAID at identical positions; they are NOT a comic, not three scenes. TOP THIRD: full OPAQUE distant background plate, with foreground/midground objects removed and their space naturally painted in. MIDDLE THIRD: actual transparent cutouts of midground architecture/props only, registered to the far plate. BOTTOM THIRD: actual transparent cutouts of nearest perimeter objects only, registered to the same full camera. Objects MUST NOT appear in more than one strip. Middle/near central 65% stays mostly transparent; true alpha everywhere without objects, no checkerboard/colored matte/black background. No drawn text, labels, people, HUD or particles. Match the refined painted anime style and exact character-world identity in references, monumental but readable depth. No random plants, repeated bookshelves, ordinary skyscraper skyline, generic shrine. Keep central play space low contrast and moderately dark behind bullets, bright accents only around outer architecture. No attacks/bright glowing specks. Layer images all have exactly the same size and alignment.\nCreate the intermediate threshold between references: the first is her familiar office emergency landing, the second is her full dream world. A recognizable rain-wet concrete stair landing with stairs LEFT, gray fire door on rear-left with small amber lamp, two closed yellow/navy umbrellas; the right wall is peeling open into suspended upside-down office slabs and curved blank-letter bridges over dark blue raincloud. Same emotional story of waiting to leave work together. This is a smaller unstable threshold, NOT the huge boss arena. FAR strip: gray door/wall/stairwell distant portion at left and rainy open gulf at right, broad empty low-contrast landing floor, no foreground rails. MID alpha strip: separate hovering office slab and broad white folded-letter canopy at upper-right edges, near stair flight at left, tiny soft amber wall lamp. NEAR alpha strip: dark concrete/handrail lower-left and one umbrella stand at extreme left-bottom, broad broken letter fold lower-right. Keep the player center unobstructed. No indoor plants, skyline, phone UI, prose, no bright rain streaks.",
+          "references": [
+            "char/raw/boss_worlds_20261018/originals/midboss/akari_v1.png",
+            "char/raw/boss_worlds_20261018/generated/akari.png"
+          ],
+          "result": "char/raw/boss_worlds_20261018/references/exec-aaa95403-40c8-4b8c-8f5a-0dc04331ebe8.png"
+        },
+        {
+          "prompt": "Edit ONLY TOP THIRD of this exact 3-layer atlas. In TOP, erase ALL floating office buildings/slabs/desks from the entire RIGHT HALF. Paint only the existing blue rain clouds continuing behind them. No office silhouettes whatsoever in TOP now. Left flat concrete wall and floor remain exactly. Keep MIDDLE/BOTTOM exactly including true alpha. Office slabs already belong in MIDDLE and must NOT be drawn twice. Same canvas, same three equal strip boundaries, no labels.",
+          "references": [
+            "char/raw/boss_worlds_20261018/references/exec-48a03396-83d4-41af-93c9-af68b62001ee.png"
+          ],
+          "result": "char/raw/boss_worlds_20261018/references/exec-7fd79ad9-3af7-4d02-981b-aa7d9acd57a4.png"
+        }
+      ]
+    },
+    {
+      "id": "midboss_koharu",
+      "character": "koharu",
+      "kind": "midboss",
+      "selected_atlas": "char/raw/boss_worlds_20261018/atlases/midboss_koharu.png",
+      "outputs": [
+        "res://char/bg2/midboss/koharu_far_v2.png",
+        "res://char/bg2/midboss/koharu_mid_v2.png",
+        "res://char/bg2/midboss/koharu_near_v2.png",
+        "res://char/bg2/midboss/koharu_v1.png"
+      ],
+      "generation_history": [
+        {
+          "prompt": "Use case: compositing / stylized-concept. Produce ONE three-layer parallax ATLAS for Refrain, a Japanese anime shooter. EXACT layout: tall portrait canvas 1536x3072, divided into THREE equal full-width horizontal rectangles each 1536x1024 (3:2). No margins, labels or separators. These rectangles will be cropped and OVERLAID at identical positions; they are NOT a comic, not three scenes. TOP THIRD: full OPAQUE distant background plate, with foreground/midground objects removed and their space naturally painted in. MIDDLE THIRD: actual transparent cutouts of midground architecture/props only, registered to the far plate. BOTTOM THIRD: actual transparent cutouts of nearest perimeter objects only, registered to the same full camera. Objects MUST NOT appear in more than one strip. Middle/near central 65% stays mostly transparent; true alpha everywhere without objects, no checkerboard/colored matte/black background. No drawn text, labels, people, HUD or particles. Match the refined painted anime style and exact character-world identity in references, monumental but readable depth. No random plants, repeated bookshelves, ordinary skyscraper skyline, generic shrine. Keep central play space low contrast and moderately dark behind bullets, bright accents only around outer architecture. No attacks/bright glowing specks. Layer images all have exactly the same size and alignment.\nIntermediate threshold for Koharu. Reference1 familiar home's entrance with schoolbag/shoes, reference2 exact bedroom motifs, reference3 endless fan-night destination. Create an ordinary small home entrance/threshold slipping into the lavender fan-night as the corridor stretches toward her room. Preserve recognizable light wood shoe cabinet/door/school bag left and raised floor; open corridor at upper-right reveals mint curtains and small laptop with Rei livestream plus narrow chat column, not a floating giant portrait. Lavender/mint curtain ribbons and one blank-grid calendar page begin to pull into curved fan-balcony architecture beyond the doorway, no school/new castle. FAR strip: quiet pale wall/door left, long dark warmwood corridor and dim violet dream balcony beyond at right, broad empty dusky floor middle. MID alpha strip: shoe cabinet and schoolbag left edge, doorframe and calendar/ribbon arch at upper-right, small distant room/laptop frame on far right; center alpha. NEAR alpha strip: dark shoe-step edges lower corners, one neatly placed pair shoes and long mint ribbon tail along far edge. No plants, duplicate bag/penlight, extra posters, humans, bright central light.",
+          "references": [
+            "char/raw/boss_worlds_20261018/originals/midboss/koharu_v1.png",
+            "char/bg2/boss/koharu_real_v1.png",
+            "char/raw/boss_worlds_20261018/generated/koharu.png"
+          ],
+          "result": null
+        },
+        {
+          "prompt": "Precise edit of this EXACT three-strip layered atlas. Keep canvas dimensions and exact one-third boundaries. Change ONLY TOP THIRD; preserve MIDDLE and BOTTOM thirds pixel-identically as much as possible, including their true alpha and positions. The three strips are composited on top of each other in the game. Currently some objects are duplicated across strips; remove these duplicates from TOP by painting natural background behind them. Remove the shoe cabinet, mirror/keys, LEFT entrance door, ceiling lamp, RIGHT room doorframe/laptop close room, calendar/ribbons from TOP third; replace their silhouettes with continuous flat muted entrance wall left and distant purple balcony gulf right, plus continuous quiet wood floor. Those removed objects all belong in MIDDLE third. Remove the shoe step and nearby balcony rail from TOP third; they belong in BOTTOM. No added objects. Retain original painted anime style and brightness. Preserve real transparent areas of middle/bottom; top remains opaque. No labels, border, checkerboard.",
+          "references": [
+            "char/raw/boss_worlds_20261018/references/exec-0e232467-f872-4b30-9b18-469a7224b872.png"
+          ],
+          "result": "char/raw/boss_worlds_20261018/references/exec-8c440bca-f527-4e20-a292-02eefdd4033b.png"
+        },
+        {
+          "prompt": "Use case: compositing / stylized-concept. Produce ONE three-layer parallax ATLAS for Refrain, a Japanese anime shooter. EXACT layout: tall portrait canvas 1536x3072, divided into THREE equal full-width horizontal rectangles each 1536x1024 (3:2). No margins, labels or separators. These rectangles will be cropped and OVERLAID at identical positions; they are NOT a comic, not three scenes. TOP THIRD: full OPAQUE distant background plate, with foreground/midground objects removed and their space naturally painted in. MIDDLE THIRD: actual transparent cutouts of midground architecture/props only, registered to the far plate. BOTTOM THIRD: actual transparent cutouts of nearest perimeter objects only, registered to the same full camera. Objects MUST NOT appear in more than one strip. Middle/near central 65% stays mostly transparent; true alpha everywhere without objects, no checkerboard/colored matte/black background. No drawn text, labels, people, HUD or particles. Match the refined painted anime style and exact character-world identity in references, monumental but readable depth. No random plants, repeated bookshelves, ordinary skyscraper skyline, generic shrine. Keep central play space low contrast and moderately dark behind bullets, bright accents only around outer architecture. No attacks/bright glowing specks. Layer images all have exactly the same size and alignment.\nIntermediate threshold for Koharu. Reference1 familiar home's entrance with schoolbag/shoes, reference2 exact bedroom motifs, reference3 endless fan-night destination. Create an ordinary small home entrance/threshold slipping into the lavender fan-night as the corridor stretches toward her room. Preserve recognizable light wood shoe cabinet/door/school bag left and raised floor; open corridor at upper-right reveals mint curtains and small laptop with Rei livestream plus narrow chat column, not a floating giant portrait. Lavender/mint curtain ribbons and one blank-grid calendar page begin to pull into curved fan-balcony architecture beyond the doorway, no school/new castle. FAR strip: quiet pale wall/door left, long dark warmwood corridor and dim violet dream balcony beyond at right, broad empty dusky floor middle. MID alpha strip: shoe cabinet and schoolbag left edge, doorframe and calendar/ribbon arch at upper-right, small distant room/laptop frame on far right; center alpha. NEAR alpha strip: dark shoe-step edges lower corners, one neatly placed pair shoes and long mint ribbon tail along far edge. No plants, duplicate bag/penlight, extra posters, humans, bright central light.",
+          "references": [
+            "char/raw/boss_worlds_20261018/originals/midboss/koharu_v1.png",
+            "char/bg2/boss/koharu_real_v1.png",
+            "char/raw/boss_worlds_20261018/generated/koharu.png"
+          ],
+          "result": "char/raw/boss_worlds_20261018/references/exec-0e232467-f872-4b30-9b18-469a7224b872.png"
+        }
+      ]
+    },
+    {
+      "id": "midboss_rei",
+      "character": "rei",
+      "kind": "midboss",
+      "selected_atlas": "char/raw/boss_worlds_20261018/atlases/midboss_rei.png",
+      "outputs": [
+        "res://char/bg2/midboss/rei_far_v2.png",
+        "res://char/bg2/midboss/rei_mid_v2.png",
+        "res://char/bg2/midboss/rei_near_v2.png",
+        "res://char/bg2/midboss/rei_v1.png"
+      ],
+      "generation_history": [
+        {
+          "prompt": "Use case: compositing / stylized-concept. Produce ONE three-layer parallax ATLAS for Refrain, a Japanese anime shooter. EXACT layout: tall portrait canvas 1536x3072, divided into THREE equal full-width horizontal rectangles each 1536x1024 (3:2). No margins, labels or separators. These rectangles will be cropped and OVERLAID at identical positions; they are NOT a comic, not three scenes. TOP THIRD: full OPAQUE distant background plate, with foreground/midground objects removed and their space naturally painted in. MIDDLE THIRD: actual transparent cutouts of midground architecture/props only, registered to the far plate. BOTTOM THIRD: actual transparent cutouts of nearest perimeter objects only, registered to the same full camera. Objects MUST NOT appear in more than one strip. Middle/near central 65% stays mostly transparent; true alpha everywhere without objects, no checkerboard/colored matte/black background. No drawn text, labels, people, HUD or particles. Match the refined painted anime style and exact character-world identity in references, monumental but readable depth. No random plants, repeated bookshelves, ordinary skyscraper skyline, generic shrine. Keep central play space low contrast and moderately dark behind bullets, bright accents only around outer architecture. No attacks/bright glowing specks. Layer images all have exactly the same size and alignment.\nIntermediate threshold for Rei. Reference1 is her established narrow streaming bedroom (bed/window LEFT, gray desk FAR wall, one monitor, keyboard in front, microphone left, closet door RIGHT). Preserve recognizable furniture layout, as far wall around the monitor begins opening into celestial violet/gold stage from reference2. NOT a real filming studio, no ring lights, camera, illustrations/poster wall, plants/bookcase. This is a room transitioning into the virtual world, smaller and more grounded than boss stage. FAR strip: opaque quiet rear wall/curtains/window and bed plane to left, blue-gray dusky floor, shadowed closet right, a narrow deep indigo celestial opening in upper-right beyond desk, no close props. MID alpha strip: the complete practical empty desk, centered single monitor with subtle broadcast controls, keyboard/mic left all correctly oriented, at far rear/right; a pair of gold star frame fragments and violet drape begin peeling upward only upper-right perimeter, no giant portrait. NEAR alpha strip: near bed corner lower-left, desk chair edge lower-right, dark violet fabric curl along upper edge; center alpha. Keep hands/characters absent. One blue mug and one closed book on desk, no duplicated computers.",
+          "references": [
+            "char/raw/boss_worlds_20261018/originals/midboss/rei_v1.png",
+            "char/raw/boss_worlds_20261018/generated/rei.png"
+          ],
+          "result": null
+        },
+        {
+          "prompt": "Precise edit of this EXACT three-strip layered atlas. Keep canvas dimensions and exact one-third boundaries. Change ONLY TOP THIRD; preserve MIDDLE and BOTTOM thirds pixel-identically as much as possible, including their true alpha and positions. The three strips are composited on top of each other in the game. Currently some objects are duplicated across strips; remove these duplicates from TOP by painting natural background behind them. Remove the bed, pillows, bedside cabinet COMPLETELY from TOP third, replace with continuous floor/wall below the window. The ONLY bed will be the large bed in BOTTOM third. Remove near gold/violet hanging decorations from TOP third; retain only distant architecture/nebula through rear opening. Those near decorations already belong to MIDDLE. TOP must have no furniture at all: only floor, curtains/window, quiet walls/closet, distant sky. No added objects. Retain original painted anime style and brightness. Preserve real transparent areas of middle/bottom; top remains opaque. No labels, border, checkerboard.",
+          "references": [
+            "char/raw/boss_worlds_20261018/references/exec-48e2f645-ad9d-4708-bfa0-135d1bb9c1ae.png"
+          ],
+          "result": "char/raw/boss_worlds_20261018/references/exec-459bbcd7-fdc1-4178-80b2-25a261c28968.png"
+        },
+        {
+          "prompt": "Use case: compositing / stylized-concept. Produce ONE three-layer parallax ATLAS for Refrain, a Japanese anime shooter. EXACT layout: tall portrait canvas 1536x3072, divided into THREE equal full-width horizontal rectangles each 1536x1024 (3:2). No margins, labels or separators. These rectangles will be cropped and OVERLAID at identical positions; they are NOT a comic, not three scenes. TOP THIRD: full OPAQUE distant background plate, with foreground/midground objects removed and their space naturally painted in. MIDDLE THIRD: actual transparent cutouts of midground architecture/props only, registered to the far plate. BOTTOM THIRD: actual transparent cutouts of nearest perimeter objects only, registered to the same full camera. Objects MUST NOT appear in more than one strip. Middle/near central 65% stays mostly transparent; true alpha everywhere without objects, no checkerboard/colored matte/black background. No drawn text, labels, people, HUD or particles. Match the refined painted anime style and exact character-world identity in references, monumental but readable depth. No random plants, repeated bookshelves, ordinary skyscraper skyline, generic shrine. Keep central play space low contrast and moderately dark behind bullets, bright accents only around outer architecture. No attacks/bright glowing specks. Layer images all have exactly the same size and alignment.\nIntermediate threshold for Rei. Reference1 is her established narrow streaming bedroom (bed/window LEFT, gray desk FAR wall, one monitor, keyboard in front, microphone left, closet door RIGHT). Preserve recognizable furniture layout, as far wall around the monitor begins opening into celestial violet/gold stage from reference2. NOT a real filming studio, no ring lights, camera, illustrations/poster wall, plants/bookcase. This is a room transitioning into the virtual world, smaller and more grounded than boss stage. FAR strip: opaque quiet rear wall/curtains/window and bed plane to left, blue-gray dusky floor, shadowed closet right, a narrow deep indigo celestial opening in upper-right beyond desk, no close props. MID alpha strip: the complete practical empty desk, centered single monitor with subtle broadcast controls, keyboard/mic left all correctly oriented, at far rear/right; a pair of gold star frame fragments and violet drape begin peeling upward only upper-right perimeter, no giant portrait. NEAR alpha strip: near bed corner lower-left, desk chair edge lower-right, dark violet fabric curl along upper edge; center alpha. Keep hands/characters absent. One blue mug and one closed book on desk, no duplicated computers.",
+          "references": [
+            "char/raw/boss_worlds_20261018/originals/midboss/rei_v1.png",
+            "char/raw/boss_worlds_20261018/generated/rei.png"
+          ],
+          "result": "char/raw/boss_worlds_20261018/references/exec-48e2f645-ad9d-4708-bfa0-135d1bb9c1ae.png"
+        }
+      ]
+    },
+    {
+      "id": "boss_akari",
+      "character": "akari",
+      "kind": "boss",
+      "selected_atlas": "char/raw/boss_worlds_20261018/atlases/boss_akari.png",
+      "outputs": [
+        "res://char/bg2/boss/akari_far_v2.png",
+        "res://char/bg2/boss/akari_mid_v2.png",
+        "res://char/bg2/boss/akari_near_v2.png",
+        "res://char/bg2/boss/akari_v1.png"
+      ],
+      "generation_history": [
+        {
+          "prompt": "Use case: compositing / stylized-concept. Produce ONE three-layer parallax ATLAS for Refrain, a Japanese anime shooter. EXACT layout: tall portrait canvas 1536x3072, divided into THREE equal full-width horizontal rectangles each 1536x1024 (3:2). No margins, labels or separators. These rectangles will be cropped and OVERLAID at identical positions; they are NOT a comic, not three scenes. TOP THIRD: full OPAQUE distant background plate, with foreground/midground objects removed and their space naturally painted in. MIDDLE THIRD: actual transparent cutouts of midground architecture/props only, registered to the far plate. BOTTOM THIRD: actual transparent cutouts of nearest perimeter objects only, registered to the same full camera. Objects MUST NOT appear in more than one strip. Middle/near central 65% stays mostly transparent; true alpha everywhere without objects, no checkerboard/colored matte/black background. No drawn text, labels, people, HUD or particles. Match the refined painted anime style and exact character-world identity in references, monumental but readable depth. No random plants, repeated bookshelves, ordinary skyscraper skyline, generic shrine. Keep central play space low contrast and moderately dark behind bullets, bright accents only around outer architecture. No attacks/bright glowing specks. Layer images all have exactly the same size and alignment.\nDECOMPOSE THE ATTACHED EXACT BOSS WORLD INTO DEPTH, preserving its camera, palette and recognizable landmarks; place each object in ONLY one layer. Most important: TOP is an atmospheric empty background plate, not the full original composition. FAR TOP: ONLY a full panorama of deep slate-blue storm clouds and atmospheric gulf, tiny very distant inverted-office silhouettes small enough to be indistinct. Absolutely NO umbrella, paper ledge, foreground bridge, giant floating office, desk or lamp in TOP. MID: transparent floating warm paired-workstation island in upper-right with ivory folded-letter canopy, inverted office floor slabs at upper-left and a few broad paper bridges near outer edges. NEAR: transparent dark navy paper-fold ledges along lower corners and two closed yellow/navy umbrellas at lower-left. Preserve scene perspective and amber/ivory highlights, no center obstacles.",
+          "references": [
+            "char/raw/boss_worlds_20261018/generated/akari.png"
+          ],
+          "result": null
+        },
+        {
+          "prompt": "Use case: compositing / stylized-concept. Produce ONE three-layer parallax ATLAS for Refrain, a Japanese anime shooter. EXACT layout: tall portrait canvas 1536x3072, divided into THREE equal full-width horizontal rectangles each 1536x1024 (3:2). No margins, labels or separators. These rectangles will be cropped and OVERLAID at identical positions; they are NOT a comic, not three scenes. TOP THIRD: full OPAQUE distant background plate, with foreground/midground objects removed and their space naturally painted in. MIDDLE THIRD: actual transparent cutouts of midground architecture/props only, registered to the far plate. BOTTOM THIRD: actual transparent cutouts of nearest perimeter objects only, registered to the same full camera. Objects MUST NOT appear in more than one strip. Middle/near central 65% stays mostly transparent; true alpha everywhere without objects, no checkerboard/colored matte/black background. No drawn text, labels, people, HUD or particles. Match the refined painted anime style and exact character-world identity in references, monumental but readable depth. No random plants, repeated bookshelves, ordinary skyscraper skyline, generic shrine. Keep central play space low contrast and moderately dark behind bullets, bright accents only around outer architecture. No attacks/bright glowing specks. Layer images all have exactly the same size and alignment.\nDECOMPOSE THE ATTACHED EXACT BOSS WORLD INTO DEPTH, preserving its camera, palette and recognizable landmarks; place each object in ONLY one layer. Most important: TOP is an atmospheric empty background plate, not the full original composition. FAR TOP: ONLY a full panorama of deep slate-blue storm clouds and atmospheric gulf, tiny very distant inverted-office silhouettes small enough to be indistinct. Absolutely NO umbrella, paper ledge, foreground bridge, giant floating office, desk or lamp in TOP. MID: transparent floating warm paired-workstation island in upper-right with ivory folded-letter canopy, inverted office floor slabs at upper-left and a few broad paper bridges near outer edges. NEAR: transparent dark navy paper-fold ledges along lower corners and two closed yellow/navy umbrellas at lower-left. Preserve scene perspective and amber/ivory highlights, no center obstacles.",
+          "references": [
+            "char/raw/boss_worlds_20261018/generated/akari.png"
+          ],
+          "result": "char/raw/boss_worlds_20261018/references/exec-e4581c56-4790-4c74-9f74-4f3b15e55599.png"
+        },
+        {
+          "prompt": "Reformat this exact atlas from tall 1:3 to a tall 1:2 canvas, target 1024 pixels WIDE by 2048 pixels HIGH. Still exactly 3 equal horizontal strips, now each strip is WIDE LANDSCAPE 3:2, not square. Expand the left/right sides of EACH strip by painting extensions, never stretch any object. Preserve all original objects/palette/alpha/layer separation. Compress no shapes. Far is opaque. Middle and near are true alpha cutouts. Final atlas is exactly twice as tall as wide, NOT three times. No other changes.",
+          "references": [
+            "char/raw/boss_worlds_20261018/references/exec-e4581c56-4790-4c74-9f74-4f3b15e55599.png"
+          ],
+          "result": "char/raw/boss_worlds_20261018/references/exec-97849745-e2f5-48c1-97ef-7063445e2d2b.png"
+        }
+      ]
+    },
+    {
+      "id": "boss_koharu",
+      "character": "koharu",
+      "kind": "boss",
+      "selected_atlas": "char/raw/boss_worlds_20261018/atlases/boss_koharu.png",
+      "outputs": [
+        "res://char/bg2/boss/koharu_far_v2.png",
+        "res://char/bg2/boss/koharu_mid_v2.png",
+        "res://char/bg2/boss/koharu_near_v2.png",
+        "res://char/bg2/boss/koharu_v1.png"
+      ],
+      "generation_history": [
+        {
+          "prompt": "Use case: compositing / stylized-concept. Produce ONE three-layer parallax ATLAS for Refrain, a Japanese anime shooter. EXACT layout: tall portrait canvas 1536x3072, divided into THREE equal full-width horizontal rectangles each 1536x1024 (3:2). No margins, labels or separators. These rectangles will be cropped and OVERLAID at identical positions; they are NOT a comic, not three scenes. TOP THIRD: full OPAQUE distant background plate, with foreground/midground objects removed and their space naturally painted in. MIDDLE THIRD: actual transparent cutouts of midground architecture/props only, registered to the far plate. BOTTOM THIRD: actual transparent cutouts of nearest perimeter objects only, registered to the same full camera. Objects MUST NOT appear in more than one strip. Middle/near central 65% stays mostly transparent; true alpha everywhere without objects, no checkerboard/colored matte/black background. No drawn text, labels, people, HUD or particles. Match the refined painted anime style and exact character-world identity in references, monumental but readable depth. No random plants, repeated bookshelves, ordinary skyscraper skyline, generic shrine. Keep central play space low contrast and moderately dark behind bullets, bright accents only around outer architecture. No attacks/bright glowing specks. Layer images all have exactly the same size and alignment.\nDECOMPOSE THE ATTACHED EXACT BOSS WORLD INTO DEPTH, preserving its camera, palette and recognizable landmarks; place each object in ONLY one layer. Most important: TOP is an atmospheric empty background plate, not the full original composition. FAR TOP: ONLY deep dusky violet cloud gulf with small distant fan audience terrace silhouettes, NO large screen/laptop, NO bed, NO bunny, NO curtain ribbons, NO penlight, NO calendar. MID: transparent large distant laptop livestream stage upper-right displaying small Rei avatar and chat column, upper-left blank-grid calendar canopy and curved fan balconies along perimeter. NEAR: transparent bedroom bed corner+bunny+oval rug at extreme lower-left, an outer fan rail and ONE unlit penlight at lower-right, mint/lilac fabric edges upper corners. No duplicated architecture between strips; no ordinary city.",
+          "references": [
+            "char/raw/boss_worlds_20261018/generated/koharu.png"
+          ],
+          "result": null
+        },
+        {
+          "prompt": "Use case: compositing / stylized-concept. Produce ONE three-layer parallax ATLAS for Refrain, a Japanese anime shooter. EXACT layout: tall portrait canvas 1536x3072, divided into THREE equal full-width horizontal rectangles each 1536x1024 (3:2). No margins, labels or separators. These rectangles will be cropped and OVERLAID at identical positions; they are NOT a comic, not three scenes. TOP THIRD: full OPAQUE distant background plate, with foreground/midground objects removed and their space naturally painted in. MIDDLE THIRD: actual transparent cutouts of midground architecture/props only, registered to the far plate. BOTTOM THIRD: actual transparent cutouts of nearest perimeter objects only, registered to the same full camera. Objects MUST NOT appear in more than one strip. Middle/near central 65% stays mostly transparent; true alpha everywhere without objects, no checkerboard/colored matte/black background. No drawn text, labels, people, HUD or particles. Match the refined painted anime style and exact character-world identity in references, monumental but readable depth. No random plants, repeated bookshelves, ordinary skyscraper skyline, generic shrine. Keep central play space low contrast and moderately dark behind bullets, bright accents only around outer architecture. No attacks/bright glowing specks. Layer images all have exactly the same size and alignment.\nDECOMPOSE THE ATTACHED EXACT BOSS WORLD INTO DEPTH, preserving its camera, palette and recognizable landmarks; place each object in ONLY one layer. Most important: TOP is an atmospheric empty background plate, not the full original composition. FAR TOP: ONLY deep dusky violet cloud gulf with small distant fan audience terrace silhouettes, NO large screen/laptop, NO bed, NO bunny, NO curtain ribbons, NO penlight, NO calendar. MID: transparent large distant laptop livestream stage upper-right displaying small Rei avatar and chat column, upper-left blank-grid calendar canopy and curved fan balconies along perimeter. NEAR: transparent bedroom bed corner+bunny+oval rug at extreme lower-left, an outer fan rail and ONE unlit penlight at lower-right, mint/lilac fabric edges upper corners. No duplicated architecture between strips; no ordinary city.",
+          "references": [
+            "char/raw/boss_worlds_20261018/generated/koharu.png"
+          ],
+          "result": "char/raw/boss_worlds_20261018/references/exec-b861a381-9ac1-4364-a28f-38a97ce47492.png"
+        },
+        {
+          "prompt": "Reformat this exact atlas from tall 1:3 to a tall 1:2 canvas, target 1024 pixels WIDE by 2048 pixels HIGH. Exactly 3 equal horizontal strips, each WIDE LANDSCAPE 3:2, NOT square. Outpaint sideways in each panel, no stretching. Preserve the Rei face on the screen and every prop shape, no flattened/wide faces. Same scene, same camera, same alpha on middle/bottom. Top remains opaque. Final atlas exactly twice as tall as wide. No added labels/borders.",
+          "references": [
+            "char/raw/boss_worlds_20261018/references/exec-b861a381-9ac1-4364-a28f-38a97ce47492.png"
+          ],
+          "result": "char/raw/boss_worlds_20261018/references/exec-ffb3789f-1f6d-4c5f-90b9-3161a071d8b3.png"
+        },
+        {
+          "prompt": "Edit this exact three-strip game layer atlas. Preserve the canvas dimensions and the EXACT three equal horizontal strip boundaries, all shapes, camera, colors and positions. TOP THIRD unchanged. MIDDLE THIRD: remove the starfield/sky/air and cloud background completely to true transparency between and behind the isolated architecture; retain the giant stream display, comment column, terraces and calendar canopy unchanged. BOTTOM THIRD: remove the starfield/sky/air completely to transparent alpha, retain only bedroom island, bunny, oval rug, fabric drapes and rail with one penlight. Remove the hanging flowering plant at far right entirely, replacing with transparent air, no replacement object. The empty spaces in middle and bottom must be completely alpha transparent, not colored patches or star textures. Do not add anything. Do not move anything. This is purely a background removal cleanup for compositing the three layers.",
+          "references": [
+            "char/raw/boss_worlds_20261018/references/exec-ffb3789f-1f6d-4c5f-90b9-3161a071d8b3.png"
+          ],
+          "result": "char/raw/boss_worlds_20261018/references/exec-482627e3-518a-4b08-9edb-bc79b4ea43be.png"
+        }
+      ]
+    },
+    {
+      "id": "boss_rei",
+      "character": "rei",
+      "kind": "boss",
+      "selected_atlas": "char/raw/boss_worlds_20261018/atlases/boss_rei.png",
+      "outputs": [
+        "res://char/bg2/boss/rei_far_v2.png",
+        "res://char/bg2/boss/rei_mid_v2.png",
+        "res://char/bg2/boss/rei_near_v2.png",
+        "res://char/bg2/boss/rei_v1.png"
+      ],
+      "generation_history": [
+        {
+          "prompt": "Use case: compositing / stylized-concept. Produce ONE three-layer parallax ATLAS for Refrain, a Japanese anime shooter. EXACT layout: tall portrait canvas 1536x3072, divided into THREE equal full-width horizontal rectangles each 1536x1024 (3:2). No margins, labels or separators. These rectangles will be cropped and OVERLAID at identical positions; they are NOT a comic, not three scenes. TOP THIRD: full OPAQUE distant background plate, with foreground/midground objects removed and their space naturally painted in. MIDDLE THIRD: actual transparent cutouts of midground architecture/props only, registered to the far plate. BOTTOM THIRD: actual transparent cutouts of nearest perimeter objects only, registered to the same full camera. Objects MUST NOT appear in more than one strip. Middle/near central 65% stays mostly transparent; true alpha everywhere without objects, no checkerboard/colored matte/black background. No drawn text, labels, people, HUD or particles. Match the refined painted anime style and exact character-world identity in references, monumental but readable depth. No random plants, repeated bookshelves, ordinary skyscraper skyline, generic shrine. Keep central play space low contrast and moderately dark behind bullets, bright accents only around outer architecture. No attacks/bright glowing specks. Layer images all have exactly the same size and alignment.\nDECOMPOSE THE ATTACHED EXACT BOSS WORLD INTO DEPTH, preserving its camera, palette and recognizable landmarks; place each object in ONLY one layer. Most important: TOP is an atmospheric empty background plate, not the full original composition. FAR TOP: ONLY deep cobalt nebular celestial atmosphere and low-contrast dark-blue stage floor, very small distant unlit audience terraces. NO microphone, books, curtain, star ornament or large stage wing in TOP. MID: transparent monumental white/gold angular star proscenium at upper/right border, exactly three warm rectangular listener bays far upper-left, broad curved architectural sound ribbons along edges. NEAR: transparent open-book stage wing at extreme right edge, one broadcast microphone/console lower-left, violet curtains along upper corners. No second book, no plant, no foreground hero.",
+          "references": [
+            "char/raw/boss_worlds_20261018/generated/rei.png"
+          ],
+          "result": null
+        },
+        {
+          "prompt": "Use case: compositing / stylized-concept. Produce ONE three-layer parallax ATLAS for Refrain, a Japanese anime shooter. EXACT layout: tall portrait canvas 1536x3072, divided into THREE equal full-width horizontal rectangles each 1536x1024 (3:2). No margins, labels or separators. These rectangles will be cropped and OVERLAID at identical positions; they are NOT a comic, not three scenes. TOP THIRD: full OPAQUE distant background plate, with foreground/midground objects removed and their space naturally painted in. MIDDLE THIRD: actual transparent cutouts of midground architecture/props only, registered to the far plate. BOTTOM THIRD: actual transparent cutouts of nearest perimeter objects only, registered to the same full camera. Objects MUST NOT appear in more than one strip. Middle/near central 65% stays mostly transparent; true alpha everywhere without objects, no checkerboard/colored matte/black background. No drawn text, labels, people, HUD or particles. Match the refined painted anime style and exact character-world identity in references, monumental but readable depth. No random plants, repeated bookshelves, ordinary skyscraper skyline, generic shrine. Keep central play space low contrast and moderately dark behind bullets, bright accents only around outer architecture. No attacks/bright glowing specks. Layer images all have exactly the same size and alignment.\nDECOMPOSE THE ATTACHED EXACT BOSS WORLD INTO DEPTH, preserving its camera, palette and recognizable landmarks; place each object in ONLY one layer. Most important: TOP is an atmospheric empty background plate, not the full original composition. FAR TOP: ONLY deep cobalt nebular celestial atmosphere and low-contrast dark-blue stage floor, very small distant unlit audience terraces. NO microphone, books, curtain, star ornament or large stage wing in TOP. MID: transparent monumental white/gold angular star proscenium at upper/right border, exactly three warm rectangular listener bays far upper-left, broad curved architectural sound ribbons along edges. NEAR: transparent open-book stage wing at extreme right edge, one broadcast microphone/console lower-left, violet curtains along upper corners. No second book, no plant, no foreground hero.",
+          "references": [
+            "char/raw/boss_worlds_20261018/generated/rei.png"
+          ],
+          "result": "char/raw/boss_worlds_20261018/references/exec-7bc7e20c-473b-48b3-9bd4-acf35cfc5ee2.png"
+        },
+        {
+          "prompt": "Edit ONLY TOP THIRD of this exact 3-layer atlas. Remove the THREE WARM SEATING BAYS and their large balcony from upper-left TOP. Replace with the continuous indigo night sky behind it. Also remove the large close architectural sound-wave arcs from TOP. The three seating bays and all major architecture already appear in MIDDLE, and must exist only there. Keep quiet far skyline/stage floor and sky. Preserve MIDDLE/BOTTOM exactly including true alpha. Preserve canvas dimensions and third boundaries.",
+          "references": [
+            "char/raw/boss_worlds_20261018/references/exec-7bc7e20c-473b-48b3-9bd4-acf35cfc5ee2.png"
+          ],
+          "result": "char/raw/boss_worlds_20261018/references/exec-f73f63b7-031b-4808-bc40-b2fe574d9d9b.png"
+        }
+      ]
+    },
+    {
+      "id": "boss_mina",
+      "character": "mina",
+      "kind": "boss",
+      "selected_atlas": "char/raw/boss_worlds_20261018/atlases/boss_mina.png",
+      "outputs": [
+        "res://char/bg2/boss/mina_far_v2.png",
+        "res://char/bg2/boss/mina_mid_v2.png",
+        "res://char/bg2/boss/mina_near_v2.png",
+        "res://char/bg2/boss/mina_v1.png"
+      ],
+      "generation_history": [
+        {
+          "prompt": "Use case: compositing / stylized-concept. Produce ONE three-layer parallax ATLAS for Refrain, a Japanese anime shooter. EXACT layout: tall portrait canvas 1536x3072, divided into THREE equal full-width horizontal rectangles each 1536x1024 (3:2). No margins, labels or separators. These rectangles will be cropped and OVERLAID at identical positions; they are NOT a comic, not three scenes. TOP THIRD: full OPAQUE distant background plate, with foreground/midground objects removed and their space naturally painted in. MIDDLE THIRD: actual transparent cutouts of midground architecture/props only, registered to the far plate. BOTTOM THIRD: actual transparent cutouts of nearest perimeter objects only, registered to the same full camera. Objects MUST NOT appear in more than one strip. Middle/near central 65% stays mostly transparent; true alpha everywhere without objects, no checkerboard/colored matte/black background. No drawn text, labels, people, HUD or particles. Match the refined painted anime style and exact character-world identity in references, monumental but readable depth. No random plants, repeated bookshelves, ordinary skyscraper skyline, generic shrine. Keep central play space low contrast and moderately dark behind bullets, bright accents only around outer architecture. No attacks/bright glowing specks. Layer images all have exactly the same size and alignment.\nDECOMPOSE THE ATTACHED EXACT BOSS WORLD INTO DEPTH, preserving its camera, palette and recognizable landmarks; place each object in ONLY one layer. Most important: TOP is an atmospheric empty background plate, not the full original composition. FAR TOP: ONLY deep charcoal-teal reflecting water and very distant hazy glass planes, muted warm horizon. NO room-window, doorframe, bridge, canopy ribbons, knots or close glass parapets in TOP. MID: transparent three memory doorframe islands around upper edges showing the office, Koharu bedroom, Rei desk exactly from reference, slim glass-paper return bridges supported by ivory-black ribbon knots, an incomplete route to a small warm distant exit. NEAR: transparent dark broken glass parapets at bottom corners and broad ivory-black canopy folds at top edges. No new personal Mina room; no duplicate islands.",
+          "references": [
+            "char/raw/boss_worlds_20261018/generated/mina.png"
+          ],
+          "result": null
+        },
+        {
+          "prompt": "Use case: compositing / stylized-concept. Produce ONE three-layer parallax ATLAS for Refrain, a Japanese anime shooter. EXACT layout: tall portrait canvas 1536x3072, divided into THREE equal full-width horizontal rectangles each 1536x1024 (3:2). No margins, labels or separators. These rectangles will be cropped and OVERLAID at identical positions; they are NOT a comic, not three scenes. TOP THIRD: full OPAQUE distant background plate, with foreground/midground objects removed and their space naturally painted in. MIDDLE THIRD: actual transparent cutouts of midground architecture/props only, registered to the far plate. BOTTOM THIRD: actual transparent cutouts of nearest perimeter objects only, registered to the same full camera. Objects MUST NOT appear in more than one strip. Middle/near central 65% stays mostly transparent; true alpha everywhere without objects, no checkerboard/colored matte/black background. No drawn text, labels, people, HUD or particles. Match the refined painted anime style and exact character-world identity in references, monumental but readable depth. No random plants, repeated bookshelves, ordinary skyscraper skyline, generic shrine. Keep central play space low contrast and moderately dark behind bullets, bright accents only around outer architecture. No attacks/bright glowing specks. Layer images all have exactly the same size and alignment.\nDECOMPOSE THE ATTACHED EXACT BOSS WORLD INTO DEPTH, preserving its camera, palette and recognizable landmarks; place each object in ONLY one layer. Most important: TOP is an atmospheric empty background plate, not the full original composition. FAR TOP: ONLY deep charcoal-teal reflecting water and very distant hazy glass planes, muted warm horizon. NO room-window, doorframe, bridge, canopy ribbons, knots or close glass parapets in TOP. MID: transparent three memory doorframe islands around upper edges showing the office, Koharu bedroom, Rei desk exactly from reference, slim glass-paper return bridges supported by ivory-black ribbon knots, an incomplete route to a small warm distant exit. NEAR: transparent dark broken glass parapets at bottom corners and broad ivory-black canopy folds at top edges. No new personal Mina room; no duplicate islands.",
+          "references": [
+            "char/raw/boss_worlds_20261018/generated/mina.png"
+          ],
+          "result": "char/raw/boss_worlds_20261018/references/exec-b2427f9a-d2bb-40ec-b2f7-1e87127304a3.png"
+        }
+      ]
+    }
+  ],
+  "assets": [
+    {
+      "id": "route_akari_early_far",
+      "path": "res://char/bg2/route/akari_far.png",
+      "source": "char/raw/boss_worlds_20261018/atlases/route_akari_early.png",
+      "layer": "far",
+      "canvas": [
+        2172,
+        724
+      ],
+      "generation": "route_akari_early",
+      "revision_manifest": "char/bg2/layered_worlds_v2.prompt.json",
+      "processing": "Crop registered atlas strip and resize; preserve generated alpha."
+    },
+    {
+      "id": "route_akari_early_mid",
+      "path": "res://char/bg2/route/akari_mid.png",
+      "source": "char/raw/boss_worlds_20261018/atlases/route_akari_early.png",
+      "layer": "mid",
+      "canvas": [
+        2172,
+        724
+      ],
+      "generation": "route_akari_early",
+      "revision_manifest": "char/bg2/layered_worlds_v2.prompt.json",
+      "processing": "Crop registered atlas strip and resize; preserve generated alpha."
+    },
+    {
+      "id": "route_akari_early_near",
+      "path": "res://char/bg2/route/akari_near.png",
+      "source": "char/raw/boss_worlds_20261018/atlases/route_akari_early.png",
+      "layer": "near",
+      "canvas": [
+        2172,
+        724
+      ],
+      "generation": "route_akari_early",
+      "revision_manifest": "char/bg2/layered_worlds_v2.prompt.json",
+      "processing": "Crop registered atlas strip and resize; preserve generated alpha."
+    },
+    {
+      "id": "route_koharu_early_far",
+      "path": "res://char/bg2/route/koharu_far.png",
+      "source": "char/raw/boss_worlds_20261018/atlases/route_koharu_early.png",
+      "layer": "far",
+      "canvas": [
+        2172,
+        724
+      ],
+      "generation": "route_koharu_early",
+      "revision_manifest": "char/bg2/layered_worlds_v2.prompt.json",
+      "processing": "Crop registered atlas strip and resize; preserve generated alpha."
+    },
+    {
+      "id": "route_koharu_early_mid",
+      "path": "res://char/bg2/route/koharu_mid.png",
+      "source": "char/raw/boss_worlds_20261018/atlases/route_koharu_early.png",
+      "layer": "mid",
+      "canvas": [
+        2172,
+        724
+      ],
+      "generation": "route_koharu_early",
+      "revision_manifest": "char/bg2/layered_worlds_v2.prompt.json",
+      "processing": "Crop registered atlas strip and resize; preserve generated alpha."
+    },
+    {
+      "id": "route_koharu_early_near",
+      "path": "res://char/bg2/route/koharu_near.png",
+      "source": "char/raw/boss_worlds_20261018/atlases/route_koharu_early.png",
+      "layer": "near",
+      "canvas": [
+        2172,
+        724
+      ],
+      "generation": "route_koharu_early",
+      "revision_manifest": "char/bg2/layered_worlds_v2.prompt.json",
+      "processing": "Crop registered atlas strip and resize; preserve generated alpha."
+    },
+    {
+      "id": "route_rei_early_far",
+      "path": "res://char/bg2/route/rei_far.png",
+      "source": "char/raw/boss_worlds_20261018/atlases/route_rei_early.png",
+      "layer": "far",
+      "canvas": [
+        2172,
+        724
+      ],
+      "generation": "route_rei_early",
+      "revision_manifest": "char/bg2/layered_worlds_v2.prompt.json",
+      "processing": "Crop registered atlas strip and resize; preserve generated alpha."
+    },
+    {
+      "id": "route_rei_early_mid",
+      "path": "res://char/bg2/route/rei_mid.png",
+      "source": "char/raw/boss_worlds_20261018/atlases/route_rei_early.png",
+      "layer": "mid",
+      "canvas": [
+        2172,
+        724
+      ],
+      "generation": "route_rei_early",
+      "revision_manifest": "char/bg2/layered_worlds_v2.prompt.json",
+      "processing": "Crop registered atlas strip and resize; preserve generated alpha."
+    },
+    {
+      "id": "route_rei_early_near",
+      "path": "res://char/bg2/route/rei_near.png",
+      "source": "char/raw/boss_worlds_20261018/atlases/route_rei_early.png",
+      "layer": "near",
+      "canvas": [
+        2172,
+        724
+      ],
+      "generation": "route_rei_early",
+      "revision_manifest": "char/bg2/layered_worlds_v2.prompt.json",
+      "processing": "Crop registered atlas strip and resize; preserve generated alpha."
+    },
+    {
+      "id": "route_mina_early_far",
+      "path": "res://char/bg2/route/mina_far.png",
+      "source": "char/raw/boss_worlds_20261018/atlases/route_mina_early.png",
+      "layer": "far",
+      "canvas": [
+        2172,
+        724
+      ],
+      "generation": "route_mina_early",
+      "revision_manifest": "char/bg2/layered_worlds_v2.prompt.json",
+      "processing": "Crop registered atlas strip and resize; preserve generated alpha."
+    },
+    {
+      "id": "route_mina_early_mid",
+      "path": "res://char/bg2/route/mina_mid.png",
+      "source": "char/raw/boss_worlds_20261018/atlases/route_mina_early.png",
+      "layer": "mid",
+      "canvas": [
+        2172,
+        724
+      ],
+      "generation": "route_mina_early",
+      "revision_manifest": "char/bg2/layered_worlds_v2.prompt.json",
+      "processing": "Crop registered atlas strip and resize; preserve generated alpha."
+    },
+    {
+      "id": "route_mina_early_near",
+      "path": "res://char/bg2/route/mina_near.png",
+      "source": "char/raw/boss_worlds_20261018/atlases/route_mina_early.png",
+      "layer": "near",
+      "canvas": [
+        2172,
+        724
+      ],
+      "generation": "route_mina_early",
+      "revision_manifest": "char/bg2/layered_worlds_v2.prompt.json",
+      "processing": "Crop registered atlas strip and resize; preserve generated alpha."
+    },
+    {
+      "id": "route_akari_late_far",
+      "path": "res://char/bg2/route/akari_late_far.png",
+      "source": "char/raw/boss_worlds_20261018/atlases/route_akari_late.png",
+      "layer": "far",
+      "canvas": [
+        2172,
+        724
+      ],
+      "generation": "route_akari_late",
+      "revision_manifest": "char/bg2/layered_worlds_v2.prompt.json",
+      "processing": "Crop registered atlas strip and resize; preserve generated alpha."
+    },
+    {
+      "id": "route_akari_late_mid",
+      "path": "res://char/bg2/route/akari_late_mid.png",
+      "source": "char/raw/boss_worlds_20261018/atlases/route_akari_late.png",
+      "layer": "mid",
+      "canvas": [
+        2172,
+        724
+      ],
+      "generation": "route_akari_late",
+      "revision_manifest": "char/bg2/layered_worlds_v2.prompt.json",
+      "processing": "Crop registered atlas strip and resize; preserve generated alpha."
+    },
+    {
+      "id": "route_akari_late_near",
+      "path": "res://char/bg2/route/akari_late_near.png",
+      "source": "char/raw/boss_worlds_20261018/atlases/route_akari_late.png",
+      "layer": "near",
+      "canvas": [
+        2172,
+        724
+      ],
+      "generation": "route_akari_late",
+      "revision_manifest": "char/bg2/layered_worlds_v2.prompt.json",
+      "processing": "Crop registered atlas strip and resize; preserve generated alpha."
+    },
+    {
+      "id": "route_koharu_late_far",
+      "path": "res://char/bg2/route/koharu_late_far.png",
+      "source": "char/raw/boss_worlds_20261018/atlases/route_koharu_late.png",
+      "layer": "far",
+      "canvas": [
+        2172,
+        724
+      ],
+      "generation": "route_koharu_late",
+      "revision_manifest": "char/bg2/layered_worlds_v2.prompt.json",
+      "processing": "Crop registered atlas strip and resize; preserve generated alpha."
+    },
+    {
+      "id": "route_koharu_late_mid",
+      "path": "res://char/bg2/route/koharu_late_mid.png",
+      "source": "char/raw/boss_worlds_20261018/atlases/route_koharu_late.png",
+      "layer": "mid",
+      "canvas": [
+        2172,
+        724
+      ],
+      "generation": "route_koharu_late",
+      "revision_manifest": "char/bg2/layered_worlds_v2.prompt.json",
+      "processing": "Crop registered atlas strip and resize; preserve generated alpha."
+    },
+    {
+      "id": "route_koharu_late_near",
+      "path": "res://char/bg2/route/koharu_late_near.png",
+      "source": "char/raw/boss_worlds_20261018/atlases/route_koharu_late.png",
+      "layer": "near",
+      "canvas": [
+        2172,
+        724
+      ],
+      "generation": "route_koharu_late",
+      "revision_manifest": "char/bg2/layered_worlds_v2.prompt.json",
+      "processing": "Crop registered atlas strip and resize; preserve generated alpha."
+    },
+    {
+      "id": "route_rei_late_far",
+      "path": "res://char/bg2/route/rei_late_far.png",
+      "source": "char/raw/boss_worlds_20261018/atlases/route_rei_late.png",
+      "layer": "far",
+      "canvas": [
+        2172,
+        724
+      ],
+      "generation": "route_rei_late",
+      "revision_manifest": "char/bg2/layered_worlds_v2.prompt.json",
+      "processing": "Crop registered atlas strip and resize; preserve generated alpha."
+    },
+    {
+      "id": "route_rei_late_mid",
+      "path": "res://char/bg2/route/rei_late_mid.png",
+      "source": "char/raw/boss_worlds_20261018/atlases/route_rei_late.png",
+      "layer": "mid",
+      "canvas": [
+        2172,
+        724
+      ],
+      "generation": "route_rei_late",
+      "revision_manifest": "char/bg2/layered_worlds_v2.prompt.json",
+      "processing": "Crop registered atlas strip and resize; preserve generated alpha."
+    },
+    {
+      "id": "route_rei_late_near",
+      "path": "res://char/bg2/route/rei_late_near.png",
+      "source": "char/raw/boss_worlds_20261018/atlases/route_rei_late.png",
+      "layer": "near",
+      "canvas": [
+        2172,
+        724
+      ],
+      "generation": "route_rei_late",
+      "revision_manifest": "char/bg2/layered_worlds_v2.prompt.json",
+      "processing": "Crop registered atlas strip and resize; preserve generated alpha."
+    },
+    {
+      "id": "route_mina_late_far",
+      "path": "res://char/bg2/route/mina_late_far.png",
+      "source": "char/raw/boss_worlds_20261018/atlases/route_mina_late.png",
+      "layer": "far",
+      "canvas": [
+        2172,
+        724
+      ],
+      "generation": "route_mina_late",
+      "revision_manifest": "char/bg2/layered_worlds_v2.prompt.json",
+      "processing": "Crop registered atlas strip and resize; preserve generated alpha."
+    },
+    {
+      "id": "route_mina_late_mid",
+      "path": "res://char/bg2/route/mina_late_mid.png",
+      "source": "char/raw/boss_worlds_20261018/atlases/route_mina_late.png",
+      "layer": "mid",
+      "canvas": [
+        2172,
+        724
+      ],
+      "generation": "route_mina_late",
+      "revision_manifest": "char/bg2/layered_worlds_v2.prompt.json",
+      "processing": "Crop registered atlas strip and resize; preserve generated alpha."
+    },
+    {
+      "id": "route_mina_late_near",
+      "path": "res://char/bg2/route/mina_late_near.png",
+      "source": "char/raw/boss_worlds_20261018/atlases/route_mina_late.png",
+      "layer": "near",
+      "canvas": [
+        2172,
+        724
+      ],
+      "generation": "route_mina_late",
+      "revision_manifest": "char/bg2/layered_worlds_v2.prompt.json",
+      "processing": "Crop registered atlas strip and resize; preserve generated alpha."
+    },
+    {
+      "id": "midboss_akari_far",
+      "path": "res://char/bg2/midboss/akari_far_v2.png",
+      "source": "char/raw/boss_worlds_20261018/atlases/midboss_akari.png",
+      "layer": "far",
+      "canvas": [
+        1536,
+        1024
+      ],
+      "generation": "midboss_akari",
+      "revision_manifest": "char/bg2/layered_worlds_v2.prompt.json",
+      "processing": "Crop registered atlas strip and resize; preserve generated alpha."
+    },
+    {
+      "id": "midboss_akari_mid",
+      "path": "res://char/bg2/midboss/akari_mid_v2.png",
+      "source": "char/raw/boss_worlds_20261018/atlases/midboss_akari.png",
+      "layer": "mid",
+      "canvas": [
+        1536,
+        1024
+      ],
+      "generation": "midboss_akari",
+      "revision_manifest": "char/bg2/layered_worlds_v2.prompt.json",
+      "processing": "Crop registered atlas strip and resize; preserve generated alpha."
+    },
+    {
+      "id": "midboss_akari_near",
+      "path": "res://char/bg2/midboss/akari_near_v2.png",
+      "source": "char/raw/boss_worlds_20261018/atlases/midboss_akari.png",
+      "layer": "near",
+      "canvas": [
+        1536,
+        1024
+      ],
+      "generation": "midboss_akari",
+      "revision_manifest": "char/bg2/layered_worlds_v2.prompt.json",
+      "processing": "Crop registered atlas strip and resize; preserve generated alpha."
+    },
+    {
+      "id": "midboss_koharu_far",
+      "path": "res://char/bg2/midboss/koharu_far_v2.png",
+      "source": "char/raw/boss_worlds_20261018/atlases/midboss_koharu.png",
+      "layer": "far",
+      "canvas": [
+        1536,
+        1024
+      ],
+      "generation": "midboss_koharu",
+      "revision_manifest": "char/bg2/layered_worlds_v2.prompt.json",
+      "processing": "Crop registered atlas strip and resize; preserve generated alpha."
+    },
+    {
+      "id": "midboss_koharu_mid",
+      "path": "res://char/bg2/midboss/koharu_mid_v2.png",
+      "source": "char/raw/boss_worlds_20261018/references/exec-0e232467-f872-4b30-9b18-469a7224b872.png",
+      "layer": "mid",
+      "canvas": [
+        1536,
+        1024
+      ],
+      "generation": "midboss_koharu",
+      "revision_manifest": "char/bg2/layered_worlds_v2.prompt.json",
+      "processing": "Crop registered atlas strip and resize; preserve generated alpha."
+    },
+    {
+      "id": "midboss_koharu_near",
+      "path": "res://char/bg2/midboss/koharu_near_v2.png",
+      "source": "char/raw/boss_worlds_20261018/atlases/midboss_koharu.png",
+      "layer": "near",
+      "canvas": [
+        1536,
+        1024
+      ],
+      "generation": "midboss_koharu",
+      "revision_manifest": "char/bg2/layered_worlds_v2.prompt.json",
+      "processing": "Crop registered atlas strip and resize; preserve generated alpha."
+    },
+    {
+      "id": "midboss_rei_far",
+      "path": "res://char/bg2/midboss/rei_far_v2.png",
+      "source": "char/raw/boss_worlds_20261018/atlases/midboss_rei.png",
+      "layer": "far",
+      "canvas": [
+        1536,
+        1024
+      ],
+      "generation": "midboss_rei",
+      "revision_manifest": "char/bg2/layered_worlds_v2.prompt.json",
+      "processing": "Crop registered atlas strip and resize; preserve generated alpha."
+    },
+    {
+      "id": "midboss_rei_mid",
+      "path": "res://char/bg2/midboss/rei_mid_v2.png",
+      "source": "char/raw/boss_worlds_20261018/atlases/midboss_rei.png",
+      "layer": "mid",
+      "canvas": [
+        1536,
+        1024
+      ],
+      "generation": "midboss_rei",
+      "revision_manifest": "char/bg2/layered_worlds_v2.prompt.json",
+      "processing": "Crop registered atlas strip and resize; preserve generated alpha."
+    },
+    {
+      "id": "midboss_rei_near",
+      "path": "res://char/bg2/midboss/rei_near_v2.png",
+      "source": "char/raw/boss_worlds_20261018/atlases/midboss_rei.png",
+      "layer": "near",
+      "canvas": [
+        1536,
+        1024
+      ],
+      "generation": "midboss_rei",
+      "revision_manifest": "char/bg2/layered_worlds_v2.prompt.json",
+      "processing": "Crop registered atlas strip and resize; preserve generated alpha."
+    },
+    {
+      "id": "boss_akari_far",
+      "path": "res://char/bg2/boss/akari_far_v2.png",
+      "source": "char/raw/boss_worlds_20261018/atlases/boss_akari.png",
+      "layer": "far",
+      "canvas": [
+        1536,
+        1024
+      ],
+      "generation": "boss_akari",
+      "revision_manifest": "char/bg2/layered_worlds_v2.prompt.json",
+      "processing": "Crop registered atlas strip and resize; preserve generated alpha.",
+      "crop": [
+        0,
+        0,
+        887,
+        591
+      ]
+    },
+    {
+      "id": "boss_akari_mid",
+      "path": "res://char/bg2/boss/akari_mid_v2.png",
+      "source": "char/raw/boss_worlds_20261018/atlases/boss_akari.png",
+      "layer": "mid",
+      "canvas": [
+        1536,
+        1024
+      ],
+      "generation": "boss_akari",
+      "revision_manifest": "char/bg2/layered_worlds_v2.prompt.json",
+      "processing": "Crop registered atlas strip and resize; preserve generated alpha.",
+      "crop": [
+        0,
+        663,
+        887,
+        591
+      ]
+    },
+    {
+      "id": "boss_akari_near",
+      "path": "res://char/bg2/boss/akari_near_v2.png",
+      "source": "char/raw/boss_worlds_20261018/atlases/boss_akari.png",
+      "layer": "near",
+      "canvas": [
+        1536,
+        1024
+      ],
+      "generation": "boss_akari",
+      "revision_manifest": "char/bg2/layered_worlds_v2.prompt.json",
+      "processing": "Crop registered atlas strip and resize; preserve generated alpha.",
+      "crop": [
+        0,
+        1183,
+        887,
+        591
+      ]
+    },
+    {
+      "id": "boss_koharu_far",
+      "path": "res://char/bg2/boss/koharu_far_v2.png",
+      "source": "char/raw/boss_worlds_20261018/atlases/boss_koharu.png",
+      "layer": "far",
+      "canvas": [
+        1536,
+        1024
+      ],
+      "generation": "boss_koharu",
+      "revision_manifest": "char/bg2/layered_worlds_v2.prompt.json",
+      "processing": "Crop registered atlas strip and resize; preserve generated alpha."
+    },
+    {
+      "id": "boss_koharu_mid",
+      "path": "res://char/bg2/boss/koharu_mid_v2.png",
+      "source": "char/raw/boss_worlds_20261018/atlases/boss_koharu.png",
+      "layer": "mid",
+      "canvas": [
+        1536,
+        1024
+      ],
+      "generation": "boss_koharu",
+      "revision_manifest": "char/bg2/layered_worlds_v2.prompt.json",
+      "processing": "Crop registered atlas strip and resize; preserve generated alpha."
+    },
+    {
+      "id": "boss_koharu_near",
+      "path": "res://char/bg2/boss/koharu_near_v2.png",
+      "source": "char/raw/boss_worlds_20261018/atlases/boss_koharu.png",
+      "layer": "near",
+      "canvas": [
+        1536,
+        1024
+      ],
+      "generation": "boss_koharu",
+      "revision_manifest": "char/bg2/layered_worlds_v2.prompt.json",
+      "processing": "Crop registered atlas strip and resize; preserve generated alpha."
+    },
+    {
+      "id": "boss_rei_far",
+      "path": "res://char/bg2/boss/rei_far_v2.png",
+      "source": "char/raw/boss_worlds_20261018/atlases/boss_rei.png",
+      "layer": "far",
+      "canvas": [
+        1536,
+        1024
+      ],
+      "generation": "boss_rei",
+      "revision_manifest": "char/bg2/layered_worlds_v2.prompt.json",
+      "processing": "Crop registered atlas strip and resize; preserve generated alpha."
+    },
+    {
+      "id": "boss_rei_mid",
+      "path": "res://char/bg2/boss/rei_mid_v2.png",
+      "source": "char/raw/boss_worlds_20261018/atlases/boss_rei.png",
+      "layer": "mid",
+      "canvas": [
+        1536,
+        1024
+      ],
+      "generation": "boss_rei",
+      "revision_manifest": "char/bg2/layered_worlds_v2.prompt.json",
+      "processing": "Crop registered atlas strip and resize; preserve generated alpha."
+    },
+    {
+      "id": "boss_rei_near",
+      "path": "res://char/bg2/boss/rei_near_v2.png",
+      "source": "char/raw/boss_worlds_20261018/atlases/boss_rei.png",
+      "layer": "near",
+      "canvas": [
+        1536,
+        1024
+      ],
+      "generation": "boss_rei",
+      "revision_manifest": "char/bg2/layered_worlds_v2.prompt.json",
+      "processing": "Crop registered atlas strip and resize; preserve generated alpha."
+    },
+    {
+      "id": "boss_mina_far",
+      "path": "res://char/bg2/boss/mina_far_v2.png",
+      "source": "char/raw/boss_worlds_20261018/atlases/boss_mina.png",
+      "layer": "far",
+      "canvas": [
+        1536,
+        1024
+      ],
+      "generation": "boss_mina",
+      "revision_manifest": "char/bg2/layered_worlds_v2.prompt.json",
+      "processing": "Crop registered atlas strip and resize; preserve generated alpha."
+    },
+    {
+      "id": "boss_mina_mid",
+      "path": "res://char/bg2/boss/mina_mid_v2.png",
+      "source": "char/raw/boss_worlds_20261018/atlases/boss_mina.png",
+      "layer": "mid",
+      "canvas": [
+        1536,
+        1024
+      ],
+      "generation": "boss_mina",
+      "revision_manifest": "char/bg2/layered_worlds_v2.prompt.json",
+      "processing": "Crop registered atlas strip and resize; preserve generated alpha."
+    },
+    {
+      "id": "boss_mina_near",
+      "path": "res://char/bg2/boss/mina_near_v2.png",
+      "source": "char/raw/boss_worlds_20261018/atlases/boss_mina.png",
+      "layer": "near",
+      "canvas": [
+        1536,
+        1024
+      ],
+      "generation": "boss_mina",
+      "revision_manifest": "char/bg2/layered_worlds_v2.prompt.json",
+      "processing": "Crop registered atlas strip and resize; preserve generated alpha."
+    }
+  ]
+}

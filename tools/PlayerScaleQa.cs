@@ -171,7 +171,7 @@ public partial class PlayerScaleQa : Node
             sprite.Texture.ResourcePath == item.PosePath("idle"));
 
         var samples = new List<Sample>();
-        // 通常。向き反転は 2026-09-06 から無効（Player.FacingFlipEnabled=false）だが、Offset の符号の扱いだけは確かめる。
+        // 実プレイの向きは固定でも、フレームの左右反転時に Offset の符号が正しく扱われることを確認する。
         foreach (int facing in new[] { 1, -1 })
         {
             Write(player, "_facing", facing);

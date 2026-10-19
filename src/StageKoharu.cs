@@ -1,18 +1,11 @@
 using Godot;
 using System.Linq;
 
-// StageKoharu : STAGE2「こはる（電気を消した部屋と、誰も見ていない教室）」進行。
-//   1: 導入会話（S2-1。案C では少年は存在しない＝語り手はミナ一人）
-//   2〜8: 道中（部屋 → 教室 → 部屋。中ボス／入力欄／我に返る一拍）
-//   9〜11: ボス出現・ボス戦（浄化＝改心で会話完了まで）
-//   12〜13: クリア（配信画面が灯る）→ ハブ
-// 台詞の正典: docs/20260928/wiki_仮台本_退避/07_粗い台本_案C_2_こはるとレイ.md（ユーザー承認済み・2026-09-05）の S2-1〜S2-9。
 public partial class StageKoharu : Node
 {
     public Player Player = null!;
     public Hud Hud = null!;
     public Node2D World = null!;
-
     private int _step;
     private bool _stepStarted;
     private double _stageElapsed;   // ステージ全体の経過秒（クリア確定まで・ポーズ中は止まる）。
@@ -24,21 +17,17 @@ public partial class StageKoharu : Node
     private bool _zHeld;
     private bool _zEdge;
     private bool _startBannerShown;
-
     private const float SpawnX = 300f;
-
     // ミナの表情（案C では語り手はミナ一人＝行ごとに顔を差し替える）。
     // ユーザー承認済み: docs/20260914/ストーリー添削_2026-09-14.md 【3】
     //   感情アークの厳格運用：「笑う」を獲得するのは**この面をクリアした瞬間**なので、
     //   道中はまだ笑わない（MSmile は平常顔を指す）。獲得の一拍だけ MSmileUnlocked を明示的に使う
     //   ＝画面上で「初めて笑った」が一度だけ立つ。
     private const string MFace = "res://char/mina_face.png";
-
     // 道中ザコ戦（Spawner）。三部構成で「後半ほど圧が上がる」緩急を作る。こはるは型崩し（S2）で
     //   前半A（緩い導入）→ チラ見せ → 後半B（やや詰める）→ 終盤C（最大密度）→ 本ボス（HP半分でミッドシナリオ割込み）。
     // 体数より“密度と変化”で長さを作る（§3 緩急）：3波で圧と構成を変えて間延びさせない。
     private Spawner _spawner = null!;
-    private int _waveBase;
     private const int MidWaveA = 36;
     private const int MidWaveB = 14;
     private const int MidWaveC = 16;
@@ -46,43 +35,36 @@ public partial class StageKoharu : Node
     // こはる＝無力・他責で、弾は“落ちる祈り”。撃破（HP/サイクル削り切り＝改心）まで Stage は進まない。保険退場は廃止。
     private CameoBoss _cameo = null!;
     private bool _cameoIntroStarted, _cameoIntroDone;
-
-    // S2-1 部屋・導入（仮台本 07）。電気を消した部屋。配信画面の光だけ。棚のグッズ、机の下の箱。
-    //   炎上はまだ無い。【濁】兆候。ミナは投稿の下の小さな声を見つけるが、中身は S2-4 まで言わない。
     // who: 0=あなた（送信された下書き） / 1=ミナ / 2=こはる / 3=システム表示 / 4=投稿。who=5（中継）は使わない。
     private static readonly (int who, string text, string face)[] Intro =
     {
-        (0, "次は、こはるさんの投稿だ。ダイブを始める。足元の光が落ち着くまで、そのままで。", ""),
+        (0, "こはるさんへの道を開いたよ。ミナ、着いたら声を聞かせて。", ""),
         (4, "今日の配信も最高だった。これで、明日も学校、行ける。", ""),
-        (1, "着きました。電気の消えた部屋に、画面の光だけ……。あかりさんのフロアとは、ずいぶん違います。", "res://char/mina_face.png"),
-        (0, "映っているのは、この人が隠してきた気持ちだ。投稿の明るさだけでは、分からない。", ""),
-        (1, "壁一面に配信の画面。机の下には、開けていない箱まで。", "res://char/mina_face.png"),
-        (0, "画面の前に、こはるさんがいる。まず、声の届くところまで行こう。", ""),
-        (1, "……好きなものに囲まれているのに、寂しい部屋ですね。", "res://char/mina_face.png"),
-        (0, "うん。何があったのか、本人の言葉で聞きたい。", ""),
+        (1, "……広い客席ですね。ご主人様、どこに座ればよいのでしょう。", "res://char/mina_face.png"),
+        (0, "もう見る気になってる？", ""),
+        (1, "少しだけ。……でも、こはるさんの声は、楽しそうではありません。", "res://char/mina_face.png"),
+        (0, "うん。ここはあの人のフェイクレルムだ。今日は、隣で話を聞けるところまで行こう。", ""),
+        (1, "はい。あの方の隣まで、案内をお願いします。", "res://char/mina_face.png"),
     };
-
     // S2-3 Mid（部屋）＋ Chat1（軽口）（仮台本 07）。ペンライトの光が画面に届かない。
     //   「むだだ」の合間に学校の声と家の声が同じ色で混じる。責める宛先がどこにもない。
     private static readonly (int who, string text, string face)[] Mid =
     {
-        (1, "ペンライトの光が、画面に向かって、振られています。……届いていません。画面まで。", "res://char/mina_face.png"),
-        (0, "学校や家の声も混ざってる。「今日も明るいね」「模試、どうだった」。配信の話だけじゃなさそうだ。", ""),
+        (1, "……楽しそうに応援する声も、聞こえるのですね。", "res://char/mina_face.png"),
+        (0, "好きだった時間も、本当だから。ミナは、何か聞いてみたい？", ""),
         (1, "わたくしも、ペンライトを振ってみたいのですが。……方向に、決まりは？", "res://char/mina_face.png"),
         (0, "僕も詳しくないけど、まずは画面のほうかな。世界の案内役にも、専門外はあるよ。", ""),
         (1, "では、あとでこはるさんに伺いましょう。話したいことが、一つできました。", "res://char/mina_face.png"),
     };
-
     // S2-2 中ボスの受け（仮台本 07）。CameoBoss は who=2（本人）の行だけを一行オーバーレイで流すので、
     //   本人の合間に入るミナの観測行はオーバーレイに乗らない。中ボスの直前に開くこの step が受け皿になる
     //   （step 構成は変えない前提での置き場所。あかり面と同じ流儀）。
     private const string KFace = "res://char/v3/koharu_face.png";       // 学校の明るい顔
     private static readonly (int who, string text, string face)[] BossTalk =
     {
-        (1, "画面の中の人は、星逢レイさん。笑顔が、ずっとこちらを向いています。", "res://char/mina_face.png"),
+        (1, "配信の声は、星逢レイさん。こはるさんの投稿にも、何度もお名前が。", "res://char/mina_face.png"),
         (0, "投稿を観測していたときにも、よく見かけた名前だ。こはるさんには、大切な人なんだね。", ""),
     };
-
     // S2-2 中ボス こはる（仮台本 07）。制服、片手に消えたペンライト、もう片手にスマホ。
     //   明るさと蒼白を往復する。第一声→RECLOSE（順送り）→捨て台詞、の三段で CameoBoss に渡す。
     private static readonly (int who, string text, string face)[] CameoTalk1 =
@@ -99,13 +81,13 @@ public partial class StageKoharu : Node
         (1, "塾のことが、気になっているのですか。", "res://char/mina_face.png"),
         (2, "——なんでもない。ね、楽しいでしょ? 楽しいってば。", "res://char/v3/koharu_face.png"),
     };
+
     private static readonly (int who, string text, string face)[] CameoPost =
     {
         (2, "はい、これ。ペンライト。振ってみて。楽しいから。ぜったい、楽しいから。", "res://char/v3/koharu_face.png"),
         (1, "ありがとうございます。振り方は、教えていただけますか。", "res://char/mina_face.png"),
         (2, "好きに振っていいんだよ。……あたしは、ずっと振ってるけど。", "res://char/v3/koharu_face.png"),
     };
-
     // こはる面・中ボスの第一声（s2_1 差分・2026-09-25）。道中の新規選択（壁の予定表）を拾う。
     //   既存 CameoTalk1 は置き換えず、選んでいたときだけ差し替える（選んでいなければ既存が出る）。
     //   s2_4 は step 9 なので、中ボスより前にあるのは s2_1 だけ。
@@ -126,47 +108,23 @@ public partial class StageKoharu : Node
         (1, "はい。どんなところがお好きなのか、伺っても？", "res://char/mina_face.png"),
         (2, "いっぱいあるよ。……いっぱい、あったんだ。", "res://char/v3/koharu_face.png"),
     };
-
-    // 中ボスの第一声を s2_1 の選択から選ぶ。選んでいない／（送らない）なら既存の CameoTalk1（フォールバック）。
-    //   引用（「」の中）は S21Choices と一字一句そろえる＝「もう聞かれていた」の画が成立する条件。
-    private static (int who, string text, string face)[] CameoIntroFor(GameManager? game) => (game?.ChosenAt("s2_1") ?? "") switch
-    {
-        "眠れているか心配だ。休める場所を探そう。" => CameoTalk1_S21Rest,
-        "好きな気持ちは、取り上げたくないんだ。" => CameoTalk1_S21Keep,
-        _ => CameoTalk1,
-    };
-
     // ───────── 道中の下書き選択（正典: wiki/08_仮台本/17_道中の選択肢_案C.md・承認 2026-09-06）─────────
     //   s2_1 … 道中A（部屋）の末尾（中ボスより前）。効果＝【激情】初期値（FuryMeter.InitialKoharu）。
     //   s2_4 … 入力欄の場面の末尾（step 9・欄を閉じる前）。効果＝ここで散った語が F4 の悲鳴の枠の先頭へ。
 
     // ───── S2-1b 予定表（新規・2026-09-25）─────
-    // 道中A（部屋）の末尾。壁の配信予定表。日付にぜんぶ丸。直近三日は書き足した時間が増えている。
-    //   丸のついていない一日には「模試」。下のかごに、開けていない栄養ドリンクが三本。
     //   主題は「休むこと」＝こはるの本音（「もう疲れた、休みたい」）に道中で唯一まっすぐ触れる場所。
     //   ミナは価値判断をしない＝集計の結果だけを差し出して、あなたに聞く。
     private static readonly (int who, string text, string face)[] S21Cue =
     {
-        (1, "壁に、配信の予定表が。……ほとんどの日に、丸がついています。", "res://char/mina_face.png"),
-        (0, "三日続けて、時間を足してる。寝る時間を削ってないといいけど。", ""),
-        (1, "丸のない日が、一日。……そこには、丸の代わりに、二文字。「模試」。", "res://char/mina_face.png"),
-        (1, "……かごに、栄養ドリンクが三本。買われたまま、開けられていません。", "res://char/mina_face.png"),
+        (1, "宙に浮いたカレンダーから、「今日も見る」と。……ほとんど毎日、同じ声が聞こえます。", "res://char/mina_face.png"),
+        (0, "投稿の記録では、三日続けて視聴時間が延びてる。眠れているか、心配だ。", ""),
+        (1, "その間に、「模試」という声も。……明日の予定まで、ここへついてきてしまったのですね。", "res://char/mina_face.png"),
+        (1, "好きな時間が続くなら、うれしいはずなのに。……「見なきゃ」とも聞こえます。", "res://char/mina_face.png"),
         (1, "ご主人様。……休んでほしいです。でも、大切な時間なのですよね。どう話せばよいでしょう。", "res://char/mina_face.png"),
     };
+
     private static readonly string[] S21Choices = { "眠れているか心配だ。休める場所を探そう。", "好きな気持ちは、取り上げたくないんだ。" };
-    private static (int who, string text, string face)[] S21Reply(int sel) => sel switch
-    {
-        0 => new (int, string, string)[] {
-        (0, "眠れているか心配だ。休める場所を探そう。", ""),
-        (1, "……これだけ予定を詰めて、眠る時間は残っていたのでしょうか。わたくしも、心配です。", "res://char/mina_face.png"),
-        (1, "会えたら、休もうと伝えましょう。休むのが怖いなら、その理由も聞いてから。", "res://char/mina_face.png"),
-    },
-        _ => new (int, string, string)[] {
-        (0, "好きな気持ちは、取り上げたくないんだ。", ""),
-        (1, "……はい。大切にしてきたものまで、取り上げたくはありませんね。", "res://char/mina_face.png"),
-        (1, "全部を見られない日も、好きでいてよい。……あの方にも、そう伝えたいです。", "res://char/mina_face.png"),
-    },
-    };
     private static readonly (int who, string text, string face)[] S21Tail =
     {
         (0, "予定表はそのままにしておこう。僕らが勝手に消しても、休めるようにはならないから。", ""),
@@ -180,7 +138,6 @@ public partial class StageKoharu : Node
         (1, "それでも、振ってみます。あの方が渡してくださったので。", "res://char/mina_face.png"),
         (0, "うん。僕も見てる。光っていなくても、君が振ってるのは分かるよ。", ""),
     };
-
     // S2-4 直後・カーソル。入力欄は閉じず、カーソルだけが点いたまま、あなたの下書きが開く。
     //   P4 で言った「消された言葉は、消えていない」が、ここでは、あなたの側に向く。宛先は決めない。
     private static readonly (int who, string text, string face)[] S24Cue =
@@ -189,38 +146,22 @@ public partial class StageKoharu : Node
         (0, "あ、それは僕の画面。君の話を聞いて、昔の下書きを思い出してた。", ""),
         (1, "……打ちかけて、消すこと。ご主人様にも、ありますか。……話せるぶんだけで、結構です。", "res://char/mina_face.png"),
     };
+
     private static readonly string[] S24Choices = { "あるよ。嫌われるのが怖くて、消しちゃう", "まだ話すのは怖い。でも、聞いてくれてうれしい" };
-    private static (int who, string text, string face)[] S24Reply(int sel) => sel switch
-    {
-        0 => new (int, string, string)[] {
-        (0, "あるよ。嫌われるのが怖くて、消しちゃう", ""),
-        (1, "……嫌われたくなくて、言いたいことを引っ込めてしまうのですね。", "res://char/mina_face.png"),
-        (1, "今は、消さずに話してくださった。……わたくしには、うれしい一通です。", "res://char/mina_face.png"),
-    },
-        _ => new (int, string, string)[] {
-        (0, "まだ話すのは怖い。でも、聞いてくれてうれしい", ""),
-        (1, "……はい。続きは、話したくなったときに。今は、ここまで聞かせてくださって、ありがとうございます。", "res://char/mina_face.png"),
-        (1, "では、しばらくわたくしの話を。……黙って聞いていてくださるだけでも、うれしいです。", "res://char/mina_face.png"),
-    },
-    };
     private static readonly (int who, string text, string face)[] S24Tail =
     {
-        (0, "カーソルは閉じた。でも、君に話した分は消さないよ。……先の部屋まで、道をつなぐ。", ""),
+        (0, "カーソルは閉じた。でも、君に話した分は消さないよ。……奥の客席まで、一緒に行こう。", ""),
         (1, "承知しました。次のお話も、そのまま聞かせてください。", "res://char/mina_face.png"),
     };
-
-    // S2-3 BossTalk（教室）＋ Chat2／Chat3（仮台本 07）。場所が変わる。席は全部埋まっているのに
-    //   どの席もこちらを見ていない。視線だけがある。黒板に「期待」。文字はここ一箇所。
     private static readonly (int who, string text, string face)[] ClassTalk =
     {
-        (1, "……部屋の向こうに、教室が重なって見えます。席は、ぜんぶ埋まっています。——誰とも目が合わないのに、視線だけが、こちらに。", "res://char/mina_face.png"),
-        (0, "こはるさんの教室の記憶だね。この部屋にいても、学校で向けられた期待が離れないんだ。", ""),
+        (1, "……客席の間から、学校の話が。姿は見えないのに、誰かに見られているようです。", "res://char/mina_face.png"),
+        (0, "学校で向けられた期待も、ここまで残ってる。好きなものを見ている間くらい、休めたらいいのに。", ""),
         (4, "「今日も明るいねって言われた。……何の話してたか、覚えてない。」", ""),
         (1, "……明るい声で、投稿しています。明るい、と、言われたことを。", "res://char/mina_face.png"),
         (0, "視線が集まってる。ミナ、今いる通路を見て。進めるところから行こう。", ""),
-        (1, "期待というものは、部屋へ帰っても消えないのですね。……消灯では、足りませんか。", "res://char/mina_face.png"),
+        (1, "空の上の客席まで来ても、期待は離れないのですね。……ここでくらい、肩の力を抜いてほしいです。", "res://char/mina_face.png"),
     };
-
     // ───────── S2-4 入力欄（ミッドシナリオ枠。仮台本 07）─────────
     // 配信画面の下のコメント入力欄。「レイちゃんが」まで打たれて、一文字ずつ消える。
     // 「今日も来ました」だけが残って、送られる。ミナは消えたほうの一行を拾い、中身は本人の前まで言わない
@@ -230,7 +171,7 @@ public partial class StageKoharu : Node
     //   （Step_InputField 参照）。行末の「|」は表示側がカーソルとして描くので渡す前に落とす。
     private static readonly (int who, string text, string face)[] InputField =
     {
-        (1, "ご主人様、これ。配信画面の下に、コメントの入力欄が。……文字が、打たれています。", "res://char/mina_face.png"),
+        (1, "ご主人様。送る前のコメントが、残っています。……入力欄に、文字が。", "res://char/mina_face.png"),
         (3, "レイちゃんが|", ""),
         (1, "……消えていきます。一文字ずつ。", "res://char/mina_face.png"),
         (3, "今日も来ました|", ""),
@@ -239,29 +180,23 @@ public partial class StageKoharu : Node
         (1, "送る前に消した言葉も、覚えておきます。……ご本人に会えたら、確かめましょう。", "res://char/mina_face.png"),
         (1, "レイさんは、この一行に気づいたのでしょうか。……ご本人に、聞いてみたいです。", "res://char/mina_face.png"),
     };
-
-    // S2-5 道中C／MidEnd（仮台本 07）。投稿の直後、配信画面が消えて、黒い画面に自分の顔が映る。
     //   ペンライトを持ったまま。「むだだ」をぜんぶ祓い、ぜんぶ数えた＝S2-8 の決定打（回数）の仕込み。
     //   末尾の {n} は直前の行に留まっていた実秒（補助観測・表示専用で保存しない）。
     private static readonly (int who, string text, string face)[] MidEnd =
     {
         (4, "「配信終わった。部屋の電気つけた。……自分なにしてんだろ。」", ""),
-        (1, "……画面が、消えました。黒い画面に、顔が映っています。ペンライトを、持ったまま。", "res://char/mina_face.png"),
+        (1, "……記録の中では、配信が終わったのですね。でも、こちらの客席には、まだ終わりが見えません。", "res://char/mina_face.png"),
         (0, "アンチャーの反応は薄くなった。でも、君の光まで弱くなってる。", ""),
         (1, "……光が、少し、重い。", "res://char/mina_face.png"),
         (0, "誤差で済ませたくない。少し止まろう。僕はここで待ってる。", ""),
         (1, "……ありがとうございます。では、少しだけ。待たせるのは、得意ではないのですが。", "res://char/mina_face.png"),
     };
-
-    // S2-6 ボス出現（仮台本 07）。消えた画面の前の部屋で戦う。穢れは灰色の視線の線。
     private static readonly (int who, string text, string face)[] BossIntro =
     {
-        (1, "消えた画面の前に、あの人が。……顔が映るほうを、向いたまま。", "res://char/mina_face.png"),
+        (1, "ベッドのある場所まで、客席につながっています。大きな画面には、レイさんの配信が……。ここでは、眠れないのでしょうか。", "res://char/mina_face.png"),
         (0, "こはるさんの周りに、視線を集めるアンチャーがいる。まず、あれをほどこう。", ""),
         (1, "はい。……こはるさん、もう一度、隣に伺います。", "res://char/mina_face.png"),
     };
-
-    // S2-9 クリア（仮台本 07）。消えていた配信画面が灯り、ペンライトの光が画面に届く。
     //   空の問い・二度目（1度目「いらない」→2度目 無言→3度目「もう聞きません」の階段の二段目）。
     //   答えの下書きは出さず、無言のまま流す。
     private static readonly (int who, string text, string face)[] Clear =
@@ -282,6 +217,90 @@ public partial class StageKoharu : Node
     // 迷い秒ゲートの行（★）。s2_4 で迷っていなければ Clear から外して流す。
 
     private static readonly string[] SkyChoices = { "今日は、ミナが見た空の話を聞きたい。", "僕の窓から見える空を、君にも話すよ。" };
+    private (int who, string text, string face)[] _playerIntro = null!;
+    private (int who, string text, string face)[] _playerMid = null!;
+    private (int who, string text, string face)[] _playerBoss = null!;
+    // ── 他ジョブ潜行（2026-09-15）──
+    //   結び手以外で潜ったとき true。ミナの行（who=1/3）・下書き選択・入力欄（S2-4）を
+    //   すべて抑止し、ビート枠（出撃／道中3節目／ボス前／帰還）を CharacterStory のテーブルへ全面置換する。
+    //   改心相当シーン（山場）は BossKoharu 側が CharacterStory.Redemption で差し替える。
+    private bool _charStory;
+    private (int who, string text, string face)[] _storyMid1 = System.Array.Empty<(int, string, string)>();
+    private (int who, string text, string face)[] _storyMid3 = System.Array.Empty<(int, string, string)>();
+    private (int who, string text, string face)[] _storyReturn = System.Array.Empty<(int, string, string)>();
+    // 他ジョブ潜行の撃破後アフター（CharacterStory.Aftermath＝潜行キャラ×この面のボスの9通り）。
+    //   フィルムの代わりに会話で流し、そのあと _storyReturn（帰還ビート）へ続ける。
+    private (int who, string text, string face)[] _storyAftermath = System.Array.Empty<(int, string, string)>();
+    private static readonly (int who, string text, string face)[] NoLines = System.Array.Empty<(int, string, string)>();
+    private bool _lunatic;
+    // ルナティックのクリア：アフターの代わりに、リザルトのバナーを読む間だけ置いてから帰る。
+    private const double LunaticClearHold = 3.0;
+    private double _lunaticClearT;
+    // S2-5（MidEnd）専用の送り。末尾の「……ちなみに、いまの間。{n}秒。」へ、直前の行に留まっていた
+    //   実秒を差し込んでから流す（仮台本 07 の補助観測。表示専用＝保存しない。Hub の同型と同じ流儀）。
+    //   static readonly の MidEnd は書き換えず、初回に写しを作ってそちらへ差し込む。
+    private (int who, string text, string face)[]? _midEndLines;
+    private double _midEndPrevT;   // 直前の行の表示からの経過（{n} に入る値）
+    private int _midEndPrevIdx = -1;
+    private CommentInput? _input;
+    private bool _s24Erased;   // 選択の前に欄を空にした（カーソルだけ残す）
+    private bool _inChoice;    // 台本を流し切って S2-4 の選択へ入った
+    // 選択中はホスト step の行送り状態と共有しない。
+    private string _cId = "";     // いま流している選択の id（切り替わったら頭から）
+    private int _cPhase;          // 0=きっかけ / 1=選択提示中 / 2=受け＋締め / 3=完了
+    private int _cLine;
+    private double _cHold;
+    private bool _cStarted;
+    private ChoiceOverlay? _cOverlay;
+    private double _cChoiceT;     // 提示からの経過＝迷い秒数（RecordChoice へ渡す）
+    private (int who, string text, string face)[] _cAfter = System.Array.Empty<(int, string, string)>();
+    private bool _cameoCleaned;   // 撃破直後の片付けを一度だけ（会話で留まる間に繰り返さない）
+    // ボス戦の見張り。案C では戦闘中の割り込み（会話2択）がレイ面（S3-7）の仕掛けなので、この面は撃破待ちだけ。
+    // 撃破後に Finished が立たないまま固まる進行不能への保険（StageMina と同方式）。
+    // 撃破前は一切計らないので長期戦を打ち切ることはなく、通常プレイでは発動しない。
+    private const double BossFinishGrace = 150.0;
+    private double _postDefeatT;
+    private bool _clearBannerShown;
+    private int _clearPhase;
+    private (int who, string text, string face)[]? _clearLines;
+    private bool _clearing;
+
+    // 中ボスの第一声を s2_1 の選択から選ぶ。選んでいない／（送らない）なら既存の CameoTalk1（フォールバック）。
+    //   引用（「」の中）は S21Choices と一字一句そろえる＝「もう聞かれていた」の画が成立する条件。
+    private static (int who, string text, string face)[] CameoIntroFor(GameManager? game) => (game?.ChosenAt("s2_1") ?? "") switch
+    {
+        "眠れているか心配だ。休める場所を探そう。" => CameoTalk1_S21Rest,
+        "好きな気持ちは、取り上げたくないんだ。" => CameoTalk1_S21Keep,
+        _ => CameoTalk1,
+    };
+
+    private static (int who, string text, string face)[] S21Reply(int sel) => sel switch
+    {
+        0 => new (int, string, string)[] {
+        (0, "眠れているか心配だ。休める場所を探そう。", ""),
+        (1, "……これだけ予定を詰めて、眠る時間は残っていたのでしょうか。わたくしも、心配です。", "res://char/mina_face.png"),
+        (1, "会えたら、休もうと伝えましょう。休むのが怖いなら、その理由も聞いてから。", "res://char/mina_face.png"),
+    },
+        _ => new (int, string, string)[] {
+        (0, "好きな気持ちは、取り上げたくないんだ。", ""),
+        (1, "……はい。大切にしてきたものまで、取り上げたくはありませんね。", "res://char/mina_face.png"),
+        (1, "全部を見られない日も、好きでいてよい。……あの方にも、そう伝えたいです。", "res://char/mina_face.png"),
+    },
+    };
+
+    private static (int who, string text, string face)[] S24Reply(int sel) => sel switch
+    {
+        0 => new (int, string, string)[] {
+        (0, "あるよ。嫌われるのが怖くて、消しちゃう", ""),
+        (1, "……嫌われたくなくて、言いたいことを引っ込めてしまうのですね。", "res://char/mina_face.png"),
+        (1, "今は、消さずに話してくださった。……わたくしには、うれしい一通です。", "res://char/mina_face.png"),
+    },
+        _ => new (int, string, string)[] {
+        (0, "まだ話すのは怖い。でも、聞いてくれてうれしい", ""),
+        (1, "……はい。続きは、話したくなったときに。今は、ここまで聞かせてくださって、ありがとうございます。", "res://char/mina_face.png"),
+        (1, "では、しばらくわたくしの話を。……黙って聞いていてくださるだけでも、うれしいです。", "res://char/mina_face.png"),
+    },
+    };
 
     private static (int who, string text, string face)[] SkyReply(int sel) => sel switch
     {
@@ -298,29 +317,7 @@ public partial class StageKoharu : Node
     };
 
     private static (int who, string text, string face)[] ClearFor(GameManager? game) => Clear;
-
-    private (int who, string text, string face)[] _playerIntro = null!;
-    private (int who, string text, string face)[] _playerMid = null!;
-    private (int who, string text, string face)[] _playerBoss = null!;
-
-    // ── 他ジョブ潜行（2026-09-15）──
-    //   結び手以外で潜ったとき true。ミナの行（who=1/3）・下書き選択・入力欄（S2-4）を
-    //   すべて抑止し、ビート枠（出撃／道中3節目／ボス前／帰還）を CharacterStory のテーブルへ全面置換する。
-    //   改心相当シーン（山場）は BossKoharu 側が CharacterStory.Redemption で差し替える。
-    private bool _charStory;
-    private (int who, string text, string face)[] _storyMid1 = System.Array.Empty<(int, string, string)>();
-    private (int who, string text, string face)[] _storyMid3 = System.Array.Empty<(int, string, string)>();
-    private (int who, string text, string face)[] _storyReturn = System.Array.Empty<(int, string, string)>();
-    // 他ジョブ潜行の撃破後アフター（CharacterStory.Aftermath＝潜行キャラ×この面のボスの9通り）。
-    //   フィルムの代わりに会話で流し、そのあと _storyReturn（帰還ビート）へ続ける。
-    private (int who, string text, string face)[] _storyAftermath = System.Array.Empty<(int, string, string)>();
-    private static readonly (int who, string text, string face)[] NoLines = System.Array.Empty<(int, string, string)>();
-
-    private bool _lunatic;
     private static bool IsTalkStep(int step) => step is 1 or 3 or 4 or 5 or 8 or 9 or 11 or 13;
-    // ルナティックのクリア：アフターの代わりに、リザルトのバナーを読む間だけ置いてから帰る。
-    private const double LunaticClearHold = 3.0;
-    private double _lunaticClearT;
 
     public override void _Ready()
     {
@@ -462,13 +459,6 @@ public partial class StageKoharu : Node
             ShowLine(lines);
         }
     }
-
-    // S2-5（MidEnd）専用の送り。末尾の「……ちなみに、いまの間。{n}秒。」へ、直前の行に留まっていた
-    //   実秒を差し込んでから流す（仮台本 07 の補助観測。表示専用＝保存しない。Hub の同型と同じ流儀）。
-    //   static readonly の MidEnd は書き換えず、初回に写しを作ってそちらへ差し込む。
-    private (int who, string text, string face)[]? _midEndLines;
-    private double _midEndPrevT;   // 直前の行の表示からの経過（{n} に入る値）
-    private int _midEndPrevIdx = -1;
     private void Step_MidEndLines(double delta)
     {
         if (_midEndLines == null) _midEndLines = ((int who, string text, string face)[])MidEnd.Clone();
@@ -487,28 +477,6 @@ public partial class StageKoharu : Node
         else _midEndPrevT += delta;
         Step_Lines(delta, _midEndLines);
     }
-
-    // ───── S2-4 入力欄（仮台本 07）専用の送り ─────
-    //   InputField の並びはそのまま流すが、who=3（システム表示＝入力欄そのもの）の行だけは
-    //   Hud のナレ用中央テロップに出さず、配信画面のコメント欄の姿をした CommentInput へ渡す。
-    //   ミナの観測行（who=1）は従来どおり会話バーに出し、その間もコメント欄は画面に残る＝
-    //   「打たれている一行を、ミナが横から見ている」という画になる。
-    //
-    //   台本の流れ:
-    //     [0] ミナ「……文字が、打たれています。」  → 欄が現れる
-    //     [1] who=3「レイちゃんが|」               → 文字送りで打たれる
-    //     [2] ミナ「……消えていきます。一文字ずつ。」→ この行の裏で末尾から消える
-    //     [3] who=3「今日も来ました|」             → 打ち直して送信（送信ボタンが一度灯る）
-    //     [4]〜[6] ミナの観測行                     → 最後に欄が消える
-    //
-    //   送り作法は Step_Lines と同じ（Z 1段目＝全文表示／2段目＝次行。既読スキップ・オートも同じ）。
-    //   who=3 の行は文字送り／消しが終わるまで次へ進めない＝打つ手・消す手を必ず見せる。
-    //   バブルは HoldBubble で保持したまま（BubblePaused 継続＝弾も敵も止まったまま）。
-    //   自動プレイ（--qa/--demo）は BubblePaused 中に Z をパルスし続けるので、動作完了後の
-    //   最初のパルスで先へ進む＝ここで詰まらない。
-    private CommentInput? _input;
-    private bool _s24Erased;   // 選択の前に欄を空にした（カーソルだけ残す）
-    private bool _inChoice;    // 台本を流し切って S2-4 の選択へ入った
     private void Step_InputField(double delta)
     {
         if (!_stepStarted)
@@ -583,22 +551,6 @@ public partial class StageKoharu : Node
             if (InputField[i].who == 3) { last = false; break; }
         _input?.Type(text.TrimEnd('|'), send: last);
     }
-
-    // ───── 道中の下書き選択（17）を「いまの step に留まったまま」流す ─────
-    //   きっかけ → ChoiceOverlay → 受け＋締め、を1本にしたヘルパ。流し切ったら true を返す
-    //   （呼び出し側はそれまで自分の step から出ない）。行送りは Step_Lines と同じ作法だが、
-    //   ホスト step が _stepStarted / _introLine を使っているので、状態はここに閉じて持つ。
-    //   提示中もバブルは保持（HoldBubble）＝BubblePaused が続いて弾・敵は止まったまま。
-    //   自動プレイ（--qa/--demo）は BubblePaused 中 Z をパルスし続けるので既定カーソル
-    //   のまま決定される＝ここで詰まらない。
-    private string _cId = "";     // いま流している選択の id（切り替わったら頭から）
-    private int _cPhase;          // 0=きっかけ / 1=選択提示中 / 2=受け＋締め / 3=完了
-    private int _cLine;
-    private double _cHold;
-    private bool _cStarted;
-    private ChoiceOverlay? _cOverlay;
-    private double _cChoiceT;     // 提示からの経過＝迷い秒数（RecordChoice へ渡す）
-    private (int who, string text, string face)[] _cAfter = System.Array.Empty<(int, string, string)>();
     private bool RunChoice(double delta, string id,
         (int who, string text, string face)[] cue, string[] choices,
         System.Func<int, (int who, string text, string face)[]> reply,
@@ -715,73 +667,51 @@ public partial class StageKoharu : Node
     // 道中ザコ戦“前半”：Spawner起動→MidWaveA体浄化でチラ見せへ。
     private void Step_MidwaveA(double delta)
     {
-        var game = GetNodeOrNull<GameManager>("/root/Game");
         if (!_stepStarted)
         {
             _stepStarted = true;
-            _waveBase = game?.PurifiedCount ?? 0;
-            StartMidwaveSpawner(MidWaveA);
+            StartMidwaveSpawner(MidWaveA, 0f);
         }
-        // 祈り運びを逃しても、規定数の出現と全敵の退場が済んでいれば進める。
-        if (game != null && (game.PurifiedCount - _waveBase >= MidWaveA || game.StageCleared
-            || (_spawner.SpawnedCount >= MidWaveA && GetTree().GetNodesInGroup("enemies").Count == 0)))
-        {
-            _spawner?.Stop(); _spawner = null!;
-            ClearStageEnemies();
-            GetNodeOrNull<BulletPool>("/root/Pool")?.DespawnAll();
-            Advance();
-        }
+        if (!_spawner.Finished || !Spawner.BattlefieldClear(GetTree())) return;
+        _spawner.QueueFree();
+        _spawner = null!;
+        GetNode<BulletPool>("/root/Pool").DespawnAll();
+        Advance();
     }
 
     // 道中ザコ戦“B（後半）”：チラ見せの後。やや詰めて始める。MidWaveB体で終盤Cへ（型崩し後：溜めはボス戦中）。
     private void Step_MidwaveB(double delta)
     {
-        var game = GetNodeOrNull<GameManager>("/root/Game");
         if (!_stepStarted)
         {
             _stepStarted = true;
-            _waveBase = game?.PurifiedCount ?? 0;
             StartMidwaveSpawner(MidWaveB, 0.35f);
-            // 背景は道中パノラマのまま（BeginRoute）。旧四層にあった「部屋→教室」の層セット切替は、描き込み
-            // 背景に教室版が無いので廃止した（2026-09-22）。教室の場面は台詞（ClassTalk）だけで語る。
         }
-        // 規定数浄化（or 目標到達）で節目＝スポーン停止＋居座り片付け＋終盤Cへ（全滅ハント不要＝進行不能を防ぐ）。
-        if (game != null && (game.PurifiedCount - _waveBase >= MidWaveB || game.StageCleared
-            || (_spawner.SpawnedCount >= MidWaveB && GetTree().GetNodesInGroup("enemies").Count == 0)))
-        {
-            _spawner?.Stop(); _spawner = null!;
-            ClearStageEnemies();
-            GetNodeOrNull<BulletPool>("/root/Pool")?.DespawnAll();
-            Advance();
-        }
+        if (!_spawner.Finished || !Spawner.BattlefieldClear(GetTree())) return;
+        _spawner.QueueFree();
+        _spawner = null!;
+        GetNode<BulletPool>("/root/Pool").DespawnAll();
+        Advance();
     }
 
     // 道中ザコ戦“C（終盤）”：Bの直後（連戦）。最大密度でボス直前の山を作る。MidWaveC体で小話→本ボスへ。
     private void Step_MidwaveC(double delta)
     {
-        var game = GetNodeOrNull<GameManager>("/root/Game");
         if (!_stepStarted)
         {
             _stepStarted = true;
-            _waveBase = game?.PurifiedCount ?? 0;
             StartMidwaveSpawner(MidWaveC, 0.7f);
-            // 背景は道中Bと同じ道中パノラマのまま。「消えた画面の前の部屋」はボス突入（EnterBoss）の専用画で出す。
         }
-        // 規定数浄化（or 目標到達）で節目＝スポーン停止＋居座り片付け＋本ボスへ（全滅ハント不要＝進行不能を防ぐ）。
-        if (game != null && (game.PurifiedCount - _waveBase >= MidWaveC || game.StageCleared
-            || (_spawner.SpawnedCount >= MidWaveC && GetTree().GetNodesInGroup("enemies").Count == 0)))
-        {
-            _spawner?.Stop(); _spawner = null!;
-            ClearStageEnemies();
-            GetNodeOrNull<BulletPool>("/root/Pool")?.DespawnAll();
-            Advance();
-        }
+        if (!_spawner.Finished || !Spawner.BattlefieldClear(GetTree())) return;
+        _spawner.QueueFree();
+        _spawner = null!;
+        GetNode<BulletPool>("/root/Pool").DespawnAll();
+        Advance();
     }
 
     private void StartMidwaveSpawner(int count, float startIntensity = 0f)
     {
         if (_spawner != null) return;
-        (GetTree().GetFirstNodeInGroup("stagebg") as StageBackground)?.BeginRoute();
         // 道中の段の頭（A/B/C の各波）＝直前の波で盤面の弾とザコを掃き切ってから湧き直す仕切り直し。
         //   敵がゼロから湧き直すのに自機だけ前の段の位置に残るのが非対称なので、自機も初期位置へ戻す。
         //   ルナティックは除外（理由は StageAkari.StartMidwaveSpawner と同じ＝戦闘を途切れさせない設計）。
@@ -789,12 +719,8 @@ public partial class StageKoharu : Node
         _spawner = new Spawner { Name = "Spawner", World = World, Theme = StageTheme.Koharu, SpawnLimit = count, StartIntensity = startIntensity };
         AddChild(_spawner);
         _spawner.Begin();
-    }
-
-    private void ClearStageEnemies()
-    {
-        foreach (Node n in GetTree().GetNodesInGroup("enemies"))
-            if (n is Enemy e) e.QueueFree();
+        var (from, to) = _step switch { 2 => (0f, 1.95f), 7 => (2f, 2.95f), _ => (3f, 4f) };
+        GetParent().GetNode<StageBackground>("StageBackground").TrackRoute(_spawner, from, to);
     }
 
     // ボスの“チラ見せ”：CameoBoss（本戦ボスと同じ Enemy 派生・シールド制・BossMover）を1体スポーン。
@@ -865,7 +791,6 @@ public partial class StageKoharu : Node
             Advance();
         }
     }
-    private bool _cameoCleaned;   // 撃破直後の片付けを一度だけ（会話で留まる間に繰り返さない）
 
     private void Step_BossSpawn()
     {
@@ -895,12 +820,6 @@ public partial class StageKoharu : Node
             Advance();
         }
     }
-
-    // ボス戦の見張り。案C では戦闘中の割り込み（会話2択）がレイ面（S3-7）の仕掛けなので、この面は撃破待ちだけ。
-    // 撃破後に Finished が立たないまま固まる進行不能への保険（StageMina と同方式）。
-    // 撃破前は一切計らないので長期戦を打ち切ることはなく、通常プレイでは発動しない。
-    private const double BossFinishGrace = 150.0;
-    private double _postDefeatT;
     private void Step_BossWait(double delta)
     {
         if (!IsInstanceValid(_boss) || _boss.Finished)
@@ -921,12 +840,6 @@ public partial class StageKoharu : Node
             return;
         }
     }
-
-    private bool _clearBannerShown;
-    private int _clearPhase;
-    // クリア会話の実体（S2-9）。ミナ本編は ClearFor（迷い秒ゲートの★行を s2_4 の迷いで残す／外す。2026-09-26）、
-    //   他ジョブ潜行はアフター＋帰還ビートの連結。
-    private (int who, string text, string face)[]? _clearLines;
     private void Step_Clear(double delta)
     {
         if (!_clearBannerShown)
@@ -974,8 +887,6 @@ public partial class StageKoharu : Node
                 SkyReply, NoLines)) Advance();
         }
     }
-
-    private bool _clearing;
     private void Step_Transition()
     {
         if (_clearing) return;

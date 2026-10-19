@@ -34,40 +34,8 @@ public partial class BossKoharu : Enemy
     private AreaSpellCaster _caster = null!;
     private BossPostSequence _posts = null!;
     public bool PostSequenceActive => _posts != null && _posts.Active;
-
-    // ── 「お残し禁止」（HP52%ワンショットスペル）──
-    //   通常弾とテレグラフを止めて宣告 → 画面右半分（ボス側）に“料理弾”3列×8＝24発を配膳
-    //  （消せる祈り弾 MakeErasable・降下12px/s）。8秒以内に撃って消した分は祈り弾の既存経路で
-    //   そのまま報われる（Bullet.OnAreaEntered → GameManager.AddPrayerCleared: +15点）。
-    //   残した弾は時間切れで 0.06s 間隔で順に自機狙いニードル（130px/s）に変わって飛んでくる。
-    //   完食（被弾なし・ボムなしで全24発を撃ち消す）＝こはるの動的セリフ＋回復ハート1個
-    //   テーマ＝「アーカイブ、ぜんぶ見て」：前へ出て見るほど見残し（＝後の弾）が減って安全
-    //   ＋ゲージも伸びる（リスクとリターン）。ボムで薙ぎ払うと弾は消えるが“食べて”いない＝完食報酬なし。
-    //
-    // 2026-09-17 ユーザー指示：「うちわが3列ぐらい下に落ちてくる攻撃」＝この配膳を削除。
-    //   復活できるよう、以下のコード（TickMeal / ServeMeal / CountMealAlive / FinishMeal と INI 値）は
-    //   丸ごと残置し、このフラグ1個だけで止める（Hud.TickerEnabled・Enemy.ShowDamageNumbers と同じ流儀）。
-    //   const ではなく static readonly ＝ false 固定でも分岐が畳まれず CS0162 が出ない。
-    //   止め方は「_mealPhase に入れない」ではなく「HP52% を跨いだ瞬間に _mealFired だけ立てて素通りさせる」。
-    //   _mealFired は十字火(26%)の前提条件（下の OnHpChanged）であり、_mealPhase は
-    //   スペル切替／フィナーレ／第二形態の保留（holds）条件でもあるため、
-    //   「発火済み・進行中でない」状態で素通りさせるのが唯一デッドロックを作らない畳み方になる。
-    public static readonly bool MealEnabled = false;
-    private bool _mealFired;         // 発火ワンショット（OFF時も「消化済み」として立てる）
-    private int _mealPhase;          // 0=非活性 / 1=宣告→配膳待ち / 2=食事時間(8s) / 3=お残し→ニードル変換中
-    private double _mealT;
-    private int _mealStartLives, _mealStartBombs;  // 完食報酬の判定スナップショット（被弾なし・ボムなし）
-    private readonly System.Collections.Generic.List<Bullet> _meal = new();     // 配膳した料理弾
-    private readonly System.Collections.Generic.List<Bullet> _mealLeft = new(); // 時間切れ時のお残し（変換待ち行列）
-    // 主要パラメータは INI（config/boss_stats.ini [koharu] meal_*）で上書き可。初期値＝現行値。
-    private float _mealHp = 0.52f;         // 発動HP割合
-    private int _mealRows = 3, _mealCols = 8; // 配膳の行×列（3×8=24発）
-    private double _mealServeDelay = 0.9;  // 宣告→配膳の溜め
-    private double _mealWindow = 8.0;      // 食事時間
-    private double _mealConvStep = 0.06;   // お残し→ニードル変換の間隔（順に“飛んでくる”連鎖感）
-    private float _mealFallSpeed = 12f;    // 料理弾の降下速度（ゆっくり＝狙って食べられる）
-    private float _mealNeedleSpeed = 130f; // お残しニードルの速度
-    private static readonly Color MealNeedleTint = new("d6443f"); // 深紅（「みんな見てる」の色）
+    private float _memoryHp = 0.52f;
+    private bool _midpointPassed;
 
     private bool _gotoFired;      // 発火ワンショット
     private int _gotoPhase;
@@ -158,21 +126,13 @@ public partial class BossKoharu : Enemy
         PanelInk = BossTuning.I("koharu", "panel_ink", 48);
         OrbitRadius = BossTuning.F("koharu", "orbit_radius", 26f);
         SpinSpeed = BossTuning.F("koharu", "spin_speed", 0.85f);
-        PanelsFire = false;
         EnemyBulletSpeed = BossTuning.F("koharu", "bullet_speed", 80f);
 
         int bars = BossTuning.I("koharu", "hp_bars", 0);
         BarCount = bars > 0 ? bars : DiffBars(finalBoss: false);
 
         // 弾幕・ギミックの外出し値（INIに無ければフィールド初期値＝現行値のまま）。
-        _mealHp = BossTuning.F("koharu", "meal_hp", 0.52f);
-        _mealRows = Mathf.Max(1, BossTuning.I("koharu", "meal_rows", 3));
-        _mealCols = Mathf.Max(1, BossTuning.I("koharu", "meal_cols", 8));
-        _mealWindow = BossTuning.F("koharu", "meal_window", 8.0f);
-        _mealServeDelay = BossTuning.F("koharu", "meal_serve_delay", 0.9f);
-        _mealFallSpeed = BossTuning.F("koharu", "meal_fall_speed", 12f);
-        _mealNeedleSpeed = BossTuning.F("koharu", "meal_needle_speed", 130f);
-        _mealConvStep = Mathf.Max(0.01f, BossTuning.F("koharu", "meal_convert_step", 0.06f));
+        _memoryHp = BossTuning.F("koharu", "meal_hp", 0.52f);
         _gotoHp = BossTuning.F("koharu", "goto_hp", 0.28f);
         _finaleCap = BossTuning.F("koharu", "finale_cap", 0.26f);
 
@@ -253,141 +213,16 @@ public partial class BossKoharu : Enemy
         if (!BarrageHolding) GlobalPosition = _mover.Step(GlobalPosition, delta, IsForm2 ? 1.65f : 1f);
         ApplyBossMotion(_mover.VisualOffset, _mover.Lean, IsForm2 ? !_mover.FacingLeft : _mover.FacingLeft);
         FxLayer.Instance?.EmitBossAura(FxLayer.BossAura.Koharu, GlobalPosition, (float)delta, 32f);
-        TickMeal(delta);
         TickGoto();
-        if (_mealPhase == 0 && _gotoPhase == 0 && !_caster.EdgeAttackActive)
+        if (_gotoPhase == 0 && !_caster.EdgeAttackActive)
             TickForm2Technique(delta, _mover, _caster);
-    }
-
-    // 「お残し禁止」の進行。UpdateMovement 経由＝会話中(BubblePaused)は弾もタイマーも一緒に止まる。
-    private void TickMeal(double delta)
-    {
-        if (_mealPhase == 0) return;
-        _mealT += delta;
-        switch (_mealPhase)
-        {
-            case 1: // 宣告 → 配膳
-                if (_mealT < _mealServeDelay) return;
-                if (!ServeMeal()) { FinishMeal(fullEat: false); return; } // Pool不在（起こらない保険）＝中断
-                _mealPhase = 2; _mealT = 0;
-                return;
-            case 2: // 食事時間：完食は即判定。時間切れでお残しを回収して変換へ。
-                if (CountMealAlive() == 0) { FinishMeal(fullEat: true); return; }
-                if (_mealT < _mealWindow) return;
-                _mealLeft.Clear();
-                foreach (var b in _meal)
-                    if (IsInstanceValid(b) && b.Active && b.IsPatternBullet) _mealLeft.Add(b);
-                _meal.Clear();
-                _mealPhase = 3; _mealT = 0;
-                GetHud()?.ShowBossLine("こはる", "……見なかったところ、あるでしょ。……ぜんぶ、見てほしいのに。", UiKit.Kegare, 2.0);
-                return;
-            default: // 3: お残し→自機狙いニードル（0.06s間隔で順に）。変換待ちの間も撃って食べれば減らせる。
-                var pool = GetNodeOrNull<BulletPool>("/root/Pool");
-                var pl = GetTree().GetFirstNodeInGroup("player") as Node2D;
-                while (_mealT >= _mealConvStep && _mealLeft.Count > 0)
-                {
-                    _mealT -= _mealConvStep;
-                    var b = _mealLeft[0];
-                    _mealLeft.RemoveAt(0);
-                    if (pool == null || !IsInstanceValid(b) || !b.Active || !b.IsPatternBullet) continue; // 変換待ち中に食べた/消えた分
-                    Vector2 at = b.GlobalPosition;
-                    pool.Despawn(b);
-                    Vector2 d = pl != null ? pl.GlobalPosition - at : new Vector2(-1, 0);
-                    d = d.LengthSquared() > 0.01f ? d.Normalized() : new Vector2(-1, 0);
-                    // お残し→撃ち返しニードルは中サイズ（3.0→3.8）＝「食べ残すと反撃が来る」の脅威を弾の大きさでも語る。
-                    // お残し＝見られなかったアーカイブが「視線」になって撃ち返してくる＝アクスタの絵。
-                    // 速度・半径・弾数は不変（見た目だけ）。
-                    var nb = pool.Spawn(at, d * _mealNeedleSpeed, true, 3.8f, 1, BulletShape.Needle, MealNeedleTint);
-                    nb.SetSprite(BulletArt.KoharuAcrylic, 30f);
-                }
-                if (_mealLeft.Count == 0) FinishMeal(fullEat: false);
-                return;
-        }
-    }
-
-    // 配膳：盤面の右半分（ボス側＝前へ出るほど早く食べ進められる）に 3列×8＝24発の“料理弾”を並べる。
-    // 祈り弾（MakeErasable）＝自機弾で消す→AddPrayerCleared の既存経路がそのまま「食べた」報酬になる。
-    // Y=44/64/84 開始＋降下12px/s：8秒（＋難易度の弾速倍率）でも下端216pxに届かず画面外に落ちない
-    // ＝「勝手に消えて完食扱い」の事故を構造で防ぐ。INIで行列数を増やしても、格子の間隔を画面内に
-    // 収まるようクランプして同じ保証を維持する（右端 MealRight・開始Y上限94px）。
-    // 配膳格子の左右端（盤面の右半分＝ボス側）。Field 基準なので盤面が動いても同じ“右半分”に並ぶ。
-    private const float MealLeft = Field.CenterX + Field.Width * 0.0573f;   // 旧 214（Left=0 時の 192+22）
-    private const float MealRight = Field.Right - 28f;                       // 旧 356（384-28）
-
-    private bool ServeMeal()
-    {
-        var pool = GetNodeOrNull<BulletPool>("/root/Pool");
-        if (pool == null) return false;
-        _meal.Clear();
-        // 「全部見なきゃ」の配膳弾＝箱から溢れたグッズ（うちわ）。祈り弾として並ぶので、
-        // 撃って消す＝「見た／片づけた」になる。琥珀の円弾の色はグローとして絵の裏に残す。
-        SetSpellVisual(Spells[0].shape, Spells[0].tint, BulletArt.KoharuUchiwa, 34f);
-        float colStep = _mealCols > 1 ? Mathf.Min(20f, (MealRight - MealLeft) / (_mealCols - 1)) : 0f;
-        float rowStep = _mealRows > 1 ? Mathf.Min(20f, (94f - 44f) / (_mealRows - 1)) : 0f;
-        for (int row = 0; row < _mealRows; row++)
-            for (int col = 0; col < _mealCols; col++)
-            {
-                var pos = new Vector2(MealLeft + col * colStep, 44f + row * rowStep);
-                // 配膳は「盤面の右半分に格子で並ぶ」こと自体がギミック（食べ残しを数える）＝
-                // 体から飛び出す導入区間は付けない。並んだ瞬間に格子が読めることを優先する。
-                var b = FireBullet(pool, pos, new Vector2(0f, _mealFallSpeed), 3.6f, 1, fromCenter: false);
-                b.IsPatternBullet = true;
-                _meal.Add(b);
-            }
-        return true;
-    }
-
-    // まだ画面に残っている配膳弾（＝見ていないアーカイブ）の数。プール再利用対策：参照が生きたまま別の弾に転用されても、
-    // Activate が Erasable を必ずリセットするため「Active かつ Erasable」だけが本物の料理弾
-    //（ギミック中は FanDown が撃たない＝他に Erasable を立てる者がいない）。
-    private int CountMealAlive()
-    {
-        int n = 0;
-        foreach (var b in _meal)
-            if (IsInstanceValid(b) && b.Active && b.IsPatternBullet) n++;
-        return n;
-    }
-
-    // ギミック終了。fullEat=画面が時間内に空になった（ボム薙ぎ払い等を含むため、報酬判定は中で絞る）。
-    private void FinishMeal(bool fullEat)
-    {
-        _mealPhase = 0;
-        _meal.Clear();
-        _mealLeft.Clear();
-        if (_caster != null && _gotoPhase == 0) _caster.Suppressed = false; // 十字火が進行中なら解除しない（保険）
-        var cur = Spells[_pattern % Spells.Length];
-        SetSpellVisual(cur.shape, cur.tint, BulletArt.Get(cur.art), cur.rot); // 弾形・色・絵を通常スペルへ戻す（宣告カードは再掲しない）
-        // 食事の間に保留していたスペル切替（第3「期待」50%）／フィナーレの宣言を、ここで発火させる。
-        // 以降は完食報酬の early return が並ぶので、報酬の有無に関わらず通るこの位置で呼ぶ。
-        // ApplySpell が SetSpellVisual を上書きするため、通常スペルへ戻した後であることも必要。
-        OnHpChanged();
-        if (!fullEat) return;
-        if (GetTree().GetFirstNodeInGroup("player") is not Player pl) return;
-        // “食べた”証明＝被弾なし・ボムなし（ボムで消しても弾は消えるが「食べて」いない＝褒めない。
-        // 撃ち消しぶんの AddPrayerCleared は入っているので無報酬にはならない）。
-        bool noHit = _mealStartLives >= 0 && pl.Lives >= _mealStartLives;
-        bool noBomb = _mealStartBombs >= 0 && (GetNodeOrNull<GameManager>("/root/Game")?.Bombs ?? _mealStartBombs) >= _mealStartBombs;
-        if (!noHit || !noBomb) return;
-        GetHud()?.ShowBossLine("こはる", "……ぜんぶ、見てくれた。……ありがと。ありがと、ね。", UiKit.Kegare, 2.4);
-        Vector2 at = pl.GlobalPosition;
-        if (pl.AddLife(1))
-        {
-            FxLayer.Instance?.DamageNumber(at, "♥+1", FxLayer.Heart, 13);
-        }
-        else
-        {
-            // ♥が上限で受け取れない時はスコアで返す（+1000。AddBulletCleared=+5 の純スコア加算を束ねる）。
-            var game = GetNodeOrNull<GameManager>("/root/Game");
-            if (game != null) for (int i = 0; i < 200; i++) game.AddBulletCleared();
-            FxLayer.Instance?.DamageNumber(at, "+1000", FxLayer.Gold, 13);
-        }
     }
 
     private void TickGoto()
     {
         if (_gotoPhase == 0 || _caster.AoeActive) return;
         _gotoPhase = 0;
-        if (_mealPhase == 0) _caster.Suppressed = false;
+        _caster.Suppressed = false;
         OnHpChanged();
     }
 
@@ -399,15 +234,15 @@ public partial class BossKoharu : Enemy
     {
         GetHud()?.UpdateBossBar(CurrentBarIndex, TotalBars, CurrentBarFrac);
         if (_memoryPending) return;
-        if (!_memoryPlayed && HpRatio <= _mealHp && _mealPhase == 0 && _gotoPhase == 0)
+        if (!_memoryPlayed && HpRatio <= _memoryHp && _gotoPhase == 0)
         {
             _memoryPending = true;
             return;
         }
         // 「五徳の十字火」：HP26%（INI: goto_hp）を割った瞬間に一度だけ（第4スペル切替と同じ被弾＝終盤入りの合図）。
-        // お残し禁止の進行中は持ち越し（TickMeal の終了が呼ぶ OnHpChanged で発火）＝ワンショットギミック同士を重ねない。
-        // スペル切替より先に判定する＝同じ被弾では十字火の宣言が勝つ（切替の宣言は下の gotoHolds で保留）。
-        if (!_gotoFired && _mealFired && _mealPhase == 0 && HpRatio <= _gotoHp)
+        // スペル切替より先に判定する＝同じ被弾では十字火の宣言が勝つ（切替の宣言は下の holds で保留）。
+        if (HpRatio <= _memoryHp) _midpointPassed = true;
+        if (!_gotoFired && _midpointPassed && HpRatio <= _gotoHp)
         {
             _gotoFired = true;
             _gotoPhase = 1;
@@ -415,55 +250,18 @@ public partial class BossKoharu : Enemy
             _caster!.RequestFinale();
             GetHud()?.ShowBossLine("こはる", "……うごかないで。いま、鏡、見ちゃうから。", UiKit.Kegare, 2.0);
         }
-        // 「お残し禁止」：HP52%（INI: meal_hp）を割った瞬間に一度だけ（パターン切替50%の直前＝中盤の山）。
-        // 十字火と同じくスペル切替より先に判定する＝同じ被弾では食事の宣言が勝つ（切替の宣言は下の mealHolds で保留）。
-        // 十字火(26%)は必ず食事(52%)より後なので、十字火側のような進行中ガードは要らない（＝ここで止めると発火しない）。
-        // 2026-09-17 ユーザー指示で配膳は削除（MealEnabled=false）。閾値を跨いだ一度だけ _mealFired を
-        // 立てて素通りさせる＝「済んだこと」にする。_mealPhase は 0 のままなので
-        //   ・下の mealHolds が立たない＝スペル切替(50%)・第二形態・フィナーレがその場で通る
-        //   ・十字火(26%)の前提 `_mealFired` は満たされる＝十字火が死なない
-        //   ・TickMeal が呼ぶ OnHpChanged（＝保留の解除役）が要らない＝解除待ちのデッドロックが起きない
-        // 宣告カードと台詞も出さない（出す攻撃が無い）。
-        if (!_mealFired && HpRatio <= _mealHp)
-        {
-            _mealFired = true;
-            if (MealEnabled)
-            {
-                _mealPhase = 1; _mealT = 0;
-                _mealStartLives = (GetTree().GetFirstNodeInGroup("player") as Player)?.Lives ?? -1;
-                _mealStartBombs = GetNodeOrNull<GameManager>("/root/Game")?.Bombs ?? -1;
-                if (_caster != null) _caster.Suppressed = true; // 通常テレグラフも保留（配膳の上に予兆を重ねない）
-                GetHud()?.AnnounceSpell("こはる", BossHandles.KoharuMain, "全部見なきゃ", Spells[0].tint);
-                GetHud()?.ShowBossLine("こはる", "アーカイブ、ぜんぶ残ってるから。ぜんぶ、見て。ね?", UiKit.Kegare, 2.2);
-            }
-            // 配膳OFF時だけの取りこぼし対策：大ダメージ1発で 52%→26% を同時に跨ぐと、上の十字火の判定は
-            // この行より前で「_mealFired がまだ false」として素通りしている。配膳があった頃は
-            // FinishMeal が OnHpChanged() を呼び直して拾い直していたが、その呼び直しが無くなるため、
-            // ここで一度だけ自分で呼び直す（_mealFired は既に true＝再帰は1段で止まる）。
-            // 拾い直さないと gotoHolds が立ちっぱなしになり、スペル切替・第二形態・フィナーレが
-            // 永久に保留される（＝進行不能）。
-            if (!MealEnabled && !_gotoFired && HpRatio <= _gotoHp) { OnHpChanged(); return; }
-        }
-        // ワンショットギミック（食事・十字火）の進行中と、その発火待ちの間は、スペル切替とフィナーレの宣言を保留する。
-        // 無防備窓（4秒・上限100HP）の中では発動HPと切替を何%離しても1〜2ヒットで跨ぐため、値では宣言カードを守れない
-        //（旧 goto 0.28 は切替26%と 4HP、meal 0.52 も切替50%と 4HP（Easy）しか離れていない）。
-        // 保留した分は TickMeal / TickGoto の終了で OnHpChanged() を呼んで即発火＝
-        //「全部見なきゃ→期待」「十字火→我に返る」がそれぞれ一拍になる。
-        bool gotoHolds = _gotoPhase != 0 || (!_gotoFired && _mealPhase == 0 && HpRatio <= _gotoHp);
-        bool mealHolds = _mealPhase != 0 || (!_mealFired && HpRatio <= _mealHp);
-        bool holds = gotoHolds || mealHolds;
+        // 一撃で複数の閾値を跨いでも、終盤の技が終わるまで形態変化を保留する。
+        bool holds = _gotoPhase != 0 || (!_gotoFired && HpRatio <= _gotoHp);
         if (!holds && _beatsFired < PatternThresholds.Length && HpRatio <= PatternThresholds[_beatsFired])
         {
             _pattern = (_pattern + 1) % PatternCount;
             _beatsFired++;
             ApplySpell();
             // 第二形態は既存の閾値の中盤（PatternThresholds[1]=0.50）に乗せる＝新しい閾値を足さない。
-            // ワンショットギミック（食事・十字火）の進行中は上の holds で保留されるので、
-            // 形態変化も同じ保留に乗る＝宣言カードと形態変化が潰し合わない。
             if (_beatsFired == 2) AdvanceForm2();
         }
         if (!holds && !_finale && HpRatio <= Mathf.Min(0.20f, _finaleCap)
-            && (GameManager.LunaticActive || _posts.Count >= 4))
+            && (GameManager.SkipBossStory || _posts.Count >= 4))
         {
             _finale = true;
             RallyShield();
@@ -500,8 +298,6 @@ public partial class BossKoharu : Enemy
         _recloseIdx++;
     }
 
-    protected override void GrantFollower() { }
-
     protected override void OnCryStart()
     {
         var hud = GetHud();
@@ -514,7 +310,7 @@ public partial class BossKoharu : Enemy
         // 会話を出せない状況（Hud が取れない／台詞が無い）なら会話に入らず即着地させる
         //   ＝送るものが無いのに EndCryNow を待ち続けて Finished が立たない詰まりを断つ。
         //   ルナティックも同じ経路＝改心のかけあい（弾を止める会話）を出さず、その場で着地して Finished へ。
-        if (hud == null || _lines.Length == 0 || GameManager.LunaticActive) { EndCryNow(); return; }
+        if (hud == null || _lines.Length == 0 || GameManager.SkipBossStory) { EndCryNow(); return; }
         hud.HoldBubble = true;
         _seq = true; _line = 0; _lineT = 0;
         ShowLine();
@@ -544,7 +340,7 @@ public partial class BossKoharu : Enemy
             _memoryPlayed = true;
             // ルナティック：回想を挟まない。フィルム明けの復帰（保留していた閾値の拾い直し）だけをその場で通す
             //   ＝弾幕も曲も途切れない。
-            if (GameManager.LunaticActive) { OnHpChanged(); return; }
+            if (GameManager.SkipBossStory) { OnHpChanged(); return; }
             _caster.CancelPendingAttacks();
             void ResumeBattle()
             {
@@ -566,7 +362,7 @@ public partial class BossKoharu : Enemy
                 () => KoharuStoryFilm.Play(GetHud()!, GetParent(), aftermath: false, completed: ResumeBattle));
             return;
         }
-        if (!_seq && !_memoryPending && _mealPhase == 0 && _gotoPhase == 0) _posts.UpdateDamage();
+        if (!_seq && !_memoryPending && _gotoPhase == 0) _posts.UpdateDamage();
         // 改心の会話送り：Z/Enter/ui_accept/Pad A に加えマウス左クリックでも送れる共通ヘルパ（マウス対応 P2）。
         bool z = Pad.AdvanceHeld();
         bool zEdge = z && !_zHeld && !Pad.UiBlocked(this);

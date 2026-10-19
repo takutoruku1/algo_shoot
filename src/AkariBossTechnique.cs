@@ -33,35 +33,49 @@ public partial class AkariBossTechnique : BossCharacterTechnique
     private const float EasyUnbindingScale = 3;
     private double ClipCycle => Tier switch { 2 => 2.95, 3 => 2.75, _ => 3.2 };
     private double ClipLead => Tier switch { 2 => 1.35, 3 => 1.25, _ => 1.5 };
-    private const int EasyPileColumns = 7, EasyPileRows = 3, EasyRainWaves = 2, EasyRainColumns = 9, EasyRainRows = 3;
-    private const float EasyPileWidth = 26, EasyPileSpeed = 120;
-    private float EasyPileLayerHeight => 18 + Tier * 2;
+    private const int EasyPileColumns = 7;
+    private int EasyPileRows => 3 + Tier + (Evolved ? 1 : 0);
+    private const int EasyRainWaves = 2, EasyRainRows = 3;
+    private int EasyRainColumns => 9 + Tier * 6;
+    private float EasyPileWidth => Tier switch { 0 => 26, 1 => 32, 2 => 36, _ => 39 };
+    private int EasyDeliveryLanes => 3 + Tier * 3;
+    private const float EasyPileSpeed = 120;
+    private float EasyPileLayerHeight => 18 + Tier * 2 + (Evolved ? 2 : 0);
     private const double EasyPileRowInterval = .14, EasyPileColumnInterval = .03,
         EasyPileCollapseAt = 2.1, EasyPileCollapseInterval = .16;
     private const double EasyRainWaveInterval = 11.4, EasyRainRowInterval = 3.6;
     private const double EasyInboxWarningLead = 3.2;
-    private int EasyDeliveryBursts => 3 + Tier;
-    private int EasyInboxBursts => 7 + Tier * 2;
-    private int EasyRainBursts => 3 + Tier;
-    private double EasyDeliveryBurstInterval => .32 - Tier * .03;
-    private double EasyInboxBurstInterval => .18 - Tier * .015;
-    private double EasyRainBurstInterval => .25 - Tier * .02;
+    private int EasyDeliveryBursts => (Tier switch { 0 => 3, 1 => 5, 2 => 8, _ => 12 }) + (Evolved ? 2 : 0);
+    private int EasyInboxBursts => (Tier switch { 0 => 7, 1 => 11, 2 => 16, _ => 22 }) + (Evolved ? 3 : 0);
+    private int EasyRainBursts => (Tier switch { 0 => 3, 1 => 5, 2 => 7, _ => 9 }) + (Evolved ? 2 : 0);
+    private double EasyDeliveryBurstInterval => Tier switch { 0 => .32, 1 => .24, 2 => .18, _ => .14 };
+    private double EasyInboxBurstInterval => Tier switch { 0 => .18, 1 => .14, 2 => .11, _ => .09 };
+    private double EasyRainBurstInterval => .25 - Tier * .03;
     private const float EasyRainSpeed = 76, EasySplashRise = 68, EasySplashGravity = 48;
-    private const int EasyWaveSegments = 64, EasyWaveSpentSegments = 20;
+    private const float EasyHighSplashRise = 140;
+    private const int EasyWaveSegments = 64;
+    private int EasyWaveSpentSegments => 20 - Tier * 2 - (Evolved ? 2 : 0);
     private const float EasyWaveSpeed = 28, EasyWaveWaitRadius = 60;
     private float EasyWaveOuterSpeed => 144 + Tier * 12;
+    private int EasyWavePulses => 1 + Tier * 2 + (Evolved ? 2 : 0);
+    private double EasyWavePulseInterval => .65;
+    private double EasyWaveTrainDuration => EasyWaveDuration + (EasyWavePulses - 1) * EasyWavePulseInterval;
     private const double EasyWaveOpeningAt = 1.1,
         EasyWaveAccelerationTime = .45, EasyWaveRest = .08;
     private readonly double[] _easyWaveWarningStarts = { -1, -1 }, _easyWaveLaunches = { -1, -1 };
     private readonly Vector2[] _easyWaveWaitPoints = new Vector2[2];
+    private readonly float[] _easyWaveGapAngles = new float[2];
     private readonly Vector2[] _easyDeliveryTargets = new Vector2[3], _easyInboxTargets = new Vector2[4];
     private readonly bool[] _easyDeliveryReserved = new bool[3], _easyInboxReserved = new bool[4];
+    private readonly float[] _easyRainTargets = new float[EasyRainWaves * EasyRainRows];
+    private readonly bool[] _easyRainReserved = new bool[EasyRainWaves * EasyRainRows];
     internal int? VisibleDangerousShotsAtNaturalEnd { get; private set; }
 
     protected override void Start()
     {
         _origin = new Vector2(Field.CenterX, Field.CenterY);
         _aim = Player.GlobalPosition;
+        Array.Fill(_easyRainTargets, _aim.X);
         _dwell = _aim;
         _warning = WarnFor(45);
         _next = _warning;
@@ -225,7 +239,6 @@ public partial class AkariBossTechnique : BossCharacterTechnique
     private float EasyWarningRouteProgress(double start, double grow = .35) => Progress(start + .2, grow);
     private float EasyDeliveryWarningProgress(int batch) => Progress(EasyDeliveryWarningStart(batch) + .4, 1.2);
     private float EasyInboxWarningProgress(int turn) => Progress(EasyInboxLaunch(turn) - EasyInboxWarningLead + .4, .8);
-    private (float Inward, float Outward) EasyClipWarningProgress() => (Progress(.2, .25), Progress(.45, .3));
     private (float Incoming, float Outgoing) EasyReplyWarningProgress() => (Progress(.2, .45), Progress(.9, .45));
     private float EasyPileWarningProgress(int column) => Progress(EasyPileStart(column) - _warning + .4, .8);
     private (float Ring, float Expiry) EasyWaveWarningProgress(int wave)
@@ -234,38 +247,18 @@ public partial class AkariBossTechnique : BossCharacterTechnique
     private float EasyEnvelopeOpeningWarningProgress(int opening) => EasyWarningRouteProgress(EasyApprovalWarningStart(opening));
     private float EasyClockWarningProgress() => Progress(.4, 1.2);
 
-    private const int EasyHistoryCopies = 12;
-    private double EasyHistoryRecording => 2.6;
-    private double EasyHistoryWarningStart(int copy) => EasyHistoryRecording + copy * .1;
-    private double EasyHistoryFire(int copy, int index)
-        => EasyHistoryRecording + _warning + copy * .12 + (_history.Count - index) * .13;
-    private double EasyHistoryEnd() => EasyHistoryFire(EasyHistoryCopies - 1, 1) + .75;
-    private float EasyHistoryCopyWarningProgress(int copy) => EasyWarningRouteProgress(EasyHistoryWarningStart(copy));
-
     private Vector2[] EasyHistoryCopyPoints(int copy)
     {
         float minX = _history.Min(point => point.X), maxX = _history.Max(point => point.X);
         float minY = _history.Min(point => point.Y), maxY = _history.Max(point => point.Y);
-        Vector2 cell = new(Field.Width / 4, Field.Height / 3);
-        Vector2 center = new(Field.Left + (copy % 4 + .5f) * cell.X, Field.Top + (copy / 4 + .5f) * cell.Y);
+        int columns = _mechanic == 2 ? 4 + Tier * 2 : 4;
+        int rows = _mechanic == 2 ? Mathf.CeilToInt(EasyUnbindingCopiesPerRound * EasyUnbindingRounds / (float)columns) : 3;
+        Vector2 cell = new(Field.Width / columns, Field.Height / rows);
+        Vector2 center = new(Field.Left + (copy % columns + .5f) * cell.X, Field.Top + (copy / columns + .5f) * cell.Y);
         Vector2 sourceCenter = new((minX + maxX) * .5f, (minY + maxY) * .5f);
         float scale = Math.Min(1, Math.Min((cell.X - 24) / Math.Max(1, maxX - minX),
             (cell.Y - 24) / Math.Max(1, maxY - minY)));
         return _history.Select(point => center + (point - sourceCenter) * scale).ToArray();
-    }
-
-    private float EasyHistoryCopySegmentWarningProgress(int copy, int index)
-    {
-        float total = 0, before = 0;
-        for (int i = _history.Count - 1; i > 0; i--)
-        {
-            float length = _history[i].DistanceTo(_history[i - 1]);
-            total += length;
-            if (i > index) before += length;
-        }
-        float segment = _history[index].DistanceTo(_history[index - 1]);
-        float progress = EasyHistoryCopyWarningProgress(copy);
-        return segment == 0 ? progress : Mathf.Clamp((total * progress - before) / segment, 0, 1);
     }
 
     private static BulletArt.PlayerVisual EasyRainShotVisual()
@@ -305,21 +298,6 @@ public partial class AkariBossTechnique : BossCharacterTechnique
         return from + direction * exit;
     }
 
-    private Vector2 EasyClipReleasePoint(int group)
-    {
-        float radius = Math.Max(8, 45 - group / 3 * .9f * 8);
-        return _origin + Vector2.FromAngle(group * Mathf.Tau / 18) * radius;
-    }
-
-    private IEnumerable<(Vector2 Start, Vector2 Release, Vector2 Exit)> EasyClipWarningPaths()
-    {
-        for (int group = 0; group < 18; group++)
-        {
-            Vector2 direction = Vector2.FromAngle(group * Mathf.Tau / 18), release = EasyClipReleasePoint(group);
-            yield return (_origin + direction * 45, release, EasyRayExit(release, direction));
-        }
-    }
-
     private IEnumerable<(Vector2 Start, Vector2 Bounce, Vector2 Exit)> EasyReplyWarningPaths()
     {
         for (int row = -1; row <= 1; row++)
@@ -333,22 +311,24 @@ public partial class AkariBossTechnique : BossCharacterTechnique
 
     private IEnumerable<(Vector2 Start, Vector2 Exit)> EasyDeliveryWarningPaths(int batch)
     {
-        for (int column = 0; column < 3; column++)
+        for (int column = 0; column < EasyDeliveryLanes; column++)
         {
-            Vector2 start = new(Field.Left + (column * 4 + batch % 2 * 2 + 1) * Field.Width / 12, Field.Top);
+            Vector2 start = new(Field.Left + (column + .25f + batch % 2 * .5f) * Field.Width / EasyDeliveryLanes, Field.Top);
             yield return (start, new Vector2(start.X, Field.Bottom));
         }
     }
 
-    private double EasyDeliveryWarningStart(int batch) => batch * 6.0;
+    private double EasyDeliveryWarningStart(int batch) => batch * (Tier switch { 0 => 6, 1 => 4.8, 2 => 4.0, _ => 3.6 });
     private double EasyDeliveryLaunch(int batch) => EasyDeliveryWarningStart(batch) + _warning;
     private (Vector2 Start, Vector2 Turn, Vector2 Bounce, Vector2 Exit)[] EasyDeliveryReturnPaths(int batch)
         => EasyDeliveryWarningPaths(batch).Select((path, lane) =>
         {
-            float y = Mathf.Clamp(_easyDeliveryTargets[batch].Y + (lane - 1) * 24, Field.Top, Field.Bottom);
+            float y = Tier == 0 ? Mathf.Clamp(_easyDeliveryTargets[batch].Y + (lane - 1) * 24, Field.Top, Field.Bottom)
+                : lane == EasyDeliveryLanes / 2 ? _easyDeliveryTargets[batch].Y
+                : 8 + lane * (Field.Height - 16) / (EasyDeliveryLanes - 1);
             Vector2 turn = new(path.Start.X, y);
-            bool left = (batch + lane) % 2 == 0;
-            Vector2 bounce = new(left ? Field.Left + 8 : Field.Right - 8, y);
+            bool left = lane == EasyDeliveryLanes / 2 ? _easyDeliveryTargets[batch].X < turn.X : (batch + lane) % 2 == 0;
+            Vector2 bounce = new(left ? Field.Left : Field.Right, y);
             Vector2 reply = new(left ? 1 : -1, y < Field.CenterY ? .35f : -.35f);
             Vector2 exit = EasyRayExit(bounce, reply.Normalized());
             return (path.Start, turn, bounce, exit);
@@ -387,20 +367,20 @@ public partial class AkariBossTechnique : BossCharacterTechnique
                     double pulse = burst * EasyDeliveryBurstInterval;
                     if (At(launch + pulse))
                     {
-                        var ordinary = Send(path.Start, Vector2.Down * 27, 100 + burst * 9 + batch * 3 + lane);
+                        var ordinary = Send(path.Start, Vector2.Down * 27, 1000 + burst * (3 * EasyDeliveryLanes) + batch * EasyDeliveryLanes + lane);
                         ordinary.Shot.CancelLeadIn();
                     }
                     if (At(launch + delay + pulse))
                     {
-                        var express = Send(path.Start, Vector2.Down * 88, burst * 9 + batch * 3 + lane);
+                        var express = Send(path.Start, Vector2.Down * 88, burst * (3 * EasyDeliveryLanes) + batch * EasyDeliveryLanes + lane);
                         express.Shot.CancelLeadIn();
                     }
                 }
             }
         }
-        foreach (var letter in _letters.Where(letter => letter.Alive && letter.Group < 100))
+        foreach (var letter in _letters.Where(letter => letter.Alive && letter.Group < 1000))
         {
-            var path = EasyDeliveryReturnPaths(letter.Group % 9 / 3)[letter.Group % 3];
+            var path = EasyDeliveryReturnPaths(letter.Group % (3 * EasyDeliveryLanes) / EasyDeliveryLanes)[letter.Group % EasyDeliveryLanes];
             if (letter.State == 0 && letter.Shot.GlobalPosition.Y >= path.Turn.Y)
             {
                 letter.State = 1;
@@ -427,15 +407,16 @@ public partial class AkariBossTechnique : BossCharacterTechnique
     }
 
     private Vector2 EasyInboxSource(int turn) => new(turn % 2 == 0 ? Field.Left + 16 : Field.Right - 16, Field.CenterY);
-    private double EasyInboxLaunch(int turn) => _warning + turn * 4.8;
+    private double EasyInboxLaunch(int turn) => _warning + turn * (Tier switch { 0 => 4.8, 1 => 3.8, 2 => 3.4, _ => 3.2 });
 
     private IEnumerable<(Vector2 Start, Vector2 Exit)> EasyInboxWarningPaths(int turn)
     {
         Vector2 source = EasyInboxSource(turn);
         float aim = source.DirectionTo(_easyInboxTargets[turn]).Angle();
-        for (int row = -2; row <= 2; row++)
+        int spread = 2 + Tier * 2;
+        for (int row = -spread; row <= spread; row++)
         {
-            Vector2 direction = Vector2.FromAngle(aim + row * .19f);
+            Vector2 direction = Vector2.FromAngle(aim + row * (Tier == 0 ? .19f : .16f));
             yield return (source, EasyRayExit(source, direction));
         }
         foreach (float y in new[] { Field.Top + 12, Field.Bottom - 12 })
@@ -482,10 +463,11 @@ public partial class AkariBossTechnique : BossCharacterTechnique
 
     private void UnfastenedClips() => EasyUnbindingDrafts();
 
-    private const int EasyUnbindingCopiesPerRound = 3, EasyUnbindingRounds = 4;
-    private int EasyUnbindingBurstCount => 3 + Tier;
+    private int EasyUnbindingCopiesPerRound => 3 + Tier * 3;
+    private const int EasyUnbindingRounds = 4;
+    private int EasyUnbindingBurstCount => EasyDeliveryBursts;
     private const double EasyUnbindingCopyInterval = .18, EasyUnbindingRoundInterval = 4.6;
-    private double EasyUnbindingBurstInterval => .24 - Tier * .02;
+    private double EasyUnbindingBurstInterval => .24 - Tier * .035;
     private const double EasyUnbindingLeadTime = .34, EasyUnbindingRetraceTime = .8;
     private const float EasyUnbindingSpeed = 90;
     private readonly double[] _easyUnbindingWarningStarts = { -1, -1, -1, -1 };
@@ -512,9 +494,6 @@ public partial class AkariBossTechnique : BossCharacterTechnique
     private double EasyUnbindingBurstFire(int copy, int burst) => EasyUnbindingFire(copy) + burst * EasyUnbindingBurstInterval;
     private double EasyUnbindingBurstRelease(int copy, int burst)
         => EasyUnbindingRelease(copy) + burst * EasyUnbindingBurstInterval;
-    private double EasyUnbindingEnd(int round) => Enumerable.Range(round * EasyUnbindingCopiesPerRound, EasyUnbindingCopiesPerRound)
-        .Max(copy => EasyUnbindingBurstRelease(copy, EasyUnbindingBurstCount - 1)
-            + EasyUnbindingCopyPoints(copy)[0].DistanceTo(EasyUnbindingExit(copy)) / EasyUnbindingSpeed + .15);
     private (float Retrace, float Exit) EasyUnbindingWarningProgress(int round)
         => (Progress(EasyUnbindingWarningStart(round) + .2, .35), Progress(EasyUnbindingWarningStart(round) + .55, .35));
     private Vector2[] EasyUnbindingCopyPoints(int copy) => EasyHistoryCopyPoints(copy);
@@ -572,9 +551,9 @@ public partial class AkariBossTechnique : BossCharacterTechnique
         }
         int first = _easyUnbindingRound * EasyUnbindingCopiesPerRound;
         var warning = EasyUnbindingWarningProgress(_easyUnbindingRound);
-        for (int copy = first; copy < first + EasyUnbindingCopiesPerRound; copy++)
+        for (int copy = 0; copy < first + EasyUnbindingCopiesPerRound; copy++)
         {
-            if (Time < EasyUnbindingFire(first))
+            if (copy >= first && Time < EasyUnbindingFire(first))
             {
                 var points = EasyUnbindingCopyPoints(copy);
                 float total = 0, before = 0;
@@ -728,10 +707,18 @@ public partial class AkariBossTechnique : BossCharacterTechnique
 
     private double EasyRainLaunch(int wave, int row) => _warning + wave * EasyRainWaveInterval + row * EasyRainRowInterval;
     private float EasyRainX(int wave, int row, int column)
-        => Field.Left + 16 + column * (Field.Width - 32) / (EasyRainColumns - 1) + ((wave + row) % 3 - 1) * 7;
-    private Vector2 EasyRainOrigin(int wave, int row, int column) => new(EasyRainX(wave, row, column), 8);
+    {
+        float first = Field.Left + 16 + ((wave + row) % 3 - 1) * 7;
+        float pitch = (Field.Width - 32) / (EasyRainColumns - 1);
+        float target = _easyRainTargets[wave * EasyRainRows + row];
+        int nearest = Mathf.Clamp(Mathf.RoundToInt((target - first) / pitch), 0, EasyRainColumns - 1);
+        return column == nearest ? target : first + column * pitch;
+    }
+    private Vector2 EasyRainOrigin(int wave, int row, int column) => new(EasyRainX(wave, row, column), Field.Top - 12);
     private static Vector2 EasyRainImpactPoint(Vector2 position) => new(position.X, Field.Bottom - 10);
     private Vector2 EasyRainImpact(int wave, int row, int column) => EasyRainImpactPoint(EasyRainOrigin(wave, row, column));
+    private static float EasyRainReboundRise(Vector2 impact, int side)
+        => (impact.X <= Field.CenterX ? side > 0 : side < 0) ? EasyHighSplashRise : EasySplashRise;
 
     private float EasyRainDropWarningProgress(int wave, int row)
     {
@@ -740,20 +727,21 @@ public partial class AkariBossTechnique : BossCharacterTechnique
         return Progress(start + .4, .8);
     }
 
-    private (int Wave, int Row, double Remaining, float Progress, Vector2[] Points)? EasyRainImpactWarning()
+    private IEnumerable<(int Wave, int Row, double Remaining, float Progress, Vector2[] Points)> EasyRainImpactWarnings()
     {
-        var first = _letters.Where(letter => letter.Alive && !letter.Shot.LeadIn && letter.State == 0 && letter.Group < 10)
-            .OrderBy(letter => letter.Born).ThenByDescending(letter => letter.Shot.GlobalPosition.Y).FirstOrDefault();
-        if (first == null) return null;
-        double remaining = Math.Max(0, (EasyRainImpactPoint(first.Shot.GlobalPosition).Y - first.Shot.GlobalPosition.Y) / EasyRainSpeed);
-        if (remaining > 2.7) return null;
-        int wave = first.Group;
-        int row = Math.Clamp((int)Math.Round((first.Born - EasyRainLaunch(wave, 0)) / EasyRainRowInterval), 0, EasyRainRows - 1);
-        float progress = Mathf.Clamp((float)((2.7 - remaining - .2) / .3), 0, 1);
-        var points = _letters.Where(letter => letter.Alive && !letter.Shot.LeadIn && letter.State == 0
-                && letter.Group == wave && letter.Born == first.Born)
-            .Select(letter => EasyRainImpactPoint(letter.Shot.GlobalPosition)).ToArray();
-        return (wave, row, remaining, progress, points);
+        var rows = _letters.Where(letter => letter.Alive && !letter.Shot.LeadIn && letter.State == 0 && letter.Group < 10)
+            .GroupBy(letter => (Wave: letter.Group, Row: Math.Clamp((int)Math.Round(
+                (letter.Born - EasyRainLaunch(letter.Group, 0)) / EasyRainRowInterval), 0, EasyRainRows - 1)));
+        foreach (var row in rows)
+        {
+            var first = row.OrderBy(letter => letter.Born).ThenByDescending(letter => letter.Shot.GlobalPosition.Y).First();
+            double remaining = Math.Max(0, (EasyRainImpactPoint(first.Shot.GlobalPosition).Y - first.Shot.GlobalPosition.Y) / EasyRainSpeed);
+            if (remaining > 2.7) continue;
+            float progress = Mathf.Clamp((float)((2.7 - remaining - .2) / .3), 0, 1);
+            var points = row.Where(letter => letter.Born == first.Born)
+                .Select(letter => EasyRainImpactPoint(letter.Shot.GlobalPosition)).ToArray();
+            yield return (row.Key.Wave, row.Key.Row, remaining, progress, points);
+        }
     }
     private int EasyRainNextRow
     {
@@ -775,6 +763,12 @@ public partial class AkariBossTechnique : BossCharacterTechnique
             for (int row = 0; row < EasyRainRows; row++)
             {
                 double launch = EasyRainLaunch(wave, row);
+                int index = wave * EasyRainRows + row;
+                if (Time >= launch - _warning && !_easyRainReserved[index])
+                {
+                    _easyRainTargets[index] = Player.GlobalPosition.X;
+                    _easyRainReserved[index] = true;
+                }
                 for (int column = 0; column < EasyRainColumns; column++)
                 {
                     Vector2 origin = EasyRainOrigin(wave, row, column);
@@ -794,8 +788,11 @@ public partial class AkariBossTechnique : BossCharacterTechnique
             if (!letter.Alive || letter.Shot.LeadIn) continue;
             if (letter.Group == 10)
             {
-                double age = Time - letter.Born;
-                letter.Shot.Velocity = new Vector2(letter.Direction.X * 50, -EasySplashRise + (float)age * EasySplashGravity);
+                float age = (float)(Time - letter.Born);
+                float rise = EasyRainReboundRise(letter.Origin, (int)letter.Direction.X);
+                letter.Shot.GlobalPosition = letter.Origin + new Vector2(letter.Direction.X * 50 * age,
+                    -rise * age + EasySplashGravity * age * age / 2);
+                letter.Shot.Velocity = new Vector2(letter.Direction.X * 50, -rise + age * EasySplashGravity);
                 continue;
             }
             if (letter.State != 0 || letter.Shot.GlobalPosition.Y < Field.Bottom - 10) continue;
@@ -804,13 +801,13 @@ public partial class AkariBossTechnique : BossCharacterTechnique
             letter.State = 1;
             for (int side = -1; side <= 1; side += 2)
             {
-                var splash = Send(impact, new Vector2(side * 50, -EasySplashRise), 10, 2);
+                var splash = Send(impact, new Vector2(side * 50, -EasyRainReboundRise(impact, side)), 10, 2);
                 splash.Direction = new Vector2(side, 0);
                 splash.Shot.CancelLeadIn();
             }
         }
         EndAfter(EasyRainLaunch(EasyRainWaves - 1, EasyRainRows - 1) + (EasyRainBursts - 1) * EasyRainBurstInterval + (Field.Bottom - 18) / EasyRainSpeed
-            + 2 * EasySplashRise / EasySplashGravity + .2);
+            + 2 * EasyHighSplashRise / EasySplashGravity + .2);
     }
 
     private float EasyWaveMaxRadius => Math.Max(Math.Max(_origin.DistanceTo(new(Field.Left, Field.Top)),
@@ -828,7 +825,7 @@ public partial class AkariBossTechnique : BossCharacterTechnique
             + easedTravel * (EasyWaveOuterSpeed - EasyWaveSpeed)
             + Math.Max(0, elapsed - EasyWaveOpeningAt - EasyWaveAccelerationTime) * EasyWaveOuterSpeed);
     }
-    private float EasyWaveGapAngle(int wave) => _angle + wave * Mathf.Pi;
+    private float EasyWaveGapAngle(int wave) => _easyWaveGapAngles[wave];
     private float EasyWaveExpiryInnerRadius => EasyWaveRadius(EasyWaveOpeningAt) + 4.5f;
     private float EasyWaveExpiryHalfAngle => EasyWaveSpentSegments * Mathf.Pi / EasyWaveSegments
         - Mathf.Asin(4.5f / EasyWaveExpiryInnerRadius);
@@ -849,24 +846,32 @@ public partial class AkariBossTechnique : BossCharacterTechnique
         Vector2 lower = body.GlobalPosition - Vector2.Down * halfAxis, upper = body.GlobalPosition + Vector2.Down * halfAxis;
         float detourRadius = clearance + halfAxis;
         float distance = float.MaxValue;
-        for (int sample = 0; sample <= 32; sample++)
+        for (int turn = 0; turn < 32; turn++)
         {
-            float offset = Mathf.Lerp(-halfOpening, halfOpening, sample / 32f);
-            Vector2 waiting = _origin + Vector2.FromAngle(EasyWaveGapAngle(wave) + offset) * EasyWaveWaitRadius;
-            if (waiting.DistanceTo(Geometry2D.GetClosestPointToSegment(waiting, lower, upper)) <= clearance) continue;
-            float travel = Player.GlobalPosition.DistanceTo(waiting);
-            if (body.GlobalPosition.DistanceTo(Geometry2D.GetClosestPointToSegment(body.GlobalPosition, Player.GlobalPosition, waiting)) < detourRadius)
-                travel += Mathf.Pi * detourRadius;
-            if (travel >= distance) continue;
-            distance = travel;
-            _easyWaveWaitPoints[wave] = waiting;
+            _easyWaveGapAngles[wave] = _angle + wave * Mathf.Pi
+                + (turn + 1) / 2 * (turn % 2 == 1 ? 1 : -1) * Mathf.Pi / 16;
+            for (int sample = 0; sample <= 32; sample++)
+            {
+                float offset = Mathf.Lerp(-halfOpening, halfOpening, sample / 32f);
+                Vector2 waiting = _origin + Vector2.FromAngle(EasyWaveGapAngle(wave) + offset) * EasyWaveWaitRadius;
+                if (waiting.DistanceTo(Geometry2D.GetClosestPointToSegment(waiting, lower, upper)) <= clearance) continue;
+                float travel = Player.GlobalPosition.DistanceTo(waiting);
+                if (body.GlobalPosition.DistanceTo(Geometry2D.GetClosestPointToSegment(body.GlobalPosition, Player.GlobalPosition, waiting)) < detourRadius)
+                    travel += Mathf.Pi * detourRadius;
+                if (travel >= distance) continue;
+                distance = travel;
+                _easyWaveWaitPoints[wave] = waiting;
+            }
+            if (distance < float.MaxValue) break;
         }
         _easyWaveWarningStarts[wave] = start;
         _easyWaveLaunches[wave] = start + WarnFor(distance + 8, 3.8);
     }
     private void EasySpentWavefront()
     {
-        if (_easyWaveLaunches[1] < 0 && Time >= _easyWaveLaunches[0] + EasyWaveDuration + EasyWaveRest)
+        double nextWarning = Tier == 0 ? EasyWaveDuration + EasyWaveRest
+            : (EasyWavePulses - 1) * EasyWavePulseInterval + EasyWaveOpeningAt;
+        if (_easyWaveLaunches[1] < 0 && Time >= _easyWaveLaunches[0] + nextWarning)
             PrepareEasyWave(1, Time);
         for (int wave = 0; wave < 2; wave++)
         {
@@ -878,14 +883,18 @@ public partial class AkariBossTechnique : BossCharacterTechnique
                 if (progress > 0) Disc(_origin, 20 * progress, false, progress);
                 continue;
             }
-            if (elapsed >= EasyWaveDuration) continue;
-            if (elapsed < .3) Disc(_origin, 20, true);
-            float radius = EasyWaveRadius(elapsed);
-            foreach (var range in EasyWaveLiveRanges(elapsed))
-                for (int i = range.First; i < range.End; i++)
-                    Line(EasyWavePoint(wave, i, radius), EasyWavePoint(wave, i + 1, radius), 2, true);
+            for (int pulse = 0; pulse < EasyWavePulses; pulse++)
+            {
+                double age = elapsed - pulse * EasyWavePulseInterval;
+                if (age < 0 || age >= EasyWaveDuration) continue;
+                if (age < .3) Disc(_origin, 20, true);
+                float radius = EasyWaveRadius(age);
+                foreach (var range in EasyWaveLiveRanges(age))
+                    for (int i = range.First; i < range.End; i++)
+                        Line(EasyWavePoint(wave, i, radius), EasyWavePoint(wave, i + 1, radius), 2, true);
+            }
         }
-        if (_easyWaveLaunches[1] >= 0) EndAfter(_easyWaveLaunches[1] + EasyWaveDuration + EasyWaveRest);
+        if (_easyWaveLaunches[1] >= 0) EndAfter(_easyWaveLaunches[1] + EasyWaveTrainDuration + EasyWaveRest);
     }
 
     private void BraidedDelivery(double delta)
@@ -894,7 +903,6 @@ public partial class AkariBossTechnique : BossCharacterTechnique
         if (Time < _warning)
         {
             for (int i = 0; i < 3; i++) Disc(_origin + new Vector2((i - 1) * 36, 0), (2 + Tier) * 4 + 4, false, Progress(0, _warning));
-            Hint(_origin + new Vector2(-36, -20), "三尾の前後を見る");
         }
         if (At(_warning))
             for (int bundle = 0; bundle < 3; bundle++)
@@ -996,7 +1004,6 @@ public partial class AkariBossTechnique : BossCharacterTechnique
         if (Time > _warning && Time < swap + 1)
             foreach (var group in _letters.Where(l => l.Alive).GroupBy(l => l.Group))
                 Hint(group.First().Shot.GlobalPosition + new Vector2(-20, -14), group.Key == 0 ? Time >= swap ? "遅・後着" : "速 → 遅" : Time >= swap ? "速・先着" : "遅 → 速");
-        if (Time < swap) Hint(_origin + new Vector2(-32, 28), "便の優先度を交換");
         EndAfter(_warning + 7.6);
     }
 
@@ -1023,8 +1030,8 @@ public partial class AkariBossTechnique : BossCharacterTechnique
         return departure + path[index].DistanceTo(path[index + 1]) / 70;
     }
 
-    private int EasyApprovalBursts => 3 + Tier;
-    private double EasyApprovalBurstInterval => .28 - Tier * .025;
+    private int EasyApprovalBursts => (Tier switch { 0 => 3, 1 => 5, 2 => 7, _ => 10 }) + (Evolved ? 2 : 0);
+    private double EasyApprovalBurstInterval => Tier switch { 0 => .28, 1 => .24, 2 => .18, _ => .14 };
     private double EasyApprovalWarningStart(int index) => EasyApprovalArrival(index);
     private double EasyApprovalOpeningFire(int index) => EasyApprovalWarningStart(index) + 2.55;
     private double EasyApprovalBurstFire(int index, int burst) => EasyApprovalOpeningFire(index) + burst * EasyApprovalBurstInterval;
@@ -1094,7 +1101,8 @@ public partial class AkariBossTechnique : BossCharacterTechnique
     {
         Vector2 carrier = EasyEnvelopeTravelPath()[opening + 1];
         Vector2 forward = carrier.DirectionTo(new Vector2(Field.CenterX, Field.CenterY));
-        for (int row = -2; row <= 2; row++)
+        int spread = 2 + Tier * 3;
+        for (int row = -spread; row <= spread; row++)
         {
             Vector2 start = carrier + forward * 19 + forward.Orthogonal() * (row * 2);
             Vector2 direction = forward.Rotated(row * .14f);
@@ -1162,10 +1170,11 @@ public partial class AkariBossTechnique : BossCharacterTechnique
         EndAfter(_warning + EasyEnvelopeTravelDuration + .1);
     }
 
-    private Vector2[] EasyClockWarningOutline() => EasyClockWarningSector(1);
-
     private double EasyClockDuration => 11.5;
+    private int EasyClockHands => 1 + Tier + (Evolved ? 1 : 0);
+    private float EasyClockHalfWidth => 3 + Tier + (Evolved ? 1.2f : 0);
     private float EasyClockWarningAngle(double elapsed) => _angle + (float)Math.Max(0, elapsed) * (Mathf.Tau / 7.5f);
+    private float EasyClockHandAngle(double elapsed, int hand) => EasyClockWarningAngle(elapsed) + hand * Mathf.Tau / EasyClockHands;
 
     private float EasyClockBoundaryLength(float angle)
     {
@@ -1178,14 +1187,14 @@ public partial class AkariBossTechnique : BossCharacterTechnique
         return length + 3;
     }
 
-    private float EasyClockWarningLength(double elapsed)
+    private float EasyClockHandLength(double elapsed, int hand)
     {
         float extension = elapsed < 2 ? 0 : elapsed < 3 ? (float)(elapsed - 2)
             : elapsed < 10.5 ? 1 : Mathf.Clamp((float)(EasyClockDuration - elapsed), 0, 1);
-        return Mathf.Lerp(44, EasyClockBoundaryLength(EasyClockWarningAngle(elapsed)), extension);
+        return Mathf.Lerp(44, EasyClockBoundaryLength(EasyClockHandAngle(elapsed, hand)), extension);
     }
 
-    private Vector2[] EasyClockWarningSector(float progress)
+    private Vector2[] EasyClockHandWarningSector(float progress, int hand)
     {
         progress = Mathf.Clamp(progress, 0, 1);
         if (progress == 0) return Array.Empty<Vector2>();
@@ -1200,7 +1209,7 @@ public partial class AkariBossTechnique : BossCharacterTechnique
         foreach (Vector2 corner in new[] { new Vector2(Field.Left, Field.Top), new Vector2(Field.Right, Field.Top),
             new Vector2(Field.Right, Field.Bottom), new Vector2(Field.Left, Field.Bottom) })
         {
-            double at = Mathf.PosMod(_origin.DirectionTo(corner).Angle() - _angle, Mathf.Tau) / (Mathf.Tau / 7.5f);
+            double at = Mathf.PosMod(_origin.DirectionTo(corner).Angle() - EasyClockHandAngle(0, hand), Mathf.Tau) / (Mathf.Tau / 7.5f);
             if (at <= sweep) times.Add(at);
         }
         float MaximumLength(double at, bool includeFrontier)
@@ -1208,13 +1217,13 @@ public partial class AkariBossTechnique : BossCharacterTechnique
             float length = 0;
             for (double occurrence = at; occurrence <= end + 1e-8; occurrence += 7.5)
                 if (includeFrontier || occurrence < end - 1e-8)
-                    length = Math.Max(length, EasyClockWarningLength(occurrence));
+                    length = Math.Max(length, EasyClockHandLength(occurrence, hand));
             return length;
         }
         var points = new List<Vector2>();
         foreach (double at in times)
         {
-            Vector2 radial = Vector2.FromAngle(EasyClockWarningAngle(at));
+            Vector2 radial = Vector2.FromAngle(EasyClockHandAngle(at, hand));
             float length = MaximumLength(at, true);
             points.Add(_origin + radial * length);
             if (end >= 7.5 && Math.Abs(at - frontier) < 1e-8)
@@ -1223,12 +1232,12 @@ public partial class AkariBossTechnique : BossCharacterTechnique
                 if (earlier > 0 && earlier < length) points.Add(_origin + radial * earlier);
             }
         }
-        points.Add(_origin + Vector2.FromAngle(EasyClockWarningAngle(sweep)) * 12);
+        points.Add(_origin + Vector2.FromAngle(EasyClockHandAngle(sweep, hand)) * 12);
         for (int i = segments; i >= 0; i--)
         {
             double at = i * 7.5 / segments;
             if (at >= sweep) continue;
-            points.Add(_origin + Vector2.FromAngle(EasyClockWarningAngle(at)) * 12);
+            points.Add(_origin + Vector2.FromAngle(EasyClockHandAngle(at, hand)) * 12);
         }
         points.Add(points[0]);
         return points.ToArray();
@@ -1239,22 +1248,25 @@ public partial class AkariBossTechnique : BossCharacterTechnique
         _origin = new Vector2(Field.CenterX, Field.CenterY);
         double elapsed = Time - _warning;
 
-        if (elapsed < 0)
+        for (int hand = 0; hand < EasyClockHands; hand++)
         {
-            float progress = EasyClockWarningProgress();
-            if (progress > 0)
+            if (elapsed < 0)
             {
-                Vector2 radial = Vector2.FromAngle(_angle), start = _origin + radial * 12;
-                Line(start, start.Lerp(_origin + radial * 44, progress), 3 + Tier * .65f, false, progress);
+                float progress = EasyClockWarningProgress();
+                if (progress > 0)
+                {
+                    Vector2 radial = Vector2.FromAngle(EasyClockHandAngle(0, hand)), start = _origin + radial * 12;
+                    Line(start, start.Lerp(_origin + radial * 44, progress), EasyClockHalfWidth, false, progress);
+                }
+            }
+            else if (elapsed < EasyClockDuration)
+            {
+                Vector2 radial = Vector2.FromAngle(EasyClockHandAngle(elapsed, hand));
+                Line(_origin + radial * 12, _origin + radial * EasyClockHandLength(elapsed, hand), EasyClockHalfWidth, true);
             }
         }
-        else if (elapsed < EasyClockDuration)
-        {
-            Vector2 radial = Vector2.FromAngle(EasyClockWarningAngle(elapsed));
-            Line(_origin + radial * 12, _origin + radial * EasyClockWarningLength(elapsed), 3 + Tier * .65f, true);
-        }
         EndAfter(_warning + EasyClockDuration);
-        }
+    }
 
     private void TensionedClips()
     {
@@ -1267,7 +1279,6 @@ public partial class AkariBossTechnique : BossCharacterTechnique
         Disc(left, 6, Time >= _warning, Progress(0, _warning));
         Disc(right, 6, Time >= _warning, Progress(0, _warning));
         Line(left, right, 2 + Tier * .6f, taut, (float)(phase / ClipLead));
-        if (!taut) Hint((left + right) * .5f + new Vector2(-12, -10), "糸が張る");
         EndAfter(_warning + (Tier < 2 ? 9.6 : ClipCycle * 3));
     }
 
@@ -1280,9 +1291,6 @@ public partial class AkariBossTechnique : BossCharacterTechnique
             float x = _origin.X + distance * sign;
             Line(new(x, 4), new(x, Field.Bottom - 4), 2.5f + Tier * .35f, elapsed >= 0, Progress(0, _warning));
         }
-        Hint(_origin + new Vector2(-35, -23), GameManager.Instance!.HasDodge
-            ? elapsed < 1.35 ? "境界が重なる時に回避" : "重なる"
-            : elapsed < 0 ? "予兆中に、広い側の外へ" : "外側で距離を保つ");
         EndAfter(_warning + 4.3);
     }
 
@@ -1323,7 +1331,6 @@ public partial class AkariBossTechnique : BossCharacterTechnique
             float center = 52 + (2 + Tier) * 2.5f;
             for (int i = 0; i < 3; i++) Line(new(Field.Left + 8, center + i * 50), new(Field.Right - 8, center + i * 50),
                 (2 + Tier) * 2.5f + 3, false, Progress(0, _warning));
-            Hint(new(Field.CenterX - 28, 30), "内線で一時保留");
         }
         if (At(_warning))
             for (int group = 0; group < 3; group++)
@@ -1337,7 +1344,6 @@ public partial class AkariBossTechnique : BossCharacterTechnique
         }
         foreach (var group in _letters.Where(l => l.Alive && l.Shot.Velocity == Vector2.Zero).GroupBy(l => l.Group))
             Hint(group.First().Shot.GlobalPosition + new Vector2(-3, -12), (group.Key + 1).ToString());
-        if (Time >= _warning + 1.7 && Time < _warning + 4.3) Hint(new(Field.CenterX - 25, 30), "通話中 → 番号順に再開");
         EndAfter(_warning + 9);
     }
 
@@ -1350,10 +1356,7 @@ public partial class AkariBossTechnique : BossCharacterTechnique
             Vector2 span = Vector2.FromAngle(tilt) * 34;
             _points[i + 2] = _points[i] - span;
             _points[i + 4] = _points[i] + span;
-            Hint(_points[i] + new Vector2(-18, 22), i == 0 ? "黄色い傘" : "紺の傘");
         }
-        if (Time < _warning) Hint(new(Field.CenterX - 36, 42), "傘が雨を受け止める");
-        if (elapsed > 1.7 && elapsed < 3) Hint(new(Field.CenterX - 26, 42), "傘が傾く");
         if (elapsed >= 0 && elapsed < 6 && Time >= _next)
         {
             _next = Time + .43 - Tier * .045;
@@ -1457,7 +1460,6 @@ public partial class AkariBossTechnique : BossCharacterTechnique
                 letter.Shot.Velocity = letter.Shot.Velocity.Rotated((float)delta * (1.5f + Tier * .15f));
             else if (letter.State == 1) letter.State = 2;
         }
-        Hint(_origin + new Vector2(-32, -52), "息の中だけ曲がる");
         EndAfter(_warning + 10);
     }
 

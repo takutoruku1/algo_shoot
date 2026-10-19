@@ -3,6 +3,7 @@ using System.Collections.Generic;
 
 public partial class Epilogue : Node2D
 {
+    public const string AfterCreditsLine = "ご主人様。本日の業務は、以上です。";
     private const float W = 384f, H = 216f;
 
     private const int PhGaze = 0, PhFilm = 1, PhRoll = 2, PhEnd = 3;
@@ -224,7 +225,7 @@ public partial class Epilogue : Node2D
         G("ミナ", "……はい。では、少しだけ。わたくしも、そうしたかったので。");
         _end.AddRange(new List<DLine>
         {
-            new() { Who = "ミナ", Text = "ご主人様。本日の業務は、以上です。" },
+            new() { Who = "ミナ", Text = AfterCreditsLine },
         });
         _e6ChoiceLine = _end.Count;   // ここに着いたら最後の選択を出す
     }
@@ -349,6 +350,7 @@ public partial class Epilogue : Node2D
                 bool rollSkip = _rollSkip.Update(delta, !ShotHold && _rollSkipArmed && z);
                 if (_t >= rollEnd || rollSkip)
                 {
+                    _game?.MarkEndingRollSeen();
                     _phase = PhEnd; _t = 0; _line = 0; _lineT = 0; _reveal = 0; _pagedKey = -1;
                     // みんなのその後を見届けたあと、回復の主題を最後の対話へ戻す。
                     Audio.Instance?.Music(Audio.Instance.BgmFinalResolve, 2.5f);

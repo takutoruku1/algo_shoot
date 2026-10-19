@@ -193,7 +193,7 @@ public partial class TutorialCardShot : Node
             void Purified(int count) => typeof(GameManager).GetProperty(nameof(GameManager.PurifiedCount))!.SetValue(_game, count);
             GlyphMote Target(Vector2 position)
             {
-                var enemy = new GlyphMote { Position = position, Harmless = true };
+                var enemy = new GlyphMote { Position = position };
                 stage.World.AddChild(enemy);
                 enemy.SetPhysicsProcess(false);
                 return enemy;

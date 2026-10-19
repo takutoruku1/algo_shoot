@@ -7,6 +7,106 @@ using System.Threading.Tasks;
 
 public partial class BossTechniqueVideo
 {
+    private async Task RunReiCollisionQa(int phase)
+    {
+        _running = false;
+        _pilot.Release();
+        var graze = _player.GetNode<Area2D>("GrazeArea");
+        int cases = 0;
+        foreach (int generation in new[] { 0, 1, 2 })
+        foreach (bool peel in new[] { false, true })
+        {
+            _pool.DespawnAll();
+            _player.GlobalPosition = new Vector2(Field.Left + 24, 156);
+            var bullet = _pool.Spawn(new Vector2(Field.Right - 24, 156), Vector2.Zero, true,
+                (phase == 0 ? BulletPool.BossRadius : BulletPool.BossChargeRadius) * 1.5f * Mathf.Pow(.62f, generation));
+            if (phase == 1) bullet.MakeCharged(Job.Magic);
+            bullet.UseBossPatternVisual(Job.Magic, 1);
+            bullet.Scale = (peel ? new Vector2(2.2f, 3) : Vector2.One) * Mathf.Pow(1.1f, generation);
+            await EasyPhysicsFrames(4);
+            EasyRequire(bullet.Active && bullet.Visible && bullet.GetShapeOwners().All(owner => bullet.IsShapeOwnerDisabled((uint)owner)),
+                "Distant Rei bullet lost its visual or retained native colliders.");
+            var polygon = ((ConvexPolygonShape2D)bullet.Footprint!.Shapes[0]).Points;
+            Vector2 opaque = bullet.GlobalTransform * (polygon.Aggregate(Vector2.Zero, (sum, p) => sum + p) / polygon.Length);
+            using (var query = new PhysicsPointQueryParameters2D { Position = opaque, CollisionMask = 8,
+                CollideWithAreas = true, CollideWithBodies = false })
+                EasyRequire(_player.GetWorld2D().DirectSpaceState.IntersectPoint(query).Count == 0,
+                    "Distant Rei polygon remains in the native physics world.");
+            int hits = 0, grazes = 0;
+            void OnHit(Area2D area) { if (area == bullet) hits++; }
+            void OnGraze(Area2D area) { if (area == bullet) grazes++; }
+            _player.AreaEntered += OnHit;
+            graze.AreaEntered += OnGraze;
+            while (_player.GlobalPosition.DistanceTo(opaque) > .01f)
+            {
+                _player.GlobalPosition = _player.GlobalPosition.MoveToward(opaque, 24);
+                await EasyPhysicsFrames(1);
+            }
+            await EasyPhysicsFrames(4);
+            EasyRequire(hits > 0 && grazes > 0 && _player.GetOverlappingAreas().Contains(bullet)
+                && graze.GetOverlappingAreas().Contains(bullet), "Fast entry missed native Rei hit or graze detection.");
+            EasyRequire(bullet.GetShapeOwners().All(owner => !bullet.IsShapeOwnerDisabled((uint)owner))
+                && bullet.GetShapeOwners().Sum(owner => bullet.ShapeOwnerGetShapeCount((uint)owner)) > 0,
+                "Nearby Rei bullet did not restore its physical polygons.");
+            foreach (uint owner in bullet.GetShapeOwners())
+                for (int part = 0; part < bullet.ShapeOwnerGetShapeCount(owner); part++)
+                    EasyRequire(bullet.Footprint.Shapes.Contains(bullet.ShapeOwnerGetShape(owner, part)),
+                        "Rei collision polygon was simplified.");
+            var reference = new Area2D { CollisionLayer = 8, CollisionMask = 0, Monitoring = false, Monitorable = true };
+            _easyRoot!.AddChild(reference);
+            uint referenceOwner = reference.CreateShapeOwner(reference);
+            foreach (var shape in bullet.Footprint.Shapes) reference.ShapeOwnerAddShape(referenceOwner, shape);
+            reference.GlobalTransform = bullet.GlobalTransform;
+            await EasyPhysicsFrames(4);
+            int samples = 0;
+            for (int direction = 0; direction < 8; direction++)
+            for (int step = 0; step < 25; step++)
+            {
+                float angle = direction * Mathf.Tau / 8;
+                bullet.Rotation = angle * .37f;
+                bullet.GlobalPosition = new Vector2(Field.CenterX, Field.CenterY) + Vector2.FromAngle(angle) * (step % 3 - 1) * 6;
+                reference.GlobalTransform = bullet.GlobalTransform;
+                float speed = direction % 2 == 0 ? 6 : 24;
+                _player.GlobalPosition = bullet.GlobalPosition + Vector2.FromAngle(angle) * ((step - 12) * speed);
+                await EasyPhysicsFrames(1);
+                var hitAreas = _player.GetOverlappingAreas();
+                var grazeAreas = graze.GetOverlappingAreas();
+                EasyRequire(hitAreas.Contains(bullet) == hitAreas.Contains(reference)
+                    && grazeAreas.Contains(bullet) == grazeAreas.Contains(reference),
+                    $"Rei exact collision mismatch phase={phase} generation={generation} peel={peel} direction={direction} step={step}.");
+                samples++;
+            }
+            reference.QueueFree();
+            bullet.GlobalPosition = new Vector2(Field.CenterX, Field.CenterY);
+            bullet.Rotation = 0;
+            opaque = bullet.GlobalTransform * (polygon.Aggregate(Vector2.Zero, (sum, p) => sum + p) / polygon.Length);
+            _player.GlobalPosition = opaque;
+            await EasyPhysicsFrames(4);
+            GD.Print($"[COLLISION] phase={phase} generation={generation} peel={peel} exact_reference_samples={samples}");
+            bullet.HoldBossShot();
+            await EasyPhysicsFrames(4);
+            EasyRequire(!_player.GetOverlappingAreas().Contains(bullet), "Held quotation still hits the player.");
+            bullet.ReleaseBossShot();
+            await EasyPhysicsFrames(4);
+            EasyRequire(_player.GetOverlappingAreas().Contains(bullet), "Released quotation lost its physical hit.");
+            _player.AreaEntered -= OnHit;
+            graze.AreaEntered -= OnGraze;
+            _player.GlobalPosition = new Vector2(Field.Left + 24, 156);
+            await EasyPhysicsFrames(4);
+            EasyRequire(bullet.GetShapeOwners().All(owner => bullet.IsShapeOwnerDisabled((uint)owner)), "Distant quotation did not sleep again.");
+            _pool.Despawn(bullet);
+            var reused = _pool.Spawn(new Vector2(Field.Right - 24, 156), Vector2.Zero, !peel);
+            if (!peel) reused.UseBossPatternVisual(Job.Heal, 0);
+            await EasyPhysicsFrames(4);
+            EasyRequire(ReferenceEquals(reused, bullet) && reused.GetShapeOwners().All(owner => !reused.IsShapeOwnerDisabled((uint)owner))
+                && reused.GetShapeOwners().Sum(owner => reused.ShapeOwnerGetShapeCount((uint)owner)) > 0,
+                "Rei collision culling leaked into another character's pooled bullet.");
+            cases++;
+        }
+        _pool.DespawnAll();
+        GD.Print($"[EASY] REI NATIVE COLLISION phase={phase} PASS cases={cases} fast_entry=1440px/s hit=true graze=true hold_release=true reuse=true");
+    }
+
     private sealed class EasyPeelParentAudit
     {
         internal object Path = null!;

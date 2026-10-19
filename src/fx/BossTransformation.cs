@@ -251,6 +251,12 @@ public partial class BossTransformation : Node2D
 
     private void BeginDialogue(bool after)
     {
+        if (GameManager.BossRushActive)
+        {
+            if (after) Complete();
+            else BeginMorph();
+            return;
+        }
         ZIndex = -10;
         _front.Visible = false;
         _hud.SetCinematicMode(true, dialogueBubble: true);

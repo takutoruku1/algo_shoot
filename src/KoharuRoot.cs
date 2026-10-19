@@ -14,19 +14,44 @@ public partial class KoharuRoot : Node2D
 
     public static readonly BgLayers.Layer[] RouteLayers =
     {
-        new BgLayers.Layer("res://char/bg2/route/koharu_far.png", 0.22f, -95, Colors.White, loop: true, fitToField: true),
-        new BgLayers.Layer("res://char/bg2/route/koharu_mid.png", 0.62f, -92, Colors.White, loop: true, fitToField: true),
-        new BgLayers.Layer("res://char/bg2/route/koharu_near.png", 1.20f, -91, Colors.White, loop: true, fitToField: true),
+        new BgLayers.Layer("res://char/bg2/route/koharu_far.png", 0.22f, -95, Colors.White, fitToField: true, travel: true),
+        new BgLayers.Layer("res://char/bg2/route/koharu_mid.png", 0.62f, -92, Colors.White, fitToField: true, travel: true),
+        new BgLayers.Layer("res://char/bg2/route/koharu_near.png", 1.20f, -91, Colors.White, fitToField: true, travel: true),
+    };
+
+    public static readonly BgLayers.Layer[] PassageLayers =
+    {
+        new BgLayers.Layer("res://char/bg2/route/koharu_passage_far.png", 0.22f, -95, Colors.White, fitToField: true, travel: true),
+        new BgLayers.Layer("res://char/bg2/route/koharu_passage_mid.png", 0.62f, -92, Colors.White, fitToField: true, travel: true),
+        new BgLayers.Layer("res://char/bg2/route/koharu_passage_near.png", 1.20f, -91, Colors.White, fitToField: true, travel: true),
+    };
+
+    public static readonly BgLayers.Layer[] ClimaxLayers =
+    {
+        new BgLayers.Layer("res://char/bg2/route/koharu_climax_far.png", 0.18f, -95, Colors.White, fitToField: true, travel: true),
+        new BgLayers.Layer("res://char/bg2/route/koharu_climax_mid.png", 0.65f, -92, Colors.White, fitToField: true, travel: true),
+        new BgLayers.Layer("res://char/bg2/route/koharu_climax_near.png", 1.40f, -91, Colors.White, fitToField: true, travel: true),
+    };
+
+    public static readonly BgLayers.Layer[] LateRouteLayers =
+    {
+        new BgLayers.Layer("res://char/bg2/route/koharu_late_far.png", 0.18f, -95, Colors.White, fitToField: true, travel: true),
+        new BgLayers.Layer("res://char/bg2/route/koharu_late_mid.png", 0.65f, -92, Colors.White, fitToField: true, travel: true),
+        new BgLayers.Layer("res://char/bg2/route/koharu_late_near.png", 1.40f, -91, Colors.White, fitToField: true, travel: true),
     };
 
     public static readonly BgLayers.Layer[] MidbossLayers =
     {
-        new BgLayers.Layer("res://char/bg2/midboss/koharu_v1.png", 0.15f, -95, Colors.White, fitToField: true),
+        new BgLayers.Layer("res://char/bg2/midboss/koharu_far_v2.png", 0.08f, -95, Colors.White, fitToField: true),
+        new BgLayers.Layer("res://char/bg2/midboss/koharu_mid_v2.png", 0.50f, -92, Colors.White, fitToField: true),
+        new BgLayers.Layer("res://char/bg2/midboss/koharu_near_v2.png", 1.00f, -91, Colors.White, fitToField: true),
     };
 
     public static readonly BgLayers.Layer[] BossLayers =
     {
-        new BgLayers.Layer("res://char/bg2/boss/koharu_v1.png", 0.15f, -95, Colors.White, fitToField: true),
+        new BgLayers.Layer("res://char/bg2/boss/koharu_far_v2.png", 0.08f, -95, Colors.White, fitToField: true),
+        new BgLayers.Layer("res://char/bg2/boss/koharu_mid_v2.png", 0.50f, -92, Colors.White, fitToField: true),
+        new BgLayers.Layer("res://char/bg2/boss/koharu_near_v2.png", 1.00f, -91, Colors.White, fitToField: true),
     };
 
     private CanvasModulate _tint = null!;
@@ -53,6 +78,10 @@ public partial class KoharuRoot : Node2D
         {
             Name = "StageBackground",
             RouteLayerDefs = RouteLayers,
+            LateRouteLayerDefs = LateRouteLayers,
+            PassageLayerDefs = PassageLayers,
+            ClimaxLayerDefs = ClimaxLayers,
+            StartInLateRoute = g?.SelectedEntry == GameManager.StageEntry.AfterMidBoss,
             MidbossLayerDefs = MidbossLayers,
             MidScrollSpeed = 18f, // 電気の消えた部屋は凪いだ空気＝最も控えめな前進感
             LayerBossBehavior = BgLayers.BossBehavior.Illustrated,

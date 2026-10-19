@@ -29,6 +29,7 @@ public abstract partial class BossCharacterTechnique : Node2D, IAoeHazard
     public string Counterplay { get; private set; } = "";
     internal BossTechniqueKind TechniqueKind => Kind;
     internal int TechniqueVariant => Variant;
+    internal bool IsEnhanced => Evolved;
     internal double Elapsed => Time;
     internal int ShotsCreated { get; private set; }
     internal int HazardFrames { get; private set; }
@@ -76,7 +77,8 @@ public abstract partial class BossCharacterTechnique : Node2D, IAoeHazard
         if (Kind == BossTechniqueKind.Dodge) AddToGroup("boss_dodge_waves");
         Start();
         Boss.OnTechniqueStarted(this);
-        Boss.AnnounceTechnique(SpellName, 2, compact: UsesCustomHazardArt);
+        Boss.AnnounceTechnique(SpellName, 3.6);
+        _hud?.TrackTechnique(this);
         Step(0);
         QueueRedraw();
     }
@@ -107,7 +109,7 @@ public abstract partial class BossCharacterTechnique : Node2D, IAoeHazard
     {
         shot.BossBarrageId = GetInstanceId();
         shot.BossBarrageWave = 0;
-        if (Boss is BossAkari or BossKoharu or BossRei or BossMina)
+        if (Boss is BossAkari or BossKoharu or BossRei or BossMina or CameoBoss)
         {
             shot.ZIndex = 3;
             shot.ZAsRelative = false;
@@ -192,6 +194,7 @@ public abstract partial class BossCharacterTechnique : Node2D, IAoeHazard
     {
         if (Finished) return;
         Finished = true;
+        if (IsInstanceValid(_hud)) _hud!.EndTechnique(this);
         _hazards.Clear();
         _hints.Clear();
         foreach (var shot in OwnedShots.ToArray()) Pool.Despawn(shot);
@@ -203,10 +206,67 @@ public abstract partial class BossCharacterTechnique : Node2D, IAoeHazard
     public sealed override void _ExitTree()
     {
         Finished = true;
+        if (IsInstanceValid(_hud)) _hud!.EndTechnique(this);
         _hazards.Clear();
         _hints.Clear();
         foreach (var shot in OwnedShots.ToArray()) Pool.Despawn(shot);
     }
+    internal static (Vector2 A, Vector2 B)? WarningEdgeSpan(Vector2 from, Vector2 to, float radius, int edge)
+    {
+        Vector2 origin = edge switch { 1 => new(Field.Right, Field.Top), 3 => new(Field.Left, Field.Bottom), _ => Field.Rect.Position };
+        Vector2 along = edge < 2 ? Vector2.Down : Vector2.Right;
+        float extent = edge < 2 ? Field.Height : Field.Width;
+        float first = float.PositiveInfinity, last = float.NegativeInfinity;
+        void Include(float low, float high)
+        {
+            low = Math.Max(0, low);
+            high = Math.Min(extent, high);
+            if (low > high) return;
+            first = Math.Min(first, low);
+            last = Math.Max(last, high);
+        }
+        void Circle(Vector2 center)
+        {
+            Vector2 offset = center - origin;
+            float across = offset.Dot(along.Orthogonal());
+            if (Math.Abs(across) > radius) return;
+            float half = Mathf.Sqrt(Math.Max(0, radius * radius - across * across));
+            float at = offset.Dot(along);
+            Include(at - half, at + half);
+        }
+        Circle(from);
+        Circle(to);
+        float length = from.DistanceTo(to);
+        if (length > 0)
+        {
+            Vector2 direction = (to - from) / length, normal = direction.Orthogonal(), offset = origin - from;
+            float low = 0, high = extent;
+            bool Trim(float at, float step, float minimum, float maximum)
+            {
+                if (Math.Abs(step) < .000001f) return at >= minimum && at <= maximum;
+                float a = (minimum - at) / step, b = (maximum - at) / step;
+                low = Math.Max(low, Math.Min(a, b));
+                high = Math.Min(high, Math.Max(a, b));
+                return low <= high;
+            }
+            if (Trim(offset.Dot(direction), along.Dot(direction), 0, length)
+                && Trim(offset.Dot(normal), along.Dot(normal), -radius, radius)) Include(low, high);
+        }
+        return first <= last ? (origin + along * first, origin + along * last) : null;
+    }
+
+    protected void DrawWarningEdgeCaps(Vector2 from, Vector2 to, float radius, Color ink)
+    {
+        if (Math.Min(from.X, to.X) - radius > Field.Left && Math.Max(from.X, to.X) + radius < Field.Right
+            && Math.Min(from.Y, to.Y) - radius > Field.Top && Math.Max(from.Y, to.Y) + radius < Field.Bottom) return;
+        for (int edge = 0; edge < 4; edge++)
+            if (WarningEdgeSpan(from, to, radius, edge) is { } span && span.A.DistanceSquaredTo(span.B) > .01f)
+            {
+                DrawLine(span.A, span.B, new Color("251321", .75f), 2.2f, true);
+                DrawDashedLine(span.A, span.B, new Color(ink, Math.Max(.8f, ink.A)), 1.1f, 2, true);
+            }
+    }
+
     public sealed override void _Draw()
     {
         if (Finished) return;
@@ -217,7 +277,10 @@ public abstract partial class BossCharacterTechnique : Node2D, IAoeHazard
         }
         foreach (var h in _hazards)
         {
-            var edge = h.Live ? new Color("ff7568") : new Color("ffe0a0");
+            bool koharuWarning = !h.Live && Boss.BodyShotJob == Job.Heal;
+            var edge = h.Live ? new Color("ff7568") : new Color(koharuWarning ? "ff8795" : "ffe0a0");
+            var underlay = new Color("1a101e", .96f);
+            float edgeWidth = koharuWarning ? 1f : .65f;
             var fill = new Color(edge, h.Live ? 0.30f : 0.08f + Mathf.Clamp(h.Progress, 0, 1) * 0.10f);
             if (h.Shape == 3)
             {
@@ -230,18 +293,21 @@ public abstract partial class BossCharacterTechnique : Node2D, IAoeHazard
                     DrawRect(new Rect2(Field.Left, y, left - Field.Left, 2), fill);
                     DrawRect(new Rect2(right, y, Field.Right - right, 2), fill);
                 }
-                DrawArc(h.A, h.Radius, 0, Mathf.Tau, 96, edge, 0.8f, true);
+                if (koharuWarning) DrawArc(h.A, h.Radius, 0, Mathf.Tau, 96, underlay, 2.3f, true);
+                DrawArc(h.A, h.Radius, 0, Mathf.Tau, 96, edge, koharuWarning ? edgeWidth : .8f, true);
             }
             else if (h.Shape == 2)
             {
                 var rect = new Rect2(h.A, h.B - h.A);
                 DrawRect(rect, fill);
-                DrawRect(rect, edge, false, h.Live ? 1.2f : 0.65f);
+                if (koharuWarning) DrawRect(rect, underlay, false, 2.3f);
+                DrawRect(rect, edge, false, h.Live ? 1.2f : edgeWidth);
             }
             else if (h.Shape == 1)
             {
                 DrawCircle(h.A, h.Radius, fill);
-                DrawArc(h.A, h.Radius, 0, Mathf.Tau, 40, edge, h.Live ? 1.2f : 0.65f, true);
+                if (koharuWarning) DrawArc(h.A, h.Radius, 0, Mathf.Tau, 40, underlay, 2.3f, true);
+                DrawArc(h.A, h.Radius, 0, Mathf.Tau, 40, edge, h.Live ? 1.2f : edgeWidth, true);
             }
             else
             {
@@ -249,11 +315,18 @@ public abstract partial class BossCharacterTechnique : Node2D, IAoeHazard
                 DrawCircle(h.A, h.Radius, fill);
                 DrawCircle(h.B, h.Radius, fill);
                 Vector2 side = h.A.DirectionTo(h.B).Orthogonal() * h.Radius;
-                DrawLine(h.A + side, h.B + side, edge, 0.65f, true);
-                DrawLine(h.A - side, h.B - side, edge, 0.65f, true);
                 float angle = h.A.DirectionTo(h.B).Angle();
-                DrawArc(h.A, h.Radius, angle + Mathf.Pi / 2, angle + Mathf.Pi * 1.5f, 12, edge, 0.65f, true);
-                DrawArc(h.B, h.Radius, angle - Mathf.Pi / 2, angle + Mathf.Pi / 2, 12, edge, 0.65f, true);
+                if (koharuWarning)
+                {
+                    DrawLine(h.A + side, h.B + side, underlay, 2.3f, true);
+                    DrawLine(h.A - side, h.B - side, underlay, 2.3f, true);
+                    DrawArc(h.A, h.Radius, angle + Mathf.Pi / 2, angle + Mathf.Pi * 1.5f, 12, underlay, 2.3f, true);
+                    DrawArc(h.B, h.Radius, angle - Mathf.Pi / 2, angle + Mathf.Pi / 2, 12, underlay, 2.3f, true);
+                }
+                DrawLine(h.A + side, h.B + side, edge, edgeWidth, true);
+                DrawLine(h.A - side, h.B - side, edge, edgeWidth, true);
+                DrawArc(h.A, h.Radius, angle + Mathf.Pi / 2, angle + Mathf.Pi * 1.5f, 12, edge, edgeWidth, true);
+                DrawArc(h.B, h.Radius, angle - Mathf.Pi / 2, angle + Mathf.Pi / 2, 12, edge, edgeWidth, true);
             }
         }
         foreach (var hint in _hints)

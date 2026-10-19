@@ -5,7 +5,6 @@ public partial class StageMina : Node
     public Player Player = null!;
     public Hud Hud = null!;
     public Node2D World = null!;
-
     private int _step;
     private bool _stepStarted;
     private double _stageElapsed;   // ステージ全体の経過秒（クリア確定まで・ポーズ中は止まる）。
@@ -16,9 +15,7 @@ public partial class StageMina : Node
     private bool _bossActive;
     private bool _zHeld, _zEdge, _startBannerShown;
     private bool _titleThump; private double _titleThumpT; // タイトルカードの拍（タグが合わさる瞬間の一突き）
-
     private const float SpawnX = 300f;
-
     private static readonly (int who, string text, string face)[] IntroHead =
     {
         (0, "レイさん。ミナが、自分のフェイクレルムに閉じ込められた。……力を貸してほしい。", ""),
@@ -29,6 +26,63 @@ public partial class StageMina : Node
         (6, "道を開けられるのは、あんたでしょう。そっちを頼むって言ってるの。", ""),
         (0, "……うん。必ず、二人を帰す。", ""),
     };
+    // The channel survives even when Mina can no longer move her body.
+    private static readonly (int who, string text, string face)[] IntroTail =
+    {
+        (4, "既読、ついてる……返事、まだ。……もう、だれに送ったのか、わからない。", ""),
+        (4, "なにしてんだろ、あたし……ぜんぶ、むだ。", ""),
+        (4, "気づいて……見て……。見られてるの、ガワだけ。", ""),
+        (0, "どれも、ミナが受け止めてきた言葉だ。ガラスの橋が、リボンでつながれてる。みんなを帰そうとしていたんだね。", ""),
+        (6, "……こんなに細い道を、一人で守っていたの。", ""),
+        (0, "あの子のところまで、僕が案内する。今度は、ミナも一緒に帰れるように。", ""),
+        (6, "……見えた。顔を上げて、ミナ。わたしが来たわ。", ""),
+        (1, "レイ、さん……。ここは、危ないです。ご案内は、まだ……。", "res://char/mina_face.png"),
+        (6, "今日は、案内されるほうでいなさい。迎えに来たの。", ""),
+        (1, "でも、まだ……終わっていない、仕事が。", "res://char/mina_face.png"),
+    };
+
+    private (int who, string text, string face)[] _intro = System.Array.Empty<(int, string, string)>();
+    // ── ルナティック（2026-09-26 作者指示「回想・エンディング・選択肢はカット、常に敵が出続け、ボス戦は止まらない」）──
+    //   GameManager.IsLunatic のとき true。F1 の導入会話を流さず、タイトルカードのあと即・残響の波→ミナ戦へ。
+    //   段間のカットシーン（MinaPhaseScene）と回想・邂逅の会話は BossMina 側が畳む。
+    //   撃破後は MinaStoryFilm（アフター）も Final（F4）も Epilogue も流さず、記録だけ確定して FINAL CLEAR のリザルトを置き、
+    //   通常ならエピローグの末尾（Epilogue.PhEnd）が着地する先＝タイトルへ直行する。従来難易度は _lunatic=false で従来のまま。
+    private bool _lunatic;
+    private const double LunaticClearHold = 3.0;   // リザルトのバナーを読む間
+    private double _lunaticClearT;
+    // ── 道中（step 2）：残響の三波 ──────────────────────────────────────────
+    //   2026-09-27 作者指示「MINA の道中戦を長くして」。それまでは残響3体（SpawnLimit=3）を浄化したら即ボスで、
+    //   自動操縦の実測 6.7 秒（Normal）／5.0 秒（ルナティック）しか無かった＝本編3面の道中（あかり面は同じ計り方で
+    //   120〜137 秒・ザコ戦だけで 65〜76 秒）に対して極端に短い。本編と同じ作り（StageAkari/StageRei の StartMidwaveSpawner）に
+    //   合わせ、波ごとに強度（StartIntensity）と数を上げる三波にする。
+    //   ・敵は残響3種のまま（EnemyTable.CharactersFor(StageTheme.Mina)）。Spawner.CharactersOnly で他テーマ流用の
+    //     アンチくん／引用リプ／バズ壁は混ぜない＝ミナの内側に他の面の絵を持ち込まない（新しい敵種は作らない）。
+    //     数は3種の繰り返しで満たす（同じ種が何度も来る＝残響なので理屈も合う）。
+    //   ・波の切り替えで盤面を掃かない。本編は波の切れ目に会話が入るので掃くが、ここは会話を足さない方針なので
+    //     前の波の残りが居るうちに次のスポナーを走らせる＝敵ゼロの空白を作らない（QA の最長空白は 2 秒以内）。
+    //   ・強度は本編の 0/0.35/0.7 ではなく 0.35/0.6/0.85。FINAL は最終面で一番緩い立ち上がりは要らず、
+    //     湧き間隔が 2 秒級（si=0）だと即殺されたときに敵ゼロが 2 秒に迫る（あかり面の si=0 波は実測 1.75 秒）。
+    //   ・会話は足さない（新規台詞はシナリオ側の判断）。波の切れ目は密度だけで見せる＝戦闘は一度も止まらない。
+    //   ・難易度で長さは変えない（数も強度も共通）。弾の数・速さ・湧き間隔・同時数は難易度側（GameManager）の担当。
+    private static readonly (int count, float intensity)[] EchoWaves =
+    {
+        (18, 0.35f),   // A: 残響が滲み出す
+        (22, 0.60f),   // B: 間隔が詰まる
+        (26, 0.85f),   // C: ボス直前の山（最大密度）
+    };
+
+    private int _wave;       // いま何波目か（0..EchoWaves.Length-1）。QA（FinalRouteQa）が読む。
+    private int _waveBase;   // その波の頭での PurifiedCount（波の規定数はここからの差で数える）
+    // 撃破後に Finished が立たないまま固まる進行不能への保険。
+    //   通常は改心の会話を送り切った時点で Finished が立ち、この計時は使われない（尺・演出は不変）。
+    //   ボス側の保険（Enemy の cry ウォッチドッグ）が何らかの理由で効かなかった場合の最後の砦として、
+    //   撃破（IsPurified）から BossFinishGrace 秒経っても立たなければ次へ進める。
+    //   ※撃破前（戦闘中）は一切計らない＝長期戦を勝手に打ち切ることはない。
+    private const double BossFinishGrace = 150.0;
+    private double _postDefeatT;
+    private bool _clearing;
+    private bool _returnShown;
+
     // S3-7 の分岐受け（送った言葉を一度だけ観測で引用。断定はしない）。
     private static (int who, string text, string face)[] S37Quote(GameManager? game)
     {
@@ -54,18 +108,6 @@ public partial class StageMina : Node
     },
         };
     }
-    // The channel survives even when Mina can no longer move her body.
-    private static readonly (int who, string text, string face)[] IntroTail =
-    {
-        (4, "既読、ついてる……返事、まだ。……もう、だれに送ったのか、わからない。", ""),
-        (4, "なにしてんだろ、あたし……ぜんぶ、むだ。", ""),
-        (4, "気づいて……見て……。見られてるの、ガワだけ。", ""),
-        (0, "どれも、ミナが受け止めてきた言葉だ。中央に本人がいる。周りの壁からほどいていこう。", ""),
-        (6, "……見えた。顔を上げて、ミナ。わたしが来たわ。", ""),
-        (1, "レイ、さん……。ここは、危ないです。ご案内は、まだ……。", "res://char/mina_face.png"),
-        (6, "今日は、案内されるほうでいなさい。迎えに来たの。", ""),
-        (1, "でも、まだ……終わっていない、仕事が。", "res://char/mina_face.png"),
-    };
     private static (int who, string text, string face)[] AdaptIntro((int who, string text, string face)[] lines, Job job)
     {
         if (job == Job.Magic) return lines;
@@ -99,17 +141,6 @@ public partial class StageMina : Node
         }
         return lines;
     }
-
-    private (int who, string text, string face)[] _intro = System.Array.Empty<(int, string, string)>();
-
-    // ── ルナティック（2026-09-26 作者指示「回想・エンディング・選択肢はカット、常に敵が出続け、ボス戦は止まらない」）──
-    //   GameManager.IsLunatic のとき true。F1 の導入会話を流さず、タイトルカードのあと即・残響の波→ミナ戦へ。
-    //   段間のカットシーン（MinaPhaseScene）と回想・邂逅の会話は BossMina 側が畳む。
-    //   撃破後は MinaStoryFilm（アフター）も Final（F4）も Epilogue も流さず、記録だけ確定して FINAL CLEAR のリザルトを置き、
-    //   通常ならエピローグの末尾（Epilogue.PhEnd）が着地する先＝タイトルへ直行する。従来難易度は _lunatic=false で従来のまま。
-    private bool _lunatic;
-    private const double LunaticClearHold = 3.0;   // リザルトのバナーを読む間
-    private double _lunaticClearT;
 
     public override void _Ready()
     {
@@ -248,33 +279,10 @@ public partial class StageMina : Node
         };
         Hud.ShowDialog(kind, text, portrait, otherName: "ミナ");
     }
-
-    // ── 道中（step 2）：残響の三波 ──────────────────────────────────────────
-    //   2026-09-27 作者指示「MINA の道中戦を長くして」。それまでは残響3体（SpawnLimit=3）を浄化したら即ボスで、
-    //   自動操縦の実測 6.7 秒（Normal）／5.0 秒（ルナティック）しか無かった＝本編3面の道中（あかり面は同じ計り方で
-    //   120〜137 秒・ザコ戦だけで 65〜76 秒）に対して極端に短い。本編と同じ作り（StageAkari/StageRei の StartMidwaveSpawner）に
-    //   合わせ、波ごとに強度（StartIntensity）と数を上げる三波にする。
-    //   ・敵は残響3種のまま（EnemyTable.CharactersFor(StageTheme.Mina)）。Spawner.CharactersOnly で他テーマ流用の
-    //     アンチくん／引用リプ／バズ壁は混ぜない＝ミナの内側に他の面の絵を持ち込まない（新しい敵種は作らない）。
-    //     数は3種の繰り返しで満たす（同じ種が何度も来る＝残響なので理屈も合う）。
-    //   ・波の切り替えで盤面を掃かない。本編は波の切れ目に会話が入るので掃くが、ここは会話を足さない方針なので
-    //     前の波の残りが居るうちに次のスポナーを走らせる＝敵ゼロの空白を作らない（QA の最長空白は 2 秒以内）。
-    //   ・強度は本編の 0/0.35/0.7 ではなく 0.35/0.6/0.85。FINAL は最終面で一番緩い立ち上がりは要らず、
-    //     湧き間隔が 2 秒級（si=0）だと即殺されたときに敵ゼロが 2 秒に迫る（あかり面の si=0 波は実測 1.75 秒）。
-    //   ・会話は足さない（新規台詞はシナリオ側の判断）。波の切れ目は密度だけで見せる＝戦闘は一度も止まらない。
-    //   ・難易度で長さは変えない（数も強度も共通）。弾の数・速さ・湧き間隔・同時数は難易度側（GameManager）の担当。
-    private static readonly (int count, float intensity)[] EchoWaves =
-    {
-        (18, 0.35f),   // A: 残響が滲み出す
-        (22, 0.60f),   // B: 間隔が詰まる
-        (26, 0.85f),   // C: ボス直前の山（最大密度）
-    };
     private static int EchoTotal
     {
         get { int n = 0; foreach (var w in EchoWaves) n += w.count; return n; }
     }
-    private int _wave;       // いま何波目か（0..EchoWaves.Length-1）。QA（FinalRouteQa）が読む。
-    private int _waveBase;   // その波の頭での PurifiedCount（波の規定数はここからの差で数える）
 
     private void Step_Route()
     {
@@ -293,13 +301,10 @@ public partial class StageMina : Node
             StartEchoWave();
         }
         if (Hud.BubblePaused) return;
-        // 浄化が目標(EchoTotal+1)を追い越すと Spawner が自動停止して湧かなくなる（ボムで規定数を跨いだとき）。
-        //   その場合も波を送って進める保険＝本編（StageAkari/StageRei）と同じ作法。ルナティックは
-        //   IgnoreStageCleared で止まらないので保険は使わず、規定数を必ず出し切る（波を飛ばさない）。
-        bool overrun = game.StageCleared && !_lunatic;
-        if (game.PurifiedCount - _waveBase < EchoWaves[_wave].count && !overrun) return;
+        if (!_echoSpawner.Finished) return;
         if (_wave + 1 < EchoWaves.Length)
         {
+            if (game.PurifiedCount - _waveBase < EchoWaves[_wave].count && !game.StageCleared) return;
             _wave++;
             _waveBase = game.PurifiedCount;
             _echoSpawner.Stop();
@@ -308,13 +313,13 @@ public partial class StageMina : Node
             return;
         }
         // 最後の波は「予定数が湧き切ってから」ミナ本体へ（数を削って早出しにしない）。
-        if (_echoSpawner.SpawnedCount < _echoSpawner.SpawnLimit && !overrun) return;
+        if (!Spawner.BattlefieldClear(GetTree())) return;
 
         _echoSpawner.Stop();
         _echoSpawner.QueueFree();
         // Residual purification waves must not peel the boss's opening shield.
         foreach (Node node in World.GetChildren())
-            if (node is MidEnemy or Ripple) node.QueueFree();
+            if (node is Ripple) node.QueueFree();
         GetNode<BulletPool>("/root/Pool").DespawnAll();
         Advance();   // step 3＝Step_BossSpawn（「ボスから」再開もここへ直に着く）
     }
@@ -360,20 +365,15 @@ public partial class StageMina : Node
         {
             Name = $"EchoSpawner{_wave}", World = World, Theme = StageTheme.Mina,
             SpawnLimit = count, StartIntensity = intensity,
+            AttackDensity = GetNode<GameManager>("/root/Game").Difficulty == GameManager.Diff.Easy ? 1.8f : 1.35f,
             CharactersOnly = true,          // 残響3種だけ（他テーマ流用のスキンを混ぜない）
             IgnoreStageCleared = _lunatic,  // ルナティックは目標到達でも止めない（空白を作らない）
         };
         AddChild(_echoSpawner);
         _echoSpawner.Begin();
+        var (from, to) = _wave switch { 0 => (0f, 1.95f), 1 => (2f, 2.95f), _ => (3f, 4f) };
+        GetParent().GetNode<StageBackground>("StageBackground").TrackRoute(_echoSpawner, from, to);
     }
-
-    // 撃破後に Finished が立たないまま固まる進行不能への保険。
-    //   通常は改心の会話を送り切った時点で Finished が立ち、この計時は使われない（尺・演出は不変）。
-    //   ボス側の保険（Enemy の cry ウォッチドッグ）が何らかの理由で効かなかった場合の最後の砦として、
-    //   撃破（IsPurified）から BossFinishGrace 秒経っても立たなければ次へ進める。
-    //   ※撃破前（戦闘中）は一切計らない＝長期戦を勝手に打ち切ることはない。
-    private const double BossFinishGrace = 150.0;
-    private double _postDefeatT;
     // ボス戦（step 4）。
     private void Step_BossWait(double delta)
     {
@@ -390,9 +390,6 @@ public partial class StageMina : Node
         _bossActive = false;
         Advance();
     }
-
-    private bool _clearing;
-    private bool _returnShown;
     private void Step_Transition()
     {
         if (!_returnShown)

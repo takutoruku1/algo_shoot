@@ -75,10 +75,5 @@ public partial class MinaPhaseAttacks : Node
                 OpenerCompleted = true;
         };
     }
-    public static string SignatureName(int phase) => phase switch
-    {
-        0 => "消せなかった声", 1 => "未送信、再送", 2 => "拍手の檻",
-        3 => "閉じない配信", _ => "リフレイン・帰り道",
-    };
     public override void _ExitTree() => CancelPendingAttacks();
 }

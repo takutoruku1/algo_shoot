@@ -252,10 +252,23 @@ public partial class KoharuBossTechnique : BossCharacterTechnique
     private readonly List<bool> _easyPrepared = new();
     private readonly List<Vector2> _easyTargets = new();
     private static readonly Dictionary<int, BulletArt.PlayerVisual> EasyKoharuVisuals = new();
+    private static Texture2D? _eyeArt, _lightArt, _sparkArt;
     protected override bool UsesCustomHazardArt => _easyMode != 0;
-    private float EasyLightSpeed => 1 + Tier * .12f;
-    private double EasyPulseSpacing => 1 - Tier * .07;
-    private double EasyGazeInterval => 1.2 - Tier * .03;
+    private int EasyLightPulses => (Tier switch { 0 => 3, 1 => 5, 2 => 7, _ => 10 }) + (Evolved ? 2 : 0);
+    private float EasyLightSpeed => (Tier switch { 0 => 1, 1 => 1.35f, 2 => 1.75f, _ => 2.2f }) + (Evolved ? .15f : 0);
+    private int EasyStrands => _easyMode switch {
+        1 => 2 + Tier * 4, 2 => 3 + Tier * 3, 3 => 8 + Tier * 8, _ => 12 + Tier * 10,
+    };
+    private int EasyGazePairs => 5 + Tier * 4;
+    private int EasyBlackoutAxes => 4 + Tier * 2;
+    private double EasyBeatLength => .36 + Tier * .09 + (Evolved ? .12 : 0);
+    private int EasyGazePulses => 3 + Tier * 2 + (Evolved ? 1 : 0);
+    private double EasyGazeInterval => 1.2 - Tier * .1;
+    private double EasyGazeDuration => .34 + Tier * .12 + (Evolved ? .06 : 0);
+    private double EasyGazeLead => Tier == 0 ? .42 : (EasyGazeInterval - EasyGazeDuration) * .35;
+    private double EasyGazeTail => Tier == 0 ? .66 : EasyGazeDuration + EasyGazeLead;
+    private int EasyBlackoutPulses => 3 + Tier + (Evolved ? 1 : 0);
+    private double EasyBlackoutInterval => Math.Max(.4, 1.68 / (EasyBlackoutPulses - 1));
     private float EasyKoharuProgress(double start) => Mathf.Clamp((float)((Time - start - .2) / .7), 0, 1);
     internal override IEnumerable<BossEasyCue> EasyCues
     {
@@ -281,6 +294,9 @@ public partial class KoharuBossTechnique : BossCharacterTechnique
             _ => 0,
         };
         if (_easyMode == 0) return false;
+        _eyeArt ??= GD.Load<Texture2D>("res://char/v3/fx/koharu/eye_cross.png");
+        _lightArt ??= GD.Load<Texture2D>("res://char/v3/fx/koharu/gaze_line.png");
+        _sparkArt ??= GD.Load<Texture2D>("res://char/v3/fx/koharu/particle_violet.png");
         (string Name, string Key, string Answer) identity = _easyMode switch
         {
             1 => ("約束の二拍", "koharu.braided-rest", "交わる二列の尾を読み、二拍の後の隙間で渡る"),
@@ -294,6 +310,7 @@ public partial class KoharuBossTechnique : BossCharacterTechnique
         _warning = _easyMode == 5 ? 3.2 : 3.1;
         int waves = _easyMode is 3 ? 2 : _easyMode == 5 ? 1 : 3;
         double interval = _easyMode switch { 1 => 4.4, 2 => 4.8, 3 => 6.4, 4 => 4.4, _ => 4.2 };
+        interval *= Tier switch { 0 => 1, 1 => .72, 2 => .55, _ => .43 };
         for (int wave = 0; wave < waves; wave++)
         {
             double start = wave * interval;
@@ -302,13 +319,13 @@ public partial class KoharuBossTechnique : BossCharacterTechnique
             _easyTargets.Add(_anchor);
             if (_easyMode <= 3 || _easyMode == 5)
             {
-                int strands = _easyMode switch { 1 => 2, 2 => 3, 3 => 8, _ => 12 };
+                int strands = EasyStrands;
                 double[] pulses = _easyMode switch
                 {
-                    1 => Enumerable.Range(0, 3 + Tier).Select(pulse => pulse * .18 * EasyPulseSpacing)
-                        .Concat(Enumerable.Range(0, 3 + Tier).Select(pulse => .95 + pulse * .18 * EasyPulseSpacing)).ToArray(),
-                    2 => Enumerable.Range(0, 4 + Tier).Select(pulse => pulse * .22 * EasyPulseSpacing).ToArray(),
-                    _ => Enumerable.Range(0, 3 + Tier).Select(pulse => pulse * .32 * EasyPulseSpacing).ToArray(),
+                    1 => Enumerable.Range(0, EasyLightPulses).Select(pulse => pulse * EasyBeatLength / (EasyLightPulses - 1))
+                        .Concat(Enumerable.Range(0, EasyLightPulses).Select(pulse => EasyBeatLength + .59 + pulse * EasyBeatLength / (EasyLightPulses - 1))).ToArray(),
+                    2 => Enumerable.Range(0, EasyLightPulses + 1).Select(pulse => pulse * (.66 + Tier * .2 + (Evolved ? .25 : 0)) / EasyLightPulses).ToArray(),
+                    _ => Enumerable.Range(0, EasyLightPulses).Select(pulse => pulse * (.64 + Tier * .16 + (Evolved ? .16 : 0)) / (EasyLightPulses - 1)).ToArray(),
                 };
                 for (int strand = 0; strand < strands; strand++)
                 for (int pulse = 0; pulse < pulses.Length; pulse++)
@@ -323,11 +340,11 @@ public partial class KoharuBossTechnique : BossCharacterTechnique
                 }
             }
             if (_easyMode == 4)
-                for (int pair = 0; pair < 5; pair++)
+                for (int pair = 0; pair < EasyGazePairs; pair++)
                     _easySweeps.Add(new KoharuEasySweep {
                         Key = $"gaze-focus:{wave}:{pair}", Wave = wave, Pair = pair, Mode = 4, StartsAt = start,
-                        FiresAt = start + _warning + pair * .38, EndsAt = start + _warning + pair * .38 + (2 + Tier) * EasyGazeInterval + .66,
-                        Duration = .34, HalfWidth = 22, HalfHeight = 18, PulseOffsets = Enumerable.Range(0, 3 + Tier).Select(pulse => pulse * EasyGazeInterval).ToArray(),
+                        FiresAt = start + _warning + pair * .38, EndsAt = start + _warning + pair * .38 + (EasyGazePulses - 1) * EasyGazeInterval + EasyGazeTail,
+                        Duration = EasyGazeDuration, HalfWidth = 22 + Tier * .65f, HalfHeight = 18 + Tier * 1.5f, PulseOffsets = Enumerable.Range(0, EasyGazePulses).Select(pulse => pulse * EasyGazeInterval).ToArray(),
                     });
             else if (_easyMode == 5)
             {
@@ -341,12 +358,12 @@ public partial class KoharuBossTechnique : BossCharacterTechnique
                 });
             }
             else if (_easyMode == 6)
-                for (int axis = 0; axis < 4; axis++)
+                for (int axis = 0; axis < EasyBlackoutAxes; axis++)
                     _easySweeps.Add(new KoharuEasySweep {
                         Key = $"blackout:{wave}:{axis}", Wave = wave, Mode = 3, StartsAt = start,
-                        FiresAt = start + _warning, EndsAt = start + _warning + 2.1, Duration = .42 - Tier * .04,
-                        HalfWidth = 4.5f, HalfHeight = axis,
-                        PulseOffsets = Enumerable.Range(0, 3 + Tier).Select(pulse => pulse * 1.68 / (2 + Tier)).ToArray(),
+                        FiresAt = start + _warning, EndsAt = start + _warning + (EasyBlackoutPulses - 1) * EasyBlackoutInterval + .42, Duration = .42 - Tier * .04,
+                        HalfWidth = 4.5f + Tier, HalfHeight = axis,
+                        PulseOffsets = Enumerable.Range(0, EasyBlackoutPulses).Select(pulse => pulse * EasyBlackoutInterval).ToArray(),
                     });
         }
         PrepareEasyKoharuWave(0, _anchor);
@@ -359,7 +376,8 @@ public partial class KoharuBossTechnique : BossCharacterTechnique
         var texture = BulletArt.Get(pattern == 0 ? "koharu_penlight" : pattern == 1 ? "koharu_acrylic" : "koharu_star_pin")!;
         using var bitmap = texture.GetImage();
         var region = bitmap.GetUsedRect();
-        return EasyKoharuVisuals[pattern] = new BulletArt.PlayerVisual(texture, region, region.GetCenter(), new Color("91e5c5"));
+        var accent = new Color(pattern == 0 ? "d8b3ff" : pattern == 1 ? "ffcb95" : "ffe69c");
+        return EasyKoharuVisuals[pattern] = new BulletArt.PlayerVisual(texture, region, region.GetCenter(), accent);
     }
 
     private float EasyKoharuHalfWidth(int pattern)
@@ -392,12 +410,13 @@ public partial class KoharuBossTechnique : BossCharacterTechnique
             double duration;
             if (_easyMode == 1)
             {
-                float amplitude = Field.Width * .5f - 5;
+                float amplitude = Field.Width * .5f;
                 float phase = Mathf.Asin(Mathf.Clamp((target.X - Center.X) / amplitude, -1, 1))
                     - Mathf.Tau * target.Y / Field.Height;
-                int side = first.Strand == 0 ? 1 : -1;
+                int side = first.Strand % 2 == 0 ? 1 : -1;
+                phase += first.Strand / 2 * Mathf.Tau / (EasyStrands / 2);
                 points = EasyKoharuSamples(t => {
-                    float y = Mathf.Lerp(2, Field.Bottom + 24, t);
+                    float y = Mathf.Lerp(Field.Top - 12, Field.Bottom + 24, t);
                     return new Vector2(Center.X + side * amplitude * Mathf.Sin(Mathf.Tau * y / Field.Height + phase), y);
                 });
                 turns = Enumerable.Range(1, points.Length - 2).Where(index =>
@@ -411,10 +430,10 @@ public partial class KoharuBossTechnique : BossCharacterTechnique
                 float mirroredX = Field.Left + Field.Right - target.X;
                 float glanceX = right ? Mathf.Clamp(mirroredX, Field.Right - 40, Field.Right - 12)
                     : Mathf.Clamp(mirroredX, Field.Left + 12, Field.Left + 40);
-                float y = 12 + first.Strand * (Field.Height - 24) / 2;
+                float y = 12 + first.Strand * (Field.Height - 24) / (EasyStrands - 1);
                 Vector2 mirror = new(right ? Field.Left + 8 : Field.Right - 8, y);
                 Vector2 glance = new(glanceX, y);
-                Vector2 direction = glance.DirectionTo(target).Rotated((first.Strand - 1) * .075f);
+                Vector2 direction = glance.DirectionTo(target).Rotated((first.Strand / (float)(EasyStrands - 1) - .5f) * .15f);
                 if (direction == Vector2.Zero) direction = Vector2.Left;
                 Vector2 exit = EasyKoharuExit(glance, direction);
                 double outgoing = glance.DistanceTo(exit) / 58;
@@ -436,7 +455,7 @@ public partial class KoharuBossTechnique : BossCharacterTechnique
                 var samples = new List<Vector2>();
                 for (int step = 0; step <= 320; step++)
                 {
-                    float age = step * .05f, angle = initial + first.Strand * Mathf.Tau / 8 + age * .34f;
+                    float age = step * .05f, angle = initial + first.Strand * Mathf.Tau / EasyStrands + age * .34f;
                     Vector2 point = Center + Vector2.FromAngle(angle) * new Vector2(Field.Width * .5f, Field.Height * .5f) * (age * .19f);
                     samples.Add(point);
                     if (!Field.Rect.Grow(24).HasPoint(point)) break;
@@ -447,7 +466,7 @@ public partial class KoharuBossTechnique : BossCharacterTechnique
             else
             {
                 Vector2 landing = Clamp(target, ((BossKoharu)Boss).BodyExtent + 9);
-                Vector2 direction = Vector2.FromAngle(first.Strand * Mathf.Tau / 12);
+                Vector2 direction = Vector2.FromAngle(landing.DirectionTo(target).Angle() + first.Strand * Mathf.Tau / EasyStrands);
                 Vector2 from = landing + direction * (((BossKoharu)Boss).BodyExtent + 6);
                 Vector2 exit = EasyKoharuExit(from, direction);
                 points = new[] { from, exit };
@@ -465,9 +484,10 @@ public partial class KoharuBossTechnique : BossCharacterTechnique
             if (_easyMode == 4)
             {
                 int pair = sweep.Pair;
-                int cell = wave * 4 + pair - 1;
-                Vector2 point = pair == 0 ? target : new Vector2(Field.Left + (cell % 4 + .5f) * Field.Width / 4,
-                    Field.Top + (cell / 4 + .5f) * Field.Height / 3);
+                int columns = Tier == 0 ? 4 : 6, rows = Tier == 0 ? 3 : 4;
+                int cell = (wave * (EasyGazePairs - 1) + pair - 1) % (columns * rows);
+                Vector2 point = pair == 0 ? target : new Vector2(Field.Left + (cell % columns + .5f) * Field.Width / columns,
+                    Field.Top + (cell / columns + .5f) * Field.Height / rows);
                 sweep.Points = new[] { point, point };
                 float sideX = point.X < Field.CenterX ? 1 : -1, sideY = point.Y < Field.CenterY ? 1 : -1;
                 sweep.EyeA = point + Vector2.Right * sideX * (sweep.HalfWidth + 9);
@@ -487,7 +507,7 @@ public partial class KoharuBossTechnique : BossCharacterTechnique
             else
             {
                 Vector2 center = wave % 2 == 0 ? target : new Vector2(Field.Left + Field.Right - target.X, target.Y);
-                Vector2 direction = Vector2.FromAngle(sweep.HalfHeight * Mathf.Pi / 4 + wave * Mathf.Pi / 12);
+                Vector2 direction = Vector2.FromAngle(sweep.HalfHeight * Mathf.Pi / EasyBlackoutAxes + wave * Mathf.Pi / 12);
                 sweep.Points = new[] { EasyKoharuExit(center, -direction), EasyKoharuExit(center, direction) };
             }
         }
@@ -522,7 +542,8 @@ public partial class KoharuBossTechnique : BossCharacterTechnique
             {
                 var shot = Shot(path.Points[0], Vector2.Down, path.Pattern);
                 shot.BossBarrageWave = path.Wave;
-                shot.UseBossIllustration(EasyKoharuVisual(path.Pattern));
+                var art = EasyKoharuVisual(path.Pattern);
+                shot.UseBossIllustration(art, art.Accent);
                 shot.Homing = false;
                 shot.Velocity = Vector2.Zero;
                 shot.CancelLeadIn();
@@ -581,14 +602,25 @@ public partial class KoharuBossTechnique : BossCharacterTechnique
         if (allLaunched && Time > end && !_easyPaths.Any(path => path.Shot is { Active: true } bullet && bullet.ActivationId == path.Activation)) Finish();
     }
 
-    private static readonly Color EasyKoharuWarning = new("ff8795", .58f);
-    private void EasyKoharuDash(Vector2 from, Vector2 to, Color color, float width = .65f)
+    private static readonly Color EasyKoharuWarning = new("ff8795", .95f);
+    private static readonly Color EasyKoharuWarningInk = new("1a101e", .96f);
+    private Color EasyKoharuWarningFill => new("e44868", Tier == 0 ? .16f : .11f);
+    private Color EasyKoharuHatch => new("ff9aaa", .38f);
+    private sealed record KoharuWarningMesh(Vector2[] Center, Vector2[] Edges, Vector2[] Hatches);
+    private readonly Dictionary<(Vector2[] Points, float Radius), KoharuWarningMesh> _easyWarningMeshes = new();
+
+    private static void EasyKoharuDashes(List<Vector2> edges, Vector2 from, Vector2 to, float distance)
     {
         float length = from.DistanceTo(to);
         if (length < .05f) return;
         Vector2 direction = (to - from) / length;
-        for (float at = 0; at < length; at += 5)
-            DrawLine(from + direction * at, from + direction * Math.Min(at + 2.2f, length), color, width, true);
+        for (float at = -(distance % 5); at < length; at += 5)
+        {
+            float end = Math.Min(at + 2.2f, length);
+            if (end <= 0) continue;
+            edges.Add(from + direction * Math.Max(0, at));
+            edges.Add(from + direction * end);
+        }
     }
     private void EasyKoharuMarker(Vector2 point, Vector2 direction)
     {
@@ -598,34 +630,113 @@ public partial class KoharuBossTechnique : BossCharacterTechnique
         Vector2 center = point.Clamp(new Vector2(Field.Left + 4, Field.Top + 4), new Vector2(Field.Right - 4, Field.Bottom - 4));
         var triangle = new[] { center + direction * 4, center - direction * 3 + side * 3, center - direction * 3 - side * 3 };
         DrawColoredPolygon(triangle, new Color("d84b64", .78f));
-        DrawPolyline(new[] { triangle[0], triangle[1], triangle[2], triangle[0] }, new Color("ffc2ca"), .7f, true);
+        var outline = new[] { triangle[0], triangle[1], triangle[2], triangle[0] };
+        DrawPolyline(outline, EasyKoharuWarningInk, 2.6f, true);
+        DrawPolyline(outline, new Color("ffc2ca"), .9f, true);
     }
-    private void EasyKoharuWarningPath(Vector2[] points, float radius, float progress, bool arrows = true, bool marker = true)
+    private static KoharuWarningMesh EasyKoharuWarningMesh(Vector2[] points, float radius, float progress, bool arrows)
     {
-        if (points.Length < 2) return;
-        if (marker) EasyKoharuMarker(points[0], points[1] - points[0]);
-        if (progress <= 0) return;
-        float until = progress * (points.Length - 1), distance = 0, nextArrow = 30;
+        var center = new List<Vector2> { points[0] };
+        var edges = new List<Vector2>();
+        var hatches = new List<Vector2>();
+        float until = progress * (points.Length - 1), distance = 0, nextArrow = 30, nextHatch = 5;
         for (int index = 1; index < points.Length && index - 1 < until; index++)
         {
             Vector2 from = points[index - 1], to = from.Lerp(points[index], Math.Min(1, until - index + 1));
             Vector2 direction = from.DirectionTo(to), side = direction.Orthogonal() * radius;
             float length = from.DistanceTo(to);
             if (length < .05f) continue;
-            EasyKoharuDash(from + side, to + side, EasyKoharuWarning);
-            EasyKoharuDash(from - side, to - side, EasyKoharuWarning);
+            center.Add(to);
+            while (nextHatch <= distance + length)
+            {
+                float at = nextHatch - distance, slant = Math.Min(radius, 2);
+                hatches.Add(from + direction * Math.Max(0, at - slant) - side);
+                hatches.Add(from + direction * Math.Min(length, at + slant) + side);
+                nextHatch += 10;
+            }
+            EasyKoharuDashes(edges, from + side, to + side, distance);
+            EasyKoharuDashes(edges, from - side, to - side, distance);
             while (arrows && nextArrow <= distance + length)
             {
                 Vector2 at = from + direction * (nextArrow - distance);
-                DrawPolyline(new[] { at - direction * 2 - direction.Orthogonal() * 2, at, at - direction * 2 + direction.Orthogonal() * 2 },
-                    EasyKoharuWarning, .8f, true);
+                edges.Add(at - direction * 2 - direction.Orthogonal() * 2);
+                edges.Add(at);
+                edges.Add(at);
+                edges.Add(at - direction * 2 + direction.Orthogonal() * 2);
                 nextArrow += 64;
             }
             distance += length;
         }
         foreach (var end in new[] { points[0], EasyKoharuPoint(points, progress) })
             for (int dash = 0; dash < 12; dash++)
-                DrawArc(end, radius, dash * Mathf.Tau / 12, (dash + .45f) * Mathf.Tau / 12, 3, EasyKoharuWarning, .65f, true);
+            {
+                edges.Add(end + Vector2.FromAngle(dash * Mathf.Tau / 12) * radius);
+                edges.Add(end + Vector2.FromAngle((dash + .45f) * Mathf.Tau / 12) * radius);
+            }
+        return new(center.ToArray(), edges.ToArray(), hatches.ToArray());
+    }
+
+    private void EasyKoharuWarningPath(Vector2[] points, float radius, float progress, bool arrows = true, bool marker = true, bool cache = true)
+    {
+        if (points.Length < 2) return;
+        if (marker) EasyKoharuMarker(points[0], points[1] - points[0]);
+        if (progress <= 0) return;
+        if (!cache || progress < 1 || !_easyWarningMeshes.TryGetValue((points, radius), out var mesh))
+        {
+            mesh = EasyKoharuWarningMesh(points, radius, progress, arrows);
+            if (cache && progress >= 1) _easyWarningMeshes[(points, radius)] = mesh;
+        }
+        if (mesh.Center.Length > 1) DrawPolyline(mesh.Center, EasyKoharuWarningFill, radius * 2, true);
+        if (mesh.Hatches.Length > 0) DrawMultiline(mesh.Hatches, EasyKoharuHatch, .55f, true);
+        bool overlapping = OwnedShots.Any(shot => !shot.LeadIn && shot.CollisionLayer != 0);
+        DrawMultiline(mesh.Edges, new Color(EasyKoharuWarningInk, overlapping ? .7f : .92f), 1.8f, true);
+        DrawMultiline(mesh.Edges, new Color(EasyKoharuWarning, overlapping ? .6f : .9f), .75f, true);
+        for (int i = 1; i < mesh.Center.Length; i++)
+            DrawWarningEdgeCaps(mesh.Center[i - 1], mesh.Center[i], radius, EasyKoharuWarning);
+        DrawCircle(points[0], radius, EasyKoharuWarningFill);
+        DrawCircle(EasyKoharuPoint(points, progress), radius, EasyKoharuWarningFill);
+    }
+
+    private void EasyKoharuWarningBox(Rect2 rect, float progress)
+    {
+        var revealed = new Rect2(rect.Position, new Vector2(rect.Size.X * progress, rect.Size.Y)).Intersection(Field.Rect);
+        if (!revealed.HasArea()) return;
+        DrawRect(revealed, EasyKoharuWarningFill);
+        Vector2[] corners = { revealed.Position, new(revealed.End.X, revealed.Position.Y), revealed.End, new(revealed.Position.X, revealed.End.Y) };
+        for (int edge = 0; edge < corners.Length; edge++)
+            DrawWarningEdgeCaps(corners[edge], corners[(edge + 1) % corners.Length], 0, EasyKoharuWarning);
+        for (float offset = -revealed.Size.Y; offset < revealed.Size.X; offset += 8)
+        {
+            float from = Math.Max(0, -offset), to = Math.Min(revealed.Size.Y, revealed.Size.X - offset);
+            if (to <= from) continue;
+            DrawLine(revealed.Position + new Vector2(offset + from, from),
+                revealed.Position + new Vector2(offset + to, to), EasyKoharuHatch, .65f, true);
+        }
+        EasyKoharuWarningPath(new[] { rect.Position, new Vector2(rect.End.X, rect.Position.Y),
+            rect.End, new Vector2(rect.Position.X, rect.End.Y), rect.Position }, .35f, progress, false, false, false);
+        if (progress < 1) return;
+        Vector2 center = rect.GetCenter();
+        DrawLine(center - new Vector2(2, 2), center + new Vector2(2, 2), EasyKoharuWarningInk, 2.4f, true);
+        DrawLine(center - new Vector2(2, -2), center + new Vector2(2, -2), EasyKoharuWarningInk, 2.4f, true);
+        DrawLine(center - new Vector2(2, 2), center + new Vector2(2, 2), EasyKoharuWarning, .9f, true);
+        DrawLine(center - new Vector2(2, -2), center + new Vector2(2, -2), EasyKoharuWarning, .9f, true);
+    }
+
+    private void EasyKoharuWarningDisc(Vector2 center, float radius, float progress)
+    {
+        if (progress <= 0) return;
+        float revealed = radius * progress;
+        DrawCircle(center, revealed, EasyKoharuWarningFill);
+        Vector2 diagonal = new Vector2(1, 1).Normalized(), side = diagonal.Orthogonal();
+        for (float offset = -revealed + 4; offset < revealed; offset += 8)
+        {
+            float half = Mathf.Sqrt(revealed * revealed - offset * offset);
+            DrawLine(center + side * offset - diagonal * half, center + side * offset + diagonal * half,
+                EasyKoharuHatch, .65f, true);
+        }
+        DrawArc(center, radius, -Mathf.Pi / 2, -Mathf.Pi / 2 + Mathf.Tau * progress, 64, EasyKoharuWarningInk, 2.3f, true);
+        DrawArc(center, radius, -Mathf.Pi / 2, -Mathf.Pi / 2 + Mathf.Tau * progress, 64, EasyKoharuWarning, 1f, true);
+        DrawWarningEdgeCaps(center, center, revealed, EasyKoharuWarning);
     }
 
     private void DrawEasyKoharu()
@@ -640,8 +751,12 @@ public partial class KoharuBossTechnique : BossCharacterTechnique
             && Time >= path.StartsAt + .9 && _easyPaths.Any(pulse => pulse.Wave == path.Wave && pulse.Strand == path.Strand
                 && Time < pulse.FiresAt + pulse.Duration)))
             foreach (var turn in path.Turns)
-                DrawPolyline(new[] { turn + new Vector2(-3, -3), turn + new Vector2(3, -3), turn + new Vector2(3, 3),
-                    turn + new Vector2(-3, 3), turn + new Vector2(-3, -3) }, EasyKoharuWarning, .8f, true);
+            {
+                var outline = new[] { turn + new Vector2(-3, -3), turn + new Vector2(3, -3), turn + new Vector2(3, 3),
+                    turn + new Vector2(-3, 3), turn + new Vector2(-3, -3) };
+                DrawPolyline(outline, EasyKoharuWarningInk, 2.4f, true);
+                DrawPolyline(outline, EasyKoharuWarning, 1f, true);
+            }
         foreach (var sweep in _easySweeps.Where(sweep => _easyPrepared[sweep.Wave]
             && Time >= sweep.StartsAt && Time < sweep.FiresAt))
         {
@@ -649,15 +764,12 @@ public partial class KoharuBossTechnique : BossCharacterTechnique
             if (sweep.Mode == 4)
             {
                 Vector2 point = sweep.Points[0], half = new(sweep.HalfWidth, sweep.HalfHeight);
-                EasyKoharuMarker(point, Vector2.Down);
-                EasyKoharuWarningPath(new[] { point - half, point + new Vector2(half.X, -half.Y),
-                    point + half, point + new Vector2(-half.X, half.Y), point - half }, .35f, progress, false, false);
+                EasyKoharuWarningBox(new Rect2(point - half, half * 2), progress);
             }
             else if (sweep.Mode == 2)
             {
                 EasyKoharuMarker(sweep.Points[0], Vector2.Down);
-                if (progress > 0) DrawArc(sweep.Points[0], sweep.HalfWidth, -Mathf.Pi / 2, -Mathf.Pi / 2 + Mathf.Tau * progress,
-                    64, EasyKoharuWarning, .7f, true);
+                EasyKoharuWarningDisc(sweep.Points[0], sweep.HalfWidth, progress);
             }
             else EasyKoharuWarningPath(sweep.Points, sweep.HalfWidth + (sweep.Mode == 0 ? sweep.HalfHeight : 0), progress);
         }
@@ -667,58 +779,95 @@ public partial class KoharuBossTechnique : BossCharacterTechnique
                 && Time >= sweep.FiresAt - .42 && Time < sweep.EndsAt))
             {
                 Vector2 point = focus.Points[0];
-                bool horizontal = focus.PulseOffsets.Any(offset => Time >= focus.FiresAt + offset - .42
+                bool horizontal = focus.PulseOffsets.Any(offset => Time >= focus.FiresAt + offset - EasyGazeLead
                     && Time < focus.FiresAt + offset + focus.Duration);
                 bool vertical = focus.PulseOffsets.Any(offset => Time >= focus.FiresAt + offset
-                    && Time < focus.FiresAt + offset + .66);
+                    && Time < focus.FiresAt + offset + EasyGazeTail);
                 if (horizontal)
                 {
-                    float far = point.X - Math.Sign(focus.EyeA.X - point.X) * focus.HalfWidth;
-                    var rect = new Rect2(Math.Min(far, focus.EyeA.X), point.Y - focus.HalfHeight,
-                        Math.Abs(far - focus.EyeA.X), focus.HalfHeight * 2);
-                    DrawRect(rect, new Color("b1d4c5", .16f));
-                    DrawRect(rect, new Color("c5e1d5", .45f), false, .5f);
+                    Vector2 edge = point + Vector2.Right * Math.Sign(focus.EyeA.X - point.X) * focus.HalfWidth;
+                    DrawLine(focus.EyeA, edge, new Color("d7cbe5", .55f), .6f, true);
                 }
                 if (vertical)
                 {
-                    float far = point.Y - Math.Sign(focus.EyeB.Y - point.Y) * focus.HalfHeight;
-                    var rect = new Rect2(point.X - focus.HalfWidth, Math.Min(far, focus.EyeB.Y),
-                        focus.HalfWidth * 2, Math.Abs(far - focus.EyeB.Y));
-                    DrawRect(rect, new Color("d7d0b3", .16f));
-                    DrawRect(rect, new Color("e6dfc8", .45f), false, .5f);
+                    Vector2 edge = point + Vector2.Down * Math.Sign(focus.EyeB.Y - point.Y) * focus.HalfHeight;
+                    DrawLine(focus.EyeB, edge, new Color("d7cbe5", .55f), .6f, true);
                 }
-                Eye(focus.EyeA, point, horizontal ? .9f : .1f, new Color("d4f4df", .7f));
-                Eye(focus.EyeB, point, vertical ? .9f : .1f, new Color("f0e5c9", .7f));
+                Eye(focus.EyeA, point, horizontal ? .9f : .1f, new Color("d7cbe5", .7f));
+                Eye(focus.EyeB, point, vertical ? .9f : .1f, new Color("d7cbe5", .7f));
             }
         }
-        var active = new Color("ff617d", .92f);
         foreach (var hazard in HazardShapes.Where(hazard => hazard.Live))
         {
             if (_easyMode == 5 && Time < _warning + 2 && hazard.Shape == 1)
             {
-                DrawCircle(hazard.A, hazard.Radius, new Color(active, .12f));
-                DrawArc(hazard.A, hazard.Radius, 0, Mathf.Tau, 48, active, 1.2f, true);
+                DrawCircle(hazard.A, hazard.Radius, new Color("bd83ee", .16f));
+                DrawArc(hazard.A, hazard.Radius, 0, Mathf.Tau, 64, new Color("281431"), 2, true);
+                DrawArc(hazard.A, hazard.Radius, 0, Mathf.Tau, 64, new Color("e4b4ff"), .9f, true);
                 continue;
             }
             if (hazard.Shape == 2)
             {
-                var rect = new Rect2(hazard.A, hazard.B - hazard.A);
-                DrawRect(rect.Grow(.6f), new Color("351126", .95f));
-                DrawRect(rect, active);
-                DrawRect(rect, new Color("ffdbe3"), false, .8f);
+                DrawKoharuFocus(new Rect2(hazard.A, hazard.B - hazard.A));
                 continue;
             }
             if (hazard.A.DistanceSquaredTo(hazard.B) > .01f)
-            {
-                DrawLine(hazard.A, hazard.B, new Color("351126", .95f), hazard.Radius * 2 + 1.2f, true);
-                DrawLine(hazard.A, hazard.B, active, hazard.Radius * 2, true);
-                DrawLine(hazard.A, hazard.B, new Color("ffdbe3", .9f), .8f, true);
-            }
-            DrawCircle(hazard.A, hazard.Radius, active);
-            DrawCircle(hazard.B, hazard.Radius, active);
-            if (hazard.A.DistanceSquaredTo(hazard.B) <= .01f)
-                DrawArc(hazard.A, hazard.Radius, 0, Mathf.Tau, 40, new Color("ffdbe3"), .8f, true);
+                DrawKoharuLight(hazard.A, hazard.B, hazard.Radius);
+            else DrawKoharuLanding(hazard.A, hazard.Radius);
         }
+    }
+
+    private void DrawKoharuFocus(Rect2 rect)
+    {
+        DrawRect(rect.Grow(.6f), new Color("211329"));
+        DrawRect(rect, new Color("744397", .94f));
+        DrawRect(rect.Grow(-1.4f), new Color("302047", .88f));
+        float scan = (float)(Time * 10 % 5);
+        for (float y = rect.Position.Y + 2 + scan; y < rect.End.Y - 2; y += 5)
+            DrawLine(new Vector2(rect.Position.X + 2, y), new Vector2(rect.End.X - 2, y), new Color("bf8de9", .24f), .5f);
+        float size = Math.Min(rect.Size.X, rect.Size.Y) * .8f;
+        Vector2 center = rect.GetCenter();
+        DrawTextureRect(_eyeArt!, new Rect2(center - Vector2.One * size * .5f, Vector2.One * size), false);
+        DrawRect(rect, new Color("f4a1d5"), false, .8f);
+        foreach (var sign in new[] { new Vector2(-1, -1), new Vector2(1, -1), new Vector2(-1, 1), new Vector2(1, 1) })
+        {
+            Vector2 corner = center + sign * (rect.Size * .5f - Vector2.One * 1.3f);
+            DrawPolyline(new[] { corner - new Vector2(sign.X * 5, 0), corner, corner - new Vector2(0, sign.Y * 5) },
+                new Color("ffe3ad"), .9f, true);
+        }
+    }
+
+    private void DrawKoharuLight(Vector2 from, Vector2 to, float radius)
+    {
+        var violet = new Color("ae70dc");
+        DrawLine(from, to, new Color("211329"), radius * 2 + 1.2f, true);
+        DrawLine(from, to, violet, radius * 2, true);
+        DrawCircle(from, radius, violet);
+        DrawCircle(to, radius, violet);
+        Vector2 side = from.DirectionTo(to).Orthogonal() * (radius - .35f);
+        DrawLine(from + side, to + side, new Color("f1b3e4"), .7f, true);
+        DrawLine(from - side, to - side, new Color("f1b3e4"), .7f, true);
+        DrawSetTransform(from, from.DirectionTo(to).Angle());
+        DrawTextureRect(_lightArt!, new Rect2(0, -radius * .72f, from.DistanceTo(to), radius * 1.44f), false);
+        DrawSetTransform(Vector2.Zero);
+    }
+
+    private void DrawKoharuLanding(Vector2 center, float radius)
+    {
+        DrawCircle(center, radius, new Color("583274", .82f));
+        DrawTextureRect(_sparkArt!, new Rect2(center - Vector2.One * radius, Vector2.One * radius * 2), false);
+        float bloom = Mathf.Clamp((float)((Time - _warning - 2) / .42), 0, 1);
+        DrawArc(center, radius * (.28f + bloom * .65f), 0, Mathf.Tau, 48, new Color("ffe3ad", .8f), 1, true);
+        for (int branch = 0; branch < 6; branch++)
+        {
+            Vector2 outward = Vector2.FromAngle(branch * Mathf.Tau / 6 - Mathf.Pi / 2), side = outward.Orthogonal();
+            Vector2 root = center + outward * radius * .24f, joint = center + outward * radius * .5f;
+            Vector2 tip = center + outward * radius * .82f;
+            DrawPolyline(new[] { root, joint + side * radius * .08f, tip }, new Color("e4c9ff"), 1.1f, true);
+            DrawLine(joint, joint + outward * radius * .12f + side * radius * .22f, new Color("ffe3ad"), .8f, true);
+        }
+        DrawArc(center, radius, 0, Mathf.Tau, 64, new Color("211329"), 2, true);
+        DrawArc(center, radius, 0, Mathf.Tau, 64, new Color("f4a1d5"), .9f, true);
     }
 
     private void BraidedLights()
@@ -894,7 +1043,6 @@ public partial class KoharuBossTechnique : BossCharacterTechnique
     private void ObservingEyes(double delta)
     {
         bool moving = delta > 0 && Player.GlobalPosition.DistanceTo(_lastPlayer) / delta > 5;
-        if (Time < _warning) Hint(_anchor, "止まって、ひと息");
         if (Time >= _warning && _firedAt < 0)
         {
             double gain = Tier switch { 2 => 1.0, 3 => 1.2, _ => 0.8 };
@@ -1090,7 +1238,6 @@ public partial class KoharuBossTechnique : BossCharacterTechnique
             }
             else Move(weight.Light, SupportFallPoint(weight, (float)(Time - weight.DropAt)));
         }
-        if (Time < _warning) Hint(Center + Vector2.Down * 54, "寄る側が沈む。光の勢いを見る");
         if (Time > _warning + (pairs - 1) * SupportInterval + 12) Finish();
     }
 
@@ -1192,8 +1339,6 @@ public partial class KoharuBossTechnique : BossCharacterTechnique
             Line(_point + Vector2.FromAngle(a) * r1, _point + Vector2.FromAngle(b) * r2,
                 3 + Tier * 0.5f, live, (float)Math.Min(1, Time / _warning));
         }
-        if (!GameManager.Instance!.HasDodge)
-            Hint(new Vector2(Field.CenterX, 202), age < 0 ? "外へ出るなら、輪が光る前に" : "中心側か、輪の外で待つ");
         if (age > 5.8) Finish();
     }
 
@@ -1308,7 +1453,6 @@ public partial class KoharuBossTechnique : BossCharacterTechnique
         if (_firedAt < 0)
         {
             Disc(_origin, 16 + (float)_charge * 25, false, (float)_charge);
-            Hint(_origin + Vector2.Down * 45, _charge > 0.55 ? "少し、離れて" : "距離で光が変わる");
         }
         else
         {

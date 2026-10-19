@@ -6,6 +6,8 @@ public partial class GameManager
     private readonly HashSet<string> _ownedCosmetics = new();
     private readonly Dictionary<Job, string> _costumes = new();
     public string SelectedCursor { get; private set; } = Cosmetics.DefaultCursor;
+    private ImageTexture? _cursorTexture;
+    internal Vector2I CursorPixelDimensions { get; private set; }
 
     public CosmeticItem CostumeFor(Job job) => _costumes.TryGetValue(job, out string? id)
         ? Cosmetics.Find(id)! : Cosmetics.DefaultCostume(job);
@@ -44,8 +46,17 @@ public partial class GameManager
 
     private void ApplyCursor()
     {
-        var texture = GD.Load<Texture2D>(Cosmetics.Find(SelectedCursor)!.Art);
+        using var image = GD.Load<Texture2D>(Cosmetics.Find(SelectedCursor)!.Art).GetImage();
+        Vector2I window = GetWindow().Size;
+        float scale = Mathf.Min(window.X / UiKit.DesignW, window.Y / UiKit.DesignH);
+        int height = Mathf.Clamp(Mathf.RoundToInt(20 * scale), 12, 64);
+        int width = Mathf.RoundToInt(height * image.GetWidth() / (float)image.GetHeight());
+        image.Resize(width, height, Image.Interpolation.Lanczos);
+        var texture = ImageTexture.CreateFromImage(image);
         Input.SetCustomMouseCursor(texture, Input.CursorShape.Arrow, Vector2.Zero);
+        _cursorTexture?.Dispose();
+        _cursorTexture = texture;
+        CursorPixelDimensions = new Vector2I(width, height);
     }
 
     private void SaveCosmetics(Godot.Collections.Dictionary data)
