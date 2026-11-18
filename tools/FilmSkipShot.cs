@@ -1,5 +1,6 @@
 using Godot;
 using System;
+using System.Reflection;
 using System.Threading.Tasks;
 
 // FilmSkipShot : 一度見たムービーのスキップUI（ヒントと充填バー）を撮るだけの小さなハーネス。
@@ -27,6 +28,7 @@ public partial class FilmSkipShot : Node
             DisplayServer.WindowSetSize(new Vector2I(1280, 720));
 
             var game = GetNode<GameManager>("/root/Game");
+            typeof(Settings).GetProperty(nameof(Settings.PauseWhenUnfocused))!.SetValue(null, false);
             game.ResetPersistent();
             game.AutoSaveEnabled = false;
             game.MsgCharsPerSec = 300;
@@ -50,12 +52,11 @@ public partial class FilmSkipShot : Node
             // ①回想：ヒントだけ（押していない状態）
             AkariStoryFilm.Play(hud, world, aftermath: false, completed: () => { });
             await Frames(120);
+            GetViewport().WarpMouse(FilmSkip.ButtonRect.GetCenter() * UiKit.Scale);
+            await Frames(3);
             await Save("story_hint");
             // ②回想：長押しの途中＝充填バーが伸びている状態
-            KeyEvent(Key.X, true);
-            await Frames(14);
-            await Save("story_holding");
-            KeyEvent(Key.X, false);
+            await MouseHoldShot((Node2D)GetTree().GetFirstNodeInGroup("storyfilm"), "story_holding");
             await Frames(3);
             foreach (Node n in GetTree().GetNodesInGroup("storyfilm")) n.QueueFree();
             await Frames(10);
@@ -64,10 +65,7 @@ public partial class FilmSkipShot : Node
             MinaPhaseScene.Play(hud, world, 1, () => { });
             await Frames(120);
             await Save("phase_hint");
-            KeyEvent(Key.X, true);
-            await Frames(14);
-            await Save("phase_holding");
-            KeyEvent(Key.X, false);
+            await MouseHoldShot((Node2D)GetTree().GetFirstNodeInGroup("mina_phase_scene"), "phase_holding");
             await Frames(3);
             foreach (Node n in GetTree().GetNodesInGroup("mina_phase_scene")) n.QueueFree();
             await Frames(10);
@@ -94,6 +92,19 @@ public partial class FilmSkipShot : Node
         for (int i = 0; i < count; i++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
     }
 
-    private static void KeyEvent(Key key, bool pressed)
-        => Input.ParseInputEvent(new InputEventKey { Keycode = key, Pressed = pressed });
+    private async Task MouseHoldShot(Node2D scene, string name)
+    {
+        const BindingFlags flags = BindingFlags.Static | BindingFlags.NonPublic;
+        scene.SetProcess(false);
+        typeof(Pad).GetField("_usingMouse", flags)!.SetValue(null, true);
+        typeof(Pad).GetField("_mousePos", flags)!.SetValue(null, FilmSkip.ButtonRect.GetCenter());
+        typeof(Pad).GetField("_mL", flags)!.SetValue(null, false);
+        scene._Process(0.01);
+        typeof(Pad).GetField("_mL", flags)!.SetValue(null, true);
+        scene._Process(0.22);
+        await Save(name);
+        typeof(Pad).GetField("_mL", flags)!.SetValue(null, false);
+        scene._Process(0.01);
+        scene.SetProcess(true);
+    }
 }

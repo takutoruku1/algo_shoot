@@ -30,15 +30,19 @@ public partial class BossCoverageQa : Node
     private readonly Dictionary<string, Count> _counts = new();
     private readonly HashSet<(ulong Id, ulong Activation)> _playerShots = new();
     private readonly Queue<(double Time, int Damage)> _damage = new();
-    private Dictionary<string, int> _initialUpgrades = new();
+    private List<string> _initialUpgrades = new();
     private GameManager _game = null!;
     private Player _player = null!;
     private Hud _hud = null!;
     private Node? _stage;
     private Enemy? _boss;
     private string _character = "", _profile = "", _fire = "", _output = "";
+    private bool _observeRoster;
     private bool _cameo, _running, _done, _shift, _charge, _bomb, _defeated, _bombedShield, _wasTalking;
     private bool _postClearCompleted;
+    private bool _mixedReleasePending;
+    private int _mixedFirstReleases, _mixedSecondReleases, _mixedInterruptedReleases;
+    private double _mixedRapidSeconds, _mixedChargeSeconds;
     private string _postClearReason = "";
     private double _time, _limit, _bossFoundAt, _lastStateAt, _lastStatus, _defeatedAt;
     private int _lastHp, _initialHp, _lastPhase, _frame, _breaks, _damageInWindow, _maxWindowDamage;
@@ -74,12 +78,14 @@ public partial class BossCoverageQa : Node
             _profile = Option("--profile") ?? "max";
             _output = Option("--output") ?? "";
             _cameo = OS.GetCmdlineUserArgs().Contains("--cameo");
+            _observeRoster = OS.GetCmdlineUserArgs().Contains("--observe-roster");
+            Require(!_observeRoster || _cameo, "Roster observation without shooting is for the single-form cameo encounter.");
             Require(new[] { "Akari", "Koharu", "Rei", "Mina" }.Contains(_character), "unknown character");
             Require(new[] { "max", "heal-bomb", "base" }.Contains(_profile), "unknown profile");
             Require(!_cameo || _character != "Mina", "Mina has no cameo encounter");
             Require(Enum.TryParse<GameManager.Diff>(Option("--difficulty") ?? "Normal", true, out var difficulty), "unknown difficulty");
             _fire = Option("--fire") ?? (_profile == "base" ? "charge" : "rapid");
-            Require(_fire is "rapid" or "charge", "unknown firing policy");
+            Require(_fire is "rapid" or "charge" or "mixed", "unknown firing policy");
             _limit = double.Parse(Option("--seconds") ?? "3600", System.Globalization.CultureInfo.InvariantCulture);
             Require(_limit > 0, "positive time limit required");
             GD.Seed(2070);
@@ -121,14 +127,14 @@ public partial class BossCoverageQa : Node
             _initialLinePower = _lastLinePower = _player.LinePower;
             _initialSpeedPower = _lastSpeedPower = _player.SpeedPower;
             _initialJob = _game.SelectedJob;
-            _initialUpgrades = new Dictionary<string, int>(Read<Dictionary<string, int>>(_game, "_upgrades"));
+            _initialUpgrades = _game.ColumnOwnedIds();
             _running = true;
             Log("START", new
             {
                 character = _character, difficulty = difficulty.ToString(), profile = _profile, fire = _fire,
                 cameo = _cameo, expected = _counts.Keys, timeLimit = _limit,
                 job = _game.SelectedJob.ToString(), lives = _player.Lives, bombs = _game.Bombs,
-                followers = _game.Followers, linePower = _player.LinePower, damageCap = _game.ExposedDamageCap,
+                followers = _game.Followers, linePower = _player.LinePower,
                 requestedJob = (_profile == "max" ? Job.Melee : _profile == "heal-bomb" ? Job.Heal : Job.Tank).ToString(),
                 survivalAssist = "player invulnerability only; enemy projectiles and real collisions remain active",
             });
@@ -140,19 +146,17 @@ public partial class BossCoverageQa : Node
     {
         if (_cameo)
         {
-            yield return "Cameo/0";
-            yield return "Cameo/1";
-            yield break;
+            return new[] { "Cameo/0", "Cameo/1" };
         }
-        for (int i = 0; i < (_character == "Akari" ? 5 : 3); i++) yield return $"Normal/{i}";
-        yield return "Edge/0";
-        for (int i = 0; i < (_character == "Akari" ? 2 : _character == "Mina" ? 5 : 3); i++) yield return $"Area/{i}";
-        if (_character != "Mina") yield return "Signature/0";
-        if (_character is "Koharu" or "Rei") yield return "Finale/0";
-        for (int i = 0; i < 5; i++) yield return $"Crossfire/{i}";
-        yield return "Dodge/0";
-        foreach (string form in new[] { "before", "after" })
-            for (int i = 0; i < 2; i++) yield return $"Extra/{i}/{form}";
+        Enemy catalog = _character switch { "Akari" => new BossAkari(), "Koharu" => new BossKoharu(),
+            "Rei" => new BossRei(), _ => new BossMina() };
+        int segments = _character == "Mina" ? 5 : _character == "Akari" ? 2 : 3;
+        var identities = Enumerable.Range(0, segments).SelectMany(segment => BossAttackCycle.Slots(catalog, segment)
+            .Select(slot => $"{slot.Kind}/{slot.Variant}" + (slot.Kind == BossTechniqueKind.Extra
+                ? (segment >= (_character == "Mina" ? BossMina.DragonPhase : 1) ? "/after" : "/before") : "")))
+            .Distinct().ToArray();
+        catalog.Free();
+        return identities;
     }
 
     private bool Matches(Enemy boss) => _cameo ? boss is CameoBoss : _character switch
@@ -214,12 +218,12 @@ public partial class BossCoverageQa : Node
                 Log("PLAYER_GAIN", new { time = _time, previousLives, lives = _lastLives,
                     previousLinePower, linePower = _lastLinePower, previousSpeedPower, speedPower = _lastSpeedPower,
                     source = "game reward or collected pickup; QA grants no rewards after setup" });
-            var upgrades = Read<Dictionary<string, int>>(_game, "_upgrades");
-            Require(_game.SelectedJob == _initialJob && upgrades.Count == _initialUpgrades.Count
-                && _initialUpgrades.All(pair => upgrades.TryGetValue(pair.Key, out int value) && value == pair.Value),
+            Require(_game.SelectedJob == _initialJob && _game.OwnedUpgradeCount == _initialUpgrades.Count
+                && _initialUpgrades.All(_game.Has),
                 "job or permanent upgrades changed during the encounter");
             Write(_player, "_invincible", true);
             Write(_player, "_invincibleTimer", _defeated ? 300f : (float)(_limit - _time + 120));
+            if (_observeRoster && _counts.Values.Any(count => count.Completed == 0)) Write(_player, "_fireCooldown", 1f);
             _time += delta;
             _frame++;
             if (!_defeated && _time >= _limit) { End("time limit reached before a verified clear"); return; }
@@ -230,6 +234,7 @@ public partial class BossCoverageQa : Node
                 {
                     _bossFoundAt = _lastStateAt = _time;
                     _initialHp = _lastHp = Read<int>(_boss, "_hp");
+                    if (!_cameo) Require(_game.StageProgress == .90f && !_game.StageCleared, "boss entry must show 90%");
                     _lastState = State(_boss);
                     _lastPhase = Phase(_boss);
                     _lastForm = Form(_boss);
@@ -294,9 +299,9 @@ public partial class BossCoverageQa : Node
         foreach (var attack in boss.GetChildren().OfType<BossCharacterTechnique>())
             ObserveActivation(TrackAttack(attack, boss));
         int hp = Read<int>(boss, "_hp");
+        if (!_cameo) Require(boss.IsPurified ? _game.StageProgress == 1 && _game.StageCleared
+            : _game.StageProgress == .90f && !_game.StageCleared, "final 10% belongs to the defeated story boss");
         int exposedLedgerDamage = Read<int>(boss, "_windowDamage");
-        Require(exposedLedgerDamage <= _game.ExposedDamageCap,
-            $"exposed damage ledger exceeds its maximum: {exposedLedgerDamage} > {_game.ExposedDamageCap}");
         _maximumExposedLedgerDamage = Math.Max(_maximumExposedLedgerDamage, exposedLedgerDamage);
         string state = State(boss);
         int phase = Phase(boss);
@@ -341,7 +346,7 @@ public partial class BossCoverageQa : Node
         {
             _defeated = true;
             _defeatedAt = _time;
-            Log("DEFEATED", new { time = _time, battleSeconds = _time - _bossFoundAt, hp, phase, form = formNow });
+            Log("DEFEATED", new { time = _time, battleSeconds = _time - _bossFoundAt, hp, phase, form = formNow, stageProgress = _game.StageProgress });
         }
     }
 
@@ -411,9 +416,58 @@ public partial class BossCoverageQa : Node
             }
         }
         else AutoplayInput.Move(Vector2.Zero);
+        if (_fire == "mixed")
+        {
+            DriveMixedFire(delta);
+            Input.FlushBufferedEvents();
+            return;
+        }
         bool ready = _game.HasChargeTier2 ? _player.ChargeFull2 : _player.ChargeFull;
         SetKey(Key.Z, _fire == "charge" && _player.LockedOn && !ready, ref _charge);
         Input.FlushBufferedEvents();
+    }
+
+    private void DriveMixedFire(double delta)
+    {
+        if (_mixedReleasePending)
+        {
+            SetKey(Key.Z, false, ref _charge);
+            if (_player.ChargeRatio == 0 && !Read<bool>(_player, "_chargeHeld")) _mixedReleasePending = false;
+            _mixedRapidSeconds += delta;
+            return;
+        }
+        bool exposed = _boss != null && IsInstanceValid(_boss) && _boss.GaugeBodyExposed;
+        if (!exposed)
+        {
+            if (_charge && _boss is { GaugeBreaking: true })
+            { _mixedChargeSeconds += delta; return; }
+            if (_charge) ReleaseMixedCharge(false);
+            else SetKey(Key.Z, false, ref _charge);
+            _mixedRapidSeconds += delta;
+            return;
+        }
+        double remaining = _boss!.GaugeAttackResolving ? double.PositiveInfinity : _boss.GaugeWindowLeft * 8;
+        float charged = _player.ChargeRatio * _game.ChargeNeedSec
+            + _player.ChargeRatio2 * (_game.ChargeTier2NeedSec - _game.ChargeNeedSec);
+        bool release = _player.ChargeFull2 || _player.ChargeFull
+            && (!_game.HasChargeTier2 || remaining <= _game.ChargeTier2NeedSec - charged + .25);
+        if (release) ReleaseMixedCharge(true);
+        else if (_charge || _player.LockedOn && remaining >= _game.ChargeNeedSec + .25)
+        { SetKey(Key.Z, true, ref _charge); _mixedChargeSeconds += delta; }
+        else
+        { SetKey(Key.Z, false, ref _charge); _mixedRapidSeconds += delta; }
+    }
+
+    private void ReleaseMixedCharge(bool exposed)
+    {
+        int stage = _player.ChargeStage;
+        if (exposed && stage == ChargeTier.Second) _mixedSecondReleases++;
+        else if (exposed && stage == ChargeTier.First) _mixedFirstReleases++;
+        else if (stage > 0) _mixedInterruptedReleases++;
+        Log("MIXED_RELEASE", new { time = _time, stage, bodyExposed = exposed,
+            state = _boss != null && IsInstanceValid(_boss) ? State(_boss) : "none" });
+        SetKey(Key.Z, false, ref _charge);
+        _mixedReleasePending = true;
     }
 
     private static void SetKey(Key code, bool pressed, ref bool current)
@@ -436,13 +490,24 @@ public partial class BossCoverageQa : Node
         _done = true;
         Release();
         var unseen = _counts.Where(pair => pair.Value.Completed == 0).Select(pair => pair.Key).ToArray();
-        bool passed = error == null && _defeated && _postClearCompleted && _lastHp == 0 && _playerShots.Count > 0;
+        if (_cameo && _character == "Akari" && _game?.Difficulty == GameManager.Diff.Normal && _defeated
+            && (_initialHp != 300 || _counts.Values.Sum(count => count.Activated) < 3))
+            error ??= "NORMAL midboss Akari must start with 300 HP and activate a third attack wave before defeat.";
+        bool passed = error == null && _defeated && _postClearCompleted && _lastHp == 0 && _playerShots.Count > 0
+            && (!_observeRoster || unseen.Length == 0);
         var result = new
         {
             passed, character = _character, difficulty = _game?.Difficulty.ToString(), profile = _profile, fire = _fire, cameo = _cameo, time = _time,
             error, defeated = _defeated, hp = _lastHp, initialHp = _initialHp,
             postClearCompleted = _postClearCompleted, postClearSeconds = _defeated ? (double?)(_time - _defeatedAt) : null,
             postClearReason = _postClearCompleted ? _postClearReason : error,
+            shootingStartsAfterRoster = _observeRoster,
+            mixedPolicy = _fire == "mixed" ? new {
+                description = "rapid while shielded; charge tier two only after the visible body gauge opens, tier one near window end; normal input release edges; no baseline comparison",
+                firstTierReleases = _mixedFirstReleases, secondTierReleases = _mixedSecondReleases,
+                interruptedChargedReleases = _mixedInterruptedReleases,
+                rapidInputSeconds = _mixedRapidSeconds, chargeInputSeconds = _mixedChargeSeconds,
+            } : null,
             expected = _counts.Count, counts = _counts, unseen, playerProjectiles = _playerShots.Count, breaks = _breaks,
             completedWithoutActivation = _counts.Where(pair => pair.Value.CompletedWithoutActivation > 0)
                 .ToDictionary(pair => pair.Key, pair => pair.Value.CompletedWithoutActivation),

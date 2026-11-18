@@ -99,7 +99,7 @@ public partial class BossCharacterShotQa : Node
         Check(!passed.Active && passed.GlobalPosition.X > Field.Right, "enemy seeker exits the field instead of orbiting");
 
         var playerShot = Pool.Spawn(center, Vector2.Right * speed, false, homing: true);
-        playerShot.TurnRateOverride = charged ? 240 : Jobs.Get(Job.Heal).HomingTurnRate;
+        playerShot.TurnRateOverride = charged ? 300 : Jobs.Get(Job.Heal).HomingTurnRate;
         playerShot.SetPhysicsProcess(false);
         var target = new Node2D();
         AddChild(target);
@@ -114,7 +114,7 @@ public partial class BossCharacterShotQa : Node
             playerShot._PhysicsProcess(1d / 60);
             playerTurn += Mathf.Abs(Mathf.AngleDifference(before, playerShot.Velocity.Angle()));
         }
-        Check(Mathf.IsEqualApprox(Mathf.RadToDeg(playerTurn), playerShot.TurnRateOverride), "player seeker retains full steering beyond 0.6 seconds");
+        Check(Mathf.IsEqualApprox(Mathf.RadToDeg(playerTurn), 720f), "player seeker retains strong steering beyond 0.6 seconds");
         target.Free();
         Pool.DespawnAll();
         player.GlobalPosition = original;
@@ -310,7 +310,8 @@ public partial class BossCharacterShotQa : Node
                     string label = job + (charged ? " charge" : " normal");
                     Check(body.Charged == charged && Mathf.IsEqualApprox(body.Radius,
                             (charged ? BulletPool.BossChargeRadius : BulletPool.BossRadius) * (job == Job.Magic ? 1.5f : 1)) && body.Homing == playerShot.Homing
-                        && body.Accel == playerShot.Accel && body.TurnRateOverride == playerShot.TurnRateOverride,
+                        && body.Accel == playerShot.Accel
+                        && body.TurnRateOverride == (job == Job.Heal ? charged ? 240 : Jobs.Get(job).HomingTurnRate : 0),
                         label + " keeps character behavior with standardized boss hit radius");
                     float playerSpeed = job == Job.Melee ? charged ? 240 : 12 : charged ? Jobs.Get(job).ChargeSpeed : Jobs.Get(job).ShotSpeed;
                     Check(Mathf.IsEqualApprox(playerShot.Velocity.Length(), playerSpeed)

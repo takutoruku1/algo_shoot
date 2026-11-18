@@ -55,6 +55,8 @@ public partial class MinaStoryQa : Node
                   && player.GetNode<Sprite2D>("Sprite").Texture.ResourcePath == game.JobDef.PlayerTexturePath,
                   "final stage uses the selected playable character");
             var intro = Read<(int, string, string)[]>(stage, "_intro");
+            Check(!game.FinalBossRevealed && Array.TrueForAll(intro, line => line.Item1 != 1),
+                "Mina remains out of contact throughout the first FINAL introduction");
             Check(Array.Exists(intro, x => x.Item2.Contains("僕の声は今のミナに届かない"))
                   && Array.Exists(intro, x => x.Item2.Contains("必ず、二人を帰す")), "intro separates the rescuer and the operator's roles");
             await AdvanceUntil(() => Read<int>(stage, "_introLine") >= 9);
@@ -93,6 +95,7 @@ public partial class MinaStoryQa : Node
             Write(player, "_invincibleTimer", 999f);
             await AdvanceUntil(() => Read<int>(stage, "_step") == 4 && world.GetNodeOrNull<BossMina>("BossMina") != null);
             var boss = world.GetNode<BossMina>("BossMina");
+            Check(game.FinalBossRevealed && !game.IsFinalCleared, "the boss entrance reveals Mina before earning the final medal");
             Check(Read<bool>(stage, "_bossActive"), "the actual boss arrival starts the boss phase");
             await AdvanceUntil(() => hud.GetNodeOrNull<CameoIntroScene>("BossIntroScene") == null
                 && !hud.CinematicMode && !Hud.BubblePaused && world.ProcessMode == ProcessModeEnum.Inherit);
@@ -123,7 +126,6 @@ public partial class MinaStoryQa : Node
                 Write(boss, "_hp", (int)(maxHp * (burst ? 0.18f : 0.49f)), typeof(Enemy));
                 Call(boss, "OnHpChanged");
             }
-            Write(game, "_comboTimer", 5.0);
             await AdvanceUntil(() => GetTree().GetFirstNodeInGroup("storyfilm") is MinaStoryFilm);
             var film = GetTree().GetFirstNodeInGroup("storyfilm") as StoryFilm;
             Check(film is MinaStoryFilm && hud.CinematicMode, "memory starts even after burst or lethal damage");
@@ -132,7 +134,6 @@ public partial class MinaStoryQa : Node
             float hp = boss.HpRatio;
             double elapsed = Read<double>(stage, "_stageElapsed");
             double phaseTime = Read<double>(boss, "_phaseT", typeof(Enemy));
-            double comboTime = Read<double>(game, "_comboTimer");
             KeyEvent(Key.Right, true);
             KeyEvent(Key.X, true);
             await Frames(90);
@@ -141,8 +142,8 @@ public partial class MinaStoryQa : Node
             Check(world.ProcessMode == ProcessModeEnum.Disabled && Hud.BubblePaused, "world and combat are suspended");
             Check(player.GlobalPosition == position && player.Lives == lives && game.Bombs == bombs && boss.HpRatio == hp,
                 "movement, damage and bombs freeze");
-            Check(Read<double>(stage, "_stageElapsed") == elapsed && Read<double>(boss, "_phaseT", typeof(Enemy)) == phaseTime
-                  && Read<double>(game, "_comboTimer") == comboTime, "stage, boss and combo clocks freeze");
+            Check(Read<double>(stage, "_stageElapsed") == elapsed && Read<double>(boss, "_phaseT", typeof(Enemy)) == phaseTime,
+                "stage and boss clocks freeze");
             using var first = await Shot("memory_start", true);
             Check(first.GetWidth() == 1280 && first.GetHeight() == 720, "desktop viewport is 1280x720");
             await Frames(90);

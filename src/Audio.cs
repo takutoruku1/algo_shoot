@@ -87,38 +87,17 @@ public partial class Audio : Node
     //   （話者差はピッチだけ＝同じゲームの同じ文字送り音）。TypNarr は語り用の短い版。
     public AudioStreamWav TypBoy = null!, TypMina = null!, TypBoss = null!, TypNarr = null!;
 
-    // BGM。BgmStage/BgmBoss はコード合成のループ（実音源が来たら差し替える）。
-    //   全曲で M.I.N.A. モチーフ（ド ミ レ ソ＝523/659/587/784Hz）を共有し「一つの主題の変奏」に。
-    //   BgmMenu=タイトル/ハブ等の温かい曲 / BgmStage=道中 / BgmBoss=短調寄り・密度高め・緊張（汎用＝Mina/Hikage 用）。
-    //   BgmMenu はライセンス実音源（res://audio/bgm_menu_mina.ogg）を読む。型は実ファイル/合成の
-    //   どちらでも受けられるよう AudioStream に広げる（参照側は Music(BgmMenu) で渡すだけなので不変）。
-    //   実音源の出所・加工内容は各 Load*() のコメントと BGM/acquisition_list.md §6 が正。
-    //   ロード失敗時は従来のコード合成 BuildBgmMenu() にフォールバックする（事故防止）。
     public AudioStream BgmMenu = null!;
     public AudioStreamWav BgmStage = null!, BgmBoss = null!;
 
-    // ステージ1（レイ）の道中＝ライセンス実音源（res://audio/bgm_stage_rei.ogg）。
-    //   BgmMenu と同じ作法：実ファイルを読み、失敗時は従来の合成 BgmStage にフォールバック（型を
-    //   AudioStream に広げる）。汚染連動の高域カットに乗せるため _Process の inStage 判定にも含める。
-    //   ogg は import 設定 loop=true で焼いてあるが、念のため AudioStreamOggVorbis.Loop も明示する
-    //   （Music() は曲尾で止めず鳴らしっぱなしにするため）。出所・加工は LoadBgmStageRei() 参照。
     public AudioStream BgmStageRei = null!;
 
-    // ステージ2（あかり）／ステージ3（こはる）の道中＝ライセンス実音源。
-    //   akari ＝res://audio/bgm_stage_akari.ogg / koharu＝res://audio/bgm_stage_koharu.ogg。
-    //   いずれも import 設定 loop=true。出所・加工内容は各 Load*() のコメント参照。
-    //   BgmStageRei と同じ作法：ogg は loop を焼いてあるが念のため AudioStreamOggVorbis.Loop も明示し、
-    //   ロード失敗時は従来の合成 BgmStage にフォールバック（事故防止）。StageBgm() のマップに足す。
-    //   汚染連動の高域カット（_Process の inStage 判定）にも含める＝レイ道中と同じ「ステージ中」扱い。
     public AudioStream BgmStageAkari = null!;
     public AudioStream BgmStageKoharu = null!;
 
-    // W0（チュートリアル "tutorial"）道中＝ライセンス実音源（res://audio/bgm_stage_w0.ogg）。
-    //   最後まで合成 BgmStage だけだった枠。加工・出所は LoadBgmStageW0() のコメント参照。
-    //   ロード失敗時は従来の合成 BgmStage にフォールバック（他の道中と同じ作法）。
     public AudioStream BgmStageW0 = null!;
 
-    // 回復の主題を各ボスの後日談からミナの帰還まで共有する。
+    // ミナの帰還後の会話を支える。
     public AudioStream BgmFinalResolve = null!;
 
     // 映像からスタッフロールまでを一つの演奏でつなぐため、一度だけ流す。
@@ -127,37 +106,22 @@ public partial class Audio : Node
     // ショップはハブの曲を保ち、練習は道中の主題を小さく鳴らす。
     public AudioStream BgmTitle = null!;
     public AudioStream BgmPrologue = null!;
+    public AudioStream BgmOpening = null!;
     public AudioStream BgmShop = null!;
     public AudioStream BgmTraining = null!;
     public AudioStream BgmCredits = null!;
     public AudioStream BgmGameOver = null!;
 
-    // 傷の回想は個別のピアノ曲、後日談は全員が同じ回復の主題へ帰る。
+    // 対面・回想・後日談では、その相手のテーマを継続する。
     public AudioStream BgmStoryRei = null!,   BgmStoryReiAfter = null!;
     public AudioStream BgmStoryAkari = null!, BgmStoryAkariAfter = null!;
     public AudioStream BgmStoryKoharu = null!, BgmStoryKoharuAfter = null!;
     public AudioStream BgmStoryMina = null!;   // ミナの aftermath は曲を持たない（意図的な無音）
 
-    // ボス別の戦闘BGM（設計 §1-2「各ボスの固有モチーフ＝未完→完」）。
-    //   いずれも M.I.N.A. 構成音ベース。戦闘中はモチーフが「未完」で、改心で PlayRedeem が「完」を返す。
-    //   Rei  ＝主音直前で落ちる（半音で届かない／順位＝あと一歩で一番になれない）。
-    //   Akari＝フレーズが途中で切れる（"す——"／言いかけて言えない好き）。
-    //   Koharu＝温かい旋律が冷えて減衰する（台所の灯が消えていく／祈りが冷える）。
-    //   Rei/Akari/Koharu とも実音源（res://audio/bgm_boss_rei.ogg / bgm_boss_akari.ogg /
-    //   bgm_boss_koharu.ogg, いずれも loop=true）を読む。型は AudioStream に広げ、
-    //   BgmMenu/BgmStageRei と同じ作法でロード失敗時は各 Build*() 合成へフォールバック。
-    //   ※「未完の仕方」のモチーフ設計は合成フォールバック（Build*）と Redeem* に生きている。
-    //   実音源の出所・加工内容は各 Load*() のコメントと BGM/acquisition_list.md §6 が正。
-    public AudioStream BgmBossRei = null!;
-    public AudioStream BgmBossAkari = null!;
-    public AudioStream BgmBossKoharu = null!;
-
-    // ラスボス（ミナ本体）の戦闘BGM＝ライセンス実音源（res://audio/bgm_boss_mina.ogg, loop=true）。
-    //   ※汎用 BgmBoss（Final冒頭）は変えず、BossMina.cs のミナ戦本体だけこの専用曲。
-    //   BgmBossRei と同じ作法：ロード失敗時は汎用合成 BgmBoss にフォールバック。
-    //   _Process の inStage 判定にも含める＝「ステージ戦闘曲」として汚染LowPassの対象。
-    //   出所・加工内容は LoadBgmBossMina() のコメント参照。
-    public AudioStream BgmBossMina = null!;
+    public AudioStream BgmBossRei = null!, BgmBossReiRemix = null!;
+    public AudioStream BgmBossAkari = null!, BgmBossAkariRemix = null!;
+    public AudioStream BgmBossKoharu = null!, BgmBossKoharuRemix = null!;
+    public AudioStream BgmBossMina = null!, BgmBossMinaRemix = null!;
 
     // W0 炎上中ボス「ヒカゲ」の専用テーマ＝ライセンス実音源（res://audio/bgm_boss_hikage.ogg, loop=true）。
     //   「凍った敷居」＝友達の輪に踏み込めず、敷居の前で立ち尽くして凍えていた子（笑うのが、へた）。
@@ -168,7 +132,7 @@ public partial class Audio : Node
     // 導入の沈黙後に戦闘曲を立て、救出へ急ぐ切迫感を保つため汚染LowPassの対象外にする。
     public AudioStream BgmFinalRoute = null!;
 
-    // 序盤の旋律を返事の直前に戻し、未送信の言葉を思い出させる。
+    // 最後の対話もミナ本人のテーマで支える。
     public AudioStream BgmFinalCutscene = null!;
 
     // 改心の「解決音（完）」。OnCryStart で戦闘BGMから温かくクロスフェードして鳴らす一節。
@@ -231,6 +195,7 @@ public partial class Audio : Node
         // 非戦闘画面の個別曲。フォールバックが BgmMenu を参照するので必ず BgmMenu の後に読む。
         BgmTitle    = LoadBgmTitle();
         BgmPrologue = LoadBgmPrologue();
+        BgmOpening = ResourceLoader.Load<AudioStreamMP3>("res://audio/bgm_opening.mp3");
         BgmShop     = BgmMenu;
         BgmTraining = LoadBgmTraining();
         BgmCredits  = LoadBgmCredits();
@@ -238,21 +203,25 @@ public partial class Audio : Node
         BgmFinalResolve = LoadBgmFinalResolve();
         // ボス戦の回想（StoryFilm）。これらも BgmMenu フォールバックなので BgmMenu の後に読む。
         BgmStoryRei         = LoadBgmStoryRei();
-        BgmStoryReiAfter    = BgmFinalResolve;
+        BgmStoryReiAfter    = BgmStoryRei;
         BgmStoryAkari       = LoadBgmStoryAkari();
-        BgmStoryAkariAfter  = BgmFinalResolve;
+        BgmStoryAkariAfter  = BgmStoryAkari;
         BgmStoryKoharu      = LoadBgmStoryKoharu();
-        BgmStoryKoharuAfter = BgmFinalResolve;
-        BgmStoryMina        = BgmGameOver;
+        BgmStoryKoharuAfter = BgmStoryKoharu;
+        BgmStoryMina        = LoadMenuFamily("res://audio/bgm_theme_mina.ogg", "BgmStoryMina");
         BgmEndingFilm = LoadBgmEndingFilm();
-        BgmBossRei    = LoadBgmBossRei();
-        BgmBossAkari  = LoadBgmBossAkari();
-        BgmBossKoharu = LoadBgmBossKoharu();
-        BgmBossMina   = LoadBgmBossMina();
+        BgmBossRei    = LoadBossArrangement("rei", "instrumental");
+        BgmBossAkari  = LoadBossArrangement("akari", "instrumental");
+        BgmBossKoharu = LoadBossArrangement("koharu", "instrumental");
+        BgmBossMina   = LoadBossArrangement("mina", "instrumental");
+        BgmBossReiRemix    = LoadBossArrangement("rei", "remix");
+        BgmBossAkariRemix  = LoadBossArrangement("akari", "remix");
+        BgmBossKoharuRemix = LoadBossArrangement("koharu", "remix");
+        BgmBossMinaRemix   = LoadBossArrangement("mina", "remix");
         BgmBossHikage = LoadBgmBossHikage();
         // FINAL 道中と F4 カットシーン。最終フォールバックが BgmBoss なので必ず BgmBoss の後に読む。
         BgmFinalRoute    = LoadBgmFinalRoute();
-        BgmFinalCutscene = BgmPrologue;
+        BgmFinalCutscene = BgmStoryMina;
         RedeemRei    = BuildRedeem(0);
         RedeemAkari  = BuildRedeem(1);
         RedeemKoharu = BuildRedeem(2);
@@ -270,8 +239,6 @@ public partial class Audio : Node
 
         // 保存済みの音量設定をバスへ適用（設定画面を開かなくても効く／再起動でも保たれる）。
         AudioConfig.ApplySaved();
-        // 保存済みのコントローラ表記スタイル（Xbox/PS）を復元（HUD の操作ガイドへ即反映）。
-        Pad.ApplySaved();
     }
 
     private AudioStreamPlayer MakePlayer(string bus)
@@ -368,31 +335,28 @@ public partial class Audio : Node
     }
 
     // ───────── BGM ─────────
-    // 公式音源を再圧縮せず、場面ごとの音量と原盤のラウドネス差を再生時に補正する。
     private float MusicTargetDb(AudioStream? stream)
     {
         if (stream == null) return 0f;
         if (stream == BgmMenu) return 0f;
         if (stream == BgmPrologue) return -7.30f;
+        if (stream == BgmOpening) return -3f;
+        if (stream == BgmBossAkari || stream == BgmBossAkariRemix
+            || stream == BgmBossKoharu || stream == BgmBossKoharuRemix
+            || stream == BgmBossRei || stream == BgmBossReiRemix
+            || stream == BgmBossMina || stream == BgmBossMinaRemix) return 0f;
         if (stream == BgmFinalResolve) return -5.97f;
         if (stream == BgmGameOver) return -7.09f;
         if (stream == BgmEndingFilm) return -7.15f;
-        if (stream == BgmTraining) return -18.49f;
-        // 公式ループを再圧縮せず、原盤の音量差だけを再生時に補正する。
-        float sourceGainDb = stream == BgmStageAkari ? -6.49f
-            : stream == BgmStageKoharu ? -5.14f
-            : stream == BgmStageRei ? -5.75f
-            : stream == BgmBossAkari ? -4.28f
-            : stream == BgmBossKoharu ? -2.49f
-            : stream == BgmBossRei ? -5.29f
-            : stream == BgmFinalRoute ? -5.93f : 0f;
-        if (stream == BgmBossAkari || stream == BgmBossKoharu || stream == BgmBossRei
-            || stream == BgmBossMina || stream == BgmBossHikage) return StageBgmRealDb + 3f + sourceGainDb;
-        // 既存のタイトル・クレジット・回想曲は音源側が -17.7 LUFS に調整済み。
+        if (stream == BgmTraining) return -2f;
+        if (stream == BgmStageAkari || stream == BgmStageKoharu || stream == BgmStageRei
+            || stream == BgmStageW0 || stream == BgmFinalRoute) return 0f;
+        if (stream == BgmBossHikage) return StageBgmRealDb + 3f;
+        // タイトル・クレジットと回想のテーマは音源側で音量を調整済み。
         if (stream == BgmTitle || stream == BgmCredits || stream == BgmStoryRei
-            || stream == BgmStoryAkari || stream == BgmStoryKoharu) return 0f;
+            || stream == BgmStoryAkari || stream == BgmStoryKoharu || stream == BgmStoryMina) return 0f;
         bool isReal = stream is AudioStreamMP3 || stream is AudioStreamOggVorbis;
-        return isReal ? StageBgmRealDb + sourceGainDb : 0f;
+        return isReal ? StageBgmRealDb : 0f;
     }
 
     // クロスフェードでループ曲を差し替える。同じ曲なら何もしない。stream=null で停止。
@@ -406,7 +370,7 @@ public partial class Audio : Node
 
         CancelOnceHook();
         _currentMusic = stream; // ステージ判定（BgmStage/BgmBoss なら濁し有効）に使う
-        if (stream != BgmBossAkari) StopAkariMusicEffects();
+        if (stream != BgmBossAkari && stream != BgmBossAkariRemix) StopAkariMusicEffects();
         if (stream != _postTheme) _postTheme = null;
 
         // 別曲へ切り替わるので再生速度を通常（1.0）へリセット＝ボス戦を抜けたら加速も解除。
@@ -427,6 +391,8 @@ public partial class Audio : Node
         // 前のクロスフェードは必ず捨てる。残すと、その Stop チェーンが「いま鳴らし始めた曲」を
         //   あとから止めて無音になる（_musicFadeTween の宣言部を参照）。
         _musicFadeTween?.Kill();
+        _musicFadeTween = null;
+        if (stream == null && !cur.Playing) return;
         var t = CreateTween().SetParallel();
         _musicFadeTween = t;
         // 実音源は StageBgmRealDb 下げたターゲットへフェードイン（合成は 0dB）。
@@ -915,7 +881,6 @@ public partial class Audio : Node
     //   ①雨：ローパスノイズのスウェル（一瞬で景色が「あの日」に飛ぶ）。
     //   ②クラクション：遠く二度鳴き（F4+A4 の濁った二音＝車のホーン。ローパス済みで刺さらせない）。
     //   ③言いかけた唇：あかりの音 E5（MinaMotif[1]）の木管風の一音が、伸びかけて "す——" とぷつり切れる
-    //     （BuildBgmBossAkari と同じ「フレーズが途中で切れる」語法＝画面の文字と同じことを耳で言う）。
     //   すべて減衰で 2.4 秒へ収束＝フラッシュの消え際と一緒に引く。
     private AudioStreamWav SynthMemoryFlash()
     {
@@ -1203,7 +1168,6 @@ public partial class Audio : Node
         return BuildBgmMenu();
     }
 
-    // PeriTune「Irregular」：配信への焦りを電子音の強い拍で支える（出典・加工は config/credits.ini）。
     private AudioStream LoadBgmStageRei()
     {
         var s = ResourceLoader.Load<AudioStream>("res://audio/bgm_stage_rei.ogg");
@@ -1213,7 +1177,6 @@ public partial class Audio : Node
         return BgmStage;
     }
 
-    // PeriTune「Machinery」：雨のオフィスの圧迫感を冷たい電子音とピアノで保つ（出典・加工は config/credits.ini）。
     private AudioStream LoadBgmStageAkari()
     {
         var s = ResourceLoader.Load<AudioStream>("res://audio/bgm_stage_akari.ogg");
@@ -1223,7 +1186,6 @@ public partial class Audio : Node
         return BgmStage;
     }
 
-    // PeriTune「Crisis」：追い立てられる推し活の道中に、途切れない危機感を置く（出典・加工は config/credits.ini）。
     private AudioStream LoadBgmStageKoharu()
     {
         var s = ResourceLoader.Load<AudioStream>("res://audio/bgm_stage_koharu.ogg");
@@ -1233,12 +1195,6 @@ public partial class Audio : Node
         return BgmStage;
     }
 
-    // ───────── BgmStageW0 のロード（ライセンス実音源 → 失敗時は合成 BgmStage へフォールバック）─────────
-    //   res://audio/bgm_stage_w0.ogg＝「Roll Roll Roll」（もっぴーさうんど／DOVA-SYNDROME・クレジット任意）。
-    //   賑やかさ控えめのチップチューン＝チュートリアル「最初の一歩」のスペック一致枠。
-    //   配布トラック自体が公式ループ版のため**トリム・端フェードは掛けない**（継ぎ目を壊さない）。
-    //   -4.8dB のゲインのみ（強リミッター原盤＋vorbis超過分込みでピーク-3dB帯へ）。
-    //   出所と規約記録は BGM/acquisition_list.md §6。
     private AudioStream LoadBgmStageW0()
     {
         var s = ResourceLoader.Load<AudioStream>("res://audio/bgm_stage_w0.ogg");
@@ -1248,50 +1204,11 @@ public partial class Audio : Node
         return BgmStage;
     }
 
-    // PeriTune「Rapid4」：電子音・ピアノ・弦の疾走で、レイの焦燥と切なさを押し出す（出典・加工は config/credits.ini）。
-    private AudioStream LoadBgmBossRei()
+    private static AudioStream LoadBossArrangement(string id, string arrangement)
     {
-        var s = ResourceLoader.Load<AudioStream>("res://audio/bgm_boss_rei.ogg");
-        if (s is AudioStreamOggVorbis ogg) { ogg.Loop = true; return ogg; }
-        if (s != null) return s; // 念のため（mp3 等に差し替えても受ける）
-        GD.PushWarning("BgmBossRei: res://audio/bgm_boss_rei.ogg をロードできず、合成 BuildBgmBossRei にフォールバック");
-        return BuildBgmBossRei();
-    }
-
-    // PeriTune「Flap」：ピアノと弦の切ない疾走で、届かない言葉を送り続けるあかりの焦りを支える（出典は config/credits.ini）。
-    private AudioStream LoadBgmBossAkari()
-    {
-        var s = ResourceLoader.Load<AudioStream>("res://audio/bgm_boss_akari.ogg");
-        if (s is AudioStreamOggVorbis ogg) { ogg.Loop = true; return ogg; }
-        if (s != null) return s; // 念のため（mp3 等に差し替えても受ける）
-        GD.PushWarning("BgmBossAkari: res://audio/bgm_boss_akari.ogg をロードできず、合成 BuildBgmBossAkari にフォールバック");
-        return BuildBgmBossAkari();
-    }
-
-    // PeriTune「Obsession」：激しい弦とピアノのワルツで、こはるの離れられない執着を支える（出典・加工は config/credits.ini）。
-    private AudioStream LoadBgmBossKoharu()
-    {
-        var s = ResourceLoader.Load<AudioStream>("res://audio/bgm_boss_koharu.ogg");
-        if (s is AudioStreamOggVorbis ogg) { ogg.Loop = true; return ogg; }
-        if (s != null) return s; // 念のため（mp3 等に差し替えても受ける）
-        GD.PushWarning("BgmBossKoharu: res://audio/bgm_boss_koharu.ogg をロードできず、合成 BuildBgmBossKoharu にフォールバック");
-        return BuildBgmBossKoharu();
-    }
-
-    // ───────── BgmBossMina のロード（ライセンス実音源 → 失敗時は汎用合成 BuildBgmBoss へフォールバック）─────────
-    //   res://audio/bgm_boss_mina.ogg＝「Dramatic5」（PeriTune・CC BY 4.0＝クレジット必須 → config/credits.ini）。
-    //   オルガン+金管+弦+ティンパニ+コーラスの疾走型荘厳＝ラスボス戦のスペック一致枠。
-    //   配布の公式ループ版 ogg（82.29秒）を使用＝**トリム・端フェードは掛けない**（継ぎ目を壊さない）。
-    //   -4.2dB のゲインのみ（強リミッター原盤＋vorbis超過分込みでピーク-3dB帯へ）。
-    //   出所と規約記録は BGM/acquisition_list.md §6。
-    //   ロード失敗時は汎用ボス曲 BuildBgmBoss() に戻す（ミナ戦が無音にならない事故防止）。
-    private AudioStream LoadBgmBossMina()
-    {
-        var s = ResourceLoader.Load<AudioStream>("res://audio/bgm_boss_mina.ogg");
-        if (s is AudioStreamOggVorbis ogg) { ogg.Loop = true; return ogg; }
-        if (s != null) return s; // 念のため（mp3 等に差し替えても受ける）
-        GD.PushWarning("BgmBossMina: res://audio/bgm_boss_mina.ogg をロードできず、汎用合成 BuildBgmBoss にフォールバック");
-        return BgmBoss;
+        var stream = ResourceLoader.Load<AudioStreamOggVorbis>($"res://audio/bgm_boss_{id}_{arrangement}.ogg");
+        stream.Loop = true;
+        return stream;
     }
 
     // ───────── BgmBossHikage のロード（ライセンス実音源 → 失敗時は合成 BuildBgmBossHikage へフォールバック）─────────
@@ -1309,7 +1226,6 @@ public partial class Audio : Node
         return BuildBgmBossHikage();
     }
 
-    // PeriTune「Rapid5」：最終道中を救出へ駆ける戦闘曲にする（出典・加工は config/credits.ini）。
     private AudioStream LoadBgmFinalRoute()
     {
         var s = ResourceLoader.Load<AudioStream>("res://audio/bgm_final_route.ogg");
@@ -1357,12 +1273,11 @@ public partial class Audio : Node
     //   勝利ファンファーレにせず「作品を見送る」トーン。原曲 166.5秒 → 0..150.8秒・-5.6dB。
     private AudioStream LoadBgmCredits() => LoadMenuFamily("res://audio/bgm_credits.ogg", "BgmCredits");
 
-    // PeriTune「Dark_Moon」：ミナの孤独と再挑戦前のためらいを同じ静かな主題で結ぶ。
     private AudioStream LoadBgmGameOver() => LoadMenuFamily("res://audio/bgm_gameover.ogg", "BgmGameOver");
 
-    private AudioStream LoadBgmStoryRei() => LoadMenuFamily("res://audio/bgm_story_rei.ogg", "BgmStoryRei");
-    private AudioStream LoadBgmStoryAkari() => LoadMenuFamily("res://audio/bgm_story_akari.ogg", "BgmStoryAkari");
-    private AudioStream LoadBgmStoryKoharu() => LoadMenuFamily("res://audio/bgm_story_koharu.ogg", "BgmStoryKoharu");
+    private AudioStream LoadBgmStoryRei() => LoadMenuFamily("res://audio/bgm_theme_rei.ogg", "BgmStoryRei");
+    private AudioStream LoadBgmStoryAkari() => LoadMenuFamily("res://audio/bgm_theme_akari.ogg", "BgmStoryAkari");
+    private AudioStream LoadBgmStoryKoharu() => LoadMenuFamily("res://audio/bgm_theme_koharu.ogg", "BgmStoryKoharu");
     // ───────── 回想の曲を引く（StoryFilm が自分で呼ぶ）─────────
     //   story＝"rei"/"akari"/"koharu"/"mina"、aftermath＝撃破後のカラー回想か。
     //   **ミナの aftermath だけ null を返す＝意図的な無音**（直後の Final が「無音→挿入歌」の
@@ -1571,10 +1486,6 @@ public partial class Audio : Node
         return w;
     }
 
-    // ───────── ボス別テーマ：共通の土台（BuildBgmBoss と同じ枠で、編成だけ差し替える）─────────
-    //   設計 §1-2「各ボスの固有モチーフ＝未完→完」。3曲とも M.I.N.A. 構成音（C E D G）を核にし、
-    //   それぞれ別の「未完の仕方」でモチーフを翳らせる。改心（PlayRedeem）が同じ音形を「完」に解く。
-    //   進行は BuildBgmBoss と同じ Am-Dm-E-Am（緊張と解決の反復）。各小節1.6秒＝6.4秒ループ。
     private static readonly float[][] BossChords =
     {
         new[] { 110.00f, 220.00f, 261.63f, 329.63f }, // Am
@@ -1617,50 +1528,6 @@ public partial class Audio : Node
 
     // M.I.N.A. モチーフ（ド ミ レ ソ）の小節別の主音。
     private static readonly float[] MinaMotif = { 523.25f, 659.25f, 587.33f, 783.99f };
-
-    // Rei：主音の「直前」で半音落ちる＝あと一歩で一番になれない（順位＝届かない）。
-    //   各小節、モチーフ音へ向かう途中で目標の半音下に滑り落ちて減衰する。
-    private AudioStreamWav BuildBgmBossRei()
-    {
-        return BuildBossBase((b, t) =>
-        {
-            float target = MinaMotif[b];
-            float reach = target * 0.9438f;                      // 半音下＝届かない音
-            // 前半は target を目指して立ち上がるが、後半で reach へずり落ちる（グリッサンド）。
-            float k = Mathf.Clamp((t - 0.5f) / 0.6f, 0f, 1f);
-            float f = Mathf.Lerp(target, reach, k);
-            float env = Swell(t, 1.6f, 0.06f, 0.5f);
-            return Mathf.Sin(Mathf.Tau * f * t) * env * 0.07f;
-        });
-    }
-
-    // Akari：フレーズが途中で切れる＝言いかけて言えない（"す——"）。
-    //   モチーフ音を鳴らし始めてすぐ（~0.5s）でぷつりと断ち、残りの小節は沈黙（間＝言えなさ）。
-    private AudioStreamWav BuildBgmBossAkari()
-    {
-        return BuildBossBase((b, t) =>
-        {
-            const float cut = 0.5f;                              // ここで言葉が切れる
-            if (t > cut) return 0f;
-            float env = (t < 0.02f ? t / 0.02f : 1f) * Mathf.Min(1f, (cut - t) / 0.06f); // 末端を急に断つ
-            return Mathf.Sin(Mathf.Tau * MinaMotif[b] * t) * env * 0.08f;
-        });
-    }
-
-    // Koharu：温かい旋律が冷えて減衰する＝台所の灯が消えていく／祈りが冷える。
-    //   モチーフ音は柔らかく立ち上がるが、ピッチがわずかに沈み、減衰が速まって「冷えて」消える。
-    private AudioStreamWav BuildBgmBossKoharu()
-    {
-        return BuildBossBase((b, t) =>
-        {
-            float chill = 1f - 0.012f * t;                       // ごくわずかに沈む（冷える）
-            float f = MinaMotif[b] * chill;
-            float env = (t < 0.04f ? t / 0.04f : 1f) * Mathf.Exp(-t / 0.55f); // 温かい立ち上がり→冷えて減衰
-            float warm = Mathf.Sin(Mathf.Tau * f * t)
-                       + 0.18f * Mathf.Sin(Mathf.Tau * f * 2f * t); // 薄い倍音＝木質の温もり
-            return warm * env * 0.07f;
-        }, density: 0.7f); // 刻みを薄め＝温度のある静けさ
-    }
 
     // Hikage：モチーフが影に沈む＝笑おうとして、途中でオクターブ下へ引っ込む（日陰＝人前で笑えない）。
     //   各小節、モチーフ音が立ち上がりかけた直後に1オクターブ下へ落ち、小さく震えながら消える。

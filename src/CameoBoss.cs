@@ -55,8 +55,8 @@ public partial class CameoBoss : Enemy
 
     // 徘徊ゾーン（盤面上部・右寄り～中央。自機側＝左下まで降りすぎない）。盤面の矩形は Field が定義元。
     //   中心Xは盤面中心の +18px（Left=0 の従来値 210 に一致）、半幅は盤面幅の 80/384。
-    private static readonly Vector2 ZoneCenter = new Vector2(Field.CenterX + 18f, 72f);
-    private const float ZoneHalfW = Field.Width * (80f / 384f);
+    private static Vector2 ZoneCenter => new(Field.CenterX + 18f, 72f);
+    private static float ZoneHalfW => Field.Width * (80f / 384f);
     private const float ZoneHalfH = 26f;
 
     // 捨て台詞の一行オーバーレイ1行あたりの表示秒（旧 CameoHit.PostLineDur を踏襲）。
@@ -64,6 +64,8 @@ public partial class CameoBoss : Enemy
 
     // Stage がスポーン前に設定するテーマ（_Ready より前に代入される前提）。
     public CameoTheme Theme;
+    internal bool SealsEachBar { get; private set; }
+    protected override string LunaticEncounterLine => FirstBossLine(Theme.IntroLines);
 
     // 撃破→捨て台詞を流し切ったら true（Stage が見て次フェーズへ Advance）。
     public bool Finished { get; private set; }
@@ -99,7 +101,7 @@ public partial class CameoBoss : Enemy
         var hud = GetHud();
         if (hud == null) return;
         var job = game?.SelectedJob ?? Job.Tank;
-        if (game != null && !GameManager.LunaticActive && !game.IsIdleDialogSeen(ShieldIntroKey))
+        if (game != null && !GameManager.LunaticActive && !StageTutorial.Skipped(game) && !game.IsIdleDialogSeen(ShieldIntroKey))
         {
             // Wait until the real panels exist, and keep them intact while the player reads.
             SetPanelsInvulnerable(true);
@@ -118,7 +120,7 @@ public partial class CameoBoss : Enemy
     private static (int who, string text, string face)[] ShieldIntroLines(Job job)
     {
         int who = (int)(job == Job.Tank ? Hud.LineKind.Mina : Hud.LineKind.Companion);
-        string face = job == Job.Tank ? "res://char/mina_face.png" : CompanionDialogue.Portrait(job);
+        string face = job == Job.Tank ? CompanionDialogue.MinaPortrait : CompanionDialogue.Portrait(job);
         string reply = job switch
         {
             Job.Melee => "アンフォールダーを砕いて、合図が出たら本体だね。分かった、やってみる！",
@@ -147,6 +149,12 @@ public partial class CameoBoss : Enemy
         SpinSpeed = BossTuning.F("cameo", "spin_speed", CameoSpin);
         EnemyBulletSpeed = BossTuning.F("cameo", "bullet_speed", CameoBulletSpd);
         BarCount = Mathf.Max(1, BossTuning.I("cameo", "hp_bars", CameoBars)); // HPバー方式ON（総HP=BarHp×本数）
+        SealsEachBar = Theme.Fire == CameoFireTheme.AkariGrief && GameManager.Instance?.Difficulty == GameManager.Diff.Normal;
+        if (SealsEachBar)
+        {
+            BarCount++;
+            BarHp = 100;
+        }
 
         PreTexPath = Theme.PreTex;
         if (Theme.Fire == CameoFireTheme.ReiAggressive) ConfigureReiAvatarMotion();
@@ -184,18 +192,13 @@ public partial class CameoBoss : Enemy
         // カメオ用ボスバー（本戦ボスと同じ複数ゲージ式）。本ボス前なので時系列は重ならない。
         GetHud()?.ShowBossBar(Theme.DisplayName, Theme.Handle, this);
         GetHud()?.UpdateBossBar(CurrentBarIndex, TotalBars, CurrentBarFrac);
-
-        // 登場の第一声（弾を止めない一行オーバーレイ）。
-        string first = FirstBossLine(Theme.IntroLines);
-        if (!string.IsNullOrEmpty(first))
-            GetHud()?.ShowBossLine(Theme.DisplayName, first, UiKit.Kegare, 2.6);
     }
 
     protected override void UpdateMovement(double delta)
     {
         // 自機の位置は毎フレーム渡す（自機狙いの追従＝x と y の両方、向きの反転判定に要る）。
         if (GetTree().GetFirstNodeInGroup("player") is Node2D pl) _mover.SetPlayerPos(pl.GlobalPosition);
-        if (!BarrageHolding) GlobalPosition = _mover.Step(GlobalPosition, delta);
+        if (!BarrageHolding) GlobalPosition = _mover.Step(GlobalPosition, delta, framed: !BossInArena);
         ApplyBossMotion(_mover.VisualOffset, _mover.Lean, _mover.FacingLeft, _mover.SquashScale);
         FxLayer.Instance?.EmitBossAura(Theme.Aura, GlobalPosition, (float)delta, 30f);
     }
@@ -206,6 +209,9 @@ public partial class CameoBoss : Enemy
     {
         GetHud()?.UpdateBossBar(CurrentBarIndex, TotalBars, CurrentBarFrac);
     }
+
+    protected override int LimitBodyDamage(int damage) => SealsEachBar && GaugeBodyExposed
+        ? System.Math.Min(damage, Mathf.RoundToInt(CurrentBarFrac * BarHp)) : damage;
 
     // RECLOSE のキャラ別弱気セリフ（TauntLines の本人 who=2 行をサイクルごとに順送り）。
     private int _tauntIdx;
@@ -232,7 +238,6 @@ public partial class CameoBoss : Enemy
     {
         GetHud()?.HideBossBar(); // 撃破でバーを必ず Hide（本ボスバーと競合しない）
         GetNodeOrNull<GameManager>("/root/Game")?.RewardCameoDefeat();
-        Audio.Instance?.PlayRedeem(0);
         // ルナティック（2026-09-26）：捨て台詞を流し切る（DefeatLineDur×行数）のを待たず、字幕だけ残してその場で着地
         //   ＝Finished が即立ち、Stage は同じフレームで次の波を立てられる（道中に空白を作らない）。字幕は弾を止めない。
         if (GameManager.LunaticActive)
@@ -243,6 +248,12 @@ public partial class CameoBoss : Enemy
             EndCryNow();
             return;
         }
+        Audio.Instance?.Music(Theme.Fire switch
+        {
+            CameoFireTheme.AkariGrief => Audio.Instance.BgmStoryAkari,
+            CameoFireTheme.KoharuFalling => Audio.Instance.BgmStoryKoharu,
+            _ => Audio.Instance.BgmStoryRei,
+        }, 0.7f);
         var lines = GetNode<GameManager>("/root/Game").SelectedJob == Job.Tank
             ? Theme.DefeatLines : System.Array.FindAll(Theme.DefeatLines, line => line.who == 2);
         _defeatTalk = CharacterStoryTalk.Start(lines, GetHud,
@@ -253,8 +264,6 @@ public partial class CameoBoss : Enemy
     protected override void OnCryEnd()
     {
         Finished = true;
-        // 道中へ戻るのでステージBGMへ復帰する。撃破時の PlayRedeem は「一度きり（ループしない）」の
-        // 2.6秒ワンショットなので、ここで戻さないと道中後半が鳴り切ったあと無音のままになる（#BGM消失）。
         if (Audio.Instance != null) Audio.Instance.ResumeStageMusic();
     }
 
@@ -265,7 +274,6 @@ public partial class CameoBoss : Enemy
         if (GetHud() is { } hud)
         {
             hud.HoldBubble = false;
-            hud.BattleMemoryTempo = false;
             hud.HideBubble();
         }
     }
@@ -292,7 +300,6 @@ public partial class CameoBoss : Enemy
         if (_shieldTalk is { Active: true } && IsInstanceValid(_shieldTalkHud))
         {
             _shieldTalkHud!.HoldBubble = false;
-            _shieldTalkHud.BattleMemoryTempo = false;
             _shieldTalkHud.HideBubble();
         }
     }

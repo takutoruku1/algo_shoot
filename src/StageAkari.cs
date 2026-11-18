@@ -6,6 +6,7 @@ public partial class StageAkari : Node
     public Player Player = null!;
     public Hud Hud = null!;
     public Node2D World = null!;
+    internal double Elapsed { get => _stageElapsed; init => _stageElapsed = value; }
     private int _step;
     private bool _stepStarted;
     private double _stageElapsed;   // ステージ全体の経過秒（クリア確定まで・ポーズ中は止まる）。
@@ -16,16 +17,17 @@ public partial class StageAkari : Node
     private bool _zEdge;
     private (int who, string text, string face)[] _fieldTutorial = System.Array.Empty<(int, string, string)>();
     private double _nextTutorialTime = 4.0;
+    private ChoiceOverlay? _tutorialChoice;
     private BossAkari _boss = null!;
     private bool _bossActive;
     private const float SpawnX = 300f;
     // ミナの表情（案C では語り手はミナ一人＝行ごとに顔を差し替える）。
     // ユーザー承認済み: docs/20260914/ストーリー添削_2026-09-14.md 【3】
     //   感情アークの厳格運用：ミナは「困る（あかり後）→笑う（こはる後）→泣く（レイ後）」の順に獲得する。
-    //   あかり面は**まだ何も獲得していない**区間なので、笑顔の立ち絵（mina_smile.png）は一枚も出さない。
+    //   あかり面は**まだ何も獲得していない**区間なので、笑顔の立ち絵（mina_conversation_smile_v1.png）は一枚も出さない。
     //   軽口の行そのものは残す（緩急に要る）が、顔は平常のまま＝「面白いことを真顔で言う」機械に見せる。
     //   呼び出し側を全部書き換えると差分が広がるので、定数の**指し先**だけを平常顔へ倒している。
-    private const string MFace = "res://char/mina_face.png";
+    private const string MFace = CompanionDialogue.MinaPortrait;
     // あかりの顔。平常＝akari_face／画面の光を浴びた＝akari_face_lit／泣き＝akari_face_cry。
     private const string AFace = "res://char/v3/akari_face.png";
     private const string AFaceLit = "res://char/v3/akari_face_lit.png";
@@ -44,9 +46,9 @@ public partial class StageAkari : Node
     {
         (4, "すき、すき、すき。……ひとつでいいから、本物になって。", ""),
         (0, "到着した。回線はつながってる。ミナ、聞こえる？", ""),
-        (1, "はい。机が、逆さまです。……わたくしが逆さま、ではありませんよね。", "res://char/mina_face.png"),
-        (0, "君はちゃんと立ってるよ。ここは、あかりさんのフェイクレルム。送れなかった言葉が、手紙の道になってる。", ""),
-        (1, "よかった。……では、あの方のところまで、案内をお願いします。", "res://char/mina_face.png"),
+        (1, "はい。……雲の上に、明かりのついた部屋が。ご主人様にも見えますか？", CompanionDialogue.MinaPortrait),
+        (0, "見えるよ。ここは、あかりさんのフェイクレルムだ。さっきの「すき」は、あの人が送れなかった言葉なんだ。", ""),
+        (1, "……誰に伝えたかったのでしょう。あの方のところまで、案内をお願いします。", CompanionDialogue.MinaPortrait),
     };
     // S1-9 ボス戦「あふれるわたし」の頭（仮台本 06）。ボスは出現済みだが会話中は止まる。
     //   宣言はカットイン『ねえ、こっち見て』と弾幕名の宣告（BossAkari.Spells / AnnounceSpell）に対応する。
@@ -55,7 +57,7 @@ public partial class StageAkari : Node
     {
         (2, "ねえ、こっち見て。", "res://char/v3/akari_face.png"),
         (2, "向かいの席、空けてあるの。……また一緒に帰ろうよ。すきって、今度はちゃんと言うから。", "res://char/v3/akari_face.png"),
-        (1, "わたくしはミナです。あなたが待っている方ではありません。でも、ここでお話を聞かせてほしいのです。", "res://char/mina_face.png"),
+        (1, "わたくしはミナです。あなたが待っている方ではありません。でも、ここでお話を聞かせてほしいのです。", CompanionDialogue.MinaPortrait),
         (2, "代わりじゃ、だめなの。……誰でもいいわけじゃ、ないの。", "res://char/v3/akari_face.png"),
     };
     //   先頭2行は S1-5（中ボス）のミナ行。CameoBoss の一行オーバーレイは本人(who=2)しか流さないので、
@@ -64,32 +66,32 @@ public partial class StageAkari : Node
     //   下書き選択（s1_5）を挟んでから、受け＋この配列（S1-2 の小話）へ戻る。
     private static readonly (int who, string text, string face)[] MidPre =
     {
-        (1, "非常階段の先にも、手紙の道が。……あの方を追っても、よろしいですか。", "res://char/mina_face.png"),
+        (1, "非常階段の先にも、手紙の道が。……あの方を追っても、よろしいですか。", CompanionDialogue.MinaPortrait),
         (0, "道はつながってる。ただ、僕らを待っていた人と取り違えている。誰かの代わりに、約束はできない。", ""),
-        (1, "分かっています。それでも、あのまま一人にはしたくありません。", "res://char/mina_face.png"),
+        (1, "分かっています。それでも、あのまま一人にはしたくありません。", CompanionDialogue.MinaPortrait),
         (0, "僕もだ。ミナ、君と一緒に、もう一度会いに行きたい。", ""),
     };
 
     private static readonly (int who, string text, string face)[] Mid =
     {
-        (1, "ここの声は……どれも、「返して」「すき」と、すがりついてきます。……返事の声だけが、ひとつも、混じっていません。", "res://char/mina_face.png"),
+        (1, "ここでは「返して」「すき」って、すがるような声ばかり聞こえます。……お返事は一つも聞こえません。", CompanionDialogue.MinaPortrait),
         (0, "アンチャーがほどけて、道が広がってる。ミナ、身体は重くない？", ""),
-        (1, "少し肩が軽くなった気がします。……今のところは。", "res://char/mina_face.png"),
-        (1, "「あたしのせいだ」……同じ声が、何度も戻ってきます。階段を下りても、ここから帰れないような。", "res://char/mina_face.png"),
-        (0, "出口のそばに、傘が二本あるね。黄色と、紺色。", ""),
-        (1, "二本とも置いたままです。……一人で二本、さすのでしょうか。", "res://char/mina_face.png"),
+        (1, "今のところは、少し肩が軽くなった気がします。", CompanionDialogue.MinaPortrait),
+        (1, "「あたしのせいだ」……同じ声が、何度も戻ってきます。階段を下りても、ここから帰れないような。", CompanionDialogue.MinaPortrait),
+        (0, "出口のそばに、黄色と紺色の傘が一本ずつあるね。", ""),
+        (1, "二本とも置いたままです。……一人で二本、さすのでしょうか。", CompanionDialogue.MinaPortrait),
         (0, "それだと両手がふさがるね。誰かと一本ずつ、使いたかったのかもしれない。", ""),
-        (1, "では、持ち主に伺いましょう。……傘だけでなく、待っている方のことも。", "res://char/mina_face.png"),
-        (1, "雨の音は、嫌いではありません。……うるさい、と思いながら、消していないので。", "res://char/mina_face.png"),
+        (1, "持ち主に伺ってみましょう。どなたを待っているのかも聞きたいです。", CompanionDialogue.MinaPortrait),
+        (1, "雨の音は、嫌いではありません。……うるさい、と思いながら、消していないので。", CompanionDialogue.MinaPortrait),
     };
     private static readonly (int who, string text, string face)[] BossTalk =
     {
-        (1, "……手紙の道が、浮かんだオフィスへ続いています。どの机にも、人はいないのですね。", "res://char/mina_face.png"),
-        (4, "「向かいの席、空いたまま。……三日目。」", ""),
-        (1, "「気づいてほしい、でも気づかれたら困る」……そういう声が、「同じ部署」という言葉と、いっしょに流れていきます。", "res://char/mina_face.png"),
-        (1, "……返事の声だけが、ここまで来ても、ひとつも、ありません。", "res://char/mina_face.png"),
+        (1, "……手紙の道が、浮かんだオフィスへ続いています。どの机にも、人はいないのですね。", CompanionDialogue.MinaPortrait),
+        (4, "「向かいの席が空いて、今日で三日目。」", ""),
+        (1, "「気づいてほしい、でも気づかれたら困る」……そういう声が、「同じ部署」という言葉と、いっしょに流れていきます。", CompanionDialogue.MinaPortrait),
+        (1, "……返事の声だけが、ここまで来ても、ひとつも、ありません。", CompanionDialogue.MinaPortrait),
         (0, "消された言葉が残ってる。全部を一度に抱えなくていい。聞こえた順に、僕にも教えて。", ""),
-        (1, "……はい。自分だけで持たなくてよいのですね。では、いま聞こえた声から。", "res://char/mina_face.png"),
+        (1, "……はい。自分だけで持たなくてよいのですね。では、いま聞こえた声から。", CompanionDialogue.MinaPortrait),
     };
     // S1-5 中ボス あかり（仮台本 06）。先出しの本人。退勤後のカーディガンに社員証、片手のスマホの光が顔に当たっている。
     //   CameoBoss は who=2（本人）の行だけを一行オーバーレイで流す（IntroLines＝第一声／TauntLines＝RECLOSE／
@@ -99,7 +101,7 @@ public partial class StageAkari : Node
     private static readonly (int who, string text, string face)[] CameoTalk1 =
     {
         (2, "あ、来た！　読んだよね？　返事、まだ？", "res://char/v3/akari_face.png"),
-        (1, "読んだのは、わたくしです。どなたからのお返事を待っているのですか？", "res://char/mina_face.png"),
+        (1, "読んだのは、わたくしです。どなたからのお返事を待っているのですか？", CompanionDialogue.MinaPortrait),
         (2, "……あなたじゃ、ない。あの人に、返してほしいの。", "res://char/v3/akari_face.png"),
     };
     // RECLOSE（サイクルごとに順送り）。
@@ -112,16 +114,18 @@ public partial class StageAkari : Node
     private static readonly (int who, string text, string face)[] CameoPost =
     {
         (2, "ぜったい、また会いに来てよね。ぜったいだよ?", "res://char/v3/akari_face.png"),
-        (1, "また会いに来ます。今度は、お名前を聞かせてください。", "res://char/mina_face.png"),
+        (1, "また会いに来ます。今度は、お名前を聞かせてください。", CompanionDialogue.MinaPortrait),
     };
     // ───────── S1-4 束（ミッドシナリオ枠＝後半Bと終盤Cの境・ボス前の“溜め”）─────────
     // 吹き出し会話（Step_Lines）で出す＝弾は止まる。
     private static readonly (int who, string text, string face)[] MidStory =
     {
-        (4, "「送信取消。今日で十二回目。……全部、同じ人宛。」", ""),
-        (1, "ご主人様。道になった手紙から、同じ通知が聞こえます。「メッセージの送信を取り消しました」と。", "res://char/mina_face.png"),
-        (0, "十二通。さっきの投稿と同じだ。本文が見えないぶん、何を書こうとしたのか気になる。", ""),
-        (1, "わたくしもです。……一通、開いてみても？", "res://char/mina_face.png"),
+        (4, "「今日も送信を取り消した。これで十二回目。全部同じ人に宛ててる。」", ""),
+        (1, "ご主人様。どの手紙からも「メッセージの送信を取り消しました」って通知が聞こえます。", CompanionDialogue.MinaPortrait),
+        (0, "十二通。全部読めば、あかりさんがどうしたいのか、分かるかな。", ""),
+        (1, "書いたときのお気持ちは。でも、今どうしたいかは、ご本人から伺いたいです。", CompanionDialogue.MinaPortrait),
+        (0, "……そうだね。読めるからって、僕が答えまで決めちゃいけない。", ""),
+        (1, "はい。……では、一通、開いてみても？", CompanionDialogue.MinaPortrait),
     };
 
     private static readonly string[] S14Choices = { "あの人の言葉、消えたままにしたくない", "一つずつ聞こう。ミナも無理しないで" };
@@ -129,7 +133,7 @@ public partial class StageAkari : Node
     private static readonly (int who, string text, string face)[] S14Tail =
     {
         (0, "前方に反応。雨の奥から、あかりさんが来る。ミナ、いったん足を止めて。", ""),
-        (1, "見えました。……今度は、こちらを見てくださるでしょうか。", "res://char/mina_face.png"),
+        (1, "見えました。……今度は、こちらを見てくださるでしょうか。", CompanionDialogue.MinaPortrait),
     };
     // ───────── 道中の下書き選択（正典: wiki/08_仮台本/17_道中の選択肢_案C.md・承認 2026-09-06）─────────
     //   s1_5 … 中ボスの捨て台詞の直後（Mid の頭＝step 4）。効果＝ハブ返信（ミナ→@akari）に一語混ざる。
@@ -138,20 +142,20 @@ public partial class StageAkari : Node
     private static readonly (int who, string text, string face)[] S15Tail =
     {
         (0, "返事はまだない。でも、出口の先へ道は続いてる。ミナ、手紙の橋をたどろう。", ""),
-        (1, "はい。……次は、置き去りの問いだけにしません。", "res://char/mina_face.png"),
+        (1, "はい。……次は、置き去りの問いだけにしません。", CompanionDialogue.MinaPortrait),
     };
     // S1-8 小話 MidEnd（仮台本 06）。投稿の直後、通知の吹き出しが「1」のまま四つ同じ形で降ってくる。
     //   フロアが「すき」で埋まっていく。ボス戦直前の引き。
     private static readonly (int who, string text, string face)[] MidEnd =
     {
-        (4, "同期が、新しい職場へ。\nあたしも、負けずに頑張らなきゃ。\nおめでとう！", ""),
-        (1, "……公開された本文の下に、何度も書き直した跡が、重なっています。", "res://char/mina_face.png"),
+        (4, "同期が新しい職場に行くんだって。\nあたしも負けずに頑張らなきゃ。\nおめでとう！", ""),
+        (1, "……公開された本文の下に、何度も書き直した跡が、重なっています。", CompanionDialogue.MinaPortrait),
         (4, "「いいねが、ひとつ。……増えてないの、知ってるのに、今日だけで四回も、見にきちゃった。」", ""),
         (0, "同じ通知を、何度も確かめた跡だ。増えていないと知ってても、開いてしまうんだね。", ""),
-        (1, "手紙が、幾重にも道を作っています。どこからも「すき」と……。取り消した言葉が、行き場を探しているようです。", "res://char/mina_face.png"),
-        (1, "吹き出しに、全部「またね」と。……ご主人様、これを祓うのは、少し嫌です。", "res://char/mina_face.png"),
+        (1, "手紙が、幾重にも道を作っています。どこからも「すき」と……。取り消した言葉が、行き場を探しているようです。", CompanionDialogue.MinaPortrait),
+        (1, "どの吹き出しにも「またね」って書いてあります。……ご主人様、これを祓うのは少し嫌です。", CompanionDialogue.MinaPortrait),
         (0, "消すのは言葉じゃない。言葉を閉じ込めているアンチャーのほうだ。声の続きが聞けるように、道を開こう。", ""),
-        (1, "奥に、あの人が。……行きます。今度こそ、奥まで。", "res://char/mina_face.png"),
+        (1, "あの人が奥に見えました。……今度こそ、あそこまで行きます。", CompanionDialogue.MinaPortrait),
     };
     // S1-11 クリア（仮台本 06）。あかりの投稿が変わる。空の問い（一度目）。
     //   2026-09-26（docs/20260926/主人公の存在_診断と本文 §3.1(c)）：あかりが「知らない声」の言い回しに聞き覚えを言い、
@@ -159,21 +163,21 @@ public partial class StageAkari : Node
     //   ★の行は迷い秒ゲート（s1_4 で p2 より長く迷ったときだけ＝ChoiceEffects.Hesitated）。実行時に ClearFor が残す／外す。
     private static readonly (int who, string text, string face)[] Clear =
     {
-        (2, "……あったかい声がした。ミナの声。知らない人なのに、変なの。", "res://char/v3/akari_face.png"),
-        (1, "知らない人同士から、始めてもよろしいでしょう。わたくしも、今日初めてあなたに会いました。", "res://char/mina_face.png"),
+        (2, "ミナの声、あったかかった。初めて会ったのに、なんだか変だね。", "res://char/v3/akari_face.png"),
+        (1, "知らない人同士から、始めてもよろしいでしょう。わたくしも、今日初めてあなたに会いました。", CompanionDialogue.MinaPortrait),
         (2, "ふふ。そうだね。……あの人の返事は、代わりにくれなくていいから。", "res://char/v3/akari_face.png"),
-        (1, "はい。あかりさんの言葉を、聞いていました。", "res://char/mina_face.png"),
+        (1, "はい。あかりさんの言葉を、聞いていました。", CompanionDialogue.MinaPortrait),
         (2, "ありがと。これは、消さない。", "res://char/v3/akari_face.png"),
-        (1, "もしよければ、今度は帰ってからのお話も。相談に乗ってくれた方を、ご紹介したいのです。", "res://char/mina_face.png"),
+        (1, "もしよければ、今度は帰ってからのお話も。相談に乗ってくれた方を、ご紹介したいのです。", CompanionDialogue.MinaPortrait),
         (2, "ミナにも、そんな人がいるんだ。……うん、話してみたい。", "res://char/v3/akari_face.png"),
         (0, "あかりさん。初めまして。ミナと一緒に、あなたの話を聞いていた。", ""),
         (2, "あ……今、初めて聞こえた。あなたが、ミナと？", "res://char/v3/akari_face.png"),
         (0, "うん。話してくれてありがとう。寂しかった気持ちまで、消さなくてよかった。", ""),
         (2, "……ミナに似たこと言うんだね。そっか。二人で来てくれたんだ。", "res://char/v3/akari_face.png"),
         (0, "帰還の道を開くよ。ミナ、お疲れさま。", ""),
-        (1, "……ご主人様。外の世界は、今日はどんな天気ですか。", "res://char/mina_face.png"),
+        (1, "……ご主人様。外の世界は、今日はどんな天気ですか。", CompanionDialogue.MinaPortrait),
         (0, "ずっと画面を見てたから、分からないや。", ""),
-        (1, "道案内の方にも、見落としがあるのですね。……あとで、教えてください。", "res://char/mina_face.png"),
+        (1, "道案内の方にも、見落としがあるのですね。……あとで、教えてください。", CompanionDialogue.MinaPortrait),
     };
     // 迷い秒ゲートの行（★）と、フィルム前／後の割り目。
     //   割り目は行数（旧 Take(2)）ではなく本文「……♥が、ひとつ。」で引く＝ゲートで前半の行数が揺れても崩れない。
@@ -225,13 +229,13 @@ public partial class StageAkari : Node
     {
         0 => new (int, string, string)[] {
         (0, "あの人の言葉、消えたままにしたくない", ""),
-        (1, "……はい。消す前には、伝えたかった言葉があったはずです。一つずつ、聞いていきましょう。", "res://char/mina_face.png"),
-        (1, "十二件ぶん。……ご主人様も、一緒に聞いていてください。", "res://char/mina_face.png"),
+        (1, "……はい。消す前には、伝えたかった言葉があったはずです。一つずつ、聞いていきましょう。", CompanionDialogue.MinaPortrait),
+        (1, "十二件ぶん。……ご主人様も、一緒に聞いていてください。", CompanionDialogue.MinaPortrait),
     },
         _ => new (int, string, string)[] {
         (0, "一つずつ聞こう。ミナも無理しないで", ""),
-        (1, "……わたくしのことまで。ありがとうございます。では、いちばん上の一通から。", "res://char/mina_face.png"),
-        (1, "残りは、今は開かずにおきます。……急がなくてよいと、言っていただけたので。", "res://char/mina_face.png"),
+        (1, "……わたくしのことまで。ありがとうございます。では、いちばん上の一通から。", CompanionDialogue.MinaPortrait),
+        (1, "急がなくていいとおっしゃったので、残りの手紙はあとにします。", CompanionDialogue.MinaPortrait),
     },
     };
 
@@ -239,11 +243,11 @@ public partial class StageAkari : Node
     {
         0 => new (int, string, string)[] {
         (0, "ミナ、もう一度会いに行こう。放っておけない。", ""),
-        (1, "はい。今度は、わたくしたちの名前も伝えましょう。", "res://char/mina_face.png"),
+        (1, "はい。今度は、わたくしたちの名前も伝えましょう。", CompanionDialogue.MinaPortrait),
     },
         _ => new (int, string, string)[] {
         (0, "うまく言えないけど、ひとりにしたくない", ""),
-        (1, "……いまの言葉で、伝わりました。うまく言えなくても、そばへ行くことはできます。わたくしも、ご一緒します。", "res://char/mina_face.png"),
+        (1, "……いまの言葉で、伝わりました。うまく言えなくても、そばへ行くことはできます。わたくしも、ご一緒します。", CompanionDialogue.MinaPortrait),
     },
     };
 
@@ -251,12 +255,12 @@ public partial class StageAkari : Node
     {
         0 => new (int, string, string)[] {
         (0, "あとで空を見よう。ミナと一緒に。", ""),
-        (1, "一緒に。はい。ご主人様が見上げた空も、聞かせてください。", "res://char/mina_face.png"),
+        (1, "一緒に。はい。ご主人様が見上げた空も、聞かせてください。", CompanionDialogue.MinaPortrait),
         (0, "約束する。今度は、窓のところまで行ってみるよ。", ""),
     },
         _ => new (int, string, string)[] {
         (0, "今は、ミナが無事でほっとしてる。", ""),
-        (1, "……わたくしを、心配してくださっていたのですね。ただいま、ご主人様。", "res://char/mina_face.png"),
+        (1, "……わたくしを、心配してくださっていたのですね。ただいま、ご主人様。", CompanionDialogue.MinaPortrait),
         (0, "おかえり。初めてのダイブ、一緒に帰れてよかった。", ""),
     },
     };
@@ -271,6 +275,7 @@ public partial class StageAkari : Node
 
     public override void _Ready()
     {
+        Hud.SetElapsed((float)Elapsed);
         _step = 1;
         // 道中（肩慣らし0＋A+B+C 三波）＋ボスで浄化カプセルが満ちる（部屋が晴れる）。
         var game = GetNodeOrNull<GameManager>("/root/Game");
@@ -296,7 +301,7 @@ public partial class StageAkari : Node
             _playerMid = MidEnd;
         }
         _playerBoss = BossIntro;   // ボス本人の口上（who=2）はどちらのモードでも流す
-        game?.SetStageTarget(MidWave0 + MidWaveA + MidWaveB + MidWaveC + 1);
+        game?.SetStageTarget(MidWave0 + MidWaveA + MidWaveB + MidWaveC + 1, hasBoss: true);
 
         // チェックポイント入口（DiffSelect が SelectedEntry をセット）。道中＆イントロを飛ばしてその戦闘から始める。
         // 型崩し（S2）対応：中ボス（カメオ先出し）＝Step_BossCameo(3)／ボスから＝Step_BossSpawn(11)。
@@ -316,16 +321,45 @@ public partial class StageAkari : Node
         _zHeld = Pad.AdvanceHeld();
         // ルナティックはイントロを流さない＝ここで once を消費させず、_Process の先頭で step 1 を飛ばす。
         if (_lunatic) return;
-        if (_step == 1) _playerIntro = _playerIntro.Concat(StageTutorial.TakeRoute(game, basicsOnly: true)).ToArray();
-        if (_step == 1) _playerIntro = _playerIntro.Concat(StageTutorial.TakeSkillIntros(game, includeCharge: false)).ToArray();
-        if (_step == 1) Step_Lines(0, _playerIntro);
+        if (_step != 1) return;
+        if (!_charStory && game != null && StageTutorial.NeedsChoice(game))
+        {
+            Hud.HoldBubble = true;
+            Hud.ShowMessage("操作説明を聞きますか？\n「聞かない」で今後も省略します。");
+            Hud.RevealDialogNow();
+            _tutorialChoice = ChoiceOverlay.Show(Hud, new[] { "操作説明を聞く", "操作説明を聞かない" }, defaultSel: 0, onBoard: true);
+            return;
+        }
+        StartIntro(game);
+    }
+
+    private void StartIntro(GameManager? game)
+    {
+        _playerIntro = _playerIntro.Concat(StageTutorial.TakeRoute(game, basicsOnly: true))
+            .Concat(StageTutorial.TakeSkillIntros(game, includeCharge: false)).ToArray();
+        Step_Lines(0, _playerIntro);
     }
 
     public override void _Process(double delta)
     {
         if (Hud.CinematicMode) { _zHeld = Pad.AdvanceHeld(); return; }
+        if (_tutorialChoice != null)
+        {
+            _zHeld = Pad.AdvanceHeld();
+            if (!_tutorialChoice.Decided) return;
+            var game = GameManager.Instance!;
+            game.MarkIdleDialogSeen(StageTutorial.ChoiceSeenKey);
+            if (_tutorialChoice.Selected == 1) game.MarkIdleDialogSeen(StageTutorial.SkipKey);
+            game.AutoSave();
+            _tutorialChoice.QueueFree();
+            _tutorialChoice = null;
+            Hud.HoldBubble = false;
+            Hud.HideBubble();
+            StartIntro(game);
+            return;
+        }
         _lineHold += delta;
-        if (!_clearing && !Hud.BubblePaused) { _stageElapsed += delta; Hud.SetElapsed((float)_stageElapsed); }
+        if (!_clearing && !Hud.BubblePaused && Player.Lives > 0) { _stageElapsed += delta; Hud.SetElapsed((float)_stageElapsed); }
         if (!_startBannerShown) { _startBannerShown = true; Hud.ShowStageStart(1, "あかり", new Color("efbc87")); }
         // 会話送り：Z/Enter/ui_accept/Pad A に加えマウス左クリックでも送れる共通ヘルパ（マウス対応 P2）。
         bool z = Pad.AdvanceHeld();
@@ -381,13 +415,13 @@ public partial class StageAkari : Node
             }
             return true;
         }
-        if (_charStory || _lunatic || !_stepStarted || Hud.BubblePaused || Player.Lives <= 0
+        if (_charStory || _lunatic || StageTutorial.Skipped(GameManager.Instance) || !_stepStarted || Hud.BubblePaused || Player.Lives <= 0
             || Pad.UiBlocked(this) || _stageElapsed < _nextTutorialTime) return false;
         int goal = _step switch { 2 => MidWave0, 5 => MidWaveA, 7 => MidWaveB, 9 => MidWaveC, _ => 0 };
         if (goal == 0) return false;
         var game = GameManager.Instance!;
         int purified = game.PurifiedCount - _waveBase;
-        if (game.StageCleared || purified >= goal) return false;
+        if (game.SpawnTargetReached || purified >= goal) return false;
 
         int targets = 0;
         bool panels = false, behind = false;
@@ -519,7 +553,8 @@ public partial class StageAkari : Node
         (int who, string text, string face)[] cue, string[] choices,
         System.Func<int, (int who, string text, string face)[]> reply,
         (int who, string text, string face)[] tail,
-        (int who, string text, string face)[]? rest = null)
+        (int who, string text, string face)[]? rest = null,
+        System.Action? completed = null)
     {
         switch (_choicePhase)
         {
@@ -548,7 +583,7 @@ public partial class StageAkari : Node
                 break;
             default:
                 _holdForChoice = false;
-                RunLinesInPlace(delta, _choiceAfter, () => { _choicePhase = 0; Advance(); });
+                RunLinesInPlace(delta, _choiceAfter, () => { _choicePhase = 0; if (completed != null) completed(); else Advance(); });
                 break;
         }
     }
@@ -641,6 +676,7 @@ public partial class StageAkari : Node
             StartMidwaveSpawner(MidWaveC, 0.7f);
         }
         if (!_spawner.Finished || !Spawner.BattlefieldClear(GetTree())) return;
+        GameManager.Instance!.FinishStageRoad();
         _spawner.QueueFree();
         _spawner = null!;
         GetNode<BulletPool>("/root/Pool").DespawnAll();
@@ -729,6 +765,7 @@ public partial class StageAkari : Node
             var opening = _playerBoss;
             if (!_lunatic) _playerBoss = StageTutorial.TakeBoss(GetNodeOrNull<GameManager>("/root/Game"));
             if (!_lunatic) CameoIntroScene.PlayBoss(Hud, World, "akari", opening, () => {
+                _boss.GetNode<BossPostSequence>("PostSequence").ResumeMusic();
                 _zHeld = Pad.AdvanceHeld(); _zEdge = false;
                 Step_Lines(0, _playerBoss);
             }, SpawnBoss);
@@ -786,19 +823,19 @@ public partial class StageAkari : Node
             return;
         }
         // 撃破後のアフター：
-        //   ミナ本編＝ClearBefore → あかりのフィルム → ClearAfter。
+        //   ミナ本編は帰還の会話を先に済ませ、あかりの返信と微笑みで締める。
         //   他ジョブ潜行＝一枚絵を起こさず CharacterStory.Aftermath（潜行キャラ×この面のボスの9通り）を
         //     会話で流してから、既存の帰還ビート（_storyReturn）へ（2026-09-23 ユーザー指示「吹き出しのやり取りだけに」）。
         if (_clearPhase == 0)
         {
             if (_charStory) RunLinesInPlace(delta, _storyAftermath, MarkAftermathSeenThenReturn);
-            else RunLinesInPlace(delta, _clearBefore, StartAftermathFilm);
+            else RunLinesInPlace(delta, _clearBefore, () => { _clearPhase = 2; _stepStarted = false; });
         }
         else if (_clearPhase == 2)
         {
             if (_charStory) Step_Lines(delta, _storyReturn);
             else Step_Choice(delta, "s1_sky", _clearAfter, SkyChoices,
-                SkyReply, System.Array.Empty<(int, string, string)>());
+                SkyReply, System.Array.Empty<(int, string, string)>(), completed: StartAftermathFilm);
         }
     }
 
@@ -816,10 +853,9 @@ public partial class StageAkari : Node
         _clearPhase = 1;
         AkariStoryFilm.Play(Hud, World, aftermath: true, completed: () =>
         {
-            _clearPhase = 2;
-            _stepStarted = false;
             _zHeld = Pad.AdvanceHeld();
             _zEdge = false;
+            Advance();
         });
     }
     private void Step_Transition()

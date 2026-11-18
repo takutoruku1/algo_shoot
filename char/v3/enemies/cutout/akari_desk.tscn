@@ -1,0 +1,375 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://src/fx/EnemyCutout.cs" id="1"]
+[ext_resource type="Texture2D" path="res://char/v3/enemies/cutout/akari_desk_atlas_v1.png" id="2"]
+[ext_resource type="Shader" path="res://shaders/enemy_cutout_alpha.gdshader" id="3"]
+
+[sub_resource type="ShaderMaterial" id="Alpha"]
+shader = ExtResource("3")
+
+[sub_resource type="AtlasTexture" id="Part0"]
+atlas = ExtResource("2")
+region = Rect2(28, 92, 454, 367)
+filter_clip = true
+
+[sub_resource type="AtlasTexture" id="Part1"]
+atlas = ExtResource("2")
+region = Rect2(542, 49, 325, 498)
+filter_clip = true
+
+[sub_resource type="AtlasTexture" id="Part2"]
+atlas = ExtResource("2")
+region = Rect2(886, 145, 633, 319)
+filter_clip = true
+
+[sub_resource type="AtlasTexture" id="Part3"]
+atlas = ExtResource("2")
+region = Rect2(58, 596, 267, 371)
+filter_clip = true
+
+[sub_resource type="AtlasTexture" id="Part4"]
+atlas = ExtResource("2")
+region = Rect2(511, 596, 251, 360)
+filter_clip = true
+
+[sub_resource type="AtlasTexture" id="Part5"]
+atlas = ExtResource("2")
+region = Rect2(850, 647, 649, 297)
+filter_clip = true
+
+[sub_resource type="Animation" id="Idle"]
+length = 3.1
+loop_mode = 1
+tracks/0/type = "value"
+tracks/0/path = NodePath("Torso/Action/Part0:rotation")
+tracks/0/interp = 1
+tracks/0/loop_wrap = true
+tracks/0/keys = {
+"times": PackedFloat32Array(0, 0.775, 1.55, 2.325, 3.1),
+"transitions": PackedFloat32Array(1, 1, 1, 1, 1),
+"update": 0,
+"values": [0.0, -0.05236, 0.0, 0.05236, 0.0]
+}
+tracks/1/type = "value"
+tracks/1/path = NodePath("Torso/Action/Part1:rotation")
+tracks/1/interp = 1
+tracks/1/loop_wrap = true
+tracks/1/keys = {
+"times": PackedFloat32Array(0, 0.775, 1.55, 2.325, 3.1),
+"transitions": PackedFloat32Array(1, 1, 1, 1, 1),
+"update": 0,
+"values": [0.0, 0.05236, 0.0, -0.05236, 0.0]
+}
+tracks/2/type = "value"
+tracks/2/path = NodePath("Torso/Action/Part1:position")
+tracks/2/interp = 1
+tracks/2/loop_wrap = true
+tracks/2/keys = {
+"times": PackedFloat32Array(0, 0.775, 1.55, 2.325, 3.1),
+"transitions": PackedFloat32Array(1, 1, 1, 1, 1),
+"update": 0,
+"values": [Vector2(-180, -100), Vector2(-172, -124), Vector2(-180, -100), Vector2(-188, -94), Vector2(-180, -100)]
+}
+tracks/3/type = "value"
+tracks/3/path = NodePath("Torso/Action/Part2:rotation")
+tracks/3/interp = 1
+tracks/3/loop_wrap = true
+tracks/3/keys = {
+"times": PackedFloat32Array(0, 0.775, 1.55, 2.325, 3.1),
+"transitions": PackedFloat32Array(1, 1, 1, 1, 1),
+"update": 0,
+"values": [0.0, -0.05236, 0.0, 0.05236, 0.0]
+}
+tracks/4/type = "value"
+tracks/4/path = NodePath("Torso/Action/Part3:rotation")
+tracks/4/interp = 1
+tracks/4/loop_wrap = true
+tracks/4/keys = {
+"times": PackedFloat32Array(0, 0.775, 1.55, 2.325, 3.1),
+"transitions": PackedFloat32Array(1, 1, 1, 1, 1),
+"update": 0,
+"values": [0.0, 0.05236, 0.0, -0.05236, 0.0]
+}
+tracks/5/type = "value"
+tracks/5/path = NodePath("Torso/Action/Part4:rotation")
+tracks/5/interp = 1
+tracks/5/loop_wrap = true
+tracks/5/keys = {
+"times": PackedFloat32Array(0, 0.775, 1.55, 2.325, 3.1),
+"transitions": PackedFloat32Array(1, 1, 1, 1, 1),
+"update": 0,
+"values": [0.0, -0.05236, 0.0, 0.05236, 0.0]
+}
+tracks/6/type = "value"
+tracks/6/path = NodePath("Torso/Action/Part5:rotation")
+tracks/6/interp = 1
+tracks/6/loop_wrap = true
+tracks/6/keys = {
+"times": PackedFloat32Array(0, 0.775, 1.55, 2.325, 3.1),
+"transitions": PackedFloat32Array(1, 1, 1, 1, 1),
+"update": 0,
+"values": [0.0, 0.05236, 0.0, -0.05236, 0.0]
+}
+
+[sub_resource type="Animation" id="Anticipate"]
+length = 0.6
+loop_mode = 0
+tracks/0/type = "value"
+tracks/0/path = NodePath("Torso/Action/Part0/Action:rotation")
+tracks/0/interp = 1
+tracks/0/loop_wrap = true
+tracks/0/keys = {
+"times": PackedFloat32Array(0, 0.12, 0.42, 0.6),
+"transitions": PackedFloat32Array(1, 1, 1, 1),
+"update": 0,
+"values": [0.0, -0.0733, -0.0733, 0.0]
+}
+tracks/1/type = "value"
+tracks/1/path = NodePath("Torso/Action/Part1/Action:rotation")
+tracks/1/interp = 1
+tracks/1/loop_wrap = true
+tracks/1/keys = {
+"times": PackedFloat32Array(0, 0.12, 0.42, 0.6),
+"transitions": PackedFloat32Array(1, 1, 1, 1),
+"update": 0,
+"values": [0.0, 0.0733, 0.0733, 0.0]
+}
+tracks/2/type = "value"
+tracks/2/path = NodePath("Torso/Action/Part2/Action:rotation")
+tracks/2/interp = 1
+tracks/2/loop_wrap = true
+tracks/2/keys = {
+"times": PackedFloat32Array(0, 0.12, 0.42, 0.6),
+"transitions": PackedFloat32Array(1, 1, 1, 1),
+"update": 0,
+"values": [0.0, -0.0733, -0.0733, 0.0]
+}
+tracks/3/type = "value"
+tracks/3/path = NodePath("Torso/Action/Part3/Action:rotation")
+tracks/3/interp = 1
+tracks/3/loop_wrap = true
+tracks/3/keys = {
+"times": PackedFloat32Array(0, 0.12, 0.42, 0.6),
+"transitions": PackedFloat32Array(1, 1, 1, 1),
+"update": 0,
+"values": [0.0, 0.0733, 0.0733, 0.0]
+}
+tracks/4/type = "value"
+tracks/4/path = NodePath("Torso/Action/Part4/Action:rotation")
+tracks/4/interp = 1
+tracks/4/loop_wrap = true
+tracks/4/keys = {
+"times": PackedFloat32Array(0, 0.12, 0.42, 0.6),
+"transitions": PackedFloat32Array(1, 1, 1, 1),
+"update": 0,
+"values": [0.0, -0.0733, -0.0733, 0.0]
+}
+tracks/5/type = "value"
+tracks/5/path = NodePath("Torso/Action/Part5/Action:rotation")
+tracks/5/interp = 1
+tracks/5/loop_wrap = true
+tracks/5/keys = {
+"times": PackedFloat32Array(0, 0.12, 0.42, 0.6),
+"transitions": PackedFloat32Array(1, 1, 1, 1),
+"update": 0,
+"values": [0.0, 0.0733, 0.0733, 0.0]
+}
+
+[sub_resource type="Animation" id="Recoil"]
+length = 0.48
+loop_mode = 0
+tracks/0/type = "value"
+tracks/0/path = NodePath("Torso/Action/Part0/Action:rotation")
+tracks/0/interp = 1
+tracks/0/loop_wrap = true
+tracks/0/keys = {
+"times": PackedFloat32Array(0, 0.1, 0.28, 0.48),
+"transitions": PackedFloat32Array(1, 1, 1, 1),
+"update": 0,
+"values": [0.0, 0.08901, -0.01958, 0.0]
+}
+tracks/1/type = "value"
+tracks/1/path = NodePath("Torso/Action/Part1/Action:rotation")
+tracks/1/interp = 1
+tracks/1/loop_wrap = true
+tracks/1/keys = {
+"times": PackedFloat32Array(0, 0.1, 0.28, 0.48),
+"transitions": PackedFloat32Array(1, 1, 1, 1),
+"update": 0,
+"values": [0.0, -0.08901, 0.01958, 0.0]
+}
+tracks/2/type = "value"
+tracks/2/path = NodePath("Torso/Action/Part2/Action:rotation")
+tracks/2/interp = 1
+tracks/2/loop_wrap = true
+tracks/2/keys = {
+"times": PackedFloat32Array(0, 0.1, 0.28, 0.48),
+"transitions": PackedFloat32Array(1, 1, 1, 1),
+"update": 0,
+"values": [0.0, 0.08901, -0.01958, 0.0]
+}
+tracks/3/type = "value"
+tracks/3/path = NodePath("Torso/Action/Part3/Action:rotation")
+tracks/3/interp = 1
+tracks/3/loop_wrap = true
+tracks/3/keys = {
+"times": PackedFloat32Array(0, 0.1, 0.28, 0.48),
+"transitions": PackedFloat32Array(1, 1, 1, 1),
+"update": 0,
+"values": [0.0, -0.08901, 0.01958, 0.0]
+}
+tracks/4/type = "value"
+tracks/4/path = NodePath("Torso/Action/Part4/Action:rotation")
+tracks/4/interp = 1
+tracks/4/loop_wrap = true
+tracks/4/keys = {
+"times": PackedFloat32Array(0, 0.1, 0.28, 0.48),
+"transitions": PackedFloat32Array(1, 1, 1, 1),
+"update": 0,
+"values": [0.0, 0.08901, -0.01958, 0.0]
+}
+tracks/5/type = "value"
+tracks/5/path = NodePath("Torso/Action/Part5/Action:rotation")
+tracks/5/interp = 1
+tracks/5/loop_wrap = true
+tracks/5/keys = {
+"times": PackedFloat32Array(0, 0.1, 0.28, 0.48),
+"transitions": PackedFloat32Array(1, 1, 1, 1),
+"update": 0,
+"values": [0.0, -0.08901, 0.01958, 0.0]
+}
+
+[sub_resource type="Animation" id="Blink"]
+length = 4.7
+loop_mode = 1
+
+[sub_resource type="AnimationLibrary" id="IdleLibrary"]
+_data = { &"idle": SubResource("Idle") }
+
+[sub_resource type="AnimationLibrary" id="ActionLibrary"]
+_data = { &"anticipate": SubResource("Anticipate"), &"recoil": SubResource("Recoil") }
+
+[sub_resource type="AnimationLibrary" id="BlinkLibrary"]
+_data = { &"blink": SubResource("Blink") }
+
+[node name="Cutout" type="Node2D"]
+script = ExtResource("1")
+
+[node name="Torso" type="Node2D" parent="."]
+
+[node name="Action" type="Node2D" parent="Torso"]
+
+[node name="Part0" type="Node2D" parent="Torso/Action"]
+position = Vector2(35, -210)
+z_index = 2
+
+[node name="Action" type="Node2D" parent="Torso/Action/Part0"]
+
+[node name="Art" type="Sprite2D" parent="Torso/Action/Part0/Action"]
+visible = true
+material = SubResource("Alpha")
+position = Vector2(-170, -170)
+scale = Vector2(0.7489, 0.92643)
+texture = SubResource("Part0")
+centered = false
+flip_h = false
+texture_filter = 2
+
+[node name="Part1" type="Node2D" parent="Torso/Action"]
+position = Vector2(-180, -100)
+z_index = -2
+
+[node name="Action" type="Node2D" parent="Torso/Action/Part1"]
+
+[node name="Art" type="Sprite2D" parent="Torso/Action/Part1/Action"]
+visible = true
+material = SubResource("Alpha")
+position = Vector2(-135, -210)
+scale = Vector2(0.83077, 0.84337)
+texture = SubResource("Part1")
+centered = false
+flip_h = false
+texture_filter = 2
+
+[node name="Part2" type="Node2D" parent="Torso/Action"]
+position = Vector2(0, 20)
+z_index = 1
+
+[node name="Action" type="Node2D" parent="Torso/Action/Part2"]
+
+[node name="Art" type="Sprite2D" parent="Torso/Action/Part2/Action"]
+visible = true
+material = SubResource("Alpha")
+position = Vector2(-325, -130)
+scale = Vector2(1.02686, 0.81505)
+texture = SubResource("Part2")
+centered = false
+flip_h = false
+texture_filter = 2
+
+[node name="Part3" type="Node2D" parent="Torso/Action"]
+position = Vector2(-215, 205)
+z_index = 0
+
+[node name="Action" type="Node2D" parent="Torso/Action/Part3"]
+
+[node name="Art" type="Sprite2D" parent="Torso/Action/Part3/Action"]
+visible = true
+material = SubResource("Alpha")
+position = Vector2(-90, -140)
+scale = Vector2(0.67416, 0.75472)
+texture = SubResource("Part3")
+centered = false
+flip_h = false
+texture_filter = 2
+
+[node name="Part4" type="Node2D" parent="Torso/Action"]
+position = Vector2(210, 205)
+z_index = 0
+
+[node name="Action" type="Node2D" parent="Torso/Action/Part4"]
+
+[node name="Art" type="Sprite2D" parent="Torso/Action/Part4/Action"]
+visible = true
+material = SubResource("Alpha")
+position = Vector2(-90, -140)
+scale = Vector2(0.71713, 0.77778)
+texture = SubResource("Part4")
+centered = false
+flip_h = false
+texture_filter = 2
+
+[node name="Part5" type="Node2D" parent="Torso/Action"]
+position = Vector2(0, 285)
+z_index = -3
+
+[node name="Action" type="Node2D" parent="Torso/Action/Part5"]
+
+[node name="Art" type="Sprite2D" parent="Torso/Action/Part5/Action"]
+visible = true
+material = SubResource("Alpha")
+position = Vector2(-340, -80)
+scale = Vector2(1.04777, 0.53872)
+texture = SubResource("Part5")
+centered = false
+flip_h = false
+texture_filter = 2
+
+[node name="IdleAnimation" type="AnimationPlayer" parent="."]
+callback_mode_process = 2
+libraries = {
+&"": SubResource("IdleLibrary")
+}
+
+[node name="ActionAnimation" type="AnimationPlayer" parent="."]
+callback_mode_process = 2
+libraries = {
+&"": SubResource("ActionLibrary")
+}
+
+[node name="BlinkAnimation" type="AnimationPlayer" parent="."]
+callback_mode_process = 2
+libraries = {
+&"": SubResource("BlinkLibrary")
+}
+

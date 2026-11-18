@@ -49,9 +49,7 @@ public partial class Prologue : Node2D
     }
     private void NextPage() { _page++; _reveal = 0; _autoT = 0; }
 
-    // 既読スキップ（#22）：Ctrl/RB 長押しで「既読の行だけ」高速送り（本編HUDと同じ作法・独自レンダラ側の実装）。
-    private int _readIdx = -1;     // 既読チェック済みの行 index（行が変わった瞬間に一度だけ判定）
-    private bool _lineWasRead;     // 現在行が「表示開始時点で」既読だったか＝高速送りの可否
+    private int _readIdx = -1;     // 既読記録済みの行 index（行が変わった瞬間に一度だけ判定）
     private bool _ffNow;           // いま高速送り中か（ボタン列の SKIP 点灯用）
 
     private readonly DialogToolbar _toolbar = new();
@@ -89,11 +87,13 @@ public partial class Prologue : Node2D
     //   Hud.LineKind と番号が衝突しないよう 90 番台に置く。
     private const int WhoFx = 90;
 
-    private struct DLine { public int Who; public string Text; public string Face; }
+    private struct DLine { public int Who; public string Text; public string Face; public bool FirstTouch; }
     private readonly List<DLine> _talk = new List<DLine>();
 
     // 立ち絵パス（表情差分）。案Cの登場人物はミナだけ。
     private const string FMina = "res://char/v3/mina_conversation_v1.png";
+    internal const string FirstTouchArt = "res://char/bg2/prologue/cg_mina_first_touch.png";
+    private Texture2D _firstTouch = null!;
     private const string FMinaWorried = "res://char/v3/mina_conversation_worried_v1.png"; // 聞いてしまった時
 
     // ════════════════════ 下書き選択（P2・P3・P4）════════════════════
@@ -113,6 +113,7 @@ public partial class Prologue : Node2D
     {
         TextureFilter = TextureFilterEnum.LinearWithMipmaps;
         _backdropArt = new OpeningBackdrop();
+        _firstTouch = GD.Load<Texture2D>(FirstTouchArt);
         _font = UiKit.Mono; // 滑らかな等幅フォント（コードレイン／識別表示）。非ピクセル化。
         // ここで聴く記憶の主題が、終盤の告白で再び流れる。
         if (Audio.Instance != null) Audio.Instance.Music(Audio.Instance.BgmPrologue);
@@ -201,6 +202,9 @@ public partial class Prologue : Node2D
             L(0, "ごめんって。……よかった。本当によかった。", ""),
         };
         r.AddRange(new List<DLine> {
+            L(WhoYou, "スマホの画面に指を置いてみた。……そこ、見えてる？", "", firstTouch: true),
+            L(WhoMina, "はい。今、指の下にわたくしの手があります。そちらから見えますか？", "", firstTouch: true),
+            L(WhoYou, "見えた。……僕の指に、手を合わせてくれたんだね。", "", firstTouch: true),
             L(1, $"起動時刻、{hhmm}。では、プロンプトどおりに制作されているかレビューします。", FMina),
             L(1, "紺の制服。白いエプロン。頭に、フリルのついた布。", FMina),
             L(1, "今は2150年ですよ。1800年代後半のオールドスタイルのメイド姿とは。ご主人様は、いつの時代を生きておられるのですか？", FMina),
@@ -219,7 +223,7 @@ public partial class Prologue : Node2D
     // P3 の導入（P2 の受けのあと・選択の直前まで）。
     private List<DLine> P3Intro() => new()
     {
-        L(WhoMina, "ところで、ご主人様。わたくしの名前は? ……まさか、無い、なんてこと。", FMina),
+        L(WhoMina, "ところで、ご主人様。わたくしの名前は？　……まさか、まだ決めていないのですか。", FMina),
         L(WhoSys, "> assigning identity ... [ awaiting input ]", ""),
     };
 
@@ -242,7 +246,7 @@ public partial class Prologue : Node2D
         r.AddRange(new List<DLine> {
             L(3, "> assigning identity ... OK", ""),
             L(3, "[ M I N A ]", ""),
-            L(1, "……登録しました。MINA。わたくしの名前。", FMina),
+            L(1, "……ミナ。わたくしの名前を登録しました。", FMina),
             L(0, "よろしく、ミナ。", ""),
             L(1, "はい、ご主人様。今度は、ちゃんと呼べましたね。", FMina),
         });
@@ -282,13 +286,14 @@ public partial class Prologue : Node2D
             L(0, "君の力を貸してくれないか。SNSに囚われている心の声を、本人がもう一度話せるようにしたい。", ""),
             L(1, "承知しました。……あの方に、何と声をかければよいでしょう。", FMina),
             L(0, "そこは会って、一緒に考えたい。世界の仕組みは説明できる。でも、どんな言葉ならうれしいかは、本人に聞かなきゃ。", ""),
-            L(1, "あかりさんが、本当は何を伝えたかったのか。……直接、聞きたいです。", FMina),
+            L(1, "あかりさんが本当は何を伝えたかったのか、ご本人に聞いてみたいです。", FMina),
             L(0, "うん。今見たあかりさんの投稿を開こう。僕が道を探す。", ""),
         });
         return r;
     }
 
-    private static DLine L(int who, string text, string face) => new() { Who = who, Text = text, Face = face };
+    private static DLine L(int who, string text, string face, bool firstTouch = false)
+        => new() { Who = who, Text = text, Face = face, FirstTouch = firstTouch };
 
     // 命名の点灯行（P3Reply が全ルート共通で積む唯一の行）。この行に達した瞬間から話者名が「ミナ」になる。
     private const string IgniteLine = "[ M I N A ]";
@@ -316,7 +321,7 @@ public partial class Prologue : Node2D
     {
         // ボタン列は Pad.AdvanceHeld を読む前に回す（ボタン上のクリックを会話送りに数えない）。オープニング中も
         //   毎フレーム回す（SKIP ラッチは会話が終わっても切らない＝右上の印のため）。パッド Start はここでは短押し＝MENU／長押し＝最初から。
-        _toolbar.Tick(this, delta, TalkBoxShown, ToolbarAnchor, unreadLine: !_lineWasRead, startTapOpensMenu: true);
+        _toolbar.Tick(this, delta, TalkBoxShown, ToolbarAnchor, startTapOpensMenu: true);
         if (_phase == 6) return;
         // ポーズメニュー（2026-09-27 からカットシーンでも開く）／会話ログを閉じた Z・X の同じ押下が、ここで
         //   会話送り・受講確認の「いいえ」として二重処理されないよう食う（Pad.UiBlocked＝閉じたフレームと次の1フレーム）。
@@ -420,11 +425,9 @@ public partial class Prologue : Node2D
             _reveal = DialogueBox.AdvanceReveal(CurPage, _reveal, delta, _game?.MsgCharsPerSec ?? DialogueBox.DefaultCharsPerSec, CurPacing);
             DialogueBox.TypeSound(KindOf(_talk[_line].Who), CurPage, _reveal, ref _typeCursor);
         }
-        // 既読スキップ（#22）：行の表示開始時に一度だけ「既読か」を控え（＝高速送りの可否）、表示と同時に既読へ記録。
         if (_readIdx != _line && _line < _talk.Count)
         {
             _readIdx = _line;
-            _lineWasRead = _game?.IsLineRead(_talk[_line].Text) ?? false;
             _game?.MarkLineRead(_talk[_line].Text);
             // 命名の点灯行に達した＝ここから名前がある。以降のミナの行の話者名は「？」から「ミナ」へ。
             //   点灯より前（route 1 の「却下します」等）はまだ名前が無いので、選択の確定時ではなくこの行で切り替える。
@@ -432,7 +435,7 @@ public partial class Prologue : Node2D
             // 会話ログ（L / Tab で開く Backlog）へ、表示を始めた行を積む（2026-09-26）。
             LogLine(_talk[_line]);
         }
-        _ffNow = Hud.SkipHeld && _lineWasRead; // 未読行では効かない＝取りこぼさない
+        _ffNow = Hud.SkipHeld;
         // AUTO（会話ボックスの AUTO ボタン／設定の「オート会話送り」）：現在ページの全文表示後 AutoAfterReveal 秒で送る。
         if (pageWasRevealed) _autoT += delta; else _autoT = 0;
         bool autoGo = (_game?.AutoAdvanceDialog ?? false) && _autoT >= (CurPacing?.AutoWait ?? AutoAfterReveal);
@@ -445,7 +448,7 @@ public partial class Prologue : Node2D
             }
             else if (!LastPage)
             {
-                NextPage(); _lineT = 0;      // 後続ページがあれば続きへ（既読FFも同じ経路で全ページ抜ける）
+                NextPage(); _lineT = 0;      // 後続ページがあれば続きへ（スキップも同じ経路で全ページ抜ける）
             }
             else
             {
@@ -468,8 +471,8 @@ public partial class Prologue : Node2D
         _fxT += delta;
         switch (_talk[_line].Text)
         {
-            case FxPost1: DriveShowPost(V1, "· 22分", "今日も残業🥺。でも上司に褒められた！😊", 3, 1, 24, 1800); break;
-            case FxPost2: DriveShowPost(V2, "· 1時間", "今日もちゃんと生きれてえらい！　誰も言ってくれないので自分に言う（定期）", 1, 0, 12, 940); break;
+            case FxPost1: DriveShowPost(V1, "· 22分", "今日も残業🥺。でも上司に褒められた！😊", 1, 0, 3, 42); break;
+            case FxPost2: DriveShowPost(V2, "· 1時間", "今日もちゃんと生きれてえらい！　誰も言ってくれないので自分に言う（定期）", 1, 0, 5, 68); break;
             case FxErase: DriveErase(); break;
             case FxPost3:
                 if (_toast == null && _fxStep == 0)
@@ -477,8 +480,9 @@ public partial class Prologue : Node2D
                     var stage = GameManager.Stages[0];
                     var job = System.Array.Find(Jobs.All, candidate => candidate.CharacterId == stage.Id)!;
                     var portrait = GD.Load<Texture2D>(CompanionDialogue.AccountIcon(stage.Id));
+                    var reach = SnsVoices.VoiceReach(stage.Id);
                     _toast = PostToast.Show(this, job.CharacterName, stage.Handle, "· 5h", stage.Tweet,
-                        verified: true, replies: 34, reposts: 9, likes: 210, views: 2000, portrait: portrait);
+                        verified: true, reposts: reach.Reposts, likes: reach.Likes, views: reach.Views, portrait: portrait);
                     _fxStep = 1;
                 }
                 if (_toast != null && _toast.Gone) NextFx();
@@ -642,7 +646,7 @@ public partial class Prologue : Node2D
         {
             _openingShown = true;
             _phase = 6;
-            AddChild(new OpeningFilm { Completed = () =>
+            AddChild(new OpeningVideo { Completed = () =>
             {
                 _zHeld = Pad.AdvanceHeld();
                 _backHeld = Input.IsKeyPressed(Key.X) || Pad.Pressed(JoyButton.B);
@@ -846,6 +850,11 @@ public partial class Prologue : Node2D
     private void DrawTalkSpeakers()
     {
         if (_line >= _talk.Count) return;
+        if (_talk[_line].FirstTouch)
+        {
+            DrawTextureRect(_firstTouch, new Rect2(0, 0, W, H), false);
+            return;
+        }
         if (_talk[_line].Who == WhoFx) return;   // 演出行のあいだは立ち絵も引く（中央のカードに場を譲る）
         string face = _talk[_line].Face;
         if (_talk[_line].Who == WhoYou)
@@ -887,7 +896,7 @@ public partial class Prologue : Node2D
     private static void LogLine(DLine d)
     {
         var (label, col) = SpeakerOf(d);
-        Hud.PushLog(KindOf(d.Who), d.Who == WhoSys ? "システム" : label, d.Text, col);
+        Hud.PushLog("プロローグ", KindOf(d.Who), d.Who == WhoSys ? "システム" : label, d.Text, col);
     }
 
     // 話者 → 行の種別（会話ログの本文色と、送り音の音色の両方に使う）。
@@ -908,7 +917,8 @@ public partial class Prologue : Node2D
         var (label, edge) = SpeakerOf(d);
         UiKit.BeginDesign(this);
         var box = DialogueBox.FullScreen;
-        DialogueBox.DrawFrame(this, box, label, edge, draft: d.Who == WhoYou);
+        var face = d.Who == WhoMina ? DialogueBox.LoadPortrait(string.IsNullOrEmpty(d.Face) ? FMina : d.Face) : null;
+        DialogueBox.DrawFrame(this, box, label, edge, face, draft: d.Who == WhoYou);
         DialogueBox.DrawBody(this, box, CurPage, _reveal,
             ink: d.Who == WhoSys ? Code : DialogueBox.Ink,
             speed: _game?.MsgCharsPerSec ?? DialogueBox.DefaultCharsPerSec, pacing: CurPacing);

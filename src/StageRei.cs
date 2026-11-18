@@ -13,6 +13,7 @@ public partial class StageRei : Node
     public Player Player = null!;
     public Hud Hud = null!;
     public Node2D World = null!;
+    internal double Elapsed { get => _stageElapsed; init => _stageElapsed = value; }
     private int _step;
     private bool _stepStarted;
     private double _stageElapsed;   // ステージ全体の経過秒（_Ready〜クリア確定まで。ポーズ中は止まる）。
@@ -44,7 +45,7 @@ public partial class StageRei : Node
 
     private const float SpawnX = 300f;
     // ミナの表情（案C では語り手はミナ一人＝行ごとに顔を差し替える）。こはる面と同じ流儀。
-    private const string MFace = "res://char/mina_face.png";
+    private const string MFace = CompanionDialogue.MinaPortrait;
     private const string RFace = "res://char/v3/rei_face.png";
     // S3-1 配信枠・導入（仮台本 07）。HUD バッジ `炎上中`＝H2 の炎上で弱体化した状態から始まる。
     //   ミナは説明しない（名前も出さない）。投稿の下の声の中身は S3-8 まで温存。
@@ -52,27 +53,27 @@ public partial class StageRei : Node
     private static readonly (int who, string text, string face)[] Intro =
     {
         (0, "レイさんの投稿を開いた。ミナ、光の出力が落ちてる。出る前に、調子を聞かせて。", ""),
-        (1, "平常の八割ほどです。……行きたい気持ちは、減っていません。", "res://char/mina_face.png"),
+        (1, "平常の八割ほどです。……行きたい気持ちは、減っていません。", CompanionDialogue.MinaPortrait),
         (0, "分かった。でも、つらくなったら途中でも戻ろう。僕からも様子を見る。", ""),
-        (1, "はい。……今度は舞台の上なのですね。客席から見るより、落ち着きません。", "res://char/mina_face.png"),
+        (1, "はい。……きれいな星空ですね。レイさんにお会いしたら、最初になんとお声をかけましょう。", CompanionDialogue.MinaPortrait),
         (0, "僕なら、最初の挨拶で噛みそうだ。ミナは、いつもの声でいいよ。", ""),
-        (1, "では、いつもの声で。……レイさんにも、そうしていただきたいです。", "res://char/mina_face.png"),
+        (1, "では、いつもの声で。……レイさんにも、そうしていただきたいです。", CompanionDialogue.MinaPortrait),
         (4, "今日も20時から！　初見さん大歓迎。コメント、全部読みます。", ""),
-        (1, "明るい声ですね。……でも、その下に、疲れた声も。", "res://char/mina_face.png"),
+        (1, "明るい声ですね。……でも、その下に、疲れた声も。", CompanionDialogue.MinaPortrait),
         (0, "コメント欄に「今日も来ました」。こはるさんが話していた、一行だ。", ""),
-        (1, "声が、つながっていたのですね。……会いに行きましょう。", "res://char/mina_face.png"),
+        (1, "声が、つながっていたのですね。……会いに行きましょう。", CompanionDialogue.MinaPortrait),
     };
     // S3-2 小話 Mid（仮台本 07）。「気づいて」「見て」の声の合間に、家の声「ふーん」が同じ色で混じる。
     //   伏せたスマホが一度だけ光り、誰も拾わない。同接が「11」→「8」に減る。
     //   ミナは自分の数字（十万）を言わない＝「比べません」で流す。
     private static readonly (int who, string text, string face)[] Mid =
     {
-        (1, "ここの声は……「気づいて」「見て」と、舞台の先へ呼びかけています。こんなに広いのに、遠くへ届かないような。", "res://char/mina_face.png"),
-        (0, "家で言われた言葉も、重なってる。「ふーん」って短い返事が、何度も。", ""),
+        (1, "ここの声は……「気づいて」「見て」と、舞台の先へ呼びかけています。こんなに広いのに、遠くへ届かないような。", CompanionDialogue.MinaPortrait),
+        (0, "家で言われた「ふーん」って返事も、何度も聞こえてくるね。", ""),
         (4, "「登録者2000人、ありがとう。……去年の今日も、2000人。」", ""),
-        (1, "……マイクのそばに、本が置かれています。開く前に、何度もためらう声がします。", "res://char/mina_face.png"),
+        (1, "……マイクのそばに、本が置かれています。開く前に、何度もためらう声がします。", CompanionDialogue.MinaPortrait),
         (0, "配信の記録では、視聴者数は八。そのうち一人分は、レイさん自身の確認用端末だ。", ""),
-        (1, "一人減るたびに、不安になっていたのですね。……わたくしも、自分の光の弱さが気になります。", "res://char/mina_face.png"),
+        (1, "一人減るたびに、不安になっていたのですね。……わたくしも、自分の光の弱さが気になります。", CompanionDialogue.MinaPortrait),
         (0, "君のことは、数字だけで決めないよ。顔を上げて。進める道は、まだ見えてる。", ""),
     };
     // S3-3 道中A／BossTalk（仮台本 07）。削除済みの一行を投稿の下に聞く（中身は S3-8 まで言わない）。
@@ -81,22 +82,22 @@ public partial class StageRei : Node
     {
         (4, "「企画メモ、下書き十四件。……出せるの、ゼロ件。」", ""),
         (0, "十四件も、消さずに残してたんだ。話したいことが、たくさんあるんだね。", ""),
-        (1, "公開する前に消した下書きが、一行。……ご本人に会えたら、確かめましょう。", "res://char/mina_face.png"),
-        (1, "コメント欄の、あの一行。……まだ、同じ場所にあります。", "res://char/mina_face.png"),
-        (1, "……コメントを読み上げる声が、舞台に響いています。明るい声です。……疲れていた声とは、違うくらい。", "res://char/mina_face.png"),
+        (1, "公開する前に消した下書きが、一行。……ご本人に会えたら、確かめましょう。", CompanionDialogue.MinaPortrait),
+        (1, "コメント欄の、あの一行。……まだ、同じ場所にあります。", CompanionDialogue.MinaPortrait),
+        (1, "舞台から、コメントを読み上げる声が聞こえます。さっきの疲れた声とは別人のように明るいです。", CompanionDialogue.MinaPortrait),
         (0, "舞台の手前に、部屋がつながってる。レイさんの反応は、そこだ。配信の挨拶じゃない声も、聞きたい。", ""),
     };
     private static readonly (int who, string text, string face)[] CameoTalk1 =
     {
         (2, "……だれ？　配信なら、終わったけど。", CompanionDialogue.ReiAvatarPortrait),
-        (1, "ミナと申します。配信のお願いではなく、レイさんとお話をしたくて。", "res://char/mina_face.png"),
+        (1, "ミナと申します。配信のお願いではなく、レイさんとお話をしたくて。", CompanionDialogue.MinaPortrait),
     };
     // RECLOSE（サイクルごとに順送り）。切り替わったあとは笑顔のまま崩れない。
     private static readonly (int who, string text, string face)[] CameoTalk3 =
     {
         (2, "——はじめまして! 星逢レイです。今日も来てくれて、ありがとう。", CompanionDialogue.ReiAvatarPortrait),
         (2, "逃げないで。……初見さん、まだ、いてくれるでしょう?", CompanionDialogue.ReiAvatarPortrait),
-        (1, "ここにおります。配信が終わったあとの声でも、聞かせてください。", "res://char/mina_face.png"),
+        (1, "ここにおります。配信が終わったあとの声でも、聞かせてください。", CompanionDialogue.MinaPortrait),
     };
 
     private static readonly (int who, string text, string face)[] CameoPost =
@@ -109,10 +110,10 @@ public partial class StageRei : Node
     // 剥がし切った下に、消した一行がある（中身は S3-8 まで言わない＝改心の一段目で返す）。
     private static readonly (int who, string text, string face)[] MidStory = {
         (4, "「今日のコメント、全部読んだ。……読まなきゃよかった。」", ""),
-        (1, "……投稿の上に、引用が。一枚。……二枚。——顔のない、引用です。", "res://char/mina_face.png"),
+        (1, "……投稿の上に、引用が。一枚。……二枚。——顔のない、引用です。", CompanionDialogue.MinaPortrait),
         (4, "[星逢レイ @rëi_____] 配信おわり 来てくれてありがとう 人数じゃないから 全部読めた それだけで十分", ""),
         (0, "元の投稿に、アンチャーが言葉を貼りつけてる。狙うのは、元の言葉の上に重なった引用のほうだ。", ""),
-        (1, "はい。元の言葉を、傷つけずに剥がします。", "res://char/mina_face.png"),
+        (1, "はい。元の言葉を、傷つけずに剥がします。", CompanionDialogue.MinaPortrait),
         (3, "引用: 0", ""),
     };
     // ───────── S3-5b 引用の嵐・剥がし切りの受け（仮台本 11「剥がし切り 40〜50秒」の台詞）─────────
@@ -121,34 +122,34 @@ public partial class StageRei : Node
     // わたしを、見てよ」＝09 R47）とは別。中身は本人の前まで言わない（11 の境界）。
     private static readonly (int who, string text, string face)[] StormAfter =
     {
-        (1, "…………。", "res://char/mina_face.png"),
-        (1, "……引用が消えました。下に、送られなかった下書きが、一件。", "res://char/mina_face.png"),
+        (1, "…………。", CompanionDialogue.MinaPortrait),
+        (1, "……引用が消えました。下に、送られなかった下書きが、一件。", CompanionDialogue.MinaPortrait),
         (0, "「もう、いいかな」。……ここで終わりにしようとしてたのかもしれない。", ""),
-        (1, "決めつけずに、聞きに行きましょう。わたくしは、まだお話ししたいです。", "res://char/mina_face.png"),
+        (1, "決めつけずに、聞きに行きましょう。わたくしは、まだお話ししたいです。", CompanionDialogue.MinaPortrait),
     };
     //   残った三つの席のひとつが「今日も来ました」＝こはる。ミナは説明しない。
     //   17（道中の選択肢 案C）: 一行目の直後に S3-5c の下書き選択が入り、受けのあと残り2行（MidEndTail）へ戻る。
     private static readonly (int who, string text, string face)[] MidEnd =
     {
-        (1, "配信の記録に、視聴者数「3」。……最後まで残ったコメントに、あの一行が。", "res://char/mina_face.png"),
+        (1, "配信の記録に、視聴者数「3」。……最後まで残ったコメントに、あの一行が。", CompanionDialogue.MinaPortrait),
         (0, "その一行を、レイさんにも見てほしい。ここに誰がいたのか、数字だけで終わらせたくない。", ""),
-        (1, "……光が、重い。……気のせいでは、なさそうです。", "res://char/mina_face.png"),
+        (1, "……光が、重い。……気のせいでは、なさそうです。", CompanionDialogue.MinaPortrait),
         (0, "幕も足場も、ずいぶん傷んでる。急がず進もう。ミナ、手の重さは戻った？　短くでいい、返事して。", ""),
-        (1, "……はい。動けます。呼んでくださって、助かりました。", "res://char/mina_face.png"),
+        (1, "……はい。動けます。呼んでくださって、助かりました。", CompanionDialogue.MinaPortrait),
     };
 
     private static readonly (int who, string text, string face)[] S35cCue = {
-        (1, "配信の記録に、視聴者数「3」。……最後まで残ったコメントに、あの一行が。", "res://char/mina_face.png"),
+        (1, "配信の記録に、視聴者数「3」。……最後まで残ったコメントに、あの一行が。", CompanionDialogue.MinaPortrait),
         (0, "その一行を、レイさんにも見てほしい。ここに誰がいたのか、数字だけで終わらせたくない。", ""),
-        (1, "……誰も見ていないと、思っておられるのでしょうか。ご主人様。レイさんへ、何と伝えましょう。", "res://char/mina_face.png"),
+        (1, "……誰も見ていないと、思っておられるのでしょうか。ご主人様。レイさんへ、何と伝えましょう。", CompanionDialogue.MinaPortrait),
     };
 
     private static readonly string[] S35cChoices = { "誰も見てないなんて、思ってほしくない", "強がっていないときの、レイさんの話が聞きたい。" };
     // 締めは 07 の残り2行を流用（MidEnd の二行目・三行目）。
     private static readonly (int who, string text, string face)[] S35cTail = {
-        (1, "……光が、重い。……気のせいでは、なさそうです。", "res://char/mina_face.png"),
+        (1, "……光が、重い。……気のせいでは、なさそうです。", CompanionDialogue.MinaPortrait),
         (0, "幕も足場も、ずいぶん傷んでる。急がず進もう。ミナ、手の重さは戻った？　短くでいい、返事して。", ""),
-        (1, "……はい。動けます。呼んでくださって、助かりました。", "res://char/mina_face.png"),
+        (1, "……はい。動けます。呼んでくださって、助かりました。", CompanionDialogue.MinaPortrait),
     };
     // S3-6 ボス出現。ユーザー承認済み: docs/20260914/ストーリー添削_2026-09-14.md 構造指摘
     //   旧稿は空配列＝三面目のラスボスだけ口上がゼロで、無言で出現して無言で撃ってきた
@@ -157,9 +158,9 @@ public partial class StageRei : Node
     private static readonly (int who, string text, string face)[] BossIntro =
     {
         (2, "——初見さん、いらっしゃい。", "res://char/v3/rei_gawa_face_v1.png"),
-        (1, "二度目です。先ほど、配信用の机のそばでお会いしました。", "res://char/mina_face.png"),
+        (1, "二度目です。先ほど、配信用の机のそばでお会いしました。", CompanionDialogue.MinaPortrait),
         (2, "……そうだった？　ごめん。笑って、挨拶しなきゃって、そればっかり。", "res://char/v3/rei_gawa_face_v1.png"),
-        (1, "三つの客席に、灯りが残っています。……あの本のお話を、聞かせてください。", "res://char/mina_face.png"),
+        (1, "三つの客席に、灯りが残っています。……あの本のお話を、聞かせてください。", CompanionDialogue.MinaPortrait),
         (2, "それは……。退屈させたら、どうしようって。まだ、始められないの。", "res://char/v3/rei_gawa_face_v1.png"),
     };
     // S3-9 クリア（仮台本 07）。同接が「4」になる（誰が増えたかは言わない）。
@@ -167,26 +168,26 @@ public partial class StageRei : Node
     private static readonly (int who, string text, string face)[] Clear =
     {
         (4, "次は、本気のあなたと。——逃げたら、承知しないから。", ""),
-        (1, "レイさん。視聴者数が、四に。", "res://char/mina_face.png"),
+        (1, "レイさん。視聴者数が、四に。", CompanionDialogue.MinaPortrait),
         (2, "……誰か一人、来たのね。今日は、その人にも最後まで話せた。", "res://char/v3/rei_face.png"),
-        (1, "はい。わたくしも、本の続きを聞きたいです。", "res://char/mina_face.png"),
-        (2, "ミナがさっき話してた、案内役の人にも。話してみても、いい？", "res://char/v3/rei_face.png"),
+        (1, "はい。わたくしも、本の続きを聞きたいです。", CompanionDialogue.MinaPortrait),
+        (2, "ミナが話してた案内役の人とも、少し話してみていい？", "res://char/v3/rei_face.png"),
         (0, "初めまして、レイさん。君がその本を片づけずにいたの、気になってたんだ。", ""),
         (2, "……見てたのね。じゃあ、前置きはいらないか。", "res://char/v3/rei_face.png"),
         (0, "好きな場面からでいい。聞かせてほしい。", ""),
         (2, "長いわよ。視聴者一名だからって、手を抜かないから。", "res://char/v3/rei_face.png"),
         (0, "歓迎するよ。……ただ、今日は二人とも休んでからね。", ""),
         (2, "分かってる。続きがあるって、悪くないわね。", "res://char/v3/rei_face.png"),
-        (1, "帰ったら、今日の空のお話も。……ご主人様、まだお時間はありますか。", "res://char/mina_face.png"),
+        (1, "帰ったら、今日の空のお話も。……ご主人様、まだお時間はありますか。", CompanionDialogue.MinaPortrait),
     };
 
     private static readonly (int who, string text, string face)[] ClearTail =
     {
-        (1, "三人分の声を抱えました。……この重さくらい、わたくしが。", "res://char/mina_face.png"),
+        (1, "三人分の声を抱えました。……この重さくらい、わたくしが。", CompanionDialogue.MinaPortrait),
         (0, "「くらい」で済ませないで。帰ったら、一緒に整理しよう。", ""),
-        (1, "はい。……あれ。顔のあたりから、光が。", "res://char/mina_face.png"),
+        (1, "はい。……あれ。顔のあたりから、光が。", CompanionDialogue.MinaPortrait),
         (0, "泣いてるんだと思う。うれしいのか、つらいのか、僕が決めていいことじゃないけど。", ""),
-        (1, "両方です。……両方、あってもよいのでしょうか。", "res://char/mina_face.png"),
+        (1, "両方です。……両方、あってもよいのでしょうか。", CompanionDialogue.MinaPortrait),
         (0, "うん。笑ってても、泣いてても、ちゃんと聞くよ。", ""),
     };
     // 迷い秒ゲートの行（★）。s3_5c で迷っていなければ Clear から外して流す。
@@ -200,8 +201,8 @@ public partial class StageRei : Node
     //   本籍がレイ面になったため、こはる面側の到達不能になった現物は撤去した（2026-09-24）＝正典はここ。
     private static readonly (int who, string text, string face)[] MidChoicePre =
     {
-        (1, "ご主人様。……ごまかすのは、やめます。光が濁って、重いです。", "res://char/mina_face.png"),
-        (1, "続けたい。でも、少し怖い。……ご主人様は、どう思いますか。", "res://char/mina_face.png"),
+        (1, "ご主人様。……ごまかすのは、やめます。光が濁って、重いです。", CompanionDialogue.MinaPortrait),
+        (1, "続けたい。でも、少し怖い。……ご主人様は、どう思いますか。", CompanionDialogue.MinaPortrait),
     };
 
     private static readonly string[] S37Choices = { "一緒に行こう。つらくなったら教えて", "ミナまで傷つくのは嫌だ。少し休もう" };
@@ -277,11 +278,11 @@ public partial class StageRei : Node
     {
         0 => new (int, string, string)[] {
         (0, "誰も見てないなんて、思ってほしくない", ""),
-        (1, "はい。黙って見ているだけでは、伝わりませんね。わたくしが見ていたことを、言葉にします。", "res://char/mina_face.png"),
+        (1, "はい。黙って見ているだけでは、伝わりませんね。わたくしが見ていたことを、言葉にします。", CompanionDialogue.MinaPortrait),
     },
         _ => new (int, string, string)[] {
         (0, "強がっていないときの、レイさんの話が聞きたい。", ""),
-        (1, "……拍手をもらえるお話でなくても、聞いてほしいことはあるのでしょうね。わたくしも、一緒に聞きたいです。", "res://char/mina_face.png"),
+        (1, "……拍手をもらえるお話でなくても、聞いてほしいことはあるのでしょうね。わたくしも、一緒に聞きたいです。", CompanionDialogue.MinaPortrait),
     },
     };
 
@@ -289,15 +290,15 @@ public partial class StageRei : Node
     {
         0 => new (int, string, string)[] {
         (0, "あるよ。帰ったら、少し一緒に休もう。", ""),
-        (1, "はい。では、次のお仕事は探さずにおきます。少しだけ、何もしない時間を。", "res://char/mina_face.png"),
+        (1, "はい。では、次のお仕事を探すのは後にして、少しだけのんびりしましょう。", CompanionDialogue.MinaPortrait),
         (0, "少しで足りなければ、長くしていいよ。僕も休むから。", ""),
-        (1, "ありがとうございます。……帰り道、よろしくお願いします。", "res://char/mina_face.png"),
+        (1, "ありがとうございます。……帰り道、よろしくお願いします。", CompanionDialogue.MinaPortrait),
     },
         _ => new (int, string, string)[] {
         (0, "ミナの話も、もっと聞きたい。", ""),
-        (1, "報告にまとめなくても、よいでしょうか。……今日は、うまくまとまりません。", "res://char/mina_face.png"),
+        (1, "報告にまとめなくても、よいでしょうか。……今日は、うまくまとまりません。", CompanionDialogue.MinaPortrait),
         (0, "そのままでいい。僕に言いたいところから、話して。", ""),
-        (1, "ありがとうございます。……帰り道、よろしくお願いします。", "res://char/mina_face.png"),
+        (1, "ありがとうございます。……帰り道、よろしくお願いします。", CompanionDialogue.MinaPortrait),
     },
     };
 
@@ -306,13 +307,13 @@ public partial class StageRei : Node
     {
         0 => new (int, string, string)[] {
         (0, "一緒に行こう。つらくなったら教えて", ""),
-        (1, "……はい。つらくなったら、お伝えします。……ご主人様にも頼ってよいのだと、覚えておきます。", "res://char/mina_face.png"),
+        (1, "……はい。つらくなったら、お伝えします。……ご主人様にも頼ってよいのだと、覚えておきます。", CompanionDialogue.MinaPortrait),
     },
         _ => new (int, string, string)[] {
         (0, "ミナまで傷つくのは嫌だ。少し休もう", ""),
-        (1, "……はい。休みたいです。待っていただけますか。", "res://char/mina_face.png"),
+        (1, "……はい。休みたいです。待っていただけますか。", CompanionDialogue.MinaPortrait),
         (0, "もちろん。君の返事を待つくらい、何でもないよ。呼んでくれるまで、ここにいる。", ""),
-        (1, "……もう大丈夫です。待っていてくださって、ありがとうございました。ここからは、一つずつ。", "res://char/mina_face.png"),
+        (1, "少し、息が戻りました。重さは、まだあります。……ここからは、一つずつ。", CompanionDialogue.MinaPortrait),
     },
     };
     // 会話・選択の step 一覧（1 イントロ／2 道中会話／4 道中A後の観測／9 s3_5c／11 ボス口上）。
@@ -321,10 +322,11 @@ public partial class StageRei : Node
 
     public override void _Ready()
     {
+        Hud.SetElapsed((float)Elapsed);
         _step = 1;
         // 道中ザコ（A+B+C 三波）＋引用の嵐の薄い波＋ボスで浄化カプセルが満ちるよう目標を設定（61体＋ボス1）。
         // 嵐ぶん(StormWave)を落とすと嵐の途中で StageCleared が立ち、以降 Spawner が止まって敵が出なくなる。
-        GetNodeOrNull<GameManager>("/root/Game")?.SetStageTarget(MidWaveA + MidWaveB + MidWaveC + StormWave + 1);
+        GetNodeOrNull<GameManager>("/root/Game")?.SetStageTarget(MidWaveA + MidWaveB + MidWaveC + StormWave + 1, hasBoss: true);
 
         // 操作チュートリアルは独立ステージ0（StageZero）へ一本化した（A案）。レイ面は初回でも本編からテンポよく始まる。
         var game = GetNodeOrNull<GameManager>("/root/Game");
@@ -393,7 +395,7 @@ public partial class StageRei : Node
     {
         if (Hud.CinematicMode) { _zHeld = Pad.AdvanceHeld(); return; }
         _lineHold += delta;
-        if (!_clearing && !Hud.BubblePaused) { _stageElapsed += delta; Hud.SetElapsed((float)_stageElapsed); }
+        if (!_clearing && !Hud.BubblePaused && Player.Lives > 0) { _stageElapsed += delta; Hud.SetElapsed((float)_stageElapsed); }
         // 会話送り：Z/Enter/ui_accept/Pad A に加えマウス左クリックでも送れる共通ヘルパ（マウス対応 P2）。
         bool z = Pad.AdvanceHeld();
         _zEdge = z && !_zHeld && !Pad.UiBlocked(this);
@@ -659,10 +661,11 @@ public partial class StageRei : Node
         {
             _stepStarted = true;
             var game = GetNode<GameManager>("/root/Game");
-            game.SetStageTarget(game.PurifiedCount + MidWaveC + 1);
+            game.SetStageTarget(game.PurifiedCount + MidWaveC + 1, hasBoss: true);
             StartMidwaveSpawner(MidWaveC, 0.7f);
         }
         if (!_spawner.Finished || !Spawner.BattlefieldClear(GetTree())) return;
+        GameManager.Instance!.FinishStageRoad();
         _spawner.QueueFree();
         _spawner = null!;
         GetNode<BulletPool>("/root/Pool").DespawnAll();
@@ -748,6 +751,7 @@ public partial class StageRei : Node
             var opening = _playerBoss;
             if (!_lunatic) _playerBoss = StageTutorial.TakeBoss(GetNodeOrNull<GameManager>("/root/Game"));
             if (!_lunatic) CameoIntroScene.PlayBoss(Hud, World, "rei", opening, () => {
+                _boss.GetNode<BossPostSequence>("PostSequence").ResumeMusic();
                 _zHeld = Pad.AdvanceHeld(); _zEdge = false;
                 Step_Lines(0, _playerBoss);
             }, SpawnBoss);

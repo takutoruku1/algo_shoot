@@ -11,14 +11,6 @@ public partial class ScoreShardQa : Node
     private static T Read<T>(object obj, string field) => (T)obj.GetType().GetField(field, Fields)!.GetValue(obj)!;
     private static IList Shards(ScoreShards drops) => Read<IList>(drops, "_shards");
     private static int Value(ScoreShards drops) => Shards(drops).Cast<object>().Sum(s => Read<int>(s, "Points"));
-    // 欠片が運ぶショップ通貨の基礎額の総和（2026-09-17 経済改修）。スコア(Points)とは別系統。
-    private static int ImpValue(ScoreShards drops) => Shards(drops).Cast<object>().Sum(s => Read<int>(s, "Imp"));
-    // 基礎額 impBase が GainImpression の全倍率を通ったあとの実加算額（期待値計算用）。
-    private static long Expected(GameManager game, int impBase) =>
-        impBase <= 0 ? 0 : (long)Mathf.Round(impBase * game.TotalImpressionMul * game.ReplayMul * GameManager.MoneyGainMul);
-    // 浄化1体が欠片に積む基礎額（コンボ加算後の値に取りこぼし補正 ShardImpressionMul を掛けたもの）。
-    private static int PurifyImp(int comboAfter) =>
-        Mathf.Max(1, Mathf.RoundToInt((2 + comboAfter) * GameManager.ShardImpressionMul));
     private static FxLayer.P[] Particles(FxLayer fx) => Read<IList>(fx, "_p").Cast<FxLayer.P>().ToArray();
     private static void Check(bool ok, string message)
     {
@@ -42,9 +34,23 @@ public partial class ScoreShardQa : Node
             DisplayServer.WindowSetMode(DisplayServer.WindowMode.Windowed);
             DisplayServer.WindowSetSize(new Vector2I(1280, 720));
             await Frames(1);
+            if (OS.GetCmdlineUserArgs().Contains("--boss-hits"))
+            {
+                await BossHits(game);
+                GD.Print("[ScoreShardQA] BOSS HITS ALL PASS");
+                GetTree().Quit();
+                return;
+            }
             if (Array.Exists(OS.GetCmdlineUserArgs(), arg => arg == "--movie"))
             {
                 await Movie(game);
+                GetTree().Quit();
+                return;
+            }
+            if (Array.Exists(OS.GetCmdlineUserArgs(), arg => arg == "--bomb"))
+            {
+                await BombConversions(game);
+                GD.Print("[ScoreShardQA] BOMB ALL PASS");
                 GetTree().Quit();
                 return;
             }
@@ -109,8 +115,6 @@ public partial class ScoreShardQa : Node
                 // ★経済改修：撃破の瞬間にはインプレが1も入らない（通貨は拾って初めて入る）。
                 long afterDefeat = game.Impression;
                 Check(afterDefeat == impressionAtDefeat, "defeating an enemy alone never awards shop currency");
-                int impBonus = ImpValue(drops);
-                Check(impBonus == PurifyImp(1), $"shards carry the whole purify impression base ({impBonus})");
                 enemy.Purify();
                 Check(Shards(drops).Count == dropCount && game.Score == defeatScore, "repeat defeat cannot duplicate rewards");
                 Tick(drops, 30);
@@ -147,9 +151,8 @@ public partial class ScoreShardQa : Node
                     "attracted shards follow the moving player and award their points exactly once");
                 // 拾った瞬間にショップ通貨が増える（説明文「浄化した心＝通貨」と実装が一致する）。
                 // 小口はしきい値まで貯めてから1回で通すので、締めてから総額を比べる。
-                game.FlushShardImpression();
-                Check(game.Impression == money + Expected(game, impBonus),
-                    $"collecting shards is what actually pays the shop currency (+{game.Impression - money})");
+                Check(game.Impression == money,
+                    $"collecting shards keeps currency pending until stage exit (+{game.Impression - money})");
                 Check(game.Combo == 1 && game.PurifiedCount == 1,
                     "collecting cannot farm combo or stage progress");
                 money = game.Impression;
@@ -162,10 +165,9 @@ public partial class ScoreShardQa : Node
 
                 root.Player.GlobalPosition = new Vector2(Field.Left + 10, 190);
                 fx.PurifyBurst(new Vector2(340, 65), 100);
-                Tick(drops, 330);
+                Tick(drops, 450);
                 // 取りこぼしはスコアも通貨も入らない＝「拾いに行く」ことが賭けになる（リスクとリターン）。
                 // ボス/中ボスは BeginRush、クリアは sweep で全回収が保証されるので、これは道中だけの賭け。
-                game.FlushShardImpression();
                 Check(Shards(drops).Count == 0 && game.Score == defeatScore + bonus && game.Impression == money,
                     "uncollected shards expire without awarding points or shop currency");
                 fx.PurifyBurst(new Vector2(Field.Right + 30, -20), 100);
@@ -183,13 +185,10 @@ public partial class ScoreShardQa : Node
                     root.World.AddChild(bombEnemy);
                     bombEnemy.SetPhysicsProcess(false);
                     bombEnemy.Purify();
-                    if (i == 3) Check(Shards(drops).Count == previousCount, "bomb-capped effects remain non-collectible");
+                    Check(Shards(drops).Count > previousCount, "every bomb defeat produces collectible shards");
                 }
-                Check(Value(drops) == 24 && game.PurifiedCount == 4 && game.Combo == 3,
-                    "bomb reward cap also caps shard drops without blocking stage progress");
-                // キャップ超過の4体目は通貨も積まない＝ボム撃ちの無限ファームは通貨側でも塞がれている。
-                Check(ImpValue(drops) == PurifyImp(1) + PurifyImp(2) + PurifyImp(3),
-                    "bomb reward cap also caps the shop currency the shards carry");
+                Check(Value(drops) == 32 && game.PurifiedCount == 4 && game.Combo == 4,
+                    "all four bomb defeats count and drop shards");
                 Shards(drops).Clear();
 
                 // ── ボス/中ボス撃破の欠片量（2026-09-17 の爽快感強化）──
@@ -228,46 +227,38 @@ public partial class ScoreShardQa : Node
                 Shards(drops).Clear();
                 Read<IList>(fx, "_p").Clear();
                 drops.GetType().GetField("_rush", Fields)!.SetValue(drops, 0f);
-                fx.PurifyBurst(new Vector2(350, 70), 100, FxLayer.PurifyTier.Zako, 40);
+                fx.PurifyBurst(new Vector2(350, 70), 100, FxLayer.PurifyTier.Zako);
                 var zakoVel = Velocities();
                 Check(zakoVel.All(v => v.X > -30f && v.Y < 40f),
                     "zako scatter stays in its upper-right fan (bullet readability unchanged)");
                 Check(Shards(drops).Cast<object>().All(s => Read<float>(s, "Fly") == 0.24f),
                     "zako shards keep the original short scatter window");
 
-                // ── 実際に飛ばして「盤面全体に散り、1粒も取り逃さない」を確かめる ──
-                //   欠片の位置は毎フレーム Field.Rect へクランプされるので画面外へは出られないが、
-                //   端に貼りついた粒まで BeginRush の尺で戻り切れるかは実測しないと判らない。
                 Shards(drops).Clear();
                 Read<IList>(fx, "_p").Clear();
                 drops.GetType().GetField("_rush", Fields)!.SetValue(drops, 0f);
-                game.FlushShardImpression();
                 long beforeSpread = game.Score;
                 root.Player.GlobalPosition = new Vector2(Field.Left + 20, 170);
-                fx.PurifyBurst(new Vector2(260, 90), 1500, FxLayer.PurifyTier.Boss, 40);
+                fx.PurifyBurst(new Vector2(260, 90), 1500, FxLayer.PurifyTier.Boss);
                 int spreadCount = Shards(drops).Count;
                 int spreadBonus = Value(drops);
                 Tick(drops, 48); // 0.8s＝散り切った瞬間の広がりを測る
                 var spread = Shards(drops).Cast<object>().Select(s => Read<Vector2>(s, "Position"))
                     .Select(p => drops.ToGlobal(p)).ToArray();
-                // 散っている（まだ吸引に入っていない）粒は1つ残らず盤面の中。初速を 1.55→2.6 倍に
-                // 上げても画面外へ飛び去らないのは、_PhysicsProcess が毎フレーム Field.Rect へ
-                // クランプするから＝端に貼りつくだけで「拾えないまま消える」粒は生まれない。
                 var flying = Shards(drops).Cast<object>().Where(s => !Read<bool>(s, "Attracted"))
                     .Select(s => drops.ToGlobal(Read<Vector2>(s, "Position"))).ToArray();
-                var outside = flying.Where(p => !Field.Rect.HasPoint(p)).ToArray();
-                Check(outside.Length == 0,
-                    $"scattering boss shards never leave the playable field ({outside.Length} outside)");
+                Check(flying.All(p => p.X < Field.Right && p.Y >= Field.Top && p.Y < Field.Bottom),
+                    "scattering boss shards stay inside the top, bottom and right boundaries");
+                Check(game.Score - beforeSpread + Value(drops) == spreadBonus,
+                    "boss collection rush preserves rewards even when shards cross the left edge");
                 // 盤面(264×216)を 4×4 に割って、少なくとも 12 マスに粒が居る＝「全体に散っている」。
                 var cells = spread.Select(p => (
                         Mathf.Clamp((int)((p.X - Field.Left) / (Field.Width / 4)), 0, 3),
                         Mathf.Clamp((int)((p.Y - Field.Top) / (Field.Height / 4)), 0, 3)))
                     .Distinct().Count();
                 Check(cells >= 12, $"boss shards cover the whole board, not one corner ({cells}/16 cells)");
-                // 撒いた粒は最後の1粒まで拾える（端に貼りついた粒もラッシュ尺で戻り切る）。
                 root.Player.GlobalPosition = new Vector2(260, 120);
                 Tick(drops, 210);
-                game.FlushShardImpression();
                 Check(Shards(drops).Count == 0 && game.Score == beforeSpread + spreadBonus,
                     $"every one of the {spreadCount} boss shards is collected, none expires off-screen");
                 Check(!Read<bool>(drops, "_harvest"), "the harvest showpiece closes once the last shard lands");
@@ -277,8 +268,6 @@ public partial class ScoreShardQa : Node
 
                 // ── 難易度で欠片の量が変わる（Easy0.8 / Normal1.0 / Hard1.3 / Lunatic1.6）──
                 //   粒数とスコア総量に同じ倍率が掛かり、階層（Zako<MidBoss<Boss）の段差は保たれる。
-                //   ★通貨(impBase)にだけは DifficultyShardMul を掛けない。難易度の賭け金は経済側の
-                //     DifficultyImpressionMul(0.7/1.0/1.6/3.0) 1本だけが担う＝二重適用の回帰検査。
                 var shardDiffs = new[]
                 {
                     (GameManager.Diff.Easy, 0.8f), (GameManager.Diff.Normal, 1.0f),
@@ -300,11 +289,7 @@ public partial class ScoreShardQa : Node
                     {
                         Shards(drops).Clear();
                         Read<IList>(fx, "_p").Clear();
-                        // 通貨側の二重適用を検出するため、基礎額を明示して撒く（40＝分配の割り切れない値）。
-                        const int ImpSeed = 40;
-                        fx.PurifyBurst(new Vector2(350, 70), basePoints, tier, ImpSeed);
-                        Check(ImpValue(drops) == ImpSeed,
-                            $"{diff}/{tier}: shards carry the impression base unscaled by the shard multiplier ({ImpValue(drops)})");
+                        fx.PurifyBurst(new Vector2(350, 70), basePoints, tier);
                         int count = Shards(drops).Count;
                         int expectLo = Mathf.Max(1, Mathf.RoundToInt(lo * mul));
                         int expectHi = Mathf.Max(1, Mathf.RoundToInt(hi * mul));
@@ -324,24 +309,19 @@ public partial class ScoreShardQa : Node
                     drops.GetType().GetField("_rush", Fields)!.SetValue(drops, 0f);
                 }
 
-                // 同じ基礎額を難易度違いで実際に拾い、実入りが DifficultyImpressionMul(0.7/1.0/1.6/3.0) の
-                // 1本だけで決まることを確かめる（欠片側 0.8/1.0/1.3/1.6 が混ざっていれば比が崩れて落ちる）。
                 foreach (var diff in new[] { GameManager.Diff.Easy, GameManager.Diff.Normal, GameManager.Diff.Hard, GameManager.Diff.Lunatic })
                 {
                     game.Difficulty = diff;
                     Shards(drops).Clear();
                     Read<IList>(fx, "_p").Clear();
-                    game.FlushShardImpression();
                     long before = game.Impression;
-                    const int ImpSeed = 40;
-                    fx.PurifyBurst(new Vector2(350, 70), 100, FxLayer.PurifyTier.Zako, ImpSeed);
+                    fx.PurifyBurst(new Vector2(350, 70), 100, FxLayer.PurifyTier.Zako);
                     root.Player.GlobalPosition = new Vector2(350, 70);
                     Tick(drops, 2);
                     root.Player.GlobalPosition = new Vector2(350, 70);
                     Tick(drops, 120);
-                    game.FlushShardImpression();
-                    Check(Shards(drops).Count == 0 && game.Impression - before == Expected(game, ImpSeed),
-                        $"{diff}: picked-up currency follows only the economy multiplier (+{game.Impression - before})");
+                    Check(Shards(drops).Count == 0 && game.Impression == before,
+                        $"{diff}: pickups do not pay currency before stage exit (+{game.Impression - before})");
                     drops.GetType().GetField("_rush", Fields)!.SetValue(drops, 0f);
                 }
                 // 以降の検査はすべて Normal（倍率1.0）の期待値で書かれているので Normal に戻して続ける。
@@ -350,22 +330,17 @@ public partial class ScoreShardQa : Node
                 Read<IList>(fx, "_p").Clear();
                 drops.GetType().GetField("_rush", Fields)!.SetValue(drops, 0f);
 
-                fx.PurifyBurst(new Vector2(350, 70), 1500, FxLayer.PurifyTier.Boss, 40);
+                fx.PurifyBurst(new Vector2(350, 70), 1500, FxLayer.PurifyTier.Boss);
                 int clearBonus = Value(drops);
-                int clearImp = ImpValue(drops);
                 long beforeClear = game.Score;
-                game.FlushShardImpression();
                 long beforeClearImp = game.Impression;
                 game.SetStageTarget(game.PurifiedCount);
                 root.Hud.HoldBubble = true;
                 root.Hud.ShowMessage("QA");
                 Tick(drops, 150);
-                game.FlushShardImpression();
-                // 掃引は通貨も含めて全部回収する＝ステージ終わりの取りこぼしは原理的に起きない。
-                // これがあるので「拾い逃しのストレス」は道中に限定され、補正係数もそこだけを見ればよい。
                 Check(Shards(drops).Count == 0 && game.Score == beforeClear + clearBonus
-                    && game.Impression == beforeClearImp + Expected(game, clearImp),
-                    "stage clear sweeps up all remaining shards, currency included, even during the defeat dialogue");
+                    && game.Impression == beforeClearImp,
+                    "stage clear sweeps up score shards without paying before exit");
                 root.Hud.HoldBubble = false;
                 root.Hud.HideBubble();
                 game.SetStageTarget(999);
@@ -399,19 +374,14 @@ public partial class ScoreShardQa : Node
 
                 // 容量 256→640（ボス撃破 104〜128 粒 + 道中の取り残しを飲み込むため）。
                 // 溢れた分は Add が false を返し、ただの装飾パーティクルへ落ちる＝上限は依然として有効。
-                game.FlushShardImpression();
                 long beforeOverflow = game.Impression;
-                for (int i = 0; i < 120; i++) fx.PurifyBurst(new Vector2(310, 100), 100, FxLayer.PurifyTier.Zako, 40);
+                for (int i = 0; i < 120; i++) fx.PurifyBurst(new Vector2(310, 100), 100, FxLayer.PurifyTier.Zako);
                 Check(Shards(drops).Count == 640, "large chains have a bounded particle count");
-                // 容量超過で欠片になれなかったぶんの通貨は、その場で入金して帳尻を合わせる
-                // （演出の都合でお金が黙って消えるのは「気づけない損」＝いちばん質の悪い罰）。
-                game.FlushShardImpression();
-                Check(game.Impression > beforeOverflow + Expected(game, 40),
-                    "currency that overflows the shard capacity is paid out instead of vanishing");
+                Check(game.Impression == beforeOverflow,
+                    "overflowing shard capacity cannot pay currency");
                 typeof(Player).GetProperty("Lives")!.SetValue(root.Player, 0);
                 long beforeDeath = game.Score, beforeDeathImp = game.Impression;
                 Tick(drops, 60);
-                game.FlushShardImpression();
                 Check(Shards(drops).Count == 0 && game.Score == beforeDeath && game.Impression == beforeDeathImp,
                     "game over cannot collect lingering bonuses");
                 fx.PurifyBurst(new Vector2(300, 100), 100);
@@ -437,6 +407,280 @@ public partial class ScoreShardQa : Node
             GetTree().Paused = false;
             GetTree().Quit(1);
         }
+    }
+
+    private async Task BossHits(GameManager game)
+    {
+        typeof(Settings).GetProperty(nameof(Settings.PauseWhenUnfocused))!.SetValue(null, false);
+        var root = GD.Load<PackedScene>("res://Akari.tscn").Instantiate<AkariRoot>();
+        GetTree().Root.AddChild(root);
+        GetTree().CurrentScene = root;
+        root.Stage.SetProcess(false);
+        root.World.ProcessMode = ProcessModeEnum.Inherit;
+        root.Player.SetPhysicsProcess(false);
+        root.Hud.HoldBubble = false;
+        root.Hud.HideBubble();
+        Hud.BubblePaused = false;
+        game.SetProcess(false);
+        var pool = GetNode<BulletPool>("/root/Pool");
+        pool.DespawnAll();
+        void Set(Enemy boss, string field, object value) => typeof(Enemy).GetField(field, Fields)!.SetValue(boss, value);
+        int Hp(Enemy boss) => (int)typeof(Enemy).GetField("_hp", Fields)!.GetValue(boss)!;
+        void Phase(Enemy boss, string phase)
+        {
+            var field = typeof(Enemy).GetField("_phase", Fields)!;
+            field.SetValue(boss, Enum.Parse(field.FieldType, phase));
+        }
+        void Hit(Node target, bool charged = false)
+        {
+            var bullet = pool.Spawn(new Vector2(Field.Left + 4, 8), Vector2.Right, false, damage: charged ? 12 : 2);
+            if (charged) bullet.MakeCharged(Job.Tank);
+            target.EmitSignal(Area2D.SignalName.AreaEntered, bullet);
+            pool.Despawn(bullet);
+        }
+        void Reward(Action action, Func<int> remaining, string label, int extra = 0)
+        {
+            long score = game.Score, money = game.Impression;
+            int before = remaining(), combo = game.Combo, purified = game.PurifiedCount;
+            action();
+            int lost = before - remaining();
+            Check(lost > 0 && game.Combo == combo
+                && game.Score == score + (long)lost * Math.Clamp(combo, 1, 16) + extra,
+                $"{label}: effective damage scores without advancing the combo");
+            Check(game.Impression == money && game.PurifiedCount == purified,
+                $"{label}: hits do not award currency or defeat progress");
+        }
+        void Ignored(Action action, string label)
+        {
+            long score = game.Score;
+            int combo = game.Combo;
+            action();
+            Check(game.Score == score && game.Combo == combo, $"{label}: no score or combo");
+        }
+        foreach (var difficulty in Enum.GetValues<GameManager.Diff>())
+        foreach (var id in new[] { "akari", "koharu", "rei", "mina" })
+        {
+            game.Difficulty = difficulty;
+            game.ResetRun();
+            Enemy boss = id switch
+            {
+                "akari" => new BossAkari(), "koharu" => new BossKoharu(),
+                "rei" => new BossRei(), _ => new BossMina(),
+            };
+            root.World.AddChild(boss);
+            boss.ProcessMode = ProcessModeEnum.Disabled;
+            Set(boss, "_entering", false);
+            Set(boss, "_bodyHitCd", 0d);
+            Phase(boss, "Shielded");
+            string label = $"{difficulty}/{id}";
+            Ignored(() => Hit(boss), $"{label} shielded body");
+            Phase(boss, "Exposed");
+            Reward(() => Hit(boss), () => Hp(boss), $"{label} normal shot");
+            Ignored(() => Hit(boss), $"{label} body cooldown");
+            Reward(() => Hit(boss, true), () => Hp(boss), $"{label} charge shot");
+            Reward(() => boss.TakeSpecialHit(3, root.Player.Position), () => Hp(boss), $"{label} special");
+            Reward(boss.Purify, () => Hp(boss), $"{label} bomb");
+            Reward(() => boss.DealDirectDamage(3), () => Hp(boss), $"{label} interaction");
+            if (id == "akari")
+            {
+                boss.DealDirectDamage(int.MaxValue);
+                Set(boss, "_bodyHitCd", 0d);
+                Ignored(() => Hit(boss), $"{label} story HP floor");
+            }
+
+            Phase(boss, "Shielded");
+            var shield = new Panel();
+            shield.Setup(boss, 0, 0, 0, 100);
+            boss.AddChild(shield);
+            Reward(() => Hit(shield), () => shield.Ink, $"{label} shield shot");
+            Reward(() => Hit(shield, true), () => shield.Ink, $"{label} shield charge");
+            Reward(() => shield.TakeSpecialHit(3), () => shield.Ink, $"{label} shield special");
+            Reward(shield.WeakenByBomb, () => shield.Ink, $"{label} shield bomb");
+            shield.Invulnerable = true;
+            Ignored(() => { Hit(shield); shield.TakeSpecialHit(5); shield.WeakenByBomb(); }, $"{label} invulnerable shield");
+            shield.Invulnerable = false;
+            boss.TechniquePractice = true;
+            Ignored(() => { Hit(shield); shield.TakeSpecialHit(5); shield.WeakenByBomb(); }, $"{label} technique practice");
+            boss.TechniquePractice = false;
+            Reward(() => shield.TakeSpecialHit(10000), () => shield.Ink, $"{label} shield overkill", 5);
+            Ignored(() => shield.TakeSpecialHit(5), $"{label} destroyed shield");
+            boss.QueueFree();
+            await Frames(2);
+            root.Hud.HideBossBar();
+            root.Hud.HideBubble();
+            Hud.BubblePaused = false;
+        }
+
+        game.ResetRun();
+        var target = new Enemy();
+        Set(target, "BarCount", 100);
+        Set(target, "PanelCount", 0);
+        root.World.AddChild(target);
+        target.ProcessMode = ProcessModeEnum.Disabled;
+        Set(target, "_entering", false);
+        Phase(target, "Exposed");
+        for (int i = 0; i < 20; i++) target.TakeSpecialHit(1, root.Player.Position);
+        Check(game.Combo == 0 && game.Score == 20, "twenty nonlethal boss hits score at x1 and never start a combo");
+        game.AddPurify(10);
+        game.AddPurify(10);
+        game._Process(120);
+        Check(game.Combo == 2, "two enemy defeats still count after two minutes without attacking");
+        Reward(() => target.TakeSpecialHit(2, root.Player.Position), () => Hp(target), "boss hit during a streak");
+        Hud.BubblePaused = true;
+        Ignored(() => target.TakeSpecialHit(3, root.Player.Position), "dialogue hit");
+        game._Process(60);
+        Hud.BubblePaused = false;
+        game.AddDodgeGraze();
+        Check(game.Combo == 2, "dialogue and dodge graze preserve the streak");
+        target.DealDirectDamage(Hp(target));
+        Check(target.IsPurified && game.Combo == 3, "defeating the boss adds exactly one to the streak");
+        target.Purify();
+        target.DealDirectDamage(1);
+        Check(game.Combo == 3, "the defeated boss cannot count twice");
+        int lives = root.Player.Lives;
+        root.Player.TakeHit();
+        Check(root.Player.Lives == lives && game.Combo == 3, "spawn protection preserves the combo");
+        for (int frame = 0; frame < 100; frame++) root.Player._PhysicsProcess(1.0 / 60);
+        root.Player.TakeHit();
+        Check(root.Player.Lives == lives - 1 && game.Combo == 0, "losing a life resets the combo immediately");
+        game.AddPurify(10);
+        root.Player.TakeHit();
+        Check(root.Player.Lives == lives - 1 && game.Combo == 1, "the next defeat starts at one and an invincible hit preserves it");
+        game.ResetRun();
+        Check(game.Score == 0 && game.Combo == 0, "new run clears boss hit rewards");
+        for (int i = 0; i < 100; i++) game.AddPurify(10);
+        Check(game.Combo == 100 && game.Score == 14800, "one hundred defeats keep counting with a maximum x16 score multiplier");
+        await Frames(2);
+        await Shot("combo_count_100");
+        for (int i = 0; i < 900; i++) game.AddPurify(1);
+        Check(game.Combo == 1000 && game.Score == 29200, "one thousand defeats reach a four-digit combo with the same reward cap");
+        await Frames(2);
+        await Shot("combo_count_1000");
+        game.ResetRun();
+        Check(game.Combo == 0 && game.Score == 0, "new run clears a four-digit combo");
+        root.QueueFree();
+        GetTree().CurrentScene = this;
+        await Frames(3);
+        game.SetProcess(true);
+        Audio.Instance?.StopMusic(0);
+    }
+
+    private async Task BombConversions(GameManager game)
+    {
+        game.SelectedJob = Job.Magic;
+        game.Difficulty = GameManager.Diff.Normal;
+        game.ResetRun();
+        var root = GD.Load<PackedScene>("res://Akari.tscn").Instantiate<AkariRoot>();
+        GetTree().Root.AddChild(root);
+        GetTree().CurrentScene = root;
+        root.Stage.SetProcess(false);
+        root.World.ProcessMode = ProcessModeEnum.Disabled;
+        root.Hud.HoldBubble = false;
+        root.Hud.HideBubble();
+        root.Player.GlobalPosition = new Vector2(Field.Left + 12, Field.Bottom - 16);
+        game.SetStageTarget(999);
+        var pool = GetNode<BulletPool>("/root/Pool");
+        pool.ProcessMode = ProcessModeEnum.Disabled;
+        var drops = FxLayer.Instance.ScoreDrops;
+        var enemies = Enumerable.Range(0, 4).Select(i => new PageShard
+        {
+            Position = new Vector2(Field.Right - 20, Field.Top + 35 + i * 35),
+        }).ToArray();
+        foreach (var enemy in enemies) root.World.AddChild(enemy);
+        var outsideEnemy = new PageShard { Position = new Vector2(Field.Right + 70, Field.CenterY) };
+        root.World.AddChild(outsideEnemy);
+        var shots = Enumerable.Range(0, 720).Select(i => pool.Spawn(
+            new Vector2(Field.Left + 8 + i % 30 * 8, Field.Top + 8 + i / 30 * 8), Vector2.Zero, true)).ToArray();
+        var friendly = pool.Spawn(new Vector2(Field.CenterX, Field.CenterY), Vector2.Zero, false);
+        var outsideShot = pool.Spawn(new Vector2(Field.Right + 70, Field.CenterY), Vector2.Zero, true);
+        var areas = Enum.GetValues<AreaStrike.Shape>().Select(shape =>
+        {
+            var area = new AreaStrike();
+            if (shape == AreaStrike.Shape.BeamSeg)
+                area.ConfigureBeam(Vector2.Left, 140, 8, 1, Colors.Red, Colors.White);
+            else if (shape == AreaStrike.Shape.Fullscreen)
+                area.ConfigureFullscreen(Field.PlayerStart, 30, 1, Colors.Red, Colors.White);
+            else area.Configure(shape, 60, 12, 1, Colors.Red, Colors.White);
+            root.World.AddChild(area);
+            if (shape != AreaStrike.Shape.Fullscreen) area.GlobalPosition = new Vector2(Field.Right - 70, 90);
+            return area;
+        }).ToArray();
+        var bomb = typeof(Player).GetMethod("TryBomb", Fields)!;
+        var sweep = typeof(Player).GetMethod("ConvertBombTargets", Fields)!;
+        int beforeBombs = game.Bombs;
+        bomb.Invoke(root.Player, null);
+        Check(game.Bombs == beforeBombs - 1, "one activation consumes exactly one bomb");
+        Check(enemies.All(e => e.IsPurified) && !outsideEnemy.IsPurified, "all four visible enemies convert; offscreen enemies remain");
+        Check(shots.All(b => !b.Active) && friendly.Active && outsideShot.Active, "all 720 hostile shots convert without consuming friendly or offscreen shots");
+        Check(areas.All(a => a.IsQueuedForDeletion() && !a.Visible && !a.IsStriking), "all six area attack shapes cancel immediately");
+        Check(game.Combo == 4, "one bomb counts four enemies without counting converted bullets or area attacks");
+        Check(Shards(drops).Count > 720 && Value(drops) >= 720,
+            "dense conversions and fourth enemy retain collectible rewards beyond normal capacity");
+        Check(Shards(drops).Cast<object>().All(s => Read<bool>(s, "Attracted")), "all bomb shards attract immediately from every distance");
+        int converted = Shards(drops).Count;
+        sweep.Invoke(root.Player, new object[] { false });
+        Check(Shards(drops).Count == converted, "repeat sweep cannot duplicate converted enemies or attacks");
+        var lateShot = pool.Spawn(new Vector2(Field.Right - 10, 70), Vector2.Zero, true);
+        var lateEnemy = new PageShard { Position = new Vector2(Field.Right - 15, 100) };
+        root.World.AddChild(lateEnemy);
+        root.Player._PhysicsProcess(1.0 / 60);
+        Check(!lateShot.Active && lateEnemy.IsPurified, "new attacks and enemies convert during the bomb animation");
+        await Shot("bomb_converted");
+        long score = game.Score, money = game.Impression;
+        int points = Value(drops);
+        for (int frame = 0; frame < 240; frame++)
+        {
+            root.Player.GlobalPosition = new Vector2(Field.Left + 16 + frame % 50, Field.Bottom - 20);
+            Tick(drops, 1);
+        }
+        Check(Shards(drops).Count == 0 && game.Score == score + points && game.Impression == money,
+            "every converted shard follows the moving player and pays exactly once");
+        Tick(drops, 60);
+        Check(game.Score == score + points && game.Impression == money, "collected bomb rewards cannot repeat");
+        for (int frame = 0; frame < 40; frame++) root.Player._PhysicsProcess(1.0 / 60);
+        var afterShot = pool.Spawn(new Vector2(Field.Right - 10, 70), Vector2.Zero, true);
+        root.Player._PhysicsProcess(1.0 / 60);
+        Check(afterShot.Active, "enemy shots remain once the bomb animation ends");
+        pool.DespawnAll();
+        outsideEnemy.QueueFree();
+        await Frames(2);
+
+        foreach (var difficulty in Enum.GetValues<GameManager.Diff>())
+        foreach (int character in Enumerable.Range(0, 4))
+        {
+            game.Difficulty = difficulty;
+            game.ResetRun();
+            game.SetStageTarget(999);
+            Enemy boss = character switch { 0 => new BossAkari(), 1 => new BossKoharu(), 2 => new BossRei(), _ => new BossMina() };
+            root.World.AddChild(boss);
+            boss.PrepareTechniquePractice(0);
+            boss.GlobalPosition = new Vector2(Field.Right - 55, Field.CenterY);
+            boss.SetPanelsInvulnerable(false);
+            root.Hud.HideBubble();
+            var panels = boss.GetChildren().OfType<Panel>().ToArray();
+            var ink = panels.Select(p => p.Ink).ToArray();
+            var attack = BossCharacterTechnique.Begin(boss, BossTechniqueKind.Area);
+            bomb.Invoke(root.Player, null);
+            Check(!boss.IsPurified && panels.Length > 0 && panels.Select((p, i) => p.Ink > 0 && p.Ink < ink[i]).All(x => x),
+                $"{difficulty}/{boss.GetType().Name}: bomb retains ordinary shield damage");
+            Check(attack.Finished && !attack.IsStriking && !attack.Visible, $"{difficulty}/{boss.GetType().Name}: technique cancels with no remaining hazard");
+            var afterInk = panels.Select(p => p.Ink).ToArray();
+            for (int frame = 0; frame < 20; frame++) sweep.Invoke(root.Player, new object[] { false });
+            Check(panels.Select((p, i) => p.Ink == afterInk[i]).All(x => x), $"{difficulty}/{boss.GetType().Name}: continuing bomb does not repeat boss damage");
+            boss.QueueFree();
+            Shards(drops).Clear();
+            await Frames(2);
+        }
+        game.ResetRun();
+        for (int i = 0; i < game.StartBombs; i++) game.UseBomb();
+        var emptyShot = pool.Spawn(new Vector2(Field.Right - 10, 70), Vector2.Zero, true);
+        int casts = root.Player.BombCount;
+        bomb.Invoke(root.Player, null);
+        Check(emptyShot.Active && root.Player.BombCount == casts, "empty bomb stock cannot convert attacks");
+        pool.DespawnAll();
+        pool.ProcessMode = ProcessModeEnum.Inherit;
+        root.QueueFree();
+        await Frames(2);
     }
 
     private async Task Frames(int count)
@@ -543,7 +787,7 @@ public partial class ScoreShardQa : Node
                 await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
                 if (f >= 20) idleMin = Mathf.Min(idleMin, Engine.GetFramesPerSecond());
             }
-            fx.PurifyBurst(new Vector2(268, 88), basePoints, tier, 60);
+            fx.PurifyBurst(new Vector2(268, 88), basePoints, tier);
             GD.Print($"[burst] {label}: shards={Shards(fx.ScoreDrops).Count} idle-min-fps={idleMin:0}");
             // 0.1 / 0.3 / 0.6 / 0.9 / 1.4 / 2.0 / 2.8s の7枚（散り→吸引→拾い切り→締め）
             double fpsMin = 999; int prev = 0;
@@ -567,7 +811,7 @@ public partial class ScoreShardQa : Node
             await Frames(40);
             double pureIdle = 999;
             for (int f = 0; f < 40; f++) { await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame); if (f >= 10) pureIdle = Mathf.Min(pureIdle, Engine.GetFramesPerSecond()); }
-            fx.PurifyBurst(new Vector2(268, 88), basePoints, tier, 60);
+            fx.PurifyBurst(new Vector2(268, 88), basePoints, tier);
             double pureMin = 999; int peak = 0;
             for (int f = 0; f < 180; f++)
             {
@@ -588,6 +832,7 @@ public partial class ScoreShardQa : Node
 
     private async Task Shot(string name)
     {
+        if (DisplayServer.GetName() == "headless") return;
         await ToSignal(RenderingServer.Singleton, RenderingServer.SignalName.FramePostDraw);
         string dir = ProjectSettings.GlobalizePath("res://build/qa_story/score_shards");
         DirAccess.MakeDirRecursiveAbsolute(dir);

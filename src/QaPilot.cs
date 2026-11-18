@@ -28,7 +28,7 @@ using System.Collections.Generic;
 // ゲームオーバー中は合成R（1回目＝チェックポイントから再開）／Shift+R（2回目以降＝最初から）を
 // 自動で叩いて復帰を検証する（DriveDeathRetry）。死なない限り発火しないので通常の --assist 走行には影響しない。
 //
-// 移動/Z(撃つ)/X(ボム)に加え、回避(Space)・集中モード(C)も周期的に送出する
+// 移動/Z(撃つ)/X(ボム)に加え、回避(Space)・必殺技(C)も周期的に送出する
 // （DriveFocusDodge）。StageZero（Stage0.tscn）のチュートリアル各フェーズを
 // SafetyTimeout頼みでなく実入力で通すのが主目的。
 public partial class QaPilot : Node
@@ -50,9 +50,9 @@ public partial class QaPilot : Node
     // Dodge(回避) 等の合成入力周期（DriveFocusDodge）。※低速(Shift)の周期は廃止に伴い削除。
     private const double DodgePeriod = 2.2;       // 回避(Space)を叩く周期
     private const double TapHoldDuration = 0.12;  // 叩く系キーの押下保持時間（DriveBomb の X と同じ値）
-    // 集中モード（C）＝一本道14段の #11 は持っていなければ押しても無害に流れる（回避＝#2 n_dodge も同じ。
+    // 必殺技（C）＝一本道14段の #11 は持っていなければ押しても無害に流れる（回避＝#2 n_dodge も同じ。
     //   2026-09-22 から 1面クリア報酬ではなくショップ品目＝買うまで Space は不発）。
-    private const double SlowPeriod = 9.0;        // 集中モード(C)を叩く周期（CD20秒より短くてよい＝空振りは無害）
+    private const double SlowPeriod = 9.0;        // 再使用待ち中の入力は無害。
 
     // プレイ領域（Player.cs と一致）
     private const float MinX = 0f, MaxX = 384f, MinY = 0f, MaxY = 216f;
@@ -98,7 +98,7 @@ public partial class QaPilot : Node
     // ---- Dodge パルス状態（DriveFocusDodge）----
     private bool _dodgeKeyDown;
     private double _dodgePhase;
-    // ---- 集中モード(C) パルス状態（同上）----
+    // ---- 必殺技(C) パルス状態（同上）----
     private bool _slowDown;
     private double _slowPhase;
 
@@ -191,7 +191,7 @@ public partial class QaPilot : Node
         }
 
         // 入力割り当ての検証（--inputtest）：Shift の無効化／左クリックの短押し・長押し／
-        // ホイールとパッドL1の集中モードを、合成入力で順に叩いて結果をログへ出す。
+        // ホイールとパッドL1の必殺技を、合成入力で順に叩いて結果をログへ出す。
         // 通常の QA 走行（--inputtest 無し）には一切触らない＝他の Drive* を止めて専念する。
         if (_inputTest) { DriveInputTest(delta); return; }
 
@@ -249,7 +249,7 @@ public partial class QaPilot : Node
         float enemyGap = 9999f;
         foreach (Node n in GetTree().GetNodesInGroup("enemies"))
         {
-            if (n is Enemy e && !e.IsPurified)
+            if (n is Enemy { BodyContactDamaging: true } e)
             {
                 float g = ppos.DistanceTo(e.GlobalPosition) - (PlayerHitRadius + AssumedEnemyRadius);
                 if (g < enemyGap) enemyGap = g;
@@ -304,7 +304,7 @@ public partial class QaPilot : Node
         }
     }
 
-    // Dodge(回避)・集中モード(C) の合成入力。通常の移動・射撃に加えて
+    // Dodge(回避)・必殺技(C) の合成入力。通常の移動・射撃に加えて
     // 周期的に叩くことで、StageZero チュートリアルの回避3回判定を SafetyTimeout(60s)の保険待ちでは
     // なく実入力で通す（他ステージでは無害に流す）。
     //   回避＝Space を周期的に短く叩く（DriveBomb と同じ「押す→少し後で離す」パターンで確実にエッジを拾わせる）。
@@ -333,7 +333,7 @@ public partial class QaPilot : Node
             Send(new InputEventKey { Keycode = Key.Space, Pressed = true });
         }
 
-        // ---- 集中モード（C）：叩く。未所持／CD中は GameManager.TryFocusMode が false を返すだけ＝無害 ----
+        // ---- 必殺技（C）：叩く。未所持／CD中は GameManager.TrySpecial が false を返すだけ＝無害 ----
         _slowPhase += delta;
         if (_slowDown)
         {
@@ -568,7 +568,7 @@ public partial class QaPilot : Node
     private static void Send(InputEvent e) => Input.ParseInputEvent(e);
 
     // ───────── 操作割り当ての合成入力テスト（--inputtest）─────────
-    //   2026-09-13 の操作変更（低速廃止／左クリック短長押し／集中モードの新割り当て）を、
+    //   2026-09-13 の操作変更（低速廃止／左クリック短長押し／必殺技の新割り当て）を、
     //   実機を触らずに1本の走行で確かめるための段取り。段ごとに合成入力を送り、結果を [IT] で出す。
     //   ※戦闘シーンに入ってから始める（自機が居ないと測れない）。--assist と併用する想定。
     private void DriveInputTest(double delta)
@@ -587,22 +587,21 @@ public partial class QaPilot : Node
         _itT += delta;
         var game = GetNodeOrNull<GameManager>("/root/Game");
 
-        // 集中モード（n_slow）を持っていないとホイールが不発で終わり、「割り当てが効いていない」のか
+        // 必殺技（n_slow）を持っていないとホイールが不発で終わり、「割り当てが効いていない」のか
         // 「未取得で正しく不発」なのか区別できない。テスト中だけ直に付ける
         //（TrainingSetUpgrade は購入パスを通さない直書き。--inputtest でしか呼ばない＝通常走行は無傷）。
         // 回避（n_dodge・2026-09-22 からショップ品目）も同じ理由で付ける＝右クリック／Space が「未取得で不発」に落ちない。
-        // 溜め打ちは 2026-09-25 から最初から使える＝付ける必要はないが、n_charge（＝2段階チャージ）も
-        // 付けておく＝「買ってあるのに2段目が開かない」退行をこの走行でも踏める。
         if (!_itSetup && game != null)
         {
             _itSetup = true;
             game.AutoSaveEnabled = false;   // 直書きした所持をディスクへ漏らさない（トレーニングと同じ作法）
-            GD.Print($"[IT] baseline: chargeNeed={game.ChargeNeedSec:0.00} hasFocus={game.HasFocusMode} hasDodge={game.HasDodge} "
+            GD.Print($"[IT] baseline: chargeNeed={game.ChargeNeedSec:0.00} hasSpecial={game.HasSpecial} hasDodge={game.HasDodge} "
                    + $"moveMul={game.MoveSpeedMul:0.00} jobMove={game.JobDef.MoveMul:0.00}");
             game.TrainingSetUpgrade("n_dodge", true);
+            game.TrainingSetUpgrade("n_charge_shot", true);
             game.TrainingSetUpgrade("n_charge", true);
             game.TrainingSetUpgrade("n_slow", true);
-            GD.Print($"[IT] granted n_dodge/n_charge/n_slow: hasDodge={game.HasDodge} chargeNeed={game.ChargeNeedSec:0.00} hasFocus={game.HasFocusMode}");
+            GD.Print($"[IT] granted n_dodge/n_charge/n_slow: hasDodge={game.HasDodge} chargeNeed={game.ChargeNeedSec:0.00} hasSpecial={game.HasSpecial}");
         }
 
         // 各段は「_itSub を1つずつ進める」形で書く＝同じ小ステップが複数フレームで多重発火しない。
@@ -661,7 +660,6 @@ public partial class QaPilot : Node
                 break;
 
             case 3: // 左クリック長押し 0.8秒 → ChargeNeed で充填完了しているか、離して発射
-                //   ※ChargeNeed(1段目)は 0.6 秒＝0.8 秒の保持で満ちる。2段目(1.2秒)には届かない。
                 if (Once(0)) MouseL(true);
                 else if (_itT >= 0.20 && Once(1))
                     GD.Print($"[IT] hold {_itT:0.00}s: chargeRatio={player.ChargeRatio:0.00} full={player.ChargeFull} (0.25s未満=まだ溜めない)");
@@ -681,9 +679,9 @@ public partial class QaPilot : Node
                 }
                 break;
 
-            case 4: // ホイール回転で集中モード
+            case 4: // ホイール回転で必殺技
                 if (Once(0))
-                    GD.Print($"[IT] wheel: before hasFocus={game?.HasFocusMode} active={game?.FocusModeActive} ready={game?.FocusModeReady}");
+                    GD.Print($"[IT] wheel: before hasSpecial={game?.HasSpecial} active={game?.SpecialActive} ready={game?.SpecialReady}");
                 else if (_itT >= 0.10 && Once(1))
                 {
                     Send(new InputEventMouseButton { ButtonIndex = MouseButton.WheelUp, Pressed = true });
@@ -691,14 +689,14 @@ public partial class QaPilot : Node
                 }
                 else if (_itT >= 0.50 && Once(2))
                 {
-                    GD.Print($"[IT] wheel: after → focusActive={game?.FocusModeActive} cd={game?.FocusModeCdRatio:0.00}");
+                    GD.Print($"[IT] wheel: after → specialActive={game?.SpecialActive} cd={game?.SpecialCooldownRatio:0.00}");
                     NextIt();
                 }
                 break;
 
-            case 5: // 集中モードが切れて CD も明けるまで待つ（次の L1 を「CD 中で不発」と混同しないため）
+            case 5: // 必殺技が切れて CD も明けるまで待つ（次の L1 を「CD 中で不発」と混同しないため）
                 if (Once(0)) GD.Print("[IT] waiting for focus CD…");
-                else if ((game?.FocusModeReady ?? false) && Once(1))
+                else if ((game?.SpecialReady ?? false) && Once(1))
                 {
                     GD.Print($"[IT] focus ready again at t={_itT:0.0}s");
                     NextIt();
@@ -706,11 +704,11 @@ public partial class QaPilot : Node
                 else if (_itT > 25.0 && Once(2)) { GD.Print("[IT] focus CD wait timed out"); NextIt(); }
                 break;
 
-            case 6: // パッド L1（LeftShoulder）相当の合成入力で集中モード
+            case 6: // パッド L1（LeftShoulder）相当の合成入力で必殺技
                 //   ※ヘッドレスにはパッドが1台も繋がっておらず、Pad.Pressed は接続台数を回すので
                 //     合成 InputEventJoypadButton では立たない。パッドの接続数もあわせてログに出す。
                 if (Once(0))
-                    GD.Print($"[IT] L1: before active={game?.FocusModeActive} ready={game?.FocusModeReady} "
+                    GD.Print($"[IT] L1: before active={game?.SpecialActive} ready={game?.SpecialReady} "
                            + $"pads={Input.GetConnectedJoypads().Count} padPressed={Pad.Pressed(JoyButton.LeftShoulder)}");
                 else if (_itT >= 0.10 && Once(1))
                     Send(new InputEventJoypadButton { ButtonIndex = JoyButton.LeftShoulder, Pressed = true });
@@ -721,16 +719,16 @@ public partial class QaPilot : Node
                     Send(new InputEventJoypadButton { ButtonIndex = JoyButton.LeftShoulder, Pressed = false });
                 else if (_itT >= 0.70 && Once(4))
                 {
-                    GD.Print($"[IT] L1: after → focusActive={game?.FocusModeActive}");
+                    GD.Print($"[IT] L1: after → specialActive={game?.SpecialActive}");
                     NextIt();
                 }
                 break;
 
-            case 7: // サイドボタン（XButton1）でも集中モードが出るか
+            case 7: // サイドボタン（XButton1）でも必殺技が出るか
                 if (Once(0)) GD.Print("[IT] side: waiting for focus CD…");
-                else if ((game?.FocusModeReady ?? false) && Once(1))
+                else if ((game?.SpecialReady ?? false) && Once(1))
                 {
-                    GD.Print($"[IT] side: ready={game?.FocusModeReady} → press XButton1");
+                    GD.Print($"[IT] side: ready={game?.SpecialReady} → press XButton1");
                     Send(new InputEventMouseButton { ButtonIndex = MouseButton.Xbutton1, Pressed = true, Position = new Vector2(4, 4) });
                     _itT = 0;
                 }
@@ -738,7 +736,7 @@ public partial class QaPilot : Node
                     Send(new InputEventMouseButton { ButtonIndex = MouseButton.Xbutton1, Pressed = false, Position = new Vector2(4, 4) });
                 else if (_itSub == 3 && _itT >= 0.60 && Once(3))
                 {
-                    GD.Print($"[IT] side: after → focusActive={game?.FocusModeActive}");
+                    GD.Print($"[IT] side: after → specialActive={game?.SpecialActive}");
                     NextIt();
                 }
                 else if (_itT > 25.0 && _itSub <= 1 && Once(1)) { GD.Print("[IT] side: CD wait timed out"); NextIt(); }

@@ -43,10 +43,18 @@ internal sealed class BulletFootprint
         return Textures[key] = Polygons(polygons);
     }
 
-    private static Vector2[][] TextureOutlines(Texture2D texture)
+    internal static Vector2[][] TextureOutlines(Texture2D texture)
     {
         if (Outlines.TryGetValue(texture, out var cached)) return cached;
         using var image = texture.GetImage();
+        return CacheTextureOutlines(texture, image);
+    }
+
+    internal static void ShareTextureOutlines(Texture2D texture, Texture2D source)
+        => Outlines[texture] = TextureOutlines(source);
+
+    internal static Vector2[][] CacheTextureOutlines(Texture2D texture, Image image, float epsilon = 3f)
+    {
         if (image.IsCompressed()) image.Decompress();
         Vector2 original = image.GetSize();
         float longest = Mathf.Max(original.X, original.Y);
@@ -60,8 +68,8 @@ internal sealed class BulletFootprint
         int left = 0;
         foreach (int right in cuts)
         {
-            foreach (var polygon in mask.OpaqueToPolygons(new Rect2I(left, 0, right - left, size.Y), 3f))
-                polygons.Add(polygon.Select(p => p * original / (Vector2)size / longest).ToArray());
+            foreach (var polygon in mask.OpaqueToPolygons(new Rect2I(left, 0, right - left, size.Y), epsilon))
+                polygons.Add(polygon.Select(p => (p + new Vector2(left, 0)) * original / (Vector2)size / longest).ToArray());
             left = right;
         }
         return Outlines[texture] = polygons.ToArray();

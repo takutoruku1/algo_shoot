@@ -50,6 +50,16 @@ public partial class EndingFilmRealtimeQa : Node
             await Frames(5);
             GD.Print($"[FilmRT] phase after the film = {Read<int>(ep, "_phase")} (2 = staff roll)");
             if (Read<int>(ep, "_phase") != 2) throw new Exception("the film did not hand over to the roll");
+            ep.QueueFree();
+            ep = null!;
+            film = null!;
+            Audio.Instance?.StopMusic(0);
+            foreach (var child in GetNode<Audio>("/root/Audio").GetChildren())
+                if (child is AudioStreamPlayer player) { player.Stop(); player.Stream = null; }
+            await Frames(5);
+            GC.Collect();
+            GC.WaitForPendingFinalizers();
+            await Frames(5);
             GD.Print("[FilmRT] ALL PASS");
             GetTree().Quit();
         }

@@ -1,0 +1,22 @@
+{
+  "tool": "built-in image_gen",
+  "references": [
+    "char/bg2/opening/op_akari_v1.png",
+    "char/bg2/opening/op_koharu_v1.png",
+    "char/bg2/opening/op_rei_v1.png"
+  ],
+  "outputs": [
+    {
+      "path": "assets/sns/story_posts_v2.png",
+      "columns": 2,
+      "rows": 3,
+      "prompt": "Use case: illustration-story. Create a game SNS attachment atlas: EXACTLY TWO COLUMNS AND THREE ROWS, six equal landscape cells filling a single image, no margins, dividers, labels, typography, logos or watermarks. Match the supplied existing game's anime background art, subdued blue-grey evenings with soft amber practical light. References are STYLE AND CONTEMPORARY EVERYDAY SETTING ONLY; do NOT reproduce the recognizable characters, their faces or private story moments. The game's theme is words not sent, the gap between a public online self and private feelings, streaming and fandom, and small human connections. Candid modest personal snapshots, not cozy lifestyle advertising and not horror. Each cell must have a genuinely different subject and framing, and support a centered 2:1 crop. Row1 left: rainy empty suburban station platform late in the evening, warm reflections along wet paving, the blurred departing train far away; no readable signs or people. Row1 right: close angled view of a pocket notebook with a short scribbled-out note and a capped pen on a small desk, the lamp illuminating bare wood to the left of the notebook; the phone taking this photograph is out of frame, with no device, device shadow or reflection visible; no readable message or private names. Row2 left: a student's late-night study desk, open exercise notebook, headphones resting on it, a laptop glowing purple with an indistinct streaming player, no recognizable avatar, no text, restrained personal clutter, empty chair. Row2 right: a pair of unlit mint and lilac penlights being put away beside a folded plain ticket sleeve and a casual tote, ordinary bedroom light, no performers or brands. Row3 left: a drawing tablet displaying an unfinished ORIGINAL abstract blue figure sketch, stylus beside it, two layers of exploratory faint lines, natural creator's work surface, no famous art or software logos. Row3 right: morning light through a window beside two mismatched cups on opposite sides of a small kitchen table, one chair slightly pulled back, a quiet possible conversation without showing any people. No plants, flowers, pets, picturesque bakery, cute icons, trophies, ominous supernatural glitches, secret messages or invented worldbuilding. Preserve visual continuity with the existing mature emotional story."
+    },
+    {
+      "path": "assets/sns/story_clips_v2.png",
+      "columns": 1,
+      "rows": 2,
+      "prompt": "Use case: illustration-story. Create a square game animation background atlas containing EXACTLY ONE COLUMN AND TWO ROWS: two equal wide landscape panels, edge-to-edge, no gutters or borders. Use the same polished anime background art as the references: blue-grey evening, restrained amber lamps, realistic everyday scale. No people, recognizable character portraits, text, logos, watermarks or plants. These are mundane SNS clips in an emotional story about messages not sent and an online persona, not horror or lifestyle advertisements. TOP PANEL: view from inside a late-night commuter train through a broad rain-speckled window. Window edge visible along left and bottom, outside softly out-of-focus street lamps and apartments reflected on wet glass. Compose clear diagonal light reflections and dark negative space so animated rain drops can be layered later. NO cartoon droplets, no visible private phone screen. BOTTOM PANEL: after a small home stream has ended: empty slightly turned chair at a modest desk, realistic microphone and pop filter on the right half, headphones lying on desk, dim monitor with only soft abstract dark rectangles, warm desk lamp at right, a small window with blue-grey curtain at the LEFT QUARTER of this panel. Calm light, not a stage, no on-air sign, no readable UI. The left curtain can be animated gently later. Match the references' rendering quality and soft linework, not low-poly 3D or a vector icon. Keep focal objects inside central 85% for a centered 16:9 crop."
+    }
+  ]
+}

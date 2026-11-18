@@ -1,0 +1,3 @@
+https://github.com/darkframedev/GodotSharpMCP
+Revision: b181f8dded93c103a6a69b682406f3d38a900c4b
+Local adaptations: project-scoped pipe; Codex-managed relay; editor-only compilation; MCP notification handling.

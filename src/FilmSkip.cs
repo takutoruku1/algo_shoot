@@ -23,8 +23,8 @@ using Godot;
 //   さらに「シーンに入った瞬間すでに押されていたら、一度離すまで武装しない」（_armed）で、
 //   直前の画面で押していたキーの押しっぱなしが持ち越して即スキップになるのを防ぐ。
 //
-//   キーは **X / パッド B**。他の候補が全部ふさがっていて、消去法でここに落ちる:
-//   ・Z / Enter / ui_accept / A / 左クリック … 会話送り（Pad.AdvanceHeld）。連打で話が飛ぶ。
+//   キーは **X / パッド B**。マウスはスキップ表示内で左ボタンを長押しする。
+//   ・Z / Enter / ui_accept / A / 表示外の左クリック … 会話送り（Pad.AdvanceHeld）。
 //   ・M / Start … **ポーズメニューが開く**（PauseMenu._Process。回想はステージシーンの上で起きるので
 //     CanOpenHere が true＝実際に開く）。回想中に M を押すとポーズが乗って ConsumeUi を取られ、
 //     フィルムの _Process ごと止まる。スキップに使うとポーズと二重発火するので**使えない**。
@@ -32,7 +32,7 @@ using Godot;
 //       誰も読まない＝回想中の Esc は何もしない。それでも「もどる」の語感をスキップに流用はしない。）
 //     ※OpeningFilm / EndingFilm が Esc/Start をスキップに使えているのは、あちらが Prologue/Epilogue
 //       ＝CanOpenHere の除外シーンに居てポーズが開かないから。回想には同じ手が使えない。
-//   ・Ctrl / RB … 既読スキップ（Hud.SkipHeld）。
+//   ・Ctrl / RB … 会話スキップ（Hud.SkipHeld）。
 //   X は戦闘中のボムだが、フィルム中は World が Disabled で Player が動かない＝誤爆しない。
 public class FilmSkip
 {
@@ -59,6 +59,16 @@ public class FilmSkip
 
     private readonly RetryHold _hold = new();
     private bool _armed;
+    private bool _mouseWasDown, _mouseActive, _mouseCaptured;
+
+    public static Rect2 ButtonRect
+    {
+        get
+        {
+            float width = 14f + UiKit.TextW(UiKit.ZenBold, "左クリック長押しでスキップ", 14) + 10f + 74f + 14f;
+            return new Rect2(UiKit.DesignW - width - 24f, 17f, width, 30f);
+        }
+    }
 
     public bool Available { get; private set; }   // 既読＝スキップを開いてよい（ヒント表示の条件でもある）
     public float Progress => Available ? _hold.Progress : 0f;
@@ -68,37 +78,47 @@ public class FilmSkip
     {
         Available = Seen(game, id) && !ShotHold;
         _armed = !Pressed();   // 入った時点で押されていたら、離すまで武装しない（持ち越し誤爆の防止）
+        _mouseWasDown = Pad.MouseDown();
+        _mouseActive = _mouseCaptured = false;
     }
 
     // 毎フレーム呼ぶ。長押しが満ちたフレームだけ true（呼び元がフィルムを畳む）。
     public bool Update(double delta)
     {
         if (!Available) return false;
+        bool mouseDown = Pad.MouseDown();
+        bool hover = ButtonRect.HasPoint(Pad.MousePos());
+        if (mouseDown && !_mouseWasDown) _mouseActive = _mouseCaptured = hover;
+        if (!mouseDown) _mouseActive = _mouseCaptured = false;
+        else if (!hover) _mouseActive = false;
+        _mouseWasDown = mouseDown;
+        // 外へドラッグして取り消した押下も、離すまでは会話送りに渡さない。
+        if (hover || _mouseCaptured) Pad.CaptureMouse();
         bool pressed = Pressed();
         if (!pressed) _armed = true;
-        return _hold.Update(delta, _armed && pressed);
+        return _hold.Update(delta, (_armed && pressed) || _mouseActive);
     }
 
     // スキップの押下判定。会話送りともポーズとも重ならないのは X / パッド B だけ（冒頭のコメント参照）。
     private static bool Pressed() => Input.IsKeyPressed(Godot.Key.X) || Pad.Pressed(JoyButton.B);
 
-    // 画面下のヒント／充填チップ。既読のときだけ出す（初回は存在ごと見せない＝「飛ばせる」と思わせない）。
+    // 上辺のボタン／充填チップ。既読のときだけ出す。
     //   Hud.DrawRetryHoldChip と同じ体裁だが、フィルムは Hud の上に被さるので自前で描く。
     public void Draw(CanvasItem ci)
     {
         if (!Available) return;
-        string label = Pad.UsingPad ? "B 長押しでスキップ" : "X 長押しでスキップ";
-        float tw = UiKit.TextW(UiKit.ZenBold, label, 14);
-        const float barW = 74f, gap = 10f, h = 30f;
-        float w = 14f + tw + gap + barW + 14f;
-        // 会話欄（y=516〜）と送りの▼（1136,664）を避け、額の上辺（y=0〜64 の黒帯）の右端に置く。
-        float x = 1280 - w - 24f, y = 17f;
+        string label = Pad.UsingMouse ? "左クリック長押しでスキップ"
+            : Pad.UsingPad ? "B 長押しでスキップ" : "X 長押しでスキップ";
+        var rect = ButtonRect;
+        float x = rect.Position.X, y = rect.Position.Y;
+        const float barW = 74f;
         float frac = Progress;
-        UiKit.Box(ci, new Rect2(x, y, w, h), new Color(0.06f, 0.05f, 0.10f, frac > 0 ? 0.92f : 0.5f), 9f,
-            new Color(UiKit.Info, frac > 0 ? 0.55f : 0.25f), 1.2f);
+        bool highlight = frac > 0 || rect.HasPoint(Pad.MousePos());
+        UiKit.Box(ci, rect, new Color(0.06f, 0.05f, 0.10f, highlight ? 0.92f : 0.5f), 9f,
+            new Color(UiKit.Info, highlight ? 0.55f : 0.25f), 1.2f);
         UiKit.Text(ci, UiKit.ZenBold, new Vector2(x + 14f, y + 7f), label, 14,
-            new Color(UiKit.Text2, frac > 0 ? 1f : 0.7f));
-        float bx = x + 14f + tw + gap, by = y + h / 2f - 3f;
+            new Color(UiKit.Text2, highlight ? 1f : 0.7f));
+        float bx = rect.End.X - 14f - barW, by = y + rect.Size.Y / 2f - 3f;
         ci.DrawRect(new Rect2(bx, by, barW, 6f), new Color(1, 1, 1, 0.14f));
         if (frac > 0) ci.DrawRect(new Rect2(bx, by, barW * frac, 6f), UiKit.Info);
     }

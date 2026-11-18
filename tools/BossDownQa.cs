@@ -58,6 +58,8 @@ public partial class BossDownQa : Node
             game.AutoSaveEnabled = false;
             game.ResetPersistent();
             game.MarkIdleDialogSeen("once_midboss_shield");
+            game.MarkIdleDialogSeen(StageTutorial.ChoiceSeenKey);
+            game.MarkIdleDialogSeen(StageTutorial.SkipKey);
             game.Difficulty = _shieldVideo ? GameManager.Diff.Easy : GameManager.Diff.Normal;
             if (_shieldTiming) game.SelectedJob = Job.Heal;
             if (_shots || _shieldVideo)
@@ -110,12 +112,13 @@ public partial class BossDownQa : Node
                 if (id is "akari" or "koharu" or "rei")
                 {
                     Strip(boss);
+                    _root.AddToGroup("boss_rush");
                     Check((bool)Call(boss, "AdvanceForm2")!, id + " second form starts while down");
                     await FinishTransformation(boss);
-                    string down = BossDownArt.BreathingPath(BossAnimalArt.Path(id, "down"), 0);
-                    Check(Body(boss).Texture.ResourcePath == down, id + " second form keeps down pose");
-                    Call(boss, "EnterReclose");
-                    Call(boss, "EnterShielded");
+                    _root.RemoveFromGroup("boss_rush");
+                    Check(!Read<bool>(boss, "_bodyDown") && !boss.GaugeVulnerable && !boss.GaugeReforming
+                        && Body(boss).Texture.ResourcePath == Read<string>(boss, "PreTexPath"),
+                        id + " second form recovers immediately into its ready pose");
                     Call(boss, "TickSwapAnim", 1d);
                     await Cycle(boss, id + "_animal");
                 }
@@ -124,17 +127,17 @@ public partial class BossDownQa : Node
                     foreach (var costume in new[] { "rain", "screen", "stream", "home" })
                     {
                         Strip(mina);
+                        _root.AddToGroup("boss_rush");
                         game.Difficulty = GameManager.Diff.Lunatic;
                         Call(mina, "BeginPhaseTransition");
                         game.Difficulty = GameManager.Diff.Normal;
-                        Check(costume == "home" ? mina.GaugeReforming && !Read<bool>(mina, "_bodyDown")
-                            : Body(mina).Texture.ResourcePath == BossDownArt.BreathingPath(BossMina.BattleDownPath(mina.EncounterPhase), 0),
+                        Check(!mina.GaugeVulnerable && !mina.GaugeReforming && !Read<bool>(mina, "_bodyDown")
+                            && Body(mina).Texture.ResourcePath == BossMina.BattleCostumePath(mina.EncounterPhase, "idle"),
                             costume + " changes costume with the correct shield state");
                         Call(mina, "CompletePhaseTransition");
                         await FinishTransformation(mina);
+                        _root.RemoveFromGroup("boss_rush");
                         Read<MinaPhaseAttacks>(mina, "_caster").CancelPendingAttacks();
-                        Call(mina, "EnterReclose");
-                        Call(mina, "EnterShielded");
                         Call(mina, "TickSwapAnim", 1d);
                         await Cycle(mina, "mina_" + costume);
                     }

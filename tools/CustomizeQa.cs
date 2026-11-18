@@ -21,7 +21,9 @@ public partial class CustomizeQa : Node
     {
         try
         {
-            Check(OS.GetUserDataDir().Replace('\\', '/').Contains("/build/qa_story/customize/"), "isolated save data");
+            Check(OS.GetUserDataDir().Replace('\\', '/').StartsWith(
+                ProjectSettings.GlobalizePath("res://build/qa_story/").Replace('\\', '/'), StringComparison.OrdinalIgnoreCase), "isolated save data");
+            typeof(Settings).GetProperty(nameof(Settings.PauseWhenUnfocused))!.GetSetMethod(true)!.Invoke(null, new object[] { false });
             DisplayServer.WindowSetMode(DisplayServer.WindowMode.Windowed);
             DisplayServer.WindowSetSize(new Vector2I(1280, 720));
             var game = GetNode<GameManager>("/root/Game");
@@ -41,10 +43,13 @@ public partial class CustomizeQa : Node
             var menu = OpenMenu();
             await Frames(6);
             Check(Read<JobTuning[]>(menu, "_characters").Length == 1, "new save shows only Mina");
+            Check(Read<CosmeticItem[]>(menu, "_items").All(item => item.Kind == CosmeticKind.Costume)
+                && Read<int>(menu, "_focus") == 3, "shop opens ready to select costumes");
             Write(menu, "_time", 2.0);
             Write(menu, "_focus", 0);
             Nav(menu, "ui_right");
             Check(Read<int>(menu, "_tab") == 1, "keyboard/pad navigation switches category");
+            Nav(menu, "ui_left");
             Nav(menu, "ui_down"); Nav(menu, "ui_right");
             Check(Read<int>(menu, "_character") == 0, "keyboard navigation cannot reveal locked characters");
             Nav(menu, "ui_down"); Nav(menu, "ui_right");
@@ -54,8 +59,46 @@ public partial class CustomizeQa : Node
             Check(Read<string?>(menu, "_pendingPurchase") == "mina_starway", "keyboard purchase opens confirmation");
             Nav(menu, "ui_accept");
             Check(Read<string?>(menu, "_pendingPurchase") == null && game.Impression == 4700, "confirmation defaults to cancel");
-            Write(menu, "_pose", 0);
+            Click(menu, new Vector2(156, 116));
+            Check(Read<int>(menu, "_selected") == 1, "active category click preserves the preview");
             Click(menu, new Vector2(372, 116));
+            ClickItem(menu, 2);
+            Click(menu, new Vector2(156, 116));
+            Check(Read<int>(menu, "_selected") == 1, "returning to costumes restores the preview");
+            Click(menu, new Vector2(372, 116));
+            Check(Read<int>(menu, "_selected") == 2, "cursor preview is remembered independently");
+            Click(menu, new Vector2(156, 116));
+            ClickItem(menu, 1);
+            Input.ActionPress("ui_left"); menu._Process(0.016);
+            Check(Read<int>(menu, "_selected") == 0 && !Pad.UsingMouse, "keyboard takes focus after a mouse selection");
+            Input.ActionRelease("ui_left"); Input.ActionPress("ui_right"); menu._Process(0.016);
+            Check(Read<int>(menu, "_selected") == 1, "changing direction responds without a neutral frame");
+            menu._Process(0.2);
+            Check(Read<int>(menu, "_selected") == 1, "held navigation waits before repeating");
+            menu._Process(0.16);
+            Check(Read<int>(menu, "_selected") == 0, "held navigation repeats after the delay");
+            menu._Process(0.12);
+            Check(Read<int>(menu, "_selected") == 1, "held navigation continues at the repeat interval");
+            Input.ActionRelease("ui_right"); menu._Process(0.016);
+            Check(!game.OwnsCosmetic("mina_starway") && game.Impression == 4700, "navigation never purchases or equips");
+            Click(menu, new Vector2(945, 630));
+            Check(Read<int>(menu, "_focus") == 4, "action click transfers keyboard focus to the action button");
+            Nav(menu, "ui_right"); Nav(menu, "ui_right");
+            Check(Read<bool>(menu, "_confirmYes"), "right stays on the right confirmation button");
+            Nav(menu, "ui_up");
+            Check(Read<bool>(menu, "_confirmYes"), "vertical input does not toggle a horizontal confirmation");
+            Nav(menu, "ui_left"); Nav(menu, "ui_left");
+            Check(!Read<bool>(menu, "_confirmYes"), "left stays on cancel");
+            var hints = ((string token, string label)[])Call(menu, "HintItems")!;
+            Click(menu, UiKit.HintItemRect(UiKit.HintAnchor, hints, "キャンセル").GetCenter());
+            Check(Read<string?>(menu, "_pendingPurchase") == null && !Read<bool>(menu, "_leaving"),
+                "footer cancel closes only the purchase dialog");
+            Click(menu, new Vector2(945, 630));
+            RightClick(menu);
+            Check(Read<string?>(menu, "_pendingPurchase") == null && game.Impression == 4700,
+                "right click cancels without spending");
+            Write(menu, "_pose", 0);
+            Click(menu, new Vector2(156, 116));
             ClickItem(menu, 1);
             Check(!game.OwnsCosmetic("mina_starway"), "previewing does not buy or equip");
             await Shot("mina_preview");
@@ -96,7 +139,7 @@ public partial class CustomizeQa : Node
             Write(menu, "_time", 3.0);
             Check(Read<JobTuning[]>(menu, "_characters").Length == 4, "rescued accounts appear in wardrobe");
             Check(!GetNode<PauseMenu>("/root/PauseMenu").ShowHint && menu.HintBarRect.HasArea(), "customization shows the hint bar instead of the pause chip");
-            Click(menu, new Vector2(156, 116));
+            Click(menu, new Vector2(372, 116));
             ClickItem(menu, 0);
             Click(menu, new Vector2(945, 630));
             await Frames(3);
@@ -107,7 +150,7 @@ public partial class CustomizeQa : Node
             await Shot("cursors");
             foreach (var job in Jobs.All)
             {
-                Click(menu, new Vector2(372, 116));
+                Click(menu, new Vector2(156, 116));
                 Click(menu, new Vector2(729 + (int)job.Id * 142, 171));
                 ClickItem(menu, 1);
                 Check(Read<CosmeticItem[]>(menu, "_items")[1].Character == job.Id, "character tab selects its own catalog");
@@ -129,11 +172,11 @@ public partial class CustomizeQa : Node
             {
                 Check(UiKit.TextW(UiKit.ZenBold, item.Name, 20) <= 300, $"title fits: {item.Id}");
                 string[] poses = item.Kind == CosmeticKind.Cursor ? new[] { "idle" }
-                    : new[] { "idle", "aim_u", "aim_ur", "aim_r", "aim_dr", "aim_d", "spin_00", "spin_01", "spin_02", "spin_03", "spin_04" };
+                    : new[] { "idle", "aim_u", "aim_ur", "aim_r", "aim_dr", "aim_d", "spin_00", "spin_01", "spin_02", "spin_03", "spin_04", "spin_05", "spin_06", "spin_07" };
                 foreach (string pose in poses)
                 {
                     var tex = GD.Load<Texture2D>(item.PosePath(pose));
-                    using var image = tex.GetImage();
+                    using var image = Image.LoadFromFile(ProjectSettings.GlobalizePath(item.PosePath(pose)));
                     Check(image.DetectAlpha() != Image.AlphaMode.None && image.GetUsedRect().Size.X > 20, $"{item.Id}/{pose} has nonempty transparent art");
                     if (item.Kind == CosmeticKind.Cursor)
                         Check(tex.GetWidth() == 34 && tex.GetHeight() == 40 && image.GetPixel(0, 0).A > 0.1f, "cursor uses compact dimensions and aligned tip");
@@ -152,18 +195,26 @@ public partial class CustomizeQa : Node
                 var rect = (Rect2)Call(hub, "HomeAppRect", i)!;
                 Check(rect.Position.X >= 400 && rect.End.X <= 880 && rect.End.Y < 610, $"home app {i} fits phone grid");
             }
-            Write(hub, "_homeSel", 2);
+            Pad.ReleaseMouseFollow();
+            Write(hub, "_homeSel", 0);
             Write(hub, "_navHeld", false);
             Input.ActionPress("ui_up"); Call(hub, "ProcessHome"); Input.ActionRelease("ui_up"); Call(hub, "ProcessHome");
-            Check(Read<int>(hub, "_homeSel") == 2, "up on the first app row does not jump sideways");
+            int appCount = ((string[])typeof(Hub).GetField("HomeApps", BindingFlags.NonPublic | BindingFlags.Static)!.GetValue(null)!).Length;
+            Check(Read<int>(hub, "_homeSel") == appCount - 2, "up wraps through the home app grid");
             Input.ActionPress("ui_down"); Call(hub, "ProcessHome"); Input.ActionRelease("ui_down"); Call(hub, "ProcessHome");
-            Check(Read<int>(hub, "_homeSel") == 4, "down reaches the customization app on the second row");
+            Check(Read<int>(hub, "_homeSel") == 0, "down returns from the last row to the first app");
+            for (int row = 0; row < 2; row++)
+            {
+                Input.ActionPress("ui_down"); Call(hub, "ProcessHome"); Input.ActionRelease("ui_down"); Call(hub, "ProcessHome");
+            }
+            Check(Read<int>(hub, "_homeSel") == 4, "down reaches customization on the next phone page");
             await Shot("home");
             Call(hub, "OpenHomeApp", 4);
             await QaSceneTransition.Wait(this);
             Check(GetTree().CurrentScene is Customize, "home icon opens customization app");
             var opened = (Customize)GetTree().CurrentScene;
-            Call(opened, "Leave");
+            Write(opened, "_time", 2.0);
+            RightClick(opened);
             await QaSceneTransition.Wait(this);
             Check(GetTree().CurrentScene is Hub, "back returns to phone home");
             GetTree().CurrentScene.QueueFree();
@@ -196,6 +247,15 @@ public partial class CustomizeQa : Node
     private static void ClickItem(Customize menu, int index)
         => Click(menu, ((Rect2)Call(menu, "ItemRect", index)!).GetCenter());
 
+    private static void RightClick(Customize menu)
+    {
+        var current = typeof(Pad).GetField("_mR", BindingFlags.Static | BindingFlags.NonPublic)!;
+        var previous = typeof(Pad).GetField("_mRPrev", BindingFlags.Static | BindingFlags.NonPublic)!;
+        current.SetValue(null, true); previous.SetValue(null, false);
+        menu._Process(1.0 / 60);
+        current.SetValue(null, false); previous.SetValue(null, false);
+    }
+
     private static void Nav(Customize menu, string action)
     {
         Input.ActionPress(action);
@@ -225,13 +285,14 @@ public partial class CustomizeQa : Node
                 await Frames(3);
                 Check(sprite.Texture.ResourcePath == outfit.PosePath("aim_" + pair.Item1), "aim uses equipped outfit");
             }
+            game.TrainingSetUpgrade("n_dodge", true);
             Call(player, "TryDodge", Vector2.Right);
             await Frames(4);
             Check(Read<float>(player, "_dodgeTimer") > 0, "dodge starts");
-            for (int i = 0; i < 5; i++)
+            for (int i = 0; i < 8; i++)
             {
                 Call(player, "ApplySpinFrame", Mathf.Tau * (i + 0.1f) / 8);
-                Check(sprite.Texture.ResourcePath == outfit.PosePath($"spin_{i:00}"), "dodge retains equipped costume");
+                Check(sprite.Texture.ResourcePath == outfit.PosePath($"spin_{i:00}") && !sprite.FlipH, "dodge uses the equipped costume's angle");
                 var fit = PlayerArt.Fit(sprite.Texture);
                 Check(Mathf.IsEqualApprox(sprite.Scale.Y * fit.HeadHeight, fit.GameHeadHeight),
                     "dodge head scale remains stable");
@@ -271,6 +332,7 @@ public partial class CustomizeQa : Node
     private async Task Frames(int count) { for (int i = 0; i < count; i++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame); }
     private async Task Shot(string name)
     {
+        if (DisplayServer.GetName() == "headless") return;
         await Frames(3); await ToSignal(RenderingServer.Singleton, RenderingServer.SignalName.FramePostDraw);
         string folder = "res://build/qa_story/customize/shots";
         DirAccess.MakeDirRecursiveAbsolute(ProjectSettings.GlobalizePath(folder));

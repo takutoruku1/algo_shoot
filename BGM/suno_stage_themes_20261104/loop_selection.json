@@ -1,0 +1,62 @@
+[
+  {
+    "start": 20.432,
+    "end": 143.472,
+    "crossfade": 0.815999999999999,
+    "beats": 304,
+    "chroma_similarity": 0.7775170803070068,
+    "level_gap_db": 1.6594504366779628,
+    "score": 0.7554038985933368,
+    "file": "akari_A.mp3",
+    "title": "雨粒の先へ — あかり道中",
+    "output": "audio/bgm_stage_akari.ogg"
+  },
+  {
+    "start": 8.704,
+    "end": 120.72,
+    "crossfade": 0.7840000000000007,
+    "beats": 288,
+    "chroma_similarity": 0.8204221725463867,
+    "level_gap_db": 1.0395893490735935,
+    "score": 0.805259960918054,
+    "file": "koharu_A.mp3",
+    "title": "予定表のすきま — こはる道中",
+    "output": "audio/bgm_stage_koharu.ogg"
+  },
+  {
+    "start": 18.24,
+    "end": 110.544,
+    "crossfade": 0.7679999999999971,
+    "beats": 240,
+    "chroma_similarity": 0.816826581954956,
+    "level_gap_db": 0.5937298820907576,
+    "score": 0.7994469784461185,
+    "file": "rei_A.mp3",
+    "title": "スポットライトの向こう — レイ道中",
+    "output": "audio/bgm_stage_rei.ogg"
+  },
+  {
+    "start": 39.984,
+    "end": 133.024,
+    "crossfade": 0.8320000000000007,
+    "beats": 224,
+    "chroma_similarity": 0.6266287565231323,
+    "level_gap_db": 0.8765885382795574,
+    "score": 0.6132664922475098,
+    "file": "mina_A.mp3",
+    "title": "記憶の灯をたどって — ミナ道中",
+    "output": "audio/bgm_final_route.ogg"
+  },
+  {
+    "start": 18.512,
+    "end": 152.432,
+    "crossfade": 0.9280000000000008,
+    "beats": 288,
+    "chroma_similarity": 0.7715311050415039,
+    "level_gap_db": 0.7423962849412001,
+    "score": 0.7621868625048628,
+    "file": "tutorial_A.mp3",
+    "title": "はじめてのダイブ — 導入道中",
+    "output": "audio/bgm_stage_w0.ogg"
+  }
+]

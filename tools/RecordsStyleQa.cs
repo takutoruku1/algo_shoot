@@ -27,9 +27,11 @@ public partial class RecordsStyleQa : Node
             _game.ResetPersistent();
             _game.AutoSaveEnabled = false;
             _game.ShopTutorialSeen = true;
+            typeof(Settings).GetProperty(nameof(Settings.PauseWhenUnfocused))!.SetValue(null, false);
             DisplayServer.WindowSetMode(DisplayServer.WindowMode.Windowed);
             DisplayServer.WindowSetSize(new Vector2I(1280, 720));
             await Frames(3);
+            Call(GetNode<PauseMenu>("/root/PauseMenu"), "Close");
             if (OS.GetCmdlineUserArgs().Contains("--before"))
             {
                 SeedRecords();
@@ -173,7 +175,7 @@ public partial class RecordsStyleQa : Node
             "maximum score fits without clipping or unreadably small text");
         await Shot("large_values");
         Click(records, new Vector2(144, 682));
-        await Frames(8);
+        await QaSceneTransition.Wait(this);
         Check(GetTree().CurrentScene is Hub, $"home button returns to the smartphone home (scene={GetTree().CurrentScene?.SceneFilePath})");
         GetTree().CurrentScene.QueueFree();
         await Frames(4);
@@ -192,7 +194,7 @@ public partial class RecordsStyleQa : Node
         records._Process(0.016);
         Input.ParseInputEvent(new InputEventKey { Keycode = Key.Escape, Pressed = false });
         Input.FlushBufferedEvents();
-        await Frames(6);
+        await QaSceneTransition.Wait(this);
         Check(GetTree().CurrentScene is Hub, "Esc returns home");
         GetTree().CurrentScene.QueueFree();
         await Frames(4);
@@ -219,7 +221,8 @@ public partial class RecordsStyleQa : Node
     {
         await ToSignal(GetTree().CreateTimer(0.35), SceneTreeTimer.SignalName.Timeout);
         await ToSignal(RenderingServer.Singleton, RenderingServer.SignalName.FramePostDraw);
-        string dir = ProjectSettings.GlobalizePath("res://build/qa_story/records_style");
+        string? output = OS.GetCmdlineUserArgs().FirstOrDefault(arg => arg.StartsWith("--output="));
+        string dir = ProjectSettings.GlobalizePath(output == null ? "res://build/qa_story/records_style" : output[9..]);
         DirAccess.MakeDirRecursiveAbsolute(dir);
         using var image = GetViewport().GetTexture().GetImage();
         Check(image.SavePng($"{dir}/{name}.png") == Error.Ok, $"screenshot {name}");

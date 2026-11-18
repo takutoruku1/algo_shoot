@@ -1,0 +1,69 @@
+{
+  "created": "2026-11-03",
+  "tracks": [
+    {
+      "id": "akari",
+      "title": "三秒後の未送信",
+      "source_url": "https://suno.com/song/89bb719a-4405-44d6-beda-7c0e45ce54d8",
+      "normal_url": "https://suno.com/song/84f9ebd4-8898-459b-8b5c-c00647036154",
+      "remix_url": "https://suno.com/song/1a31c5b4-19ee-4235-ad74-ee212ab3dd80",
+      "requested_lead_instruments": "piano and cello",
+      "target_bpm": 168,
+      "target_remix_bpm": 192,
+      "method": "Suno v6 Cover of source song; lyrics cleared and verified 0 chars; audio influence 70; weirdness 30; style influence 50",
+      "auditory_review": "not performed",
+      "melody_identity_and_vocal_absence": "requires listening"
+    },
+    {
+      "id": "koharu",
+      "title": "止まれないアンコール",
+      "source_url": "https://suno.com/song/bf2d12f7-d616-4e57-9558-c83966577950",
+      "normal_url": "https://suno.com/song/fb7efea2-cdac-41e3-b182-d31d3d64864a",
+      "remix_url": "https://suno.com/song/3a8a6f1c-ca08-4218-b9c8-9edd1bce6f40",
+      "requested_lead_instruments": "analog synth and glass bells",
+      "target_bpm": 172,
+      "target_remix_bpm": 196,
+      "method": "Suno v6 Cover of source song; lyrics cleared and verified 0 chars; audio influence 70; weirdness 30; style influence 50",
+      "auditory_review": "not performed",
+      "melody_identity_and_vocal_absence": "requires listening"
+    },
+    {
+      "id": "rei",
+      "title": "わたしの続きを聞いて",
+      "source_url": "https://suno.com/song/ca698606-e56e-4ba6-bc62-a1d867ce89d2",
+      "normal_url": "https://suno.com/song/010acfe5-3554-4df0-af29-adc2225e8ffb",
+      "remix_url": "https://suno.com/song/60366234-f118-4e4a-8318-60b869a7e46e",
+      "requested_lead_instruments": "electric violin and lead guitar",
+      "target_bpm": 160,
+      "target_remix_bpm": 184,
+      "method": "Suno v6 Cover of source song; lyrics cleared and verified 0 chars; audio influence 70; weirdness 30; style influence 50",
+      "auditory_review": "not performed",
+      "melody_identity_and_vocal_absence": "requires listening"
+    },
+    {
+      "id": "mina",
+      "title": "ここにいてもいいですか",
+      "source_url": "https://suno.com/song/f973e5ff-b068-4b96-8ede-b8b1f018c680",
+      "normal_url": "https://suno.com/song/f762d891-93b4-42e6-8794-10840a226415",
+      "remix_url": "https://suno.com/song/162727bd-23de-4673-b106-87c23ed647cf",
+      "requested_lead_instruments": "violin and French horns",
+      "target_bpm": 136,
+      "target_remix_bpm": 164,
+      "method": "Suno v6 Cover of source song; lyrics cleared and verified 0 chars; audio influence 70; weirdness 30; style influence 50",
+      "auditory_review": "not performed",
+      "melody_identity_and_vocal_absence": "requires listening"
+    }
+  ],
+  "mina_lyrics": "mina_lyrics.txt",
+  "mina_lyric_constraints": [
+    "no dragon transformation references",
+    "light natural rhymes and repeated chorus hook"
+  ],
+  "superseded_mina_song_ids": [
+    "e1fcce2f-ba12-4427-9eec-001e770d9256",
+    "bce264c7-7a3c-4355-a0fd-37c84b84306c"
+  ],
+  "superseded_reason": "dragon references in lyrics; never use in game",
+  "processing": "../../tools/build_boss_arrangements.py",
+  "verification": "audio_verification.json"
+}

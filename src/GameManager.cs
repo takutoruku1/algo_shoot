@@ -1,5 +1,6 @@
 using Godot;
 using System.Collections.Generic;
+using System.Linq;
 
 // GameManager : Autoload シングルトン (/root/Game)。
 // スコア・コンボ・ボム数などのゲーム状態を一元管理する。
@@ -24,6 +25,7 @@ public partial class GameManager : Node
 
     public long Score { get; private set; }
     private long _bossRetryScore;
+    private double _bossRetryElapsed;
     public int Combo { get; private set; }
     public int Bombs { get; private set; } = 3;
 
@@ -47,7 +49,12 @@ public partial class GameManager : Node
     public Job SelectedJob
     {
         get => _job;
-        set { _job = value; SelectedShotMode = Jobs.Get(value).Mode; }
+        set
+        {
+            if (_job != value) CancelSpecial();
+            _job = value;
+            SelectedShotMode = Jobs.Get(value).Mode;
+        }
     }
     public JobTuning JobDef => Jobs.Get(_job);
     // コマンドライン --job=xxx（Main が解決）で固定されたか。true の間はセーブのロードでも上書きしない
@@ -65,9 +72,15 @@ public partial class GameManager : Node
         string need = Jobs.Get(j).UnlockStageId;
         return need.Length == 0 || IsStageCleared(need);
     }
-    public bool IsMinaLockedForFinal => true;
-    // FINAL のカード／ジョブ選択が出す1行。ミナ本人が自分を指す言い方は「わたくし」（ミナの口調）。
-    public const string MinaFinalLockHint = "ミナを迎えに行く仲間を選ぼう";
+    public bool IsMinaLockedForFinal => !IsFinalCleared && !JobForcedByCmdline;
+    private readonly List<string> _pendingUnlockCards = new();
+    public JobTuning? NextUnlockCard => _pendingUnlockCards.Count == 0 ? null : Jobs.UnlockedBy(_pendingUnlockCards[0]);
+    public void AcknowledgeUnlockCard(JobTuning job)
+    {
+        _pendingUnlockCards.Remove(job.UnlockStageId);
+        AutoSave();
+    }
+    public const string MinaFinalLockHint = "この投稿に潜る仲間を選ぼう";
 
     // 未解禁ジョブの1行説明（選択画面が出す）。解禁済み／条件なしは null。
     //   文言は既存のステージ見出し（StageDef.Title の "STAGE 1 — あかり" の左側）から作る
@@ -100,15 +113,12 @@ public partial class GameManager : Node
     //     加速球      : accel_1 が「威力 +1」（旧 accel_power_1 の効果）を担い、accel_power_* は +2/+3 へ繰り上げ
     //   ＝「買ったのに何も変わらない」ノードを残さない。既存セーブは所持IDがそのままなので効果だけが強くなる
     //     （没収ゼロ＝MigrateUpgradesIfLegacy の方針と同じ）。
-    // 撃ち方ごとの「本数」。素の値（拡散5way／ホーミング2発）に、#8 弾の線+1 のぶんだけ足す。
-    //   ★2026-09-13：本数を火力（旧 shot_power）から導出するのを止めた。線数は線数の段が決める。
-    public int SpreadWays => 5 + ExtraLines * 2;   // 5 → 7way（扇は左右対称に増やすので +2）
-    public int HomingShots => 2 + ExtraLines;      // 2 → 3発
+    public int SpreadWays => 5;
+    public int HomingShots => 2;
     public string ShotModeName(ShotMode m) => m switch { ShotMode.Spread => "拡散", ShotMode.Homing => "ホーミング", ShotMode.Accel => "加速球", _ => "連射" };
     // 残機・ボムは難易度ベース ＋ 恒久強化ボーナス。
     // Lunaticは弾密度(BulletCountMul=1.9、Hard比+73%)・弾速(1.18)・間隔(0.85)全てが全難易度中最厳。
     // Easy(6)→Normal(4)→Hard(3)の減り方（-2,-1）に沿って Hard→Lunatic も -1 段階減らし、
-    // 最終ティアの「賭け金」をリターン（Lunatic解禁自体がフォロワー200等のやり込み到達点）に見合わせる。
     // 恒久強化（ハート +1 が2段＝最大 +2）を乗せて初めて現実的に戦える設計は維持（②-4想定通り）。
     // ジョブの最大♥増減（結び手 +2 ／ 灯し手 −1）もここへ乗せる＝回復キャップ(Player.AddLife)も同時に追従する。
     // 下限1：灯し手×Lunatic(基礎2)でも 1 は残す＝「開始即ゲームオーバー」を作らない。
@@ -138,15 +148,12 @@ public partial class GameManager : Node
     public bool IsLunatic => Difficulty == Diff.Lunatic;
     public static bool LunaticActive => Instance?.IsLunatic == true;
     public static bool BossRushActive => Instance?.GetTree().GetFirstNodeInGroup("boss_rush") != null;
-    public static bool SkipBossStory => LunaticActive || BossRushActive;
+    public static bool BossPracticeActive => Instance?.GetTree().GetFirstNodeInGroup("boss_practice") != null;
+    public static bool SkipBossStory => LunaticActive || BossRushActive || BossPracticeActive;
 
     // ── 撃破時に散る「心の欠片」の難易度倍率（2026-09-17 ユーザー要望）──
     //   粒の個数と、欠片が運ぶスコア総量の両方に掛ける（FxLayer.PurifyBurst）。
     //   ★ショップ通貨(Impression)の DifficultyImpressionMulFor(0.7/1.0/1.6/3.0) とは別物。
-    //     ★2026-09-17 の経済改修で、欠片は Score に加えてショップ通貨も運ぶようになったが、
-    //       この倍率が掛かるのは「粒の数」と「Score 総量」だけ。欠片が運ぶインプレ基礎額
-    //       (impBase) には掛けない（FxLayer.PurifyBurst の引数コメント参照）＝二重適用の回避。
-    //       なのでここを動かしても、ショップ経済（価格150〜4,000／クリア報酬400）には影響しない。
     //   ★カーブを 0.7/1.0/1.6/3.0 より緩くした理由：この倍率は「画面に出る粒の実数」に直結する。
     //     3.0 を掛けると Lunatic のボスで 128×3.0＝384粒となり、容量640の6割を1撃で食い潰し、
     //     改心の一拍で画面が花びらに埋まって視認性が落ちる（派手さは視認性を侵さない範囲で＝§4）。
@@ -167,30 +174,26 @@ public partial class GameManager : Node
     };
     public float RoadHpMul => Difficulty switch
     {
-        Diff.Normal => 1.25f, Diff.Hard => 1.5f, Diff.Lunatic => 1.75f, _ => 1f,
+        Diff.Normal => 1.25f, Diff.Hard => 2.16f, Diff.Lunatic => 1.75f, _ => 1f,
     };
 
-    public const int LunaticFollowerReq = 200;
-    public bool IsLunaticUnlocked => Followers >= LunaticFollowerReq;
+    public const string LunaticUnlockHint = "未解放";
+    public const string LunaticUnlockSeenKey = "once_lunatic_unlock";
+    public bool IsLunaticUnlocked => IsFinalCleared;
+    public bool LunaticUnlockPending => IsLunaticUnlocked && !IsIdleDialogSeen(LunaticUnlockSeenKey);
 
     // ───── 回避 ─────
     //   回避（Space / L3 / 右クリック）は 2026-09-22 からショップの段 #2「回避」（n_dodge）で覚える
     //   （それまでは 1面クリアの物語報酬＝GrantDodge／セーブキー "hasDodge"。旧セーブは LoadFromSlot が
     //   n_dodge の所持へ読み替える）。所持判定 HasDodge は強化効果アクセサの並び（ChargeNeedSec の隣）。
 
-    // ───── 集中モード（一本道 #11「集中モード」・Cキー）─────
-    //   Engine.TimeScale は使わない（自機・HUD・音・演出まで巻き込み、ヒットストップとも二重に掛かる）。
-    //   代わりに「敵側だけが読む delta 係数」をここに一本置き、敵・敵弾・予兆・嵐がそれを掛けて時間を進める。
-    //   ＝自機の操作感は等速のまま、向かってくるものだけが遅くなる。
-    public const float FocusModeScale = 0.35f;   // 敵側の時間倍率
-    public const float FocusModeDur = 1.5f;      // 持続（秒・実時間）
-    public const float FocusModeCd = 20f;        // クールダウン（秒・実時間）
-    private float _focusModeT;                   // 残り持続
-    private float _focusModeCd;                  // 残りクールダウン
-    public bool FocusModeActive => _focusModeT > 0f;
-    public bool FocusModeReady => HasFocusMode && _focusModeCd <= 0f && _focusModeT <= 0f;
-    public float FocusModeCdRatio => Mathf.Clamp(_focusModeCd / FocusModeCd, 0f, 1f);
-    public float FocusModeRatio => Mathf.Clamp(_focusModeT / FocusModeDur, 0f, 1f);
+    private float _specialCooldown;
+    private PlayerSpecial? _special;
+    internal PlayerSpecial? CurrentSpecial => IsInstanceValid(_special) && _special!.Active ? _special : null;
+    public bool SpecialActive => CurrentSpecial != null;
+    public bool SpecialReady => HasSpecial && _specialCooldown <= 0f && !SpecialActive;
+    public float SpecialCooldownRatio => Mathf.Clamp(_specialCooldown / PlayerSpecial.Cooldown, 0f, 1f);
+    public float SpecialRatio => CurrentSpecial?.Ratio ?? 0f;
 
     // 敵側が delta に掛ける係数。★ヒットストップ（GameCamera が Engine.TimeScale を 0.06 に落とす）と
     //   二重に掛けない：TimeScale が落ちている間は既に全体が止まっているので、ここでは 1 を返す。
@@ -198,38 +201,37 @@ public partial class GameManager : Node
     {
         get
         {
-            if (Engine.TimeScale < 0.99) return 1f;   // ヒットストップ中＝二重掛け禁止
-            var g = Instance;
-            return g != null && g.FocusModeActive ? FocusModeScale : 1f;
+            if (Engine.TimeScale < 0.99 && BossPracticeRoot.Active == null) return 1f;
+            return BossPracticeRoot.Active is { Practicing: true } practice ? practice.AttackTempo : 1f;
         }
     }
     // 敵側ノードが使う唯一の入口。delta にこれを掛けてから時間を進める。
     public static double EnemyDelta(double delta) => delta * EnemyTimeScale;
 
-    // 発動（Player が V のエッジで呼ぶ）。使えなければ false（＝SE も鳴らさない）。
-    public bool TryFocusMode()
+    internal bool TrySpecial(Player player, Vector2 direction)
     {
-        if (!FocusModeReady) return false;
-        _focusModeT = FocusModeDur;
-        _focusModeCd = FocusModeCd;
-        GD.Print($"[focus] ON scale={FocusModeScale} dur={FocusModeDur}s cd={FocusModeCd}s");
+        if (!SpecialReady || Hud.BubblePaused || player.IsGameOver || GetTree().Paused) return false;
+        if (!PlayerSpecial.CanStart(player, SelectedJob)) return false;
+        _special = PlayerSpecial.Spawn(player, SelectedJob, direction);
+        _specialCooldown = PlayerSpecial.Cooldown;
         return true;
     }
 
-    // 集中モードの時計を送る（Player._PhysicsProcess から実時間 delta で1本呼ぶ）。
-    //   ★ここは自機側の時計＝EnemyTimeScale を掛けない（掛けると自分で自分を伸ばしてしまう）。
-    public void TickFocusMode(float dt)
+    internal void TickSpecial(float dt)
     {
-        if (_focusModeT > 0f)
-        {
-            _focusModeT -= dt;
-            if (_focusModeT <= 0f) { _focusModeT = 0f; GD.Print("[focus] OFF"); }
-        }
-        else if (_focusModeCd > 0f) _focusModeCd -= dt;
+        if (!Hud.BubblePaused && !SpecialActive)
+            _specialCooldown = Mathf.Max(0f, _specialCooldown - dt);
+    }
+
+    internal void CancelSpecial()
+    {
+        if (IsInstanceValid(_special)) _special!.Cancel();
+        _special = null;
     }
 
     // ダイブ先の受け渡し（ハブ→難易度選択→ステージ）。
     public string PendingStageScene = "res://Rei.tscn";
+    public int PendingBossIndex;
 
     // ───── チェックポイント入口（最初から / 中ボスから / ボスから）─────
     //   中ボス(cameo)を持つ3ステージ（レイ/あかり/こはる）で道中をスキップして任意の戦闘から始められる。
@@ -251,7 +253,7 @@ public partial class GameManager : Node
     public bool MarkMidBossCleared(string id)
     {
         bool firstEver = _midBossCleared.Count == 0;
-        _midBossCleared.Add(id);
+        if (_midBossCleared.Add(id)) AutoSave();
         return firstEver;
     }
 
@@ -287,11 +289,21 @@ public partial class GameManager : Node
     // このランの被弾回数（Player.TakeHit が実際に♥を減らしたときだけ数える）。ハブ帰還の「被弾は{n}回でした」
     // （仮台本 06 の H1）の差し込み値。補助観測＝表示専用でセーブしない。ResetRun（ラン開始）で 0 に戻る。
     public int RunHitCount { get; private set; }
-    public void NotifyPlayerHit() => RunHitCount++;
+    public void NotifyPlayerHit()
+    {
+        RunHitCount++;
+        Combo = 0;
+    }
 
     // ステージ目標：このタイムラインを浄化しきる人数。到達でステージクリア。
     public int StageTarget { get; private set; } = 24;
-    public void SetStageTarget(int t) => StageTarget = Mathf.Max(1, t);
+    private bool _stageHasBoss, _stageRoadFinished;
+    public void SetStageTarget(int t, bool hasBoss = false)
+    {
+        StageTarget = Mathf.Max(1, t);
+        _stageHasBoss = hasBoss;
+    }
+    internal void FinishStageRoad() => _stageRoadFinished = true;
 
     // ───── 前のめり進行（リスクリターン：撃破＋時間＋自機の左右位置）─────
     //   進行度＝「撃破率」が本体。そこへ時間アキュムレータぶんだけ先行（前のめり）を上乗せする。
@@ -302,7 +314,7 @@ public partial class GameManager : Node
     //     撃破0 → 先行0（ゲージは 0% のまま動かない）。撃破が進むほど前のめりの取り分が増える
     //     ＝「攻めたほうが得」（リスクリターン §2-4）が撃破と比例して立つ。
     //   進行不能防止の不変条件（絶対に壊さない）：
-    //     ・道中ウェーブの撃破ゲート／StageCleared は PurifiedCount だけで判定＝ここは一切触らない。
+    //     ・道中の出現上限は撃破数で判定し、本ボスの浄化は別に記録する。
     //       progAccum/timeFrac は「見た目のゲージ＝StageProgress／Warmth／背景切替」を先行させるだけ。
     //     ・時間だけではクリアさせない（ボスは必ず撃破required）。
     //   progAccum は ResetRun（ステージ開始）でリセット。
@@ -317,7 +329,7 @@ public partial class GameManager : Node
     public static float PosFactor(float nx) => 0.55f + 1.05f * Mathf.Clamp(nx, 0f, 1f);
 
     // 毎フレーム、自機Xと dt を受けて時間アキュムレータを進める（各ステージ Root の _Process から1本呼ぶ）。
-    // 撃破カウンタ(PurifiedCount)には一切触れない＝撃破ゲート/StageCleared は不変。
+    // 時間経過では撃破数もクリア状態も変わらない。
     public void TickProgress(float playerX, float dt)
     {
         PlayerNormX = Mathf.Clamp((playerX - Field.Left) / Field.Width, 0f, 1f);
@@ -343,13 +355,17 @@ public partial class GameManager : Node
     {
         get
         {
+            if (_stageHasBoss && RedemptionActive) return 1f;
+            if (_stageHasBoss && (_stageRoadFinished || BossReached)) return .90f;
             float killFrac = Mathf.Clamp((float)PurifiedCount / StageTarget, 0f, 1f);
             float timeFrac = _progAccum; // TickProgress で 0..ProgTimeCap に clamp 済み
             float lead = (1f - killFrac) * timeFrac * LeadGain * LeadGate(killFrac);
-            return Mathf.Clamp(killFrac + lead, 0f, 1f);
+            float progress = Mathf.Clamp(killFrac + lead, 0f, 1f);
+            return _stageHasBoss ? Mathf.Min(.89f, .90f * progress) : progress;
         }
     }
-    public bool StageCleared => PurifiedCount >= StageTarget;
+    internal bool SpawnTargetReached => PurifiedCount >= StageTarget;
+    public bool StageCleared => _stageHasBoss ? RedemptionActive : SpawnTargetReached;
 
     // 「世界の暖かさ(0=冷たい荒れた世界 → 1=暖かい浄化された世界)」＝浄化の進捗。
     public float Warmth => StageProgress;
@@ -380,7 +396,7 @@ public partial class GameManager : Node
     public static readonly StageDef[] Stages =
     {
         new() { Id = "akari",  Scene = "res://Akari.tscn",  Handle = Handles.Akari,  Tweet = "すき、すき、すき。……ひとつでいいから、本物になって。",   Title = "STAGE 1 — あかり" },
-        new() { Id = "koharu", Scene = "res://Koharu.tscn", Handle = Handles.Koharu, Tweet = "今日の配信も最高だった。これで、明日も学校、行ける。", Title = "STAGE 2 — こはる" },
+        new() { Id = "koharu", Scene = "res://Koharu.tscn", Handle = Handles.Koharu, Tweet = "今日の配信も最高だった。これで明日も学校に行ける。", Title = "STAGE 2 — こはる" },
         new() { Id = "rei",    Scene = "res://Rei.tscn",    Handle = Handles.Rei,    Tweet = "だれも、わたしには追いつけない。……それの、なにが、いけないの。", Title = "STAGE 3 — レイ" },
     };
 
@@ -404,6 +420,7 @@ public partial class GameManager : Node
     public bool ClearedWithCompanion(string id) => _companionClears.Contains(id);
     // 直近にクリアしたステージ（ハブ帰還時の会話＆自動投稿トリガ。ハブが消費して null に戻す）。
     public string? JustClearedStageId;
+    public bool JustClearedStageWasNew { get; private set; }
 
     // ───── クリアタイム記録（ステージ×難易度のベスト・永続） ─────
     //   キーは "{stageId}_{Diff}"（例 "rei_Normal"）、値は秒(float)。
@@ -416,6 +433,7 @@ public partial class GameManager : Node
     // クリアタイムを記録：既存ベストより速ければ更新。戻り値 isBest=自己ベスト更新か / prev=更新前のベスト（初回は null）。
     public (bool isBest, float? prev) RecordClearTime(string stageId, Diff diff, float seconds)
     {
+        SteamAchievements.RecordClear(stageId, diff, SelectedJob);
         string key = ClearTimeKey(stageId, diff);
         bool had = ClearTimes.TryGetValue(key, out var prev);
         if (!had || seconds < prev)
@@ -458,10 +476,64 @@ public partial class GameManager : Node
         }
         return (false, prev);
     }
-    // コメント返信済みのステージ（セッション内・1回だけ報酬）。
-    private readonly HashSet<string> _replied = new();
-    public bool HasReplied(string id) => _replied.Contains(id);
-    public void MarkReplied(string id) => _replied.Add(id);
+    private Godot.Collections.Dictionary _sentReplies = new();
+    internal List<(string Speaker, string Text)> LimeHistory { get; } = new();
+    private readonly Dictionary<string, List<(string Speaker, string Text)>> _limeDirect = new();
+    internal List<(string Speaker, string Text)> LimeThread(string id)
+    {
+        if (!_limeDirect.TryGetValue(id, out var messages)) _limeDirect[id] = messages = new();
+        return messages;
+    }
+
+    private static Godot.Collections.Array SaveLimeThread(List<(string Speaker, string Text)> messages)
+    {
+        var rows = new Godot.Collections.Array();
+        foreach (var (speaker, text) in messages) rows.Add(new Godot.Collections.Array { speaker, text });
+        return rows;
+    }
+
+    private static void LoadLimeThread(Variant data, List<(string Speaker, string Text)> messages)
+    {
+        if (data.VariantType != Variant.Type.Array) return;
+        foreach (var item in data.AsGodotArray())
+            if (item.VariantType == Variant.Type.Array && item.AsGodotArray() is { Count: 2 } row)
+                messages.Add((row[0].AsString(), row[1].AsString()));
+    }
+    public bool HasReplied(string id) => _sentReplies.ContainsKey(id);
+    public void MarkReplied(string id, (string speaker, string text)[] exchange)
+    {
+        var rows = new Godot.Collections.Array();
+        foreach (var (speaker, text) in exchange)
+            rows.Add(new Godot.Collections.Array { speaker, text });
+        _sentReplies[id] = rows;
+    }
+    public IEnumerable<(string speaker, string text)> SentReplies(string id)
+    {
+        if (!_sentReplies.TryGetValue(id, out var rows)) yield break;
+        foreach (var row in rows.AsGodotArray())
+        {
+            var message = row.AsGodotArray();
+            yield return (message[0].AsString(), message[1].AsString());
+        }
+    }
+
+    private readonly HashSet<string> _likedPostIds = new();
+    private readonly List<string> _repostedPostIds = new();
+    public IReadOnlyList<string> RepostedPostIds => _repostedPostIds;
+    public bool IsPostLiked(string id) => _likedPostIds.Contains(id);
+    public bool IsPostReposted(string id) => _repostedPostIds.Contains(id);
+
+    public void TogglePostLike(string id)
+    {
+        if (!_likedPostIds.Remove(id)) _likedPostIds.Add(id);
+        AutoSave();
+    }
+
+    public void ToggleRepost(string id)
+    {
+        if (!_repostedPostIds.Remove(id)) _repostedPostIds.Insert(0, id);
+        AutoSave();
+    }
 
     // ハブ再訪小話（小話集 v1 §1）の既読管理。キーは "idle_{stageId}_{index}" / "common_{index}"。
     // 未読を優先して抽選し、全部見たらリセットして回す（Hub._Ready が消費）。永続（セーブに含む）。
@@ -485,8 +557,7 @@ public partial class GameManager : Node
     // FINAL を一度でもクリアしたか（周回判定）。FINAL は _cleared に入らない（CompleteStage を通らず
     //   StageMina.Step_Transition が RecordClearTime/RecordScore だけを書く）ので、同じ永続項目
     //   ClearTimes に "final_{Diff}" が1つでもあるか＝クリア記録の有無で見る。新しい保存項目は足さない
-    //   ＝既存セーブ（FINAL 到達済み）はロードした瞬間に周回扱いになる。Records.cs も同じ考えで
-    //   AllStoryCleared を「FINAL の行を開く条件」に使っている（あちらは表示、ここは進行ゲート）。
+    //   既存のクリア済みセーブもロードした時点で周回扱いになる。
     public bool IsFinalCleared
     {
         get
@@ -496,9 +567,15 @@ public partial class GameManager : Node
             return false;
         }
     }
+    private const string FinalBossRevealKey = "once_final_boss_reveal";
+    public bool FinalBossRevealed => IsIdleDialogSeen(FinalBossRevealKey) || IsFinalCleared;
+    public void RevealFinalBoss()
+    {
+        if (!_idleDialogSeen.Add(FinalBossRevealKey)) return;
+        AutoSave();
+    }
+
     public bool EndingRollSeen { get; private set; }
-    public bool BossRushUnlocked => IsFinalCleared
-        && (EndingRollSeen || HasChoiceAt("e6") || IsLineRead(Epilogue.AfterCreditsLine));
 
     public void MarkEndingRollSeen()
     {
@@ -521,7 +598,12 @@ public partial class GameManager : Node
     // ステージ完了：クリア報酬を計上し、クリア済に記録。ハブ帰還前に各ステージから呼ぶ。
     public void CompleteStage(string id)
     {
-        _cleared.Add(id);
+        JustClearedStageWasNew = _cleared.Add(id);
+        if (JustClearedStageWasNew)
+        {
+            if (Jobs.UnlockedBy(id) != null) _pendingUnlockCards.Insert(0, id);
+            SteamAchievements.RecordCharacterUnlocks(this);
+        }
         if (System.Array.Exists(Stages, stage => stage.Id == id))
         {
             if (SelectedJob != Job.Tank)
@@ -612,6 +694,7 @@ public partial class GameManager : Node
     // ステージ開始時に各ステージルートから呼ぶ：周回逓減の更新＋炎上の消費。
     public void BeginStageRun(string id)
     {
+        _stageRewardPending = true;
         bool diffIncreased = (int)Difficulty > _lastRunDiff;
         if (id == _lastRunStage && !diffIncreased) _repeatStreak++;
         else _repeatStreak = 0;
@@ -636,65 +719,59 @@ public partial class GameManager : Node
 
     // インプレッション＝お金。強化購入に使う（使うと減る）。永続。
     public long Impression { get; private set; }
-    // フォロワー＝第2の恒久ステータス。基本的に減らない＝「届けた証」（§0-1）。火力/インプレ倍率に常時上乗せ。
+    // フォロワーは「届けた証」として蓄積し、インプレ倍率に反映する。
     public int Followers { get; private set; }
-    // 今回のラン(ステージ)で稼いだインプレ。HUD表示「🔥 +N」用。ResetRun で 0。
-    public long RunImpression { get; private set; }
+    private bool _stageRewardPending;
+    public const int ScorePerImpression = 100;
+    public long PendingStageImpression => _stageRewardPending && !TrainingMode && !BossPracticeActive
+        ? (long)System.Math.Round((decimal)Score / ScorePerImpression * (decimal)TotalImpressionMul
+            * (decimal)ReplayMul * (decimal)MoneyGainMul, System.MidpointRounding.AwayFromZero)
+        : 0;
 
-    // 恒久強化の所持（id → 0/1）。すべて買い切り＝値は 0 か 1 しか取らない。
-    // セーブ移行（MigrateUpgradesIfLegacy）で丸ごと差し替えるため readonly にはしない。
-    private Dictionary<string, int> _upgrades = new();
+    public long SettleStageScore()
+    {
+        long reward = PendingStageImpression;
+        _stageRewardPending = false;
+        Impression += reward;
+        return reward;
+    }
+
+    private Dictionary<Job, HashSet<string>> _ownedUpgrades = Jobs.All.ToDictionary(job => job.Id, _ => new HashSet<string>());
+    public int OwnedUpgradeCount => _ownedUpgrades[SelectedJob].Count;
 
     // 強化カタログ（§①-4）。効果は下の各アクセサで定義。
-    // ★2026-09-13：分岐する木（70ノード・排他・振り直し）を畳み、一本道14段に作り直した。
-    //   買える段は常にひとつ＝「次の一手」を選ばせない。順序条件は ParentId（直前の段）だけ。
     public sealed class UpgradeDef
     {
         public string Id = "";
         public string Name = "";   // ＝効果そのもの（画面に出る唯一の説明）
         public string Desc = "";   // 詳細パネルの「いま → 買うと」を組む材料
-        public int MaxLevel;       // 一本道では常に 1（買い切り）
+        public string? PrerequisiteId;
+        public int MaxLevel;
         public long BaseCost;
-        // 直前の段。""＝先頭（n_life_1 のみ）。これを持っていなければ買えない＝一本道の順序そのもの。
-        public string ParentId = "";
+        public int Rating;
     }
 
-    //   分岐・排他・振り直しを全廃し、「上から順にしか買えない」1列だけにした。ノード名＝効果そのもの
-    //   ＝詳細の地の文を読ませなくても何が起きるか分かる（Desc は「いま → 買うと」の材料としてだけ持つ）。
-    //   ・順序は ParentId が直前の段を指すことで担保する（IsParentMet ＝ 直前の段の所持）。
-    //   ・価格は 150→4,000 の単調増加。1面クリア報酬 400×MoneyGainMul(2) と道中の稼ぎで
-    //     「1面ごとに1〜2段」進む速度を狙っている。
-    //   ・#2 回避／#11 集中モードは「できることが増える」段＝Shop が一回り大きく描く（IsAbilityNode）。
-    //   ・#7 はもと「溜め打ち」の習得段だったが、2026-09-25 のユーザー決定で溜め打ちは最初から使える
-    //     ＝段は残したまま中身を差し替えた。同日さらに「短縮」から「2段階チャージ」へ再決定（ChargeTier）。
-    //     IDは n_charge のまま、価格（1200）と親（n_life_2）も据え置き＝ツリーの形も進行速度も変わらず、
-    //     旧「溜め打ち 短縮」を買い済みのセーブもそのまま 2段目が開く。
-    //   ・#2 回避（200）はもともと 1面クリアの無料報酬だったもの（2026-09-22 ユーザー決定でショップの品目へ）。
-    //     ショップが開く瞬間（＝1面クリア直後・財布は 800＋道中）に #1〜#3 が 150+200+300=650 で揃う
-    //     ＝移す前（150+300=450 で #2 回避強化まで）と到達段が同じ。回避は実質ただ同然のまま「買って覚える」形になる。
-    //     #3「回避強化」は親に n_dodge を持つ＝回避を持たずに強化だけ買う形は作れない。
-    //   ★この配列の並びがそのまま画面の並び＝唯一の正典。増減はここだけを編集する。
     public static readonly UpgradeDef[] Upgrades =
     {
-        new() { Id = "n_life_1",   Name = "ハート +1",             Desc = "はじまりの♥が1つ増える",               MaxLevel = 1, BaseCost =  150, ParentId = "" },
-        new() { Id = "n_dodge",    Name = "回避",                  Desc = "一瞬無敵になって弾を抜ける",             MaxLevel = 1, BaseCost =  200, ParentId = "n_life_1" },
-        new() { Id = "n_dodge_cd", Name = "回避強化", Desc = "回避が早く戻り、距離も伸びる",         MaxLevel = 1, BaseCost =  300, ParentId = "n_dodge" },
-        new() { Id = "n_bomb_1",   Name = "ボム +1",               Desc = "はじまりのボムが1つ増える",             MaxLevel = 1, BaseCost =  450, ParentId = "n_dodge_cd" },
-        new() { Id = "n_life_2",   Name = "ハート +1",             Desc = "はじまりの♥がもう1つ増える",           MaxLevel = 1, BaseCost =  900, ParentId = "n_bomb_1" },
-        new() { Id = "n_charge",   Name = "溜め打ち 二段",         Desc = "もう一段ためると、弾の威力と大きさが増す", MaxLevel = 1, BaseCost = 1200, ParentId = "n_life_2" },
-        new() { Id = "n_hitbox",   Name = "当たり判定 半分",       Desc = "被弾判定の半径が半分になる",            MaxLevel = 1, BaseCost = 1500, ParentId = "n_charge" },
-        new() { Id = "n_lines",    Name = "ライン +1",           Desc = "通常弾の同時発射数が増える",             MaxLevel = 1, BaseCost = 1800, ParentId = "n_hitbox" },
-        new() { Id = "n_move_15x", Name = "移動速度 1.5倍",        Desc = "移動が1.5倍速くなる",                   MaxLevel = 1, BaseCost = 2200, ParentId = "n_lines" },
-        new() { Id = "n_slow",     Name = "集中モード",    Desc = "敵の時間だけ遅くする",                  MaxLevel = 1, BaseCost = 2600, ParentId = "n_move_15x" },
-        new() { Id = "n_pierce",   Name = "貫通",      Desc = "通常弾が敵やアンフォールダーを1つ貫通する", MaxLevel = 1, BaseCost = 3500, ParentId = "n_slow" },
-        new() { Id = "n_option",   Name = "オプション +1",         Desc = "追従オプションが1基つく（威力×0.5）",   MaxLevel = 1, BaseCost = 4000, ParentId = "n_pierce" },
+        new() { Id = "n_life_1",   Name = "ハート +1",             Desc = "はじまりの♥が1つ増える",               MaxLevel = 1, BaseCost =  700, Rating = 3 },
+        new() { Id = "n_dodge",    Name = "回避",                  Desc = "一瞬無敵になって弾を抜ける",             MaxLevel = 1, BaseCost = 2400, Rating = 5 },
+        new() { Id = "n_dodge_cd", Name = "回避強化", Desc = "「回避」習得後、再使用が早まり距離も伸びる",         MaxLevel = 1, BaseCost =  300, Rating = 2, PrerequisiteId = "n_dodge" },
+        new() { Id = "n_bomb_1",   Name = "ボム +1",               Desc = "はじまりのボムが1つ増える",             MaxLevel = 1, BaseCost =  800, Rating = 3 },
+        new() { Id = "n_heart_magnet", Name = "心の回収範囲アップ", Desc = "心の欠片を1.5倍遠くから引き寄せる",     MaxLevel = 1, BaseCost =  100, Rating = 1 },
+        new() { Id = "n_life_2",   Name = "ハート +1",             Desc = "はじまりの♥がもう1つ増える",           MaxLevel = 1, BaseCost =  700, Rating = 3 },
+        new() { Id = "n_charge_shot", Name = "溜め打ち", Desc = "長押しして離すと、キャラクター固有の溜め弾を撃つ", MaxLevel = 1, BaseCost = 1400, Rating = 4 },
+        new() { Id = "n_charge",   Name = "溜め打ち 二段",         Desc = "「溜め打ち」習得後、さらにためると威力と大きさが増す", MaxLevel = 1, BaseCost = 1600, Rating = 4, PrerequisiteId = "n_charge_shot" },
+        new() { Id = "n_hitbox",   Name = "当たり判定 縮小",       Desc = "被弾判定の半径が25%小さくなる",          MaxLevel = 1, BaseCost = 1200, Rating = 4 },
+        new() { Id = "n_hit_invul", Name = "被弾後の無敵時間アップ", Desc = "被弾後の無敵時間が0.4秒長くなる",      MaxLevel = 1, BaseCost =  200, Rating = 2 },
+        new() { Id = "n_move_15x", Name = "移動速度 1.5倍",        Desc = "移動が1.5倍速くなる",                   MaxLevel = 1, BaseCost =  650, Rating = 3 },
+        new() { Id = "n_slow",     Name = "必殺技",    Desc = "キャラクター固有の必殺技を覚える",                  MaxLevel = 1, BaseCost = 2200, Rating = 5 },
     };
 
     // 能力を覚える段（Shop が一回り大きく描く）。数値ではなく「できることが増える」段。
-    public static bool IsAbilityNode(string id) => id == "n_dodge" || id == "n_slow" || id == "n_charge";
+    public static bool IsAbilityNode(string id) => id is "n_dodge" or "n_slow" or "n_charge_shot" or "n_charge";
 
     // 所持判定のショートハンド（効果アクセサがこれ1本で読む＝ChainLevel の段数計算は要らなくなった）。
-    public bool Has(string id) => GetUpgradeLevel(id) >= 1;
+    public bool Has(string id) => _ownedUpgrades[SelectedJob].Contains(id);
 
     // 所持している段のID列（検証ログ用。挙動には影響しない）。
     public List<string> ColumnOwnedIds()
@@ -711,7 +788,7 @@ public partial class GameManager : Node
         return null;
     }
 
-    public int GetUpgradeLevel(string id) => _upgrades.TryGetValue(id, out var v) ? v : 0;
+    public int GetUpgradeLevel(string id) => Has(id) ? 1 : 0;
 
     //   方針は「没収ゼロ」：旧セーブが強化に投じた総額を決定的に再計算し、その金額で新列の先頭から
     //   買えるだけ自動所持させる（差額は返金しない＝旧価格でどこまで積めたかが、そのまま新列の到達段になる）。
@@ -719,7 +796,7 @@ public partial class GameManager : Node
     //     旧ノード価格表 LegacyCost から総額を積む。
     //   ・単Lvノード方式（"fire_rate_1":1 …）はそのノードの旧価格をそのまま積む。
     //   ・どちらでもない未知キーは無視（壊れたセーブで落ちない）。
-    //   ワンショット：移行後は新IDだけが _upgrades に残るので、次回ロードでは legacy 判定に掛からない。
+    //   次の保存でキャラクター別形式になり、同じ購入への払い戻しは繰り返さない。
     private static readonly Dictionary<string, long> LegacyCost = new()
     {
         // 旧70ノードの BaseCost（2026-09-13 以前のカタログ）。総支払額の再計算にだけ使う。
@@ -780,13 +857,16 @@ public partial class GameManager : Node
 
     //   移行した段数は MigratedNodeCount に控える（ショップ／QAログが「何段引き継いだか」を見せる用）。
     public int MigratedNodeCount { get; private set; } = -1; // -1＝このロードでは移行が走らなかった
-    private void MigrateUpgradesIfLegacy()
+    private void MigrateSharedUpgrades(Dictionary<string, int> upgrades)
     {
-        if (_upgrades.Remove("n_power_2x", out int power) && power > 0) Impression += 700;
-        if (_upgrades.Remove("n_rate_2x", out int rate) && rate > 0) Impression += 3000;
+        if (upgrades.Remove("n_power_2x", out int power) && power > 0) Impression += 700;
+        if (upgrades.Remove("n_rate_2x", out int rate) && rate > 0) Impression += 3000;
+        if (upgrades.Remove("n_lines", out int lines) && lines > 0) Impression += 1800;
+        if (upgrades.Remove("n_pierce", out int pierce) && pierce > 0) Impression += 3500;
+        if (upgrades.Remove("n_option", out int option) && option > 0) Impression += 4000;
         long paid = 0;
         bool legacy = false;
-        foreach (var kv in _upgrades)
+        foreach (var kv in upgrades)
         {
             if (GetUpgradeDef(kv.Key) != null) continue;            // 既に新ID＝そのまま残す
             legacy = true;
@@ -801,25 +881,26 @@ public partial class GameManager : Node
         if (!legacy) return;
 
         // 旧IDを全部落とし、再計算した総額で新列の先頭から買えるだけ所持させる（没収ゼロ）。
-        var keep = new Dictionary<string, int>();
-        foreach (var kv in _upgrades)
-            if (GetUpgradeDef(kv.Key) != null) keep[kv.Key] = kv.Value;
-        _upgrades = keep;
+        foreach (var id in upgrades.Keys.Where(id => GetUpgradeDef(id) == null).ToArray()) upgrades.Remove(id);
         int got = 0;
-        foreach (var d in Upgrades)
+        // 価格調整で旧セーブの引き継ぎ内容が変わらないよう、移行時の価格と並びを固定する。
+        foreach (var (id, cost) in new (string, long)[]
         {
-            if (GetUpgradeLevel(d.Id) >= 1) { got++; continue; }    // 既に持っている段は数えるだけ
-            if (paid < d.BaseCost) break;
-            paid -= d.BaseCost;
-            _upgrades[d.Id] = 1;
+            ("n_life_1", 150), ("n_dodge", 200), ("n_dodge_cd", 300), ("n_bomb_1", 450),
+            ("n_heart_magnet", 650), ("n_life_2", 900), ("n_charge", 1200), ("n_hitbox", 1500),
+            ("n_hit_invul", 1800), ("n_move_15x", 2200), ("n_slow", 2600),
+        })
+        {
+            if (upgrades.GetValueOrDefault(id) >= 1) { got++; continue; }
+            if (paid < cost) break;
+            paid -= cost;
+            upgrades[id] = 1;
             got++;
         }
         MigratedNodeCount = got;
         GD.Print($"[migrate] legacy upgrades -> column: {got} nodes owned (leftover {paid} imp discarded)");
     }
 
-    // Lv→Lv+1 の価格。一本道では各ノード MaxLevel=1・固定 BaseCost なので、
-    // Lv0（未所持）なら BaseCost をそのまま返し、Lv1（所持済＝最大）は 0。
     public static long CostAt(UpgradeDef d, int lv)
     {
         if (lv >= d.MaxLevel) return 0;
@@ -836,35 +917,32 @@ public partial class GameManager : Node
         return CostAt(d, lv);
     }
 
-    // 一本道の順序条件＝直前の段を持っているか。先頭（ParentId=""）は常に true。
-    // 所持済みノードは常に true（＝並びを変えても既に買った段が「買えない」扱いに落ちない）。
-    public bool IsParentMet(string id)
+    public UpgradeDef? GetMissingUpgradePrerequisite(string id)
     {
-        if (GetUpgradeLevel(id) >= 1) return true;
-        var d = GetUpgradeDef(id);
-        if (d == null || string.IsNullOrEmpty(d.ParentId)) return true;
-        return GetUpgradeLevel(d.ParentId) >= 1;
+        string? prerequisite = GetUpgradeDef(id)?.PrerequisiteId;
+        return prerequisite != null && !Has(prerequisite) ? GetUpgradeDef(prerequisite) : null;
     }
 
     public bool CanPurchase(string id)
     {
         long c = GetUpgradeCost(id);
-        return c >= 0 && Impression >= c && IsParentMet(id);
+        return c >= 0 && Impression >= c && GetMissingUpgradePrerequisite(id) == null;
     }
 
-    // 強化を1段購入。成功で true。保存はポーズメニューの手動セーブで行う。
     public bool TryPurchase(string id)
     {
         if (!CanPurchase(id)) return false;
         Impression -= GetUpgradeCost(id);
-        _upgrades[id] = GetUpgradeLevel(id) + 1;
+        _ownedUpgrades[SelectedJob].Add(id);
+        SteamAchievements.RecordUpgrade();
+        AutoSave();
         return true;
     }
 
     // ───── トレーニングモード（試し打ち場）用：メタ状態の退避／復元と、ゲート無視の直書き ─────
     //   トレーニングは「完全無料・試用のみ」＝本番の購入済み・所持ポイント・装備を一切変えずに
     //   スキルを自由に付け外しして撃ち味を比べる場。入場時に SnapshotMeta で退避し、退場時に RestoreMeta で
-    //   丸ごと戻す（＝本番状態を壊さない）。この機構は _upgrades を差し替えるだけで、セーブは一切呼ばない。
+    //   丸ごと戻す（＝本番状態を壊さない）。試用した全キャラの強化を復元する。
     //   ※ディスクへの漏れ防止は呼び出し側が AutoSaveEnabled=false で担保する（Hub帰還等の自動セーブを止める）。
     public sealed class MetaSnapshot
     {
@@ -872,7 +950,7 @@ public partial class GameManager : Node
         public int Followers;
         public ShotMode SelectedShotMode;
         public Job SelectedJob;
-        public Dictionary<string, int> Upgrades = new();
+        public Dictionary<Job, HashSet<string>> Upgrades = new();
     }
 
     // 現在のメタ状態（通貨・フォロワー・装備モード・所持強化）をディープコピーして退避する。
@@ -884,12 +962,12 @@ public partial class GameManager : Node
             Followers = Followers,
             SelectedShotMode = SelectedShotMode,
             SelectedJob = SelectedJob,
-            Upgrades = new Dictionary<string, int>(_upgrades), // 値コピー（各Lvは 0/1 の int）
+            Upgrades = _ownedUpgrades.ToDictionary(kv => kv.Key, kv => new HashSet<string>(kv.Value)),
         };
         return s;
     }
 
-    // 退避したメタ状態へ完全復元する（トレーニング退場時に必ず呼ぶ）。_upgrades は丸ごと差し替える。
+    // 退避したメタ状態へ完全復元する（トレーニング退場時に必ず呼ぶ）。
     public void RestoreMeta(MetaSnapshot s)
     {
         if (s == null) return;
@@ -897,15 +975,16 @@ public partial class GameManager : Node
         Followers = s.Followers;
         SelectedJob = s.SelectedJob;      // ジョブ→モードの順（セッタがモードを上書きするため）
         SelectedShotMode = s.SelectedShotMode;
-        _upgrades = new Dictionary<string, int>(s.Upgrades);
+        _ownedUpgrades = s.Upgrades.ToDictionary(kv => kv.Key, kv => new HashSet<string>(kv.Value));
     }
 
     // トレーニング用：親/前提/封印・価格を無視して1ノードを直接 付ける/外す（購入パスを通さない）。
     public void TrainingSetUpgrade(string id, bool owned)
     {
         if (GetUpgradeDef(id) == null) return;
-        if (owned) _upgrades[id] = 1;
-        else _upgrades.Remove(id);
+        if (owned) _ownedUpgrades[SelectedJob].Add(id);
+        else _ownedUpgrades[SelectedJob].Remove(id);
+        if (id == "n_slow" && !owned) CancelSpecial();
     }
 
     // トレーニング用：カタログ全ノードを一括で 付ける/外す（撃ち味の全開↔素の比較に使う）。
@@ -917,16 +996,12 @@ public partial class GameManager : Node
     // トレーニング用：通貨を直接セットする（試用中は実質無限。表示専用＝購入では減らさない運用）。
     public void TrainingSetImpression(long v) => Impression = v;
 
-    // ── フォロワー由来の常時バフ（天井付き・§①-5）──
-    // PowerMul は Player.Fire の弾ダメージに実配線（fol_gain＝“火力の遠回り投資”の受け皿）。係数 0.00010→0.00025＝2,000人で上限+50%。
-    public float FollowerPowerMul => 1f + Mathf.Min(0.50f, Followers * 0.00025f);
     public float FollowerImpressionMul => 1f + Mathf.Min(0.50f, Followers * 0.00008f);
 
     // ── 難易度・強化由来のインプレ倍率 ──
     public static float DifficultyImpressionMulFor(Diff d) => d switch { Diff.Easy => 0.7f, Diff.Hard => 1.6f, Diff.Lunatic => 3.0f, _ => 1f };
     public float DifficultyImpressionMul => DifficultyImpressionMulFor(Difficulty);
     // 獲得心の倍率。一本道では「獲得倍率を買う」段を持たないので恒久ボーナスは無し（1.0 固定）。
-    //   稼ぎの伸びは MoneyGainMul（一律2倍）とステージクリア報酬(400)が担う。
     public float UpgradeImpressionMul => 1f;
     // 獲得インプレ（お金）全体の追加倍率。コスト/価格には掛からない＝獲得だけ増える。後で調整しやすいよう定数化。
     public const float MoneyGainMul = 2f;
@@ -936,29 +1011,24 @@ public partial class GameManager : Node
 
     // #10 移動速度1.5倍（低速移動の廃止＝2026-09-13 により、速度は1本になった）。炎上による移動弱体も撤廃。
     public float MoveSpeedMul => Has("n_move_15x") ? 1.5f : 1f;
-    // #8 当たり判定 半分（HitRadius 2.0px → 1.0px）。
-    public float HitRadiusMul => Has("n_hitbox") ? 0.5f : 1f;
+    public float HitRadiusMul => Has("n_hitbox") ? 0.75f : 1f;
+    public const float HeartMagnetUpgradeMul = 1.5f;
+    public const float HitInvulUpgradeBonus = 0.4f;
+    public float HeartMagnetMul => Has("n_heart_magnet") ? HeartMagnetUpgradeMul : 1f;
+    public float HitInvulSec => JobDef.HitInvulSec + (Has("n_hit_invul") ? HitInvulUpgradeBonus : 0f);
     // #1 #6 ハート +1 ×2段（表示はどちらも「+1」。累計は自然に +2）。
     public int MaxLifeBonus => (Has("n_life_1") ? 1 : 0) + (Has("n_life_2") ? 1 : 0);
     // #4 ボム +1。
     public int BombCountBonus => Has("n_bomb_1") ? 1 : 0;
-    // #14 オプション +1＝追従オプション1基（威力×0.5・Player.OptionSlots）。
-    public int OptionSubCount => Has("n_option") ? 1 : 0;
-    // #13 貫通＝全撃ち方の弾が1体貫通（Bullet.Pierce）。
-    public int ShotPierceCount => Has("n_pierce") ? 1 : 0;
-    // #9 ライン +1。連射の線・拡散のway・ホーミングの発数・加速球の発数を、各 Fire が素の値へ足す。
-    public int ExtraLines => Has("n_lines") ? 1 : 0;
-    // 溜め打ち1段目の充填秒（Player.ChargeNeed）。買い物では動かない＝誰でも最初から同じ 0.60秒。
-    //   ★溜め打ちそのものは 2026-09-25 のユーザー決定で「最初から使える」＝習得判定（旧 HasChargeShot）は
-    //     消した。同日「短縮」も撤回され、#7 の中身は 2段階チャージ（下の HasChargeTier2）になった。
+    public bool HasChargeShot => Has("n_charge_shot");
     public float ChargeNeedSec => 0.60f;
     // #7 2段階チャージ＝1段で離さずさらに押し続けると 2段目が貯まる（ChargeTier）。
     //   ★IDが n_charge のままなので、旧「溜め打ち 短縮」を買い済みのセーブはそのまま 2段目が開く。
-    public bool HasChargeTier2 => Has("n_charge");
+    public bool HasChargeTier2 => HasChargeShot && Has("n_charge");
     // 2段目が満ちるまでの長押し秒（合計）。未所持なら 1段目と同じ＝それ以上は溜まらない。
     public float ChargeTier2NeedSec => HasChargeTier2 ? ChargeNeedSec * ChargeTier.HoldMul : ChargeNeedSec;
-    // #11 集中モード（Cキー・敵側の時間だけ×0.35／1.5秒／CD20秒）。
-    public bool HasFocusMode => Has("n_slow");
+    // 購入済みの集中モードをそのまま引き継ぐため、保存IDは維持する。
+    public bool HasSpecial => Has("n_slow");
     // #2 回避（Space / L3 / 右クリック・無敵 0.45秒）。未所持のあいだ Player.TryDodge は即 return し、
     //   あそびかた／操作カードの回避行は未取得として薄く出る＝解禁が画面で見える。
     //   ★名前と型（bool HasDodge）は Player.cs・StageZero.cs・HowToPlay.cs が読むので変えない。
@@ -966,8 +1036,6 @@ public partial class GameManager : Node
     // #3 回避強化（CD 0.8→0.65秒・距離 64→76px）。
     public float DodgeCooldown => Has("n_dodge_cd") ? 0.65f : 0.80f;
     public float DodgeDistance => Has("n_dodge_cd") ? 76f : 64f;
-
-    public int ExposedDamageCap => 180 + (Has("n_lines") ? 35 : 0);
 
     // ── 旧ノードが消えたぶんの既定値（買えなくなった軸は「旧ノードを買い切った値」で固定する）──
     //   ＝一本道化で強化軸が消えても、撃ち味そのものは旧・最終段のまま。弱体化ゼロ（査読確定・§9）。
@@ -993,10 +1061,9 @@ public partial class GameManager : Node
     public float VeilLightRadius => JobDef.VeilFloorRadius;
     public float VeilLightDuration => JobDef.VeilFloorDuration;
 
-    // ── 旧・モード別の上乗せ（連射威力／速射／加速威力）。買う段が無くなったので素の値で固定 ──
+    // ── 旧・モード別の上乗せ（連射威力／速射）。買う段が無くなったので素の値で固定 ──
     public int RapidPowerBonus => 0;
     public float RapidRateMul => 1f;
-    public int AccelPowerBonus => 3;    // 旧 accel_1 + accel_power_2（+1+2）＝加速球を買い切った値
 
     // インプレを獲得（全倍率を適用して加算）。実際に加算した額を返す。
     public long GainImpression(long baseAmount)
@@ -1004,7 +1071,6 @@ public partial class GameManager : Node
         if (baseAmount <= 0) return 0;
         long g = (long)Mathf.Round(baseAmount * TotalImpressionMul * ReplayMul * MoneyGainMul);
         Impression += g;
-        RunImpression += g;
         return g;
     }
 
@@ -1017,41 +1083,88 @@ public partial class GameManager : Node
     // ステージクリア（浄化100%）時の大口報酬。帰還演出から呼ぶ（STEP2/5で配線）。
     public void RegisterStageClear()
     {
-        // ★2026-09-13：120→400。一本道14段（150〜4,000）を「1面ごとに1〜2段」で進める速度に合わせた
-        //   （実入りは MoneyGainMul=2 と難易度倍率が更に掛かる）。
-        // クリア掃引(sweep)で拾い切った欠片の端数を、リザルト表示より前に確定させる
-        // （閾値未満のまま残った基礎額が「拾ったのに増えていない」に見えるのを防ぐ）。
-        FlushShardImpression();
-        GainImpression(400);
+        SettleStageScore();
         // フォロワー大口報酬。周回逓減も適用（同ステージ連続周回で減る）。
         int fol = Mathf.RoundToInt(40 * ReplayMul); // 旧 fol_gain ノードは廃止＝素の 40 に周回逓減だけ
         AddFollowers(fol);
         AutoSave(); // クリアでオートセーブ（slot 0）
     }
 
-    // ───────────────────────────────────────────────────────────
-    // セーブ / ロード（スロット制：user://save_1..3.json）。経済・強化のみ永続。
-    // 手動セーブ（ポーズメニュー）でのみ書き込む。起動時の自動ロードはしない。
-    // ───────────────────────────────────────────────────────────
     public const int SlotCount = 3;
-    private static string SlotPath(int slot) => $"user://save_{slot}.json";
+    public double PlayTimeSeconds { get; private set; }
+    private bool _playTimePartial;
+
+    private sealed partial class PlayClock : Node
+    {
+        internal GameManager Game = null!;
+        public override void _Process(double delta)
+        {
+            string scene = GetTree().CurrentScene?.SceneFilePath ?? "";
+            if (scene.Length == 0 || scene is "res://TitleMenu.tscn" or "res://Settings.tscn" or "res://Credits.tscn"
+                || LoadingScreen.IsActive) return;
+            Game.PlayTimeSeconds += delta / Engine.TimeScale;
+        }
+    }
+    private static string SlotPath(int slot) => Startup.DataPath($"save_{slot}.json");
     public bool SlotExists(int slot) => FileAccess.FileExists(SlotPath(slot));
 
-    public bool SaveToSlot(int slot)
+    public sealed record SaveSlotInfo(bool Exists, bool Readable, string SavedAt, string PlayTime, string Progress, string Details);
+
+    public SaveSlotInfo ReadSlotInfo(int slot)
     {
+        string path = SlotPath(slot);
+        if (!FileAccess.FileExists(path)) return new(false, false, "", "", "", "");
+        using var file = FileAccess.Open(path, FileAccess.ModeFlags.Read);
+        using var json = new Json();
+        if (file == null || json.Parse(file.GetAsText()) != Error.Ok || json.Data.VariantType != Variant.Type.Dictionary)
+            return new(true, false, "読み込めないデータ", "", "", "");
+        var data = json.Data.AsGodotDictionary();
+        long timestamp = data.ContainsKey("savedAt") ? data["savedAt"].AsInt64() : (long)FileAccess.GetModifiedTime(path);
+        string savedAt = timestamp is > 0 and <= 253402300799
+            ? System.DateTimeOffset.FromUnixTimeSeconds(timestamp).ToLocalTime().ToString("yyyy/MM/dd HH:mm") : "日時未記録";
+        double seconds = data.ContainsKey("playTimeSeconds") ? data["playTimeSeconds"].AsDouble() : -1;
+        string playTime = seconds >= 0 && double.IsFinite(seconds)
+            ? $"{System.Math.Floor(seconds / 3600):0}時間{System.Math.Floor(seconds / 60) % 60:00}分" : "未記録";
+        if (data.ContainsKey("playTimePartial") && data["playTimePartial"].AsBool()) playTime += "（記録開始後）";
+        int clears = 0;
+        if (data.ContainsKey("cleared") && data["cleared"].VariantType == Variant.Type.Array)
+            foreach (var stage in Stages)
+                if (data["cleared"].AsGodotArray().Contains(stage.Id)) clears++;
+        bool final = false;
+        if (data.ContainsKey("clearTimes") && data["clearTimes"].VariantType == Variant.Type.Dictionary)
+            foreach (Diff diff in System.Enum.GetValues<Diff>())
+                final |= data["clearTimes"].AsGodotDictionary().ContainsKey(ClearTimeKey(FinalStageId, diff));
+        string progress = $"ステージクリア {clears}/{Stages.Length}" + (final ? "　FINAL クリア" : "");
+        int job = data.ContainsKey("job") ? data["job"].AsInt32() : (int)Job.Tank;
+        string character = Jobs.Get(System.Enum.IsDefined(typeof(Job), job) ? (Job)job : Job.Tank).CharacterName;
+        string difficulty = data.ContainsKey("difficulty")
+            ? ((Diff)Mathf.Clamp(data["difficulty"].AsInt32(), 0, 3)).ToString().ToUpperInvariant() : "難易度未記録";
+        long impression = data.ContainsKey("impression") ? data["impression"].AsInt64() : 0;
+        int followers = data.ContainsKey("followers") ? data["followers"].AsInt32() : 0;
+        return new(true, true, savedAt, $"プレイ時間 {playTime}", progress,
+            $"{character} / {difficulty}　フォロワー {followers:N0}　Imp {impression:N0}");
+    }
+
+    public bool SaveToSlot(int slot, bool settleStage = false)
+    {
+        if (TrainingMode || BossPracticeActive) return false;
         var data = new Godot.Collections.Dictionary
         {
-            ["impression"] = Impression,
+            ["impression"] = Impression + (settleStage ? PendingStageImpression : 0),
             ["followers"] = Followers,
             ["shotmode"] = (int)SelectedShotMode,
             // ジョブ（ラン単位の選択だが「次に潜るときの既定」としてスロットに残す）。後方互換：キー無し＝結び手。
             ["job"] = (int)SelectedJob,
+            ["savedAt"] = System.DateTimeOffset.UtcNow.ToUnixTimeSeconds(),
+            ["playTimeSeconds"] = PlayTimeSeconds,
+            ["playTimePartial"] = _playTimePartial,
+            ["difficulty"] = (int)Difficulty,
         };
         SaveCosmetics(data);
-        var up = new Godot.Collections.Dictionary();
-        foreach (var kv in _upgrades)
-            up[kv.Key] = kv.Value;
-        data["upgrades"] = up;
+        var purchases = new Godot.Collections.Dictionary();
+        foreach (var job in Jobs.All)
+            purchases[job.CharacterId] = _ownedUpgrades[job.Id].ToArray();
+        data["upgradesByCharacter"] = purchases;
         // クリアタイム（"{stageId}_{Diff}" → 秒）。後方互換：読み手はキー無しを空扱い。
         var ct = new Godot.Collections.Dictionary();
         foreach (var kv in ClearTimes)
@@ -1075,6 +1188,7 @@ public partial class GameManager : Node
         foreach (var id in _cleared)
             cl.Add(id);
         data["cleared"] = cl;
+        data["pendingUnlockCards"] = _pendingUnlockCards.ToArray();
         // 炎上ストーリーイベントの状態（既発生か／次ダイブ適用待ちか）。後方互換：キー無し＝false。
         data["burnHappened"] = _burnHappened;
         data["burning"] = Burning;
@@ -1104,6 +1218,14 @@ public partial class GameManager : Node
             ids.Add(key);
         data["idleDialogSeen"] = ids;
         data["phoneWallpaperPhotoId"] = PhoneWallpaperPhotoId;
+        data["likedPostIds"] = _likedPostIds.ToArray();
+        data["sentReplies"] = _sentReplies;
+        data["limeMessages"] = SaveLimeThread(LimeHistory);
+        var direct = new Godot.Collections.Dictionary();
+        foreach (var (id, thread) in _limeDirect)
+            if (thread.Count > 0) direct[id] = SaveLimeThread(thread);
+        data["limeDirect"] = direct;
+        data["repostedPostIds"] = _repostedPostIds.ToArray();
         var cd = new Godot.Collections.Dictionary();
         foreach (var kv in _charDives)
             cd[kv.Key] = kv.Value;
@@ -1116,7 +1238,34 @@ public partial class GameManager : Node
         if (f == null) return false;
         f.StoreString(Json.Stringify(data));
         f.Flush();
-        return f.GetError() == Error.Ok;
+        if (f.GetError() != Error.Ok) return false;
+        if (settleStage) SettleStageScore();
+        return true;
+    }
+
+    private void LoadUpgrades(Godot.Collections.Dictionary data)
+    {
+        foreach (var owned in _ownedUpgrades.Values) owned.Clear();
+        MigratedNodeCount = -1;
+        if (data.TryGetValue("upgradesByCharacter", out var byCharacter))
+        {
+            var purchases = byCharacter.AsGodotDictionary();
+            foreach (var job in Jobs.All)
+                if (purchases.TryGetValue(job.CharacterId, out var ids))
+                    _ownedUpgrades[job.Id].UnionWith(ids.AsStringArray().Where(id => GetUpgradeDef(id) != null));
+            return;
+        }
+
+        // 旧版の強化は全員に効いていた。払い戻しは一度だけ計算してから、所持分を各人に引き継ぐ。
+        var shared = new Dictionary<string, int>();
+        if (data.TryGetValue("upgrades", out var legacy))
+            foreach (var kv in legacy.AsGodotDictionary()) shared[kv.Key.AsString()] = kv.Value.AsInt32();
+        MigrateSharedUpgrades(shared);
+        if (data.TryGetValue("hasDodge", out var dodge) && dodge.AsBool()) shared["n_dodge"] = 1;
+        if (shared.GetValueOrDefault("n_charge") > 0) shared["n_charge_shot"] = 1;
+        foreach (var owned in _ownedUpgrades.Values)
+            foreach (var kv in shared)
+                if (kv.Value > 0) owned.Add(kv.Key);
     }
 
     public bool LoadFromSlot(int slot)
@@ -1129,30 +1278,18 @@ public partial class GameManager : Node
         if (json.Parse(f.GetAsText()) != Error.Ok) return false;
         if (json.Data.VariantType != Variant.Type.Dictionary) return false;
         var data = json.Data.AsGodotDictionary();
+        double playTime = data.ContainsKey("playTimeSeconds") ? data["playTimeSeconds"].AsDouble() : 0;
+        _stageRewardPending = false;
+        _bossRetryScore = 0;
+        _bossRetryElapsed = 0;
+        PlayTimeSeconds = double.IsFinite(playTime) ? System.Math.Max(0, playTime) : 0;
+        _playTimePartial = !data.ContainsKey("playTimeSeconds") || data.ContainsKey("playTimePartial") && data["playTimePartial"].AsBool();
+        Difficulty = data.ContainsKey("difficulty") ? (Diff)Mathf.Clamp(data["difficulty"].AsInt32(), 0, 3) : Diff.Normal;
         LoadCosmetics(data);
 
         Impression = data.ContainsKey("impression") ? data["impression"].AsInt64() : 0;
         Followers = data.ContainsKey("followers") ? data["followers"].AsInt32() : 0;
-        _upgrades.Clear();
-        if (data.ContainsKey("upgrades"))
-        {
-            var up = data["upgrades"].AsGodotDictionary();
-            foreach (var k in up.Keys)
-                _upgrades[k.AsString()] = up[k].AsInt32();
-        }
-        // セーブ移行：旧MaxLv方式のID群を単Lvノード鎖へ読み替える。
-        // shotmode 復元（HasSpread/HasHoming＝spread_1/homing_1 所持判定）より前に呼ぶ＝没収ゼロで解放判定が正しく効く。
-        MigrateUpgradesIfLegacy();
-        // 回避の移行（2026-09-22）：回避は「1面クリアの物語報酬（セーブキー "hasDodge"）」からショップの段
-        //   n_dodge へ移った。旧セーブの "hasDodge": true は n_dodge の所持に読み替える＝遊びの途中で回避が
-        //   消えない（没収ゼロ）。キー無し＝新方式で保存されたセーブ（所持は upgrades が正典）なので何もしない。
-        //   "hasDodge" はもう書かない＝次の保存で自然に消える。列の途中の段だけ持つ形（#1 未所持で #2 所持）に
-        //   なっても IsParentMet（所持済みは常に true）と NextColumnNode（先頭から最初の未所持）で破綻しない。
-        if (data.ContainsKey("hasDodge") && data["hasDodge"].AsBool() && !Has("n_dodge"))
-        {
-            _upgrades["n_dodge"] = 1;
-            GD.Print("[migrate] legacy hasDodge -> n_dodge owned");
-        }
+        LoadUpgrades(data);
         // クリアタイム復元（キー無し＝旧セーブは空のまま＝後方互換）。
         ClearTimes.Clear();
         if (data.ContainsKey("clearTimes"))
@@ -1188,6 +1325,11 @@ public partial class GameManager : Node
             foreach (var v in cl)
                 _cleared.Add(v.AsString());
         }
+        _pendingUnlockCards.Clear();
+        if (data.TryGetValue("pendingUnlockCards", out var pendingCards))
+            _pendingUnlockCards.AddRange(pendingCards.AsStringArray().Where(id => _cleared.Contains(id) && Jobs.UnlockedBy(id) != null).Distinct());
+        else if (data.TryGetValue("akariUnlockCardPending", out var oldPending) && oldPending.AsBool() && IsStageCleared(FirstStageId))
+            _pendingUnlockCards.Add(FirstStageId);
         // 炎上イベント状態復元（キー無し＝false）。
         _burnHappened = data.ContainsKey("burnHappened") && data["burnHappened"].AsBool();
         Burning = data.ContainsKey("burning") && data["burning"].AsBool();
@@ -1234,6 +1376,17 @@ public partial class GameManager : Node
                 _idleDialogSeen.Add(v.AsString());
         }
         PhoneWallpaperPhotoId = data.ContainsKey("phoneWallpaperPhotoId") ? data["phoneWallpaperPhotoId"].AsString() : "";
+        _likedPostIds.Clear();
+        if (data.ContainsKey("likedPostIds")) _likedPostIds.UnionWith(data["likedPostIds"].AsStringArray());
+        _sentReplies = data.TryGetValue("sentReplies", out var replies) ? replies.AsGodotDictionary() : new();
+        LimeHistory.Clear();
+        if (data.TryGetValue("limeMessages", out var history)) LoadLimeThread(history, LimeHistory);
+        _limeDirect.Clear();
+        if (data.TryGetValue("limeDirect", out var direct) && direct.VariantType == Variant.Type.Dictionary)
+            foreach (var pair in direct.AsGodotDictionary())
+                LoadLimeThread(pair.Value, LimeThread(pair.Key.AsString()));
+        _repostedPostIds.Clear();
+        if (data.ContainsKey("repostedPostIds")) _repostedPostIds.AddRange(data["repostedPostIds"].AsStringArray().Distinct());
         // 他ジョブ潜行の章カウンタ復元（キー無し＝旧セーブは全員0回＝第1章から＝後方互換）。
         _charDives.Clear();
         if (data.ContainsKey("charDives"))
@@ -1277,16 +1430,23 @@ public partial class GameManager : Node
             //   旧セーブのモード逆引き（拡散→語り手）がここに当たる。_cleared 復元より後に置くこと。
             if (!IsJobUnlocked(SelectedJob)) SelectedJob = Job.Tank;
         }
+        JustClearedStageWasNew = false;
+        SteamAchievements.RecordCharacterUnlocks(this);
         return true;
     }
 
     // はじめから＝メモリ上の永続状態を初期化（スロットのファイルは消さない）。
     public void ResetPersistent()
     {
+        JustClearedStageWasNew = false;
+        _stageRewardPending = false;
+        PlayTimeSeconds = 0;
+        _playTimePartial = false;
         ResetCosmetics();
         Impression = 0;
         Followers = 0;
-        _upgrades.Clear();
+        foreach (var owned in _ownedUpgrades.Values) owned.Clear();
+        MigratedNodeCount = -1;
         // ジョブも初期選択（結び手）へ。SelectedShotMode はセッタが連射へ同期する。
         //   --job=xxx で固定中は「はじめから」でも指定を守る（QA走行で新規データを作る経路を壊さない）。
         if (!JobForcedByCmdline) SelectedJob = Job.Tank;
@@ -1295,7 +1455,9 @@ public partial class GameManager : Node
         EndingRollSeen = false;
         SelectedEntry = StageEntry.Start;
         _bossRetryScore = 0;
-        _cleared.Clear();          // ステージ進行（クリア済み）も初期化＝救った人数0から（回避は _upgrades と一緒に消える）
+        _bossRetryElapsed = 0;
+        _cleared.Clear();          // ステージ進行（クリア済み）も初期化＝救った人数0から
+        _pendingUnlockCards.Clear();
         _companionClears.Clear();
         _burnHappened = false; Burning = false; BurningThisRun = false;
         // 仕掛けの値も初期化（散った言葉が前データから残ると F4/E2 で他人の言葉が戻ってくる）。
@@ -1303,6 +1465,11 @@ public partial class GameManager : Node
         FirstScattered = ""; NameRoute = 0; LastSentWord = ""; HesitationSec = 0f;
         _idleDialogSeen.Clear();   // ハブ再訪小話の既読も初期化
         PhoneWallpaperPhotoId = "";
+        _likedPostIds.Clear();
+        _sentReplies.Clear();
+        LimeHistory.Clear();
+        _limeDirect.Clear();
+        _repostedPostIds.Clear();
         _charDives.Clear();        // 他ジョブ潜行の章カウンタも初期化＝新規データは全員第1章から
         // 汚染は物語の背骨でシーンをまたいで持ち越すぶん、ここで戻さないと FINAL/Final で 1.0 にした値のまま
         //   新規データのハブ／プロローグへ入り、murk・自機の濁りが濁ったまま描かれる。
@@ -1323,7 +1490,7 @@ public partial class GameManager : Node
     // 端末ローカル prefs（user://prefs.json）。スロットセーブ（経済/強化）とは独立。
     // チュートリアル既読フラグなど「この端末で一度きり」の状態を保存する。
     // ───────────────────────────────────────────────────────────
-    private const string PrefsPath = "user://prefs.json";
+    private static string PrefsPath => Startup.DataPath("prefs.json");
 
     // 練習面（ステージ0「れんしゅう」）を出すか。2026-09-06 ユーザー指示で非表示。true に戻せば復活。
     //   false の間は：プロローグ後の受講確認を出さずハブへ直行／タイトルの「チュートリアル」項目を隠す。
@@ -1376,7 +1543,7 @@ public partial class GameManager : Node
     //   スロットを替えても・はじめからでも、読んだ話は読んだ話（周回に親切）。
     //   ResetPersistent（はじめから）でも消さない。
     // ───────────────────────────────────────────────────────────
-    private const string ReadLogPath = "user://read.json";
+    private static string ReadLogPath => Startup.DataPath("read.json");
     private readonly HashSet<string> _readLines = new();
 
     // この行テキストは表示済み（既読）か。空文字は常に未読扱い。
@@ -1419,19 +1586,12 @@ public partial class GameManager : Node
         if (f != null) f.StoreString(Json.Stringify(arr));
     }
 
-    private double _comboTimer;
-    // 会話／改心区間の凍結エッジ検出と、凍結明けの最低残り時間（下の _Process 参照）。
-    private bool _comboWasFrozen;
-    private const double ComboExitFloor = 1.0;
-    // コンボ猶予はコンボ持続強化で延長される。
-    // コンボ猶予（秒）。旧 combo_hold ノードは一本道14段に入らなかったので素の 2.0 秒で固定。
-    private double ComboWindow => 2.0;
-    private const int MaxCombo = 16;
-    // コンボ猶予の残り比率（0..1）。HUDのコンボ減衰バー用。コンボが立っていなければ0。
-    public float ComboTimeRatio => Combo > 0 && _comboTimer > 0 ? (float)(_comboTimer / ComboWindow) : 0f;
+    private const int MaxComboMultiplier = 16;
+    private int ComboMultiplier => Mathf.Clamp(Combo, 1, MaxComboMultiplier);
 
     public override void _Ready()
     {
+        AddChild(new PlayClock { Name = "PlayClock", Game = this, ProcessMode = ProcessModeEnum.Pausable });
         // セーブはスロット制（手動）。起動時は自動ロードしない。
         // 端末ローカル prefs（チュートリアル既読など）と会話の既読ログだけは起動時に読む。
         LoadPrefs();
@@ -1467,7 +1627,7 @@ public partial class GameManager : Node
             {
                 bool ok = LoadFromSlot(slot);
                 GD.Print($"[SAVE] --loadslot={slot} -> {(ok ? "ok" : "FAILED/absent")} "
-                       + $"imp={Impression} fol={Followers} upgrades={_upgrades.Count} "
+                       + $"imp={Impression} fol={Followers} upgrades={OwnedUpgradeCount} "
                        + $"job={JobDef.CharacterName}({SelectedJob}) mode={ShotModeName(SelectedShotMode)} lives={StartLives} "
                        // 一本道14段の移行と、回避（旧 "hasDodge" → n_dodge）が正しく引き継がれたかも見る。
                        + $"dodge={HasDodge} column=[{string.Join(",", ColumnOwnedIds())}]");
@@ -1524,16 +1684,6 @@ public partial class GameManager : Node
         foreach (var s in Stages) _cleared.Add(s.Id);
     }
 
-    // 回想フィルム等（StoryFilm/AkariDraftScene/MinaPhaseScene/BossDraftScene）は GameManager.ProcessMode を
-    //   Disabled にするため、その間 _Process が回らず _comboWasFrozen が立たない。フィルムが会話を挟まず直接
-    //   戦闘へ戻ると再開初フレームが「前も今も非凍結」に見え、ComboExitFloor の底上げが走らなかった
-    //   （QA 実測: 残り 0.258s → 明け 0.25s で消失）。Disabled/Enabled の通知で凍結扱いにし、再開フレームで底上げを通す。
-    public override void _Notification(int what)
-    {
-        base._Notification(what);
-        if (what == NotificationDisabled || what == NotificationEnabled) _comboWasFrozen = true;
-    }
-
     public override void _UnhandledKeyInput(InputEvent @event)
     {
         if (@event is not InputEventKey { Pressed: true, Echo: false } key
@@ -1549,25 +1699,6 @@ public partial class GameManager : Node
 
     public override void _Process(double delta)
     {
-        // 2026-09-22 ユーザー指示：会話中はコンボの猶予を減らさない。GameManager は常駐で世界が止まる会話中も
-        //   _Process が回るため、2秒の猶予が会話の裏で必ず切れていた。
-        //   中ボス／本ボスの改心区間も凍結する：捨て台詞は一行字幕（Hud.ShowBossLine）で BubblePaused を立てず、
-        //   尺 2.4s > 猶予 2.0s で「中ボス撃破→捨て台詞→道中再開」が必ず Combo=0 になっていた（QA 実測）。
-        //   区間の目印は Hud.SuppressCallouts（Enemy.Redeem の cry で立ち FinishCry で下りる。ザコでは立たない）。
-        //   凍結明けは残りを最低 ComboExitFloor 秒へ底上げ＝会話直前に残り僅かだと明けた瞬間に切れて
-        //   「会話で途切れた」に見えるため（QA 実測: 残り 0.29s → 37s の会話明け 0.29s で消失）。
-        bool comboFrozen = Hud.BubblePaused
-            || ((GetTree()?.GetFirstNodeInGroup("hud") as Hud)?.SuppressCallouts ?? false);
-        if (_comboWasFrozen && !comboFrozen && _comboTimer > 0)
-            _comboTimer = Mathf.Max(_comboTimer, ComboExitFloor);
-        _comboWasFrozen = comboFrozen;
-        if (_comboTimer > 0 && !comboFrozen)
-        {
-            _comboTimer -= delta;
-            if (_comboTimer <= 0)
-                Combo = 0;
-        }
-
         // 【激情】の自然上昇（ボス戦中のみ／会話・割り込み中は止まる）。実体は FuryMeter.cs。
         TickFury(delta);
     }
@@ -1599,129 +1730,31 @@ public partial class GameManager : Node
     // 900→2000：やさしさ +0.6（直後のボス戦で全開を撃てる下準備）を失ったぶんの置き換え。
     private const int CameoScoreReward = 2000;
 
-    // ── ボム1発で報酬が付く雑魚浄化の上限（ボムキャップ）──
-    //   ボス側の窓キャップ(Enemy.ExposedDamageCap)と同じ思想を雑魚経路にも当てる。
-    //   ボム由来の浄化は「避けも当てもせず画面を一掃する」＝リスクを賭けていない（§2）ので、
-    //   1発あたりこの体数までしか スコア/コンボ/インプレ を返さない。超過分は浄化そのものは成立し、
-    //   進行(PurifiedCount)は従来どおり通す＝道中ゲートを詰まらせない（親切設計）。
-    //   3体＝緊急回避で巻き込む標準的な体数。通常プレイのボムは割に合ったまま、
-    //   湧き上限(MaxAliveEnemies＝難易度別 6/8/10/12)まで溜めて一掃する無限ファームだけが頭打ちになる。
+    // ボム1発の撃破報酬には上限があるが、コンボには倒した全員を数える。
     private const int BombPurifyRewardCap = 3;
     private int _bombPurifyCount; // 現在のボム1発で報酬を付けた体数（UseBomb でリセット）
     internal int BombPurifiedCount => _bombPurifyCount;
 
+    public void AddBossHit(int damage)
+    {
+        if (damage <= 0) return;
+        Score += (long)damage * ComboMultiplier;
+    }
+
     // 敵を浄化（撃破）した時の加点。コンボ倍率がかかる。
-    // fromBomb=true はボムの強制浄化経路（Enemy.Purify）。上のボムキャップを超えた分は報酬を付けない。
-    //
-    // ★2026-09-17 経済改修：ここで直接 GainImpression(2+Combo) していたのを廃止し、
-    //   インプレは「散った欠片を拾う」経路（AddScoreShard）だけから入るようにした。
-    //   理由：ショップ説明（Hub.ShopTutorialLines）/HowToPlay/Shop が一貫して「浄化するたびに貯まる♥＝通貨」と説明しており、
-    //   プレイヤーは画面上の欠片＝お金だと読む。実装が「撃破の瞬間に見えない加算／欠片はスコアだけ」
-    //   だったので、説明と手触りが食い違っていた（§3 わかりやすさ）。表記に実装を合わせる。
-    //   両方から入れると単純に倍増するので、必ず片方だけ（＝拾う側）に寄せる。
-    //   PurifyImpressionBase は Enemy.Redeem が PurifyBurst へ渡し、欠片に積んで運ばせる。
+    // fromBomb=true はボムの強制浄化経路（Enemy.Purify）。上限を超えた分は撃破時のスコアを加算しない。
     public bool AddPurify(int basePoints, bool fromBomb = false)
     {
+        Combo++;
         bool rewarded = !fromBomb || ++_bombPurifyCount <= BombPurifyRewardCap;
         if (rewarded)
-        {
-            Combo = Mathf.Min(Combo + 1, MaxCombo);
-            _comboTimer = ComboWindow;
-            Score += basePoints * Mathf.Max(1, Combo);
-        }
+            Score += basePoints * ComboMultiplier;
         PurifiedCount++;
         TickPurifyDrain();
         return rewarded;
     }
 
-    // この浄化が欠片に積んで運ぶインプレの基礎額。
-    // Enemy.Redeem が AddPurify の直後に読む＝コンボ加算済みの値になる（旧実装と同じタイミング）。
-    //
-    // ★係数 1.25（旧 2+Combo → (2+Combo)×1.25）：取りこぼし補正。
-    //   旧実装は撃破の瞬間に無条件で入っていたので取りこぼしが原理的にゼロだった。拾う側へ寄せた今は
-    //   道中ザコの欠片だけが「拾わないと入らない」（ボス/中ボスは BeginRush、ステージクリアは sweep で
-    //   全回収が保証されている＝取りこぼしは道中でしか起きない）。磁力半径48px／寿命5秒／左へ流れる
-    //   ドリフトがあるため実際の取りこぼしは2割前後で、そのぶんを均して戻す。
-    //   ＝「普通に前へ出て拾う人は旧実装より少し得、画面端に張り付く人は旧実装並み」に着地させる係数。
-    //   これで初めて「拾いに行く＝攻める」に見返りが生まれる（§2-4 攻めたほうが得）。
-    //   四捨五入は掛けた後に1回だけ。Combo=0 でも最低1は出す（撃破が無報酬に見えない＝§2-3）。
-    public const float ShardImpressionMul = 1.25f;
-    public int PurifyImpressionBase => Mathf.Max(1, Mathf.RoundToInt((2 + Combo) * ShardImpressionMul));
-
-    // ───── 欠片の回収＝スコアとショップ通貨の同時入金（2026-09-17）─────
-    //   points : スコア（従来どおり。ランキング／ハイスコアの軸）
-    //   impBase: インプレの基礎額（ショップ通貨の軸）。GainImpression の全倍率を通す。
-    //
-    //   ★役割分担：Score は「上手さの記録」、Impression は「買い物の原資」。欠片は両方を運ぶが、
-    //     額は別系統で持つ。スコア側は難易度シャード倍率(0.8/1.0/1.3/1.6)で膨らむ一方、
-    //     インプレ側は DifficultyImpressionMul(0.7/1.0/1.6/3.0) が GainImpression 内で掛かるため、
-    //     両方を掛けると二重適用になる。だから欠片が運ぶ impBase には
-    //     DifficultyShardMul を一切掛けない（FxLayer.PurifyBurst 側で分離済み）。
-    //
-    //   ★端数の持ち越し：1回の回収は数粒ずつ＝基礎1〜3の小口になる。GainImpression は呼び出しごとに
-    //     Round するので、小口を個別に通すと Easy(0.7×2=1.4)で 1→Round(1.4)=1 のように倍率が潰れ、
-    //     難易度差が消える。基礎額を整数のまま貯め、一定額を超えた分だけ 1回の GainImpression に
-    //     まとめて通す（_impCarry）。
-    //
-    //   ★総額の保存（2026-09-17 QA検出の修正）：閾値でまとめるだけでは丸め損が残る。基礎40が
-    //     8ずつ5バッチに割れると Round が5回走り、Easy×ReplayMul0.8 で 45 のはずが 44 になっていた。
-    //     そこで「累積台帳」方式にする：この倍率のもとで払った基礎額(_impPaidBase)と実際に払った額
-    //     (_impPaidOut)を覚えておき、毎回の支払いは
-    //         Round((_impPaidBase + carry) × 倍率) − _impPaidOut
-    //     ＝「ここまでの理論値と既払額の差分」だけにする。バッチの切れ目に関係なく、拾い終えた時点の
-    //     総額は必ず単発で払った場合と一致する（丸め損ゼロ）。
-    //     倍率自体は run 中に動く（フォロワー増・炎上・周回逓減）ので、変わった瞬間に台帳を締めて
-    //     リセットする＝過去の基礎額が新しい倍率で再評価される事故を防ぐ。
-    private int _impCarry;
-    private long _impPaidBase, _impPaidOut;
-    private float _impLedgerTotalMul = float.NaN, _impLedgerReplayMul = float.NaN;
-    private const int ImpFlushThreshold = 8;   // この基礎額まで貯めてから1回で通す（倍率の丸め潰れ対策）
-
-    // 累積基礎額の理論値。GainImpression と「掛ける順番まで」同じ式にする
-    // （float は掛ける順で最下位ビットが変わるので、単発で払った場合と1単位ずれないよう揃える）。
-    private static long ImpTheory(long baseAmount, float total, float replay) =>
-        (long)Mathf.Round(baseAmount * total * replay * MoneyGainMul);
-
-    public void AddScoreShard(int points, int impBase = 0)
-    {
-        Score += points;
-        if (impBase <= 0) return;
-        _impCarry += impBase;
-        if (_impCarry < ImpFlushThreshold) return;
-        PayShardImpression();
-    }
-
-    // 取りこぼしの端数を吐き出す（ステージ終了・リザルト前に呼ぶ）。
-    // 閾値未満で貯まったまま捨てると「拾ったのに入らない」が起きるので、必ず締める。
-    public void FlushShardImpression()
-    {
-        if (_impCarry > 0) PayShardImpression();
-        // 締めたら台帳も畳む（次のステージ／次の倍率へ端数を持ち越さない）。
-        _impPaidBase = _impPaidOut = 0;
-        _impLedgerTotalMul = _impLedgerReplayMul = float.NaN;
-    }
-
-    // 台帳の差分を実際に入金する。Impression/RunImpression への反映は GainImpression と同じ
-    // （倍率は台帳側で適用済みなので、ここでは加算だけを直接行う）。
-    private void PayShardImpression()
-    {
-        float total = TotalImpressionMul, replay = ReplayMul;
-        // 倍率が動いたら、それまでの台帳は確定済みとして畳む（過去分の再評価を避ける）。
-        if (total != _impLedgerTotalMul || replay != _impLedgerReplayMul)
-        {
-            _impPaidBase = _impPaidOut = 0;
-            _impLedgerTotalMul = total;
-            _impLedgerReplayMul = replay;
-        }
-        long theory = ImpTheory(_impPaidBase + _impCarry, total, replay);
-        long pay = theory - _impPaidOut;
-        _impPaidBase += _impCarry;
-        _impPaidOut = theory;
-        _impCarry = 0;
-        if (pay == 0) return;
-        Impression += pay;
-        RunImpression += pay;
-    }
+    public void AddScoreShard(int points) => Score += points;
 
     // ───── 祈り手（Heal）の浄化ドレイン（設計書 §2）─────
     //   雑魚を DrainPerLife 体（=24）浄化するごとに ♥+1。ボム由来の浄化も数える
@@ -1759,9 +1792,6 @@ public partial class GameManager : Node
     }
 
     // 敵弾をかすった（グレイズ）時の加点。
-    // 2026-09-06（docs/20260906/HUD整理_案.md §7）でスコア加算だけに絞った。やさしさ／インプレ／
-    // コンボ猶予リフレッシュは剥がし、そのぶんスコアを 10→30 に上げている（副次効果を全部抜くと
-    // 旨味が 1/4 になり「引き撃ちが最適解」に戻るため）。GrazeCount は統計用に維持。
     //   farming対策：被弾直後の無敵中(_hitInvincible)は呼び出し元(Player.OnGrazeAreaEntered)で既にスキップ済み。
     public void AddGraze()
     {
@@ -1769,23 +1799,7 @@ public partial class GameManager : Node
         GrazeCount++;
     }
 
-    // 回避（ドッジ）の無敵中に敵弾をかすめてよけた時の高報酬（§リスクとリターン）。
-    // 通常グレイズ(Score+30・お金なし)より大きめ＝回避クールダウン0.8sを切って敵弾に突っ込むリスク相応。
-    //   ・スコアは DodgeGrazeScore。
-    //   ・お金（インプレ＝ショップ通貨）を GainImpression(DodgeGrazeImpBase) で稼ぐ。倍率は内部で自動適用。
-    //     実加算額を返す＝ポップアップ「+N」表示に使う。
-    //   ・コンボ猶予をリフレッシュ＝攻めが途切れない。
-    // やさしさ加算だけは 2026-09-06 のゲージ撤去で外した（指揮官決定＝スコア/インプレ/猶予は残す）。
-    // farming上限は呼び出し側(Player)が1回避ごとにカウントして制御する。
-    public long AddDodgeGraze()
-    {
-        Score += DodgeGrazeScore;
-        if (Combo > 0)
-            _comboTimer = ComboWindow;
-        return GainImpression(DodgeGrazeImpBase);
-    }
-    private const int DodgeGrazeScore = 50;   // 回避よけ1発のスコア
-    private const int DodgeGrazeImpBase = 2;  // 回避よけ1発の基礎インプレ（倍率は GainImpression 内で適用。稼ぎすぎ是正で 4→2）
+    public void AddDodgeGraze() => Score += 50;
 
     // ボムで敵弾を消した時の小加点。
     public void AddBulletCleared()
@@ -1809,15 +1823,14 @@ public partial class GameManager : Node
     }
 
     // ラン開始時のリセット。※インプレ/フォロワー/強化は恒久なので消さない（§0-3）。
-    public void ResetRun()
+    public double ResetRun()
     {
-        // 前のランで閾値未満のまま残った欠片インプレを、捨てずに先に入金してから締める
-        // （ゲームオーバー／シーン遷移で消える経路の受け皿。RunImpression のリセットより前に呼ぶ）。
-        FlushShardImpression();
+        _stageRewardPending = false;
         Score = _bossRetryScore;
         _bossRetryScore = 0;
+        double elapsed = SelectedEntry == StageEntry.Boss ? _bossRetryElapsed : 0;
+        _bossRetryElapsed = 0;
         Combo = 0;
-        _comboTimer = 0;
         Bombs = StartBombs;
         _bombPurifyCount = 0;
         PurifiedCount = 0;
@@ -1825,11 +1838,12 @@ public partial class GameManager : Node
         RunHitCount = 0;      // 被弾回数（ハブ帰還の「被弾は{n}回」）もラン単位
         _progAccum = 0f;      // 前のめり進行アキュムレータもラン開始でリセット
         PlayerNormX = 0.5f;   // 自機Xは中央からとみなす（初フレーム前の背景/HUD 参照用）
-        RunImpression = 0;
-        _focusModeT = 0f;     // 集中モードの持続/CD もラン単位（前の面の残りを持ち込まない）
-        _focusModeCd = 0f;
+        CancelSpecial();
+        _specialCooldown = 0f;
         RedemptionActive = false;
+        _stageHasBoss = _stageRoadFinished = false;
         BossReached = false;  // ボス到達もラン単位（「ボスから」で再読込した直後は Step_BossSpawn が立て直す）
+        return elapsed;
     }
 
     // ゲームオーバーからの「ボスからやり直す」を予約する（スコア半分を次のランへ持ち越し、入口をボスへ）。
@@ -1837,11 +1851,12 @@ public partial class GameManager : Node
     //   ＝呼び元の再読込はそのまま「最初から」（スコア 0・入口 Start）になる。
     //   2026-09-23 ユーザー報告「ボスまでいってないのにボスからやり直しができる」：従来は無条件に
     //   SelectedEntry を Boss にしていたので、道中で倒れても未到達のボス戦へ飛べていた。
-    public bool PrepareBossRetry(bool bossCheckpoint = true)
+    public bool PrepareBossRetry(double elapsed, bool bossCheckpoint = true)
     {
         if (!BossReached) return false;
         // Scene reload calls ResetRun; carry the remaining half into that reset exactly once.
         _bossRetryScore = Score / 2;
+        _bossRetryElapsed = bossCheckpoint ? elapsed : 0;
         SelectedEntry = bossCheckpoint ? StageEntry.Boss : StageEntry.Start;
         return true;
     }
@@ -1889,7 +1904,7 @@ public partial class GameManager : Node
     };
 
     // 戻り値 true ＝画面遷移を実行した（呼び元はそれ以降の処理を打ち切ってよい）。
-    public static bool HandleGameOverExit(Node root, Hud? hud, ref bool exitHeld)
+    public static bool HandleGameOverExit(Node root, Hud? hud, ref bool exitHeld, double elapsed = 0)
     {
         var game = root.GetNodeOrNull<GameManager>("/root/Game");
 
@@ -1946,7 +1961,7 @@ public partial class GameManager : Node
                       //   FINAL（MinaRoot）も 2026-09-27 からボス入口を持つ＝残響の三波（約70秒）を飛ばして
                       //   ミナ戦から再開する。入口を持たないのは練習（Stage0Root）だけで、そちらは本ボスが
                       //   居ないので BossReached が立たず、この行にも来ない。
-                game?.PrepareBossRetry(bossCheckpoint: root is AkariRoot or KoharuRoot or ReiRoot or MinaRoot);
+                game?.PrepareBossRetry(elapsed, bossCheckpoint: root is AkariRoot or KoharuRoot or ReiRoot or MinaRoot);
                 root.GetNodeOrNull<BulletPool>("/root/Pool")?.DespawnAll();
                 GameManager.FadeToScene(root, root.GetTree().CurrentScene.SceneFilePath);
                 return true;
@@ -1987,12 +2002,12 @@ public partial class GameManager : Node
             Audio.Instance.ResumeStageMusic();
     }
 
-    // 抜ける：ランで貯めたお金（インプレ）は恒久値。抜けても破棄せず、確実に保存してから帰還。
     private static void ExitToHub(Node root, GameManager? game, Hud? hud)
     {
         // 直後に Hub へ遷移し Hub._Ready が BgmMenu を張るので、ここで道中曲へ戻さない
         //   （戻すと遷移の直前に一瞬だけ道中曲が立ち上がって無駄なクロスフェードになる）。
         ClearGameOverChoice(hud, restoreMusic: false);
+        game?.SettleStageScore();
         game?.AutoSave();
         root.GetNodeOrNull<BulletPool>("/root/Pool")?.DespawnAll();
         Audio.Instance?.PlayUiCancel();

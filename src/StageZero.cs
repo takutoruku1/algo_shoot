@@ -55,7 +55,7 @@ public partial class StageZero : Node
     private static readonly Rect2 SpotPurify = global::Hud.PurifyHudRect;
 
     // 自機の練習場での定位置（盤面の穏やかな中央）。
-    private const float CenterX = Field.CenterX;
+    private static float CenterX => Field.CenterX;
 
     // ════════════════════ セリフ（案C T1：2行だけ）════════════════════
     // who: 0=あなた / 1=ミナ / 3=ナレ（Hud.LineKind）。face は char/ に実在確認済み。
@@ -74,14 +74,14 @@ public partial class StageZero : Node
     private static readonly (int who, string text, string face)[] Tut6Purify =
     {
         (0, "ここは練習用の場所だ。道と危険は僕が伝える。焦らなくていい。", ""),
-        (1, "はい。……迷子のメイド、第一話にはしたくありませんので。", "res://char/mina_face.png"),
+        (1, "はい。……迷子のメイド、第一話にはしたくありませんので。", CompanionDialogue.MinaPortrait),
         (0, "その場合は、案内役の責任だね。ちゃんと帰すよ。", ""),
     };
     private static readonly (int who, string text, string face)[] Tut8End =
     {
-        (1, "暗闇に、ひとつ。行く先の光が灯りました。", "res://char/mina_face.png"),
+        (1, "暗闇に、ひとつ。行く先の光が灯りました。", CompanionDialogue.MinaPortrait),
         (0, "僕が開いた出口だ。そこから戻れる。最初の練習、お疲れさま。", ""),
-        (1, "ありがとうございます。出発だけでなく、帰り道も覚えました。", "res://char/mina_face.png"),
+        (1, "ありがとうございます。出発だけでなく、帰り道も覚えました。", CompanionDialogue.MinaPortrait),
     };
 
     private (int who, string text, string face)[] _playerIntro = null!;
@@ -350,6 +350,7 @@ public partial class StageZero : Node
         Hud.ClearTutorialOp();
         var game = GetNodeOrNull<GameManager>("/root/Game");
         if (game != null) game.TutorialNoConsume = false; // 練習モード解除（Stage0Root._ExitTree でも保険的に解除）
+        game?.SettleStageScore();
         game?.MarkTutorialSeen();
         GetNodeOrNull<BulletPool>("/root/Pool")?.DespawnAll();
         // 暗転してからハブへ（切り替えの瞬間に直前の画面が覗くのを止める・2026-09-22）。
@@ -401,7 +402,7 @@ public partial class StageZero : Node
         // 同行キャラ(6)の face 空欄行にミナの顔を渡さない（2026-09-15：Hud が渡された portrait を
         //   そのまま出すようになったため。空欄＝Hud 側でジョブの立ち絵へ落ちる）。
         string portrait = !string.IsNullOrEmpty(face) ? face
-            : kind == Hud.LineKind.Companion ? "" : "res://char/mina_face.png";
+            : kind == Hud.LineKind.Companion ? "" : CompanionDialogue.MinaPortrait;
         Hud.ShowDialog(kind, text, portrait);
     }
 
@@ -431,11 +432,15 @@ public partial class StageZero : Node
         var pool = GetNodeOrNull<BulletPool>("/root/Pool");
         if (pool == null) return;
         float px = Player?.GlobalPosition.X ?? CenterX;
+        var source = BulletArt.Get("enemy_rei_anonymous")!;
+        var model = RoadProjectileArt.Get(source);
+        var art = model.Visual(new Color("f2a9d4"));
         for (int i = 0; i < 4; i++)
         {
             float y = 40f + i * 36f;
-            var bullet = pool.Spawn(new Vector2(Mathf.Min(370f, px + 90f + i * 12f), y), new Vector2(-30f, 0f), isEnemy: true, 3f, 1);
-            bullet.SetSprite(BulletArt.Get("enemy_rei_anonymous"), -12f);
+            var bullet = pool.Spawn(new Vector2(Mathf.Min(370f, px + 90f + i * 12f), y), new Vector2(-30f, 0f), isEnemy: true, 3f, 1, tint: art.Accent);
+            bullet.SetEnemySprite(source, -12f, model);
+            bullet.PrepareRoadShot(this, art);
         }
     }
 

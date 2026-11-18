@@ -1,4 +1,5 @@
 using Godot;
+using System.Collections.Generic;
 
 // ボス／中ボスの体力ゲージ（2026-09-27 作者指示「画面上部じゃなくて、簡略化して、実際に動いてるボスの上部に表示」）。
 //   画面上端のカード（Hud.DrawBossCard＝アイコン・名前・ハンドル・リプ数・穢れバー・pip・残/総）をやめ、
@@ -21,7 +22,6 @@ public partial class BossGauge : Node2D
 
     private const float BarH = 3.8f;
     private const float DamageHold = 0.12f;
-    private readonly Vector2[] _plate = new Vector2[6], _outline = new Vector2[7];
     private readonly Vector2[] _diamond = new Vector2[4], _diamondOutline = new Vector2[5];
     private readonly Vector2[] _shield = new Vector2[5], _shieldOutline = new Vector2[6];
     private readonly Vector2[] _shieldCrack = new Vector2[4];
@@ -30,7 +30,7 @@ public partial class BossGauge : Node2D
 
     private static readonly Color Plate = new("0b1015"), Rail = new("56676d"), Track = new("1c272e");
     private static readonly Color InvulnFill = new("899ba5"), DamageFill = new("b88186");
-    private static readonly Color HatchCol = new(0.10f, 0.10f, 0.12f, 0.6f);
+    private static readonly Color HatchCol = new(0.10f, 0.10f, 0.12f, 0.28f);
     private const float HatchW = 0.65f, HatchPitch = 3.8f;
     private static readonly Color BreakFill = new("f0c85a");
     private static readonly Color BreakingFill = new("f6e5c1");
@@ -106,13 +106,12 @@ public partial class BossGauge : Node2D
         Color tint = s.Tint.Lerp(UiKit.PurifyHi, s.Purify);
 
         string kind = s.Purify > 0f ? "purify" : _owner.GaugeBodyExposed ? "break"
-            : _owner.GaugeBreaking ? "breaking" : _owner.GaugeAttackResolving ? "resolving" : "invuln";
+            : _owner.GaugeBreaking ? "breaking" : "invuln";
         LastFillKind = kind;
         Color fillCol = kind switch
         {
             "purify" => new Color(tint, a),
             "invuln" => new Color(_owner.GaugeReforming ? InvulnFill.Lerp(ReformFill, 0.4f) : InvulnFill, 0.8f * a),
-            "resolving" => new Color(BreakingFill, .7f * a),
             "breaking" => new Color(BreakingFill.Lerp(Colors.White, 0.8f * _owner.GaugeBreakFresh), a),
             _ => new Color(BreakFill,
                 (0.85f + 0.15f * (0.5f + 0.5f * Mathf.Sin((float)_t * Mathf.Tau * 1.5f))) * a),
@@ -120,8 +119,9 @@ public partial class BossGauge : Node2D
 
         var bar = new Rect2(-w / 2f, top, w, BarH);
         Color edge = kind == "invuln" ? _owner.GaugeReforming ? ReformFill : Rail : fillCol;
-        bool major = _owner is not CameoBoss;
-        DrawPlate(bar.Grow(1.8f), new Color(Plate, 0.96f * a), new Color(edge, 0.72f * a));
+        var housing = bar.Grow(1.3f);
+        DrawPlate(new Rect2(housing.Position + new Vector2(0, .8f), housing.Size), new Color("02070d", .45f * a));
+        DrawPlate(housing, new Color("131b2a", .95f * a), new Color(edge.Lightened(.3f), .3f * a));
         DrawPlate(bar, new Color(Track, a));
         if (_trail > s.Frac && s.Purify <= 0)
             DrawPlate(new Rect2(bar.Position, new Vector2(w * _trail, BarH)), new Color(DamageFill, 0.65f * a));
@@ -133,7 +133,7 @@ public partial class BossGauge : Node2D
                 DrawHatch(new Rect2(fill.Position + new Vector2(1.9f, 0.4f), fill.Size - new Vector2(3.8f, 0.8f)), a);
             if (fill.Size.X > 3f)
                 DrawLine(fill.Position + new Vector2(1.5f, 0.65f), new Vector2(fill.End.X - 1.5f, top + 0.65f),
-                    new Color(Colors.White, 0.46f * a), 0.45f, true);
+                    new Color(Colors.White, 0.2f * a), 0.35f, true);
             if (s.Frac < 0.995f && fill.Size.X > 2f)
                 DrawLine(new Vector2(fill.End.X - 0.5f, top + 1.1f), new Vector2(fill.End.X - 0.5f, top + BarH - 1.1f),
                     new Color(Colors.White, 0.86f * a), 0.65f, true);
@@ -143,15 +143,6 @@ public partial class BossGauge : Node2D
             float x = bar.Position.X + w * i / 4;
             DrawLine(new Vector2(x, top + BarH - 0.6f), new Vector2(x, top + BarH + 0.9f),
                 new Color(Plate, 0.8f * a), 0.6f, true);
-        }
-        for (int side = -1; side <= 1; side += 2)
-        {
-            float x = side * (w / 2 + 2.5f), mid = top + BarH / 2;
-            DrawLine(new Vector2(x, mid - 2), new Vector2(x + side * 1.5f, mid), new Color(edge, a), 0.8f, true);
-            DrawLine(new Vector2(x + side * 1.5f, mid), new Vector2(x, mid + 2), new Color(edge, a), 0.8f, true);
-            if (major)
-                DrawLine(new Vector2(side * (w / 2 - 7), top - 3), new Vector2(side * (w / 2 - 1), top - 3),
-                    new Color(tint, 0.65f * a), 0.65f, true);
         }
         if (s.Flash > 0f)
         {
@@ -192,13 +183,30 @@ public partial class BossGauge : Node2D
         bool exposed = owner.GaugeBodyExposed;
         bool breaking = owner.GaugeBreaking;
         bool resolving = owner.GaugeAttackResolving;
-        float fraction = reforming ? owner.GaugeReformProgress : exposed ? owner.GaugeWindowLeft : 1f;
-        bool warning = exposed && fraction < 0.25f;
+        float fraction = reforming ? owner.GaugeReformProgress : exposed && !resolving ? owner.GaugeWindowLeft : 1f;
+        bool warning = exposed && !resolving && fraction < 0.25f;
         float pulse = 0.5f + 0.5f * Mathf.Sin((float)_t * Mathf.Tau * (warning ? 4f : 1.5f));
-        Color accent = reforming ? ReformFill : breaking || resolving ? BreakingFill
+        Color accent = reforming ? ReformFill : breaking ? BreakingFill
             : exposed ? warning ? WindowWarning : WindowFill : InvulnFill;
         var center = new Vector2(-11f, owner.GaugeBottom + 3.4f);
+        if (owner.UnfoldersActive && owner.UnfolderStyle != UnfolderKind.None && Field.BossFrameActive && !owner.BossInArena && !owner.BossFrameReturning)
+        {
+            var frame = Field.BossFrameRect;
+            var occupied = new List<Rect2> {
+                new Rect2(frame.Position, new Vector2(frame.Size.X, 21)),
+                BossIllustrationMotion.FaceClearance(owner),
+                new Rect2(owner.GlobalPosition + new Vector2(-owner.GaugeWidth / 2 - 3, owner.GaugeTop - 9),
+                    new Vector2(owner.GaugeWidth + 6, 15)),
+            };
+            foreach (var child in owner.GetChildren())
+                if (child is Panel { RallyDriven: false } panel && !panel.IsQueuedForDeletion() && panel.IsVisibleInTree())
+                    occupied.Add(panel.CoreBounds);
+            var footprint = new Rect2(-7, -7, 16 + UiKit.CombatState.Font.GetStringSize("シールド",
+                fontSize: UiKit.CombatState.Size).X * UiKit.Scale, 15);
+            center = ToLocal(Panel.FindClearPosition(ToGlobal(center), footprint, occupied, frame.Position.X));
+        }
         const float radius = 5.4f;
+        DrawCircle(center + new Vector2(0, .7f), radius + 1.3f, new Color("02070d", .35f * alpha));
         DrawCircle(center, radius + 1.1f, new Color(Plate, 0.94f * alpha));
         DrawArc(center, radius, -Mathf.Pi / 2, Mathf.Pi * 1.5f, 48, new Color(Rail, 0.5f * alpha), 1.1f, true);
         if (fraction > 0f)
@@ -233,7 +241,7 @@ public partial class BossGauge : Node2D
             DrawPolyline(_shieldCrack, new Color(accent, alpha), 0.65f, true);
         }
 
-        string label = reforming ? "再形成中" : resolving ? "攻撃終了待ち" : breaking ? "シールド破壊" : exposed ? "本体に攻撃" : "シールド";
+        string label = reforming ? "再形成中" : resolving ? "回避しながら攻撃" : breaking ? "シールド破壊" : exposed ? "本体に攻撃" : "シールド";
         LastStateLabel = label;
         var style = UiKit.CombatState;
         var labelPosition = (center + new Vector2(8f, 0)) / UiKit.Scale - new Vector2(0, style.LineHeight / 2);
@@ -246,16 +254,10 @@ public partial class BossGauge : Node2D
 
     private void DrawPlate(Rect2 rect, Color fill, Color? edge = null)
     {
-        float cut = Mathf.Min(rect.Size.Y / 2, rect.Size.X / 2);
-        float x = rect.Position.X, y = rect.Position.Y, right = rect.End.X, bottom = rect.End.Y;
-        _plate[0] = new Vector2(x + cut, y); _plate[1] = new Vector2(right - cut, y);
-        _plate[2] = new Vector2(right, y + rect.Size.Y / 2); _plate[3] = new Vector2(right - cut, bottom);
-        _plate[4] = new Vector2(x + cut, bottom); _plate[5] = new Vector2(x, y + rect.Size.Y / 2);
-        DrawColoredPolygon(_plate, fill);
-        if (edge is not Color line) return;
-        for (int i = 0; i < 6; i++) _outline[i] = _plate[i];
-        _outline[6] = _plate[0];
-        DrawPolyline(_outline, line, 0.55f, true);
+        UiKit.BeginDesign(this);
+        UiKit.Box(this, new Rect2(rect.Position / UiKit.Scale, rect.Size / UiKit.Scale), fill,
+            Mathf.Min(rect.Size.Y, rect.Size.X) / (2 * UiKit.Scale), edge, edge.HasValue ? 1 : 0);
+        UiKit.EndDesign(this);
     }
 
     private void DrawCrystal(Vector2 center, float radius, Color fill, Color edge)

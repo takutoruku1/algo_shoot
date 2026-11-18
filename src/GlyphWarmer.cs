@@ -47,7 +47,7 @@ public partial class GlyphWarmer : Node
     // 行き先のシーン → その場面で打ち出される台本を持つ型（静的な行配列・定数を全部拾う）。
     private static Type[] ScriptTypes(string scenePath) => System.IO.Path.GetFileNameWithoutExtension(scenePath) switch
     {
-        "Prologue" => new[] { typeof(Prologue), typeof(OpeningFilm) },
+        "Prologue" => new[] { typeof(Prologue) },
         "Hub" => new[] { typeof(Hub), typeof(CompanionDialogue), typeof(CharacterStoryTalk) },
         "Akari" => new[] { typeof(StageAkari), typeof(BossAkari), typeof(StageTutorial), typeof(CompanionDialogue) },
         "Koharu" => new[] { typeof(StageKoharu), typeof(BossKoharu), typeof(StageTutorial), typeof(CompanionDialogue) },

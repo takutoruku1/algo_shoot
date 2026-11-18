@@ -95,6 +95,8 @@ public partial class BossExtraTechniqueQa : Node
             _game.AutoSaveEnabled = false;
             _game.SelectedJob = Job.Tank;
             _game.MarkIdleDialogSeen("once_midboss_shield");
+            _game.MarkIdleDialogSeen(StageTutorial.ChoiceSeenKey);
+            _game.MarkIdleDialogSeen(StageTutorial.SkipKey);
             Pool.ProcessMode = ProcessModeEnum.Disabled;
             DisplayServer.WindowSetMode(DisplayServer.WindowMode.Windowed);
             DisplayServer.WindowSetSize(new Vector2I(1280, 720));
@@ -102,11 +104,13 @@ public partial class BossExtraTechniqueQa : Node
             string? selected = Option("--character") ?? Option("--boss");
             if (selected == "MinaBattle") selected = "Mina";
             Require(selected == null || new[] { "Akari", "Koharu", "Rei", "Mina" }.Contains(selected), "valid character selection");
-            var specs = Specifications().ToArray();
-            Require(specs.Length == 82, "82 independently dispatched named techniques");
+            bool danmaku = Args.Contains("--danmaku-roster");
+            if (danmaku) _game.TrainingSetUpgrade("n_charge_shot", true);
+            var specs = (danmaku ? DanmakuSpecifications() : Specifications()).ToArray();
+            if (!danmaku) Require(specs.Length == 82, "82 independently dispatched named techniques");
             foreach (string character in specs.Select(s => s.Character).Distinct().Where(c => selected == null || c == selected))
                 await CheckCharacter(character, specs.Where(s => s.Character == character).ToArray());
-            if (selected == null && Option("--kind") == null && Option("--variant") == null)
+            if (!danmaku && selected == null && Option("--kind") == null && Option("--variant") == null)
                 Require(_mechanics.Count == 82, "all 82 mechanism identities tested");
             foreach (var outcome in _routeOutcomes.Where(pair => pair.Value.Survivals == 0))
                 GD.Print($"[CharacterTechniqueQA] UNRESOLVED_ROUTE {outcome.Key}: 0/{outcome.Value.Trials} tested probes survived");
@@ -117,7 +121,10 @@ public partial class BossExtraTechniqueQa : Node
             await Frames(5);
             GC.Collect();
             GC.WaitForPendingFinalizers();
-            Pass($"ALL LIFECYCLE PASS: trials={_cases}, mechanisms={_mechanics.Count}, displayed_names={_names.Count}, contact_free_probes={_safeProbes}, contact_frames={_contacts}, screenshots={_screenshots}. Contact-free probes are observations, not proof of universal fairness.");
+            if (danmaku)
+                GD.Print($"[DanmakuQA] COMPLETE trials={_cases} screenshots={_screenshots}; inspect per-trial contacts and completion. Automated invincible observation, not a human difficulty test.");
+            else
+                Pass($"ALL LIFECYCLE PASS: trials={_cases}, mechanisms={_mechanics.Count}, displayed_names={_names.Count}, contact_free_probes={_safeProbes}, contact_frames={_contacts}, screenshots={_screenshots}. Contact-free probes are observations, not proof of universal fairness.");
             GetTree().Quit();
         }
         catch (Exception exception)
@@ -131,6 +138,7 @@ public partial class BossExtraTechniqueQa : Node
 
     private async Task CheckCharacter(string character, Spec[] specifications)
     {
+        if (Args.Contains("--cameo-actors") && character == "Mina") return;
         _game.Difficulty = GameManager.Diff.Normal;
         string scene = character == "Mina" ? "MinaBattle" : character;
         var root = GD.Load<PackedScene>($"res://{scene}.tscn").Instantiate<Node2D>();
@@ -148,9 +156,21 @@ public partial class BossExtraTechniqueQa : Node
         hud.HoldBubble = false;
         hud.HideBubble();
         root.GetNode<StageBackground>("StageBackground").EnterBoss();
-        Enemy boss = character switch { "Akari" => new BossAkari(), "Koharu" => new BossKoharu(), "Rei" => new BossRei(), _ => new BossMina() };
+        Enemy boss;
+        if (Args.Contains("--cameo-actors"))
+        {
+            var stage = (Node)root.GetType().GetProperty("Stage")!.GetValue(root)!;
+            Write(stage, "_stepStarted", false);
+            Write(stage, "_lunatic", true);
+            Call(stage, "Step_BossCameo", 0d);
+            boss = Read<CameoBoss>(stage, "_cameo");
+        }
+        else
+        {
+            boss = character switch { "Akari" => new BossAkari(), "Koharu" => new BossKoharu(), "Rei" => new BossRei(), _ => new BossMina() };
+            world.AddChild(boss);
+        }
         boss.ProcessMode = ProcessModeEnum.Disabled;
-        world.AddChild(boss);
         boss.Position = new Vector2(global::Field.BossCenterX, 70);
         Call(boss, "TickEntrance", 0d);
         Call(boss, "TickEntrance", 100d);
@@ -174,6 +194,9 @@ public partial class BossExtraTechniqueQa : Node
             starts = new[] { global::Field.Left + 8, global::Field.CenterX, global::Field.Right - 8 }
                 .SelectMany(x => new[] { 8f, global::Field.CenterY, global::Field.Bottom - 8 }.Select(y => new Vector2(x, y))).ToArray();
         var indices = Enumerable.Range(0, starts.Length).ToArray();
+        string? blindRoute = Option("--blind-route");
+        string[] blindPolicies = { "still", "clockwise-inner", "counterclockwise-inner", "clockwise-outer", "counterclockwise-outer" };
+        if (blindRoute != null) Require(blindRoute == "matrix" || blindPolicies.Contains(blindRoute), "unknown blind movement policy");
         if (Option("--start") is { } start)
         {
             Require(int.TryParse(start, out int selected) && selected >= 0 && selected < starts.Length, "valid start selection");
@@ -181,14 +204,31 @@ public partial class BossExtraTechniqueQa : Node
         }
         foreach (var spec in specifications)
         {
+            if (Option("--koharu-response") != null && (boss is not CameoBoss && spec.Kind == BossTechniqueKind.Cameo
+                || spec.Kind == BossTechniqueKind.Crossfire && spec.Variant == 0)) continue;
+            if (blindRoute != null && (boss is not CameoBoss && spec.Kind == BossTechniqueKind.Cameo
+                || spec is { Character: "Akari", Kind: BossTechniqueKind.Extra, Variant: 1, Evolved: true }
+                || spec is { Character: "Koharu", Kind: BossTechniqueKind.Crossfire, Variant: 0 })) continue;
+            if (Args.Contains("--cameo-actors") && spec.Kind != BossTechniqueKind.Cameo) continue;
+            if (Args.Contains("--opening-audit") && boss is not CameoBoss && spec.Kind == BossTechniqueKind.Cameo) continue;
             if (Option("--kind") is { } kind && !spec.Kind.ToString().Equals(kind, StringComparison.OrdinalIgnoreCase)) continue;
             if (Option("--variant") is { } variant && spec.Variant.ToString() != variant) continue;
+            if (Args.Contains("--rei-revised-roster") && !(spec.Kind is BossTechniqueKind.Cameo or BossTechniqueKind.Edge or BossTechniqueKind.Signature
+                || spec.Kind == BossTechniqueKind.Normal && spec.Variant is 0 or 3 or 5 || spec.Kind == BossTechniqueKind.Area && spec.Variant == 0)) continue;
             SetForm(boss, spec, idle, attackArt, down);
             foreach (var difficulty in difficulties)
             foreach (int index in indices)
             {
                 _game.Difficulty = difficulty;
-                if (Args.Contains("--both-policies"))
+                if (blindRoute != null)
+                {
+                    foreach (string policy in blindRoute == "matrix" ? blindPolicies : new[] { blindRoute })
+                        if (policy == "still" || index is 0 or 4 or 8 || Option("--start") != null)
+                            await CheckDanmakuTrial(spec, boss, player, hud, starts[index], index, policy);
+                }
+                else if (Args.Contains("--danmaku-roster"))
+                    await CheckDanmakuTrial(spec, boss, player, hud, starts[index], index);
+                else if (Args.Contains("--both-policies"))
                 {
                     await CheckTrial(spec, boss, player, hud, starts[index], index, "stationary");
                     await CheckTrial(spec, boss, player, hud, starts[index], index, "reactive");
@@ -198,7 +238,7 @@ public partial class BossExtraTechniqueQa : Node
                     spec.Identity + ": techniques preserve HP and lives independently of contact sampling");
             }
         }
-        Pass(character + ": all requested techniques completed; HP/lives unchanged");
+        Pass(character + ": requested trials recorded; HP/lives unchanged");
         root.QueueFree();
         Pool.DespawnAll();
         Hud.BubblePaused = false;
@@ -207,9 +247,11 @@ public partial class BossExtraTechniqueQa : Node
 
     private static void SetForm(Enemy boss, Spec spec, string idle, string attack, string down)
     {
+        if (boss is CameoBoss) { boss.FinishFormReveal(); return; }
         if (boss is BossMina)
         {
-            int phase = spec.Kind == BossTechniqueKind.Area ? spec.Variant : spec.Evolved ? BossMina.DragonPhase : 0;
+            int phase = spec.Kind == BossTechniqueKind.Area && (spec.Variant >= BossMina.DragonPhase) == spec.Evolved
+                ? spec.Variant : spec.Evolved ? BossMina.DragonPhase : 0;
             Write(boss, "_pattern", phase);
             Call(boss, "ChangeBattleCostume", BossMina.BattleCostumePath(phase, "idle"), BossMina.BattleCostumePath(phase, "attack"), BossMina.BattleDownPath(phase));
         }
@@ -264,6 +306,425 @@ public partial class BossExtraTechniqueQa : Node
         Pass(boss.GetType().Name + ": held-shot deployment, release, and pool reset");
     }
 
+    private IEnumerable<Spec> DanmakuSpecifications()
+    {
+        foreach (string character in new[] { "Akari", "Koharu", "Rei", "Mina" })
+        {
+            Enemy catalog = character switch { "Akari" => new BossAkari(), "Koharu" => new BossKoharu(),
+                "Rei" => new BossRei(), _ => new BossMina() };
+            var specs = new HashSet<Spec>();
+            int phases = character == "Mina" ? 5 : character == "Akari" ? 2 : 3;
+            for (int phase = 0; phase < phases; phase++)
+            foreach (var slot in BossAttackCycle.Slots(catalog, phase))
+                specs.Add(new(character, slot.Kind, slot.Variant,
+                    phase >= (character == "Mina" ? BossMina.DragonPhase : 1)));
+            if (character != "Mina")
+                for (int variant = 0; variant < 2; variant++) specs.Add(new(character, BossTechniqueKind.Cameo, variant));
+            else
+                foreach (bool evolved in new[] { false, true })
+                for (int variant = 0; variant < 5; variant++) specs.Add(new(character, BossTechniqueKind.Area, variant, evolved));
+            catalog.Free();
+            foreach (var spec in specs) yield return spec;
+        }
+    }
+
+    private Vector2 ReiCitationGoal(ReiBossTechnique attack, Vector2 at, string choice, int variant)
+    {
+        bool indicated = choice != "ignore";
+        if (variant == 0)
+        {
+            int row = choice == "north" ? 0 : choice == "south" ? 2 :
+                Math.Clamp(Mathf.FloorToInt((at.Y - global::Field.Top) * 3 / global::Field.Height), 0, 2);
+            int seal = (attack.RetractedSource + (indicated ? 0 : 1)) % 3;
+            int cell = Enumerable.Range(3 * row, 3).Single(node => attack.CitationSeal(node) == seal);
+            return global::Field.Rect.Position + global::Field.Rect.Size * new Vector2((cell % 3 + .5f) / 3, (row + .5f) / 3);
+        }
+        if (attack.VisibleBracket is not { } fold) return at;
+        Rect2 quote = fold.Inner;
+        Vector2 side = choice == "south" ? Vector2.Down : choice == "west" ? Vector2.Left : Vector2.Up;
+        bool inside = indicated ? fold.Turned : !fold.Turned;
+        float radius = side.X == 0 ? quote.Size.Y / 2 : quote.Size.X / 2;
+        return quote.GetCenter() + side * (radius + (inside ? -18 : 18));
+    }
+
+    private async Task CheckDanmakuTrial(Spec spec, Enemy boss, Player player, Hud hud, Vector2 start, int startIndex, string? blindRoute = null)
+    {
+        if (Option("--form") is { } form && spec.Evolved != bool.Parse(form)) return;
+        Pool.DespawnAll();
+        GD.Seed(Args.Contains("--rei-alternate-seals") ? 5092ul : 2059ul);
+        string? koharuResponse = spec.Character == "Koharu" ? Option("--koharu-response") : null;
+        string? akariCueSide = spec.Character == "Akari" ? Option("--akari-cue-side") : null;
+        if (Option("--akari-route") != null || akariCueSide != null || blindRoute != null || koharuResponse != null) player.SnapToStart();
+        if (blindRoute != null || koharuResponse != null || akariCueSide != null)
+        {
+            boss.TickBossFrame(2);
+            Write(player, "_invincible", true);
+            Write(player, "_invincibleTimer", 999f);
+            Write(player, "_fireCooldown", Args.Contains("--hold-fire") ? 999f : 0f);
+            AutoplayInput.Move(Vector2.Zero);
+            Input.FlushBufferedEvents();
+        }
+        player.Position = start;
+        boss.Position = new Vector2(global::Field.BossFrameCenterX, global::Field.CenterY);
+        Hud.BubblePaused = false;
+        if (Args.Contains("--lifecycle-only"))
+        {
+            CheckCancel(boss, player, spec, start, spec.Identity);
+            CheckInterruption(boss, player, spec, start, spec.Identity);
+            _cases++;
+            await Frames(1);
+            return;
+        }
+        var attack = Begin(boss, spec);
+        ulong id = attack.GetInstanceId();
+        var widths = Args.Contains("--opening-audit") ? new BossPassageAudit() : null;
+        string tracePrefix = widths == null ? "opening" : $"opening_{_game.Difficulty}_{(spec.Evolved ? "after" : "before")}";
+        using var passage = Args.Contains("--trace-passages")
+            ? HardPassageTrace.Open($"{ProjectSettings.GlobalizePath(Option("--output")!)}/{tracePrefix}_{spec.Kind}_{spec.Variant}_{startIndex}.jsonl") : null;
+        int frames = 0, peak = 0, samples = 0, contacts = 0, bodyContacts = 0, peakOccupied = 0;
+        double sumShots = 0, sumOccupied = 0, active = 0, empty = 0, longestEmpty = 0;
+        bool started = false;
+        const int columns = 16, rows = 12;
+        var touched = new bool[columns * rows];
+        var occupied = new bool[touched.Length];
+        var points = Enumerable.Range(0, touched.Length).Select(index => global::Field.Rect.Position
+            + global::Field.Rect.Size * new Vector2((index % columns + .5f) / columns, (index / columns + .5f) / rows)).ToArray();
+        var features = new Features();
+        Vector2 direction = Vector2.Zero;
+        bool reactive = Option("--policy") == "reactive";
+        string? citationChoice = spec.Kind == BossTechniqueKind.Cameo && attack is ReiBossTechnique
+            ? Option("--rei-citation-choice") : null;
+        string? selectionStroke = attack is ReiBossTechnique && spec.Kind == BossTechniqueKind.Normal && spec.Variant == 0
+            ? Option("--rei-selection-stroke") : null;
+        string? reiSide = spec.Character == "Rei" ? Option("--rei-side") : null;
+        string? footsteps = attack.MechanicKey == "mina.second-visit-weight" ? Option("--mina-footsteps") : null;
+        string? unanswered = attack.MechanicKey == "mina.reply-driven-stars" ? Option("--mina-unanswered") : null;
+        if (unanswered != null) Write(player, "_fireCooldown", 999f);
+        Vector2? nextStep = null;
+        int waypoint = 0;
+        float stepSide = footsteps == "left" ? -1 : 1;
+        Vector2[] path = { start + Vector2.Right * stepSide * 84, start + new Vector2(stepSide * 84, -58),
+            start + new Vector2(-stepSide * 82, -58), start + new Vector2(-stepSide * 82, 55),
+            start + new Vector2(stepSide * 75, 55) };
+        string? akariRoute = spec.Character == "Akari" ? Option("--akari-route") : null;
+        Vector2 ellipse = akariRoute == "outer" || blindRoute?.EndsWith("-outer") == true ? new Vector2(124, 80) : new Vector2(73, 48);
+        Vector2 relativeStart = (start - global::Field.Rect.GetCenter()) / ellipse;
+        float orbitPhase = relativeStart == Vector2.Zero ? 0 : relativeStart.Angle();
+        var loopCenter = global::Field.Rect.GetCenter();
+        Vector2? koharuGoal = null;
+        Vector2? flashCenter = null;
+        double readLock = -1;
+        float joinSeconds = start.DistanceTo(loopCenter + Vector2.FromAngle(orbitPhase) * ellipse) / player.MoveSpeed;
+        float turnSign = blindRoute?.StartsWith("counterclockwise") == true ? -1 : 1;
+        float inputDistance = 0;
+        float minX = start.X, maxX = start.X, minY = start.Y, maxY = start.Y;
+        double nextCapture = .8;
+        var body = Read<CollisionShape2D>(boss, "_bodyShape");
+        for (; frames < 10800 && !attack.Finished; frames++)
+        {
+            boss.TickBossFrame(Step);
+            var before = Shots(id);
+            if (blindRoute != null)
+            {
+                if (frames * Step >= joinSeconds)
+                    orbitPhase += turnSign * player.MoveSpeed * (float)Step / (Vector2.FromAngle(orbitPhase).Orthogonal() * ellipse).Length();
+                Vector2 target = loopCenter + Vector2.FromAngle(orbitPhase) * ellipse;
+                Vector2 previous = player.Position;
+                AutoplayInput.Move(blindRoute == "still" ? Vector2.Zero :
+                    (target - previous).LimitLength(player.MoveSpeed * (float)Step) / (player.MoveSpeed * (float)Step));
+                Input.FlushBufferedEvents();
+                player._PhysicsProcess(Step);
+                inputDistance += previous.DistanceTo(player.Position);
+                minX = Math.Min(minX, player.Position.X); maxX = Math.Max(maxX, player.Position.X);
+                minY = Math.Min(minY, player.Position.Y); maxY = Math.Max(maxY, player.Position.Y);
+            }
+            else if (koharuResponse != null && attack is KoharuBossTechnique koharu)
+            {
+                Vector2 previous = player.Position;
+                foreach (var light in before) ObserveBullet(features, light);
+                if (frames % 4 == 0)
+                {
+                    Vector2 home = koharuResponse == "upper" ? loopCenter + new Vector2(-52, -48) : loopCenter + new Vector2(57, 51);
+                    if (koharu.MechanicKey == "koharu.unbalanced-support")
+                    {
+                        Vector2 pivot = koharu.VisibleSupportCenter;
+                        home = koharuResponse == "upper" ? pivot + new Vector2(-12, -47) : pivot + new Vector2(91, 48);
+                    }
+                    if (koharu.MechanicKey == "koharu.hinged-antlers")
+                    {
+                        var (hinge, opening) = koharu.VisibleAntlers;
+                        home = hinge + opening.Rotated(koharuResponse == "upper" ? -.35f : .35f) * 94;
+                    }
+                    if (koharu.SequentialGaze)
+                    {
+                        var step = koharu.VisibleGazeStep;
+                        home = step is { } eyes
+                            ? koharu.GazeCell(koharu.Elapsed >= eyes.OpensAt ? eyes.To : eyes.From).GetCenter()
+                            : koharu.GazeEntry;
+                        home.X += koharuResponse == "upper" ? -3 : 3;
+                    }
+                    bool followCue = false;
+                    if (koharu.MechanicKey == "koharu.reading-head" && koharu.VisibleReadingLine is { } line)
+                    {
+                        if (line.LockedAt != readLock)
+                        {
+                            readLock = line.LockedAt;
+                            float[] marks = koharu.PracticeHazards.Where(h => h.Shape == 0 && Math.Abs(h.A.X - h.B.X) < 1)
+                                .Select(h => h.A.X).Distinct().Order().ToArray();
+                            float x = marks.Zip(marks.Skip(1), (a, b) => (a + b) / 2)
+                                .Where(x => x > global::Field.Left + 7 && x < global::Field.Right - 7)
+                                .OrderBy(x => Math.Abs(x - previous.X)).FirstOrDefault(previous.X);
+                            int side = koharuResponse == "upper" ? -1 : 1;
+                            float y = line.From.Y + side * 30;
+                            if (y < global::Field.Top + 7 || y > global::Field.Bottom - 7) y = line.From.Y - side * 30;
+                            koharuGoal = new Vector2(x, y);
+                        }
+                        home = koharuGoal ?? previous;
+                        followCue = true;
+                    }
+                    if (koharu.MechanicKey == "koharu.attention-charge")
+                    {
+                        if (!koharu.AttentionLocked) { flashCenter = null; koharuGoal = null; home = previous; }
+                        else
+                        {
+                            var focus = koharu.PracticeHazards.LastOrDefault(h => h.Shape == 1);
+                            if (focus.Radius > 0 && focus.A != flashCenter)
+                            {
+                                var spokes = koharu.PracticeHazards.Where(h => h.Shape == 0 && h.A == focus.A)
+                                    .Select(h => h.A.DirectionTo(h.B).Angle()).Distinct().Order().ToArray();
+                                var options = spokes.SelectMany((a, i) => new[] { focus.Radius + 30, focus.Radius + 57 }
+                                    .Select(r => focus.A + Vector2.FromAngle(a + Mathf.PosMod(spokes[(i + 1) % spokes.Length] - a, Mathf.Tau) * .5f) * r))
+                                    .Where(global::Field.Rect.Grow(-9).HasPoint).ToArray();
+                                if (options.Length > 0)
+                                {
+                                    koharuGoal = options.OrderBy(p => p.DistanceTo(previous) + .4f * p.DistanceTo(home)).First();
+                                    flashCenter = focus.A;
+                                }
+                            }
+                            home = koharuGoal ?? previous;
+                        }
+                        followCue = true;
+                    }
+                    if (koharu.MechanicKey is "koharu.screen-aperture" or "koharu.hinged-antlers"
+                        || koharu.MechanicKey == "koharu.gaze-focus" && !koharu.SequentialGaze)
+                    {
+                        Rect2[] eyes = koharu.VisibleGazeIntersections.ToArray();
+                        if (frames % 12 == 0 || koharuGoal == null || koharu.DangerDistance(koharuGoal.Value, true) < 6)
+                        {
+                            var choices = Enumerable.Range(0, 12).SelectMany(x => Enumerable.Range(0, 9).Select(y =>
+                                new Vector2(global::Field.Left + 10 + x * (global::Field.Width - 20) / 11,
+                                    global::Field.Top + 9 + y * (global::Field.Height - 18) / 8)));
+                            koharuGoal = choices.OrderByDescending(p =>
+                                Math.Min(28, Math.Min(koharu.DangerDistance(p, true), eyes.Select(e => p.DistanceTo(p.Clamp(e.Position, e.End)))
+                                    .DefaultIfEmpty(40).Min())) * 5
+                                - previous.DistanceTo(p) * .52f - home.DistanceTo(p) * .20f).First();
+                        }
+                        home = koharuGoal.Value;
+                    }
+                    direction = ChooseMovement(player, boss, attack, before, features, direction, player.Position.DirectionTo(home));
+                    if (followCue || koharu.SequentialGaze || koharuGoal.HasValue && previous.DistanceTo(home) > 14
+                        && !before.Any(b => b.CollisionLayer != 0 && b.GlobalPosition.DistanceTo(previous) < 24))
+                        direction = (home - previous).LimitLength(1);
+                }
+                AutoplayInput.Move(direction * player.SlowestMoveSpeed / player.MoveSpeed);
+                Input.FlushBufferedEvents();
+                Pad.ReleaseMouseFollow();
+                player._PhysicsProcess(Step);
+                inputDistance += previous.DistanceTo(player.Position);
+                minX = Math.Min(minX, player.Position.X); maxX = Math.Max(maxX, player.Position.X);
+                minY = Math.Min(minY, player.Position.Y); maxY = Math.Max(maxY, player.Position.Y);
+            }
+            else if (akariRoute != null)
+            {
+                Vector2 previous = player.Position;
+                Vector2 center = global::Field.Rect.GetCenter();
+                float turn = akariRoute == "outer" ? .49f : -.70f;
+                float angle = orbitPhase + turn * (float)(frames * Step);
+                Vector2 target = center + Vector2.FromAngle(angle) * ellipse;
+                AutoplayInput.Move((target - previous).LimitLength(player.SlowestMoveSpeed * (float)Step) / (player.MoveSpeed * (float)Step));
+                Input.FlushBufferedEvents();
+                Pad.ReleaseMouseFollow();
+                player._PhysicsProcess(Step);
+                inputDistance += previous.DistanceTo(player.Position);
+                minX = Math.Min(minX, player.Position.X); maxX = Math.Max(maxX, player.Position.X);
+                minY = Math.Min(minY, player.Position.Y); maxY = Math.Max(maxY, player.Position.Y);
+            }
+            else if (selectionStroke != null && (reiSide == null || frames < 90))
+            {
+                Vector2 stroke = selectionStroke == "horizontal" ? Vector2.Right : Vector2.Up.Rotated(Mathf.Pi / 4);
+                AutoplayInput.Move(frames < 90 ? stroke : Vector2.Zero);
+                Input.FlushBufferedEvents();
+                player._PhysicsProcess(Step);
+            }
+            else if (footsteps is "read-left" or "read-right" && attack is MinaBossTechnique memory)
+            {
+                var marks = memory.VisibleVisitMarks.ToArray();
+                if (marks.Any(mark => mark.Visits != 0) && (nextStep == null || player.Position.DistanceTo(nextStep.Value) < 1.5f))
+                {
+                    var current = marks.First(mark => mark.Bounds.HasPoint(player.Position)).Bounds;
+                    Vector2 center = current.GetCenter();
+                    float preference = footsteps == "read-left" ? -1 : 1;
+                    var choices = marks.Where(mark => mark.Visits == 0 &&
+                        (Math.Abs(mark.Bounds.GetCenter().X - center.X) < 1 && Math.Abs(mark.Bounds.GetCenter().Y - center.Y) <= current.Size.Y + 1
+                        || Math.Abs(mark.Bounds.GetCenter().Y - center.Y) < 1 && Math.Abs(mark.Bounds.GetCenter().X - center.X) <= current.Size.X + 1))
+                        .Where(mark => !memory.VisibleVisitEchoes.Any(echo => echo.Bounds.HasPoint(mark.Bounds.GetCenter())))
+                        .OrderBy(mark => mark.Bounds.GetCenter().Y)
+                        .ThenByDescending(mark => mark.Bounds.GetCenter().X * preference).ToArray();
+                    nextStep = choices.Length > 0 ? choices[0].Bounds.GetCenter() : null;
+                }
+                AutoplayInput.Move(nextStep.HasValue ? (nextStep.Value - player.Position).LimitLength(36 * (float)Step) / (player.MoveSpeed * (float)Step) : Vector2.Zero);
+                Input.FlushBufferedEvents();
+                player._PhysicsProcess(Step);
+            }
+            else if (unanswered != null && attack is MinaBossTechnique stars)
+            {
+                AutoplayInput.Move(BossTechniqueVideo.StepAwayFromUnansweredStar(stars, player.Position, unanswered == "left"));
+                Input.FlushBufferedEvents();
+                player._PhysicsProcess(Step);
+            }
+            else if (footsteps != null)
+            {
+                Vector2 to = path[waypoint].Clamp(global::Field.Rect.Position + Vector2.One * 6, global::Field.Rect.End - Vector2.One * 6) - player.Position;
+                if (to.Length() < 2) waypoint = (waypoint + 1) % path.Length;
+                AutoplayInput.Move(footsteps == "still" || frames < 100 ? Vector2.Zero :
+                    to.LimitLength(player.SlowestMoveSpeed * (float)Step) / (player.MoveSpeed * (float)Step));
+                Input.FlushBufferedEvents();
+                player._PhysicsProcess(Step);
+            }
+            else if (citationChoice != null && attack is ReiBossTechnique quotation)
+            {
+                Vector2 goal = ReiCitationGoal(quotation, player.Position, citationChoice, spec.Variant);
+                AutoplayInput.Move((goal - player.Position).LimitLength(player.SlowestMoveSpeed * (float)Step)
+                    / (player.MoveSpeed * (float)Step));
+                Input.FlushBufferedEvents();
+                player._PhysicsProcess(Step);
+            }
+            else if (reiSide != null || akariCueSide != null)
+            {
+                bool north = (reiSide ?? akariCueSide) == "north";
+                var home = new Vector2(global::Field.CenterX + (north ? -38 : 38),
+                    global::Field.CenterY + (north ? -48 : 48));
+                if (frames % 4 == 0) direction = ChooseMovement(player, boss, attack, before, features, direction, player.Position.DirectionTo(home));
+                AutoplayInput.Move(direction * player.SlowestMoveSpeed / player.MoveSpeed);
+                Input.FlushBufferedEvents();
+                Pad.ReleaseMouseFollow();
+                player._PhysicsProcess(Step);
+            }
+            else if (reactive && frames >= 24)
+            {
+                if (frames % 6 == 0) direction = ChooseMovement(player, boss, attack, before, features, direction);
+                Vector2 to = (player.Position + direction * player.SlowestMoveSpeed * (float)Step)
+                    .Clamp(global::Field.Rect.Position + Vector2.One * 8, global::Field.Rect.End - Vector2.One * 8);
+                player.Position = attack.ResolvePlayerMotion(player.Position, to);
+                if (frames % 24 == 0 && attack.MechanicKey is "mina.reply-driven-stars" or "rei-edited-page-peeling") Call(player, "Fire");
+            }
+            foreach (var friendly in GetTree().GetNodesInGroup("player_bullets").OfType<Bullet>().Where(b => b.Active))
+            {
+                friendly.CollisionLayer = friendly.CollisionMask = 0;
+                friendly._PhysicsProcess(Step);
+            }
+            if (reiSide != null || akariCueSide != null || citationChoice != null || footsteps != null || unanswered != null)
+            {
+                inputDistance += Input.GetVector("ui_left", "ui_right", "ui_up", "ui_down").Length() * player.MoveSpeed * (float)Step;
+                minX = Math.Min(minX, player.Position.X); maxX = Math.Max(maxX, player.Position.X);
+                minY = Math.Min(minY, player.Position.Y); maxY = Math.Max(maxY, player.Position.Y);
+            }
+            attack.Tick(Step);
+            foreach (var shot in Shots(id)) shot._PhysicsProcess(Step);
+            var shots = Shots(id).Where(b => !b.LeadIn && b.CollisionLayer != 0
+                && global::Field.Rect.Grow(b.CollisionRadius).HasPoint(b.Position)).ToArray();
+            peak = Math.Max(peak, shots.Length);
+            widths?.Observe(attack, shots);
+            passage?.Frame(attack, player.Position);
+            if (Args.Contains("--record")) await ToSignal(RenderingServer.Singleton, RenderingServer.SignalName.FramePostDraw);
+            if (Args.Contains("--visual") && attack.Elapsed >= nextCapture && !attack.Finished)
+            {
+                await Capture(spec, hud, attack, $"{attack.Elapsed:000.0}s");
+                nextCapture += 2;
+            }
+            if (attack.CoversPoint(player.Position) || shots.Any(b => Hits(b, player.Position))) contacts++;
+            if (boss.BodyContactDamaging && !body.Disabled && body.Shape.Collide(body.GlobalTransform, _core,
+                new Transform2D(0, player.Position))) bodyContacts++;
+            if (Args.Contains("--stop-on-contact") && contacts > 0) { frames++; break; }
+            bool live = shots.Length > 0 || attack.IsStriking;
+            if (live) { started = true; active += Step; empty = 0; }
+            else if (started && !attack.Finished) { empty += Step; longestEmpty = Math.Max(longestEmpty, empty); }
+            if (frames % 6 != 0 || Args.Contains("--contact-only")) continue;
+            for (int i = 0; i < points.Length; i++) occupied[i] = attack.CoversPoint(points[i]);
+            foreach (var shot in shots)
+            {
+                float radius = shot.CollisionRadius + Player.HitRadius;
+                int left = Math.Clamp((int)((shot.Position.X - radius - global::Field.Left) / global::Field.Width * columns), 0, columns - 1);
+                int right = Math.Clamp((int)((shot.Position.X + radius - global::Field.Left) / global::Field.Width * columns), 0, columns - 1);
+                int top = Math.Clamp((int)((shot.Position.Y - radius) / global::Field.Height * rows), 0, rows - 1);
+                int bottom = Math.Clamp((int)((shot.Position.Y + radius) / global::Field.Height * rows), 0, rows - 1);
+                for (int y = top; y <= bottom; y++)
+                for (int x = left; x <= right; x++)
+                    if (Hits(shot, points[y * columns + x])) occupied[y * columns + x] = true;
+            }
+            int count = occupied.Count(value => value);
+            for (int i = 0; i < touched.Length; i++) touched[i] |= occupied[i];
+            samples++;
+            sumShots += shots.Length;
+            sumOccupied += count;
+            peakOccupied = Math.Max(peakOccupied, count);
+        }
+        var result = new {
+            character = spec.Character, kind = spec.Kind.ToString(), variant = spec.Variant, evolved = spec.Evolved,
+            difficulty = _game.Difficulty.ToString(), start = startIndex,
+            policy = blindRoute ?? koharuResponse ?? selectionStroke ?? citationChoice ?? reiSide ?? akariCueSide ?? akariRoute ?? footsteps ?? unanswered ?? (reactive ? "reactive" : "stationary"),
+            koharuResponse = koharuResponse == null ? null : new { inputDistance, minX, maxX, minY, maxY },
+            unansweredRoute = unanswered != null && attack is MinaBossTechnique starResult ? new { inputDistance, minX, maxX, minY, maxY,
+                answered = starResult.StarReplies.Count } : null,
+            blindMovement = blindRoute == null ? null : new { travel = inputDistance, minX, maxX, minY, maxY,
+                automaticFire = !Args.Contains("--hold-fire") },
+            akariRoute = akariRoute == null && akariCueSide == null ? null : new { inputDistance, minX, maxX, minY, maxY },
+            minaReplies = attack is MinaBossTechnique { MechanicKey: "mina.reply-driven-stars" } replies ? new {
+                answered = replies.StarReplies.Count, returned = replies.StarReplies.Count(r => r.Fired), expired = replies.ReplyFailed } : null,
+            reiSource = attack is ReiBossTechnique { SourceCutTechnique: true } source ? new {
+                resolved = source.SourceCutRounds.Count(r => r.FiredPulses > 0),
+                aligned = source.SourceCutRounds.Count(r => r.Replied), removed = source.SourceCutRounds.Sum(r => r.RemovedPanels) } : null,
+            reiRally = attack is ReiBossTechnique { RallyTechnique: true } rally ? new {
+                missed = rally.RallyFailures, streak = rally.RallyStreak, broken = rally.RallyWallBroken, damageEvents = rally.RallyDamageEvents } : null,
+            reiPeel = attack is ReiBossTechnique { MechanicKey: "rei-edited-page-peeling" } page ? new {
+                peeled = page.PeeledEditions.Count(v => v), missedReview = page.PeelReviewFailed } : null,
+            reiRoute = reiSide != null || citationChoice != null ? new { inputDistance, minX, maxX, minY, maxY } : null,
+            footstepRoute = footsteps != null && attack is MinaBossTechnique archive ? new { policy = footsteps, inputDistance,
+                minX, maxX, minY, maxY, visited = archive.VisibleVisitMarks.Count(mark => mark.Visits > 0),
+                sealedCells = archive.VisibleVisitMarks.Count(mark => mark.Visits > 1) } : null,
+            stoppedOnContact = Args.Contains("--stop-on-contact") && contacts > 0,
+            densityMeasured = !Args.Contains("--contact-only"),
+            opening = widths?.Result(),
+            name = attack.SpellName, mechanic = attack.MechanicKey, complete = attack.Completed,
+            seconds = Math.Round(frames * Step, 2), shots = attack.ShotsCreated, peak,
+            meanShots = Math.Round(sumShots / Math.Max(1, samples), 1),
+            meanOccupied = Math.Round(sumOccupied / Math.Max(1, samples) / points.Length, 3),
+            peakOccupied = Math.Round(peakOccupied / (double)points.Length, 3),
+            untouched = touched.Count(value => !value), active = Math.Round(active, 2), gap = Math.Round(longestEmpty, 2),
+
+            address_shots = attack is AkariBossTechnique { MechanicKey: "akari.proximity-addressing" } sender ? sender.AddressShotsFired : (int?)null,
+            address_locks = attack is AkariBossTechnique { MechanicKey: "akari.proximity-addressing" } letters ? letters.AddressLocks.Select(l => new { id = l.Envelope, x = l.Origin.X, y = l.Origin.Y, targetX = l.Recipient.X, targetY = l.Recipient.Y, approached = l.Approached, at = l.LockedAt, fires = l.FiresAt }).ToArray() : null,
+            contacts, bodyContacts, remaining = attack.NaturalEndRemainingShots, liveAtEnd = attack.NaturalEndLiveHazards
+        };
+        if (blindRoute != null || koharuResponse != null || citationChoice != null || selectionStroke != null || reiSide != null || akariCueSide != null || akariRoute != null || footsteps != null || unanswered != null)
+            AutoplayInput.Move(Vector2.Zero);
+        string json = JsonSerializer.Serialize(result);
+        GD.Print("[DanmakuQA] " + json);
+        if (Option("--output") is { } output)
+        {
+            string directory = ProjectSettings.GlobalizePath(output);
+            if (blindRoute != null) directory = System.IO.Path.Combine(directory, _game.Difficulty.ToString(), blindRoute);
+            DirAccess.MakeDirRecursiveAbsolute(directory);
+            System.IO.File.AppendAllText(directory + "/metrics.jsonl", json + System.Environment.NewLine);
+        }
+        if (!attack.Finished) attack.Cancel();
+        if (!Args.Contains("--audit-only"))
+            Require(result.stoppedOnContact || result.complete && result.remaining == 0,
+                $"{spec.Identity}: natural completion without remaining bullets");
+        _cases++;
+        await Frames(1);
+    }
+
     private static Vector2 Toward(Player player, Vector2 goal) => player.Position.DistanceTo(goal) > player.SlowestMoveSpeed * Step
         ? player.Position.DirectionTo(goal) : Vector2.Zero;
 
@@ -301,7 +762,10 @@ public partial class BossExtraTechniqueQa : Node
         var features = new Features();
         Vector2 direction = Vector2.Zero;
         bool flightPause = false, warningSaved = false, activeSaved = false, developmentSaved = false;
-        bool cutinChecked = false, independentCitationBranch = false;
+        bool cutinChecked = false;
+        var retractedSources = new HashSet<int>();
+        Vector2 CitationCenter(int cell) => global::Field.Rect.Position + global::Field.Rect.Size
+            * new Vector2((cell % 3 + .5f) / 3, (cell / 3 + .5f) / 3);
         var body = Read<CollisionShape2D>(boss, "_bodyShape");
         string policy = explicitPolicy ?? Option("--policy") ?? (startIndex == 0 ? "stationary" : "reactive");
         Require(policy is "stationary" or "reactive", "valid policy selection");
@@ -552,18 +1016,10 @@ public partial class BossExtraTechniqueQa : Node
                 }
                 if (attack.MechanicKey == "rei-citation-dependency-erasure")
                 {
-                    double[] erased = Read<double[]>(attack, "_citationDeletes");
-                    Vector2 goal;
-                    if (startIndex == 0)
-                        goal = attack.Elapsed >= erased[3] ? new Vector2(global::Field.Left + 53, 108) : new Vector2(start.X, 72);
-                    else if (player.Position.Y > 145 && routeCorner == 0)
-                        goal = new Vector2(start.X, 144);
-                    else
-                    {
-                        routeCorner = 1;
-                        goal = new Vector2(global::Field.CenterX,
-                            Math.Abs(player.Position.X - global::Field.CenterX) < 1 && attack.Elapsed >= erased[7] ? 180 : 144);
-                    }
+                    int indicated = ((ReiBossTechnique)attack).RetractedSource;
+                    int row = Math.Clamp((int)((player.GlobalPosition.Y - global::Field.Top) * 3 / global::Field.Height), 0, 2);
+                    Vector2 goal = Enumerable.Range(row * 3, 3).Where(node => ((ReiBossTechnique)attack).CitationSeal(node) == indicated)
+                        .Select(CitationCenter).MinBy(center => center.DistanceSquaredTo(player.GlobalPosition));
                     direction = Toward(player, goal);
                 }
                 if (attack.MechanicKey == "mina.second-visit-weight" && attack.Elapsed < 7)
@@ -627,21 +1083,12 @@ public partial class BossExtraTechniqueQa : Node
             if (!cutinChecked) Write(hud, "_cutinTimer", 2d);
             double spellTime = Read<double>(hud, "_spellTimer");
             attack.Tick(Step);
-            if (attack.MechanicKey == "rei-citation-dependency-erasure")
+            if (attack is ReiBossTechnique citation && attack.MechanicKey == "rei-citation-dependency-erasure" && attack.IsStriking)
             {
-                bool[] roots = Read<bool[]>(attack, "_deletedRoots");
-                double[] erased = Read<double[]>(attack, "_citationDeletes");
-                if (roots[1] && !roots[0] && !roots[2])
-                {
-                    Require(new[] { 0, 1, 4, 5, 6, 8 }.All(i => double.IsPositiveInfinity(erased[i])),
-                        label + ": deleting one citation root preserves unrelated branches");
-                    if (new[] { 2, 3, 7 }.All(i => attack.Elapsed >= erased[i]))
-                    {
-                        Require(Hazards(attack).Count(h => h.Shape == 2 && h.Live) == 6,
-                            label + ": only the deleted root's child and grandchildren disappear");
-                        independentCitationBranch = true;
-                    }
-                }
+                retractedSources.Add(citation.RetractedSource);
+                Require(Enumerable.Range(0, 9).All(cell => attack.CoversPoint(CitationCenter(cell))
+                    == (citation.CitationPublished && citation.CitationSeal(cell) != citation.RetractedSource)),
+                    label + ": the row is traversable between editions and only the withdrawn citations open on publication");
             }
             if (!cutinChecked && !attack.Finished && (attack.IsStriking || Shots(id).Any(b => !b.LeadIn && b.CollisionLayer != 0)))
             {
@@ -660,7 +1107,7 @@ public partial class BossExtraTechniqueQa : Node
             features.Peak = Math.Max(features.Peak, shots.Length);
             if (Hazards(attack).Any(h => h.Live)) features.LiveGeometryFrames++;
             if (Hazards(attack).Any(h => !h.Live)) features.WarningGeometryFrames++;
-            if (Hazards(attack).Count > 0 || shots.Length > 0 || ((System.Collections.ICollection)FieldOf(attack, "_hints").GetValue(attack)!).Count > 0)
+            if (Hazards(attack).Count > 0 || shots.Length > 0 || ((System.Collections.ICollection)FieldOf(attack, "_cues").GetValue(attack)!).Count > 0)
                 features.PresentationFrames++;
             var geometry = Hazards(attack);
             if (features.PreviousGeometry.Count == geometry.Count)
@@ -671,7 +1118,7 @@ public partial class BossExtraTechniqueQa : Node
             features.PreviousGeometry.Clear();
             features.PreviousGeometry.AddRange(geometry.Select(h => (h.A, h.B, h.Shape)));
             bool contact = attack.CoversPoint(player.Position) || shots.Any(b => Hits(b, player.Position));
-            bool bodyContact = !body.Disabled && body.Shape.Collide(body.GlobalTransform, _core, new Transform2D(0, player.Position));
+            bool bodyContact = boss.BodyContactDamaging && !body.Disabled && body.Shape.Collide(body.GlobalTransform, _core, new Transform2D(0, player.Position));
             bool dodgeProtected = Read<float>(player, "_dodgeInv") > 0;
             if ((contact || bodyContact) && dodgeProtected) features.DodgePassFrames++;
             if (contact && !dodgeProtected) features.Contacts++;
@@ -723,13 +1170,7 @@ public partial class BossExtraTechniqueQa : Node
         Require(attack.Finished && attack.Completed && Shots(id).Length == 0, label + ": finite natural completion clears owned projectiles");
         Require(features.PresentationFrames > 0, label + ": attack provides visible presentation even when the player's correct action suppresses firing");
         if (attack.MechanicKey == "rei-citation-dependency-erasure")
-        {
-            double[] erased = Read<double[]>(attack, "_citationDeletes");
-            Require(independentCitationBranch && erased.All(double.IsFinite), label + ": all citation branches resolve independently");
-            foreach (var (parent, child) in new[] { (3, 2), (3, 7), (4, 0), (4, 8), (5, 1), (5, 6) })
-                Require(Math.Abs(erased[child] - erased[parent] - .3) <= Step * 2,
-                    label + ": citation deletion follows its parent after the visible delay");
-        }
+            Require(retractedSources.Count == 3, label + ": every source and its descendants are withdrawn once");
         Write(hud, "_cutinTimer", 0d);
         AutoplayInput.Move(Vector2.Zero);
         Input.FlushBufferedEvents();
@@ -815,7 +1256,7 @@ public partial class BossExtraTechniqueQa : Node
             player.Position += Vector2.Right * player.SlowestMoveSpeed * (float)Step;
             attack.Tick(Step);
             Require(!attack.CoversPoint(player.Position), label + ": crossing in reading order is harmless");
-            crossed = player.Position.X - Read<float>(attack, "_previousGate") > 2;
+            crossed = player.Position.X - Read<float>(attack, "_previousGate") > 1;
         }
         Require(crossed, label + ": minimum movement speed can overtake the reading boundary");
         bool rejected = false;
@@ -977,7 +1418,7 @@ public partial class BossExtraTechniqueQa : Node
     private bool BodyBlocks(Enemy boss, Vector2 from, Vector2 to)
     {
         var body = Read<CollisionShape2D>(boss, "_bodyShape");
-        if (body.Disabled) return false;
+        if (!boss.BodyContactDamaging || body.Disabled) return false;
         using var margin = new CircleShape2D { Radius = Player.HitRadius + 3 };
         int segments = Math.Max(1, (int)Math.Ceiling(from.DistanceTo(to)));
         for (int i = 0; i <= segments; i++)
@@ -988,7 +1429,7 @@ public partial class BossExtraTechniqueQa : Node
     private Vector2 WalkingProbeStart(Vector2 requested, Enemy boss)
     {
         var body = Read<CollisionShape2D>(boss, "_bodyShape");
-        if (body.Disabled || !body.Shape.Collide(body.GlobalTransform, _core, new Transform2D(0, requested))) return requested;
+        if (!boss.BodyContactDamaging || body.Disabled || !body.Shape.Collide(body.GlobalTransform, _core, new Transform2D(0, requested))) return requested;
         using var margin = new CircleShape2D { Radius = Player.HitRadius + 3 };
         Vector2 nearest = requested;
         float best = float.MaxValue;
@@ -1010,7 +1451,7 @@ public partial class BossExtraTechniqueQa : Node
         int tier = (int)_game.Difficulty;
         Vector2 start = player.Position;
         var body = Read<CollisionShape2D>(boss, "_bodyShape");
-        Require(body.Disabled || !body.Shape.Collide(body.GlobalTransform, _core, new Transform2D(0, start)),
+        Require(!boss.BodyContactDamaging || body.Disabled || !body.Shape.Collide(body.GlobalTransform, _core, new Transform2D(0, start)),
             attack.SpellName + ": walking probe does not begin in contact with the boss");
         float SegmentDistance(Vector2 point, Vector2 a, Vector2 b)
             => Geometry2D.GetClosestPointToSegment(point, a, b).DistanceTo(point);
@@ -1055,7 +1496,7 @@ public partial class BossExtraTechniqueQa : Node
             if (distance >= best || !Safe(candidate)) continue;
             bool blocked = false;
             int segments = Math.Max(1, (int)Math.Ceiling(distance / 3));
-            if (!body.Disabled)
+            if (boss.BodyContactDamaging && !body.Disabled)
                 for (int i = 0; i <= segments; i++)
                     if (body.Shape.Collide(body.GlobalTransform, _core, new Transform2D(0, start.Lerp(candidate, i / (float)segments))))
                     { blocked = true; break; }
@@ -1082,7 +1523,7 @@ public partial class BossExtraTechniqueQa : Node
             if (distance >= best || attack.DangerDistance(candidate, true) < 4) continue;
             bool blocked = false;
             int segments = Math.Max(1, (int)Math.Ceiling(distance / 2));
-            if (!body.Disabled)
+            if (boss.BodyContactDamaging && !body.Disabled)
                 for (int i = 0; i <= segments; i++)
                     if (body.Shape.Collide(body.GlobalTransform, _core, new Transform2D(0, start.Lerp(candidate, i / (float)segments))))
                     { blocked = true; break; }
@@ -1094,7 +1535,7 @@ public partial class BossExtraTechniqueQa : Node
         return goal;
     }
 
-    private Vector2 ChooseMovement(Player player, Enemy boss, BossCharacterTechnique attack, Bullet[] shots, Features features, Vector2 previous)
+    private Vector2 ChooseMovement(Player player, Enemy boss, BossCharacterTechnique attack, Bullet[] shots, Features features, Vector2 previous, Vector2 preferred = default)
     {
         Vector2 best = Vector2.Zero;
         float bestScore = float.NegativeInfinity;
@@ -1102,6 +1543,7 @@ public partial class BossExtraTechniqueQa : Node
         {
             Vector2 direction = candidate < 0 ? Vector2.Zero : Vector2.FromAngle(candidate * Mathf.Tau / 16);
             float score = direction == Vector2.Zero ? 1.1f : previous.Dot(direction) * .3f;
+            score += preferred.Dot(direction) * 3;
             foreach (float horizon in new[] { .1f, .3f, .6f })
             {
                 Vector2 position = player.Position + direction * player.SlowestMoveSpeed * horizon;
@@ -1115,7 +1557,7 @@ public partial class BossExtraTechniqueQa : Node
                     clearance = Math.Min(clearance, predicted.DistanceTo(position) - bullet.CollisionRadius - Player.HitRadius - 2);
                 }
                 var body = Read<CollisionShape2D>(boss, "_bodyShape");
-                if (!body.Disabled && body.Shape.Collide(body.GlobalTransform, _core, new Transform2D(0, position))) clearance = -20;
+                if (boss.BodyContactDamaging && !body.Disabled && body.Shape.Collide(body.GlobalTransform, _core, new Transform2D(0, position))) clearance = -20;
                 score += Math.Min(20, clearance) * (clearance < 0 ? 20 : 1);
                 float warning = attack.DangerDistance(position, true);
                 if (warning < 6) score -= (6 - warning) * .35f;
@@ -1152,12 +1594,14 @@ public partial class BossExtraTechniqueQa : Node
             {
                 for (int frame = 0; frame < 300 && !attack.Finished && attack.ShotsCreated == 0 && attack.HazardFrames == 0; frame++)
                 {
+                    boss.TickBossFrame(Step);
                     attack.Tick(Step);
                     foreach (var bullet in Shots(id)) bullet._PhysicsProcess(Step);
                 }
                 if (!attack.Finished)
                     for (int frame = 0; frame < 30 && !attack.Finished; frame++)
                     {
+                        boss.TickBossFrame(Step);
                         attack.Tick(Step);
                         foreach (var bullet in Shots(id)) bullet._PhysicsProcess(Step);
                     }
@@ -1180,6 +1624,7 @@ public partial class BossExtraTechniqueQa : Node
             var attack = Begin(boss, spec);
             for (int frame = 0; frame < 120 && !attack.Finished && attack.ShotsCreated == 0 && attack.HazardFrames == 0; frame++)
             {
+                boss.TickBossFrame(Step);
                 attack.Tick(Step);
                 foreach (var bullet in Shots(attack.GetInstanceId())) bullet._PhysicsProcess(Step);
             }

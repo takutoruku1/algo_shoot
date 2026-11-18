@@ -13,7 +13,7 @@ dest_files=["res://.godot/imported/bgm_stage_akari.ogg-4bd28f2181104f17bd9ebeb89
 [params]
 
 loop=true
-loop_offset=0
+loop_offset=20.432
 bpm=0
 beat_count=0
 bar_beats=4

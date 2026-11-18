@@ -23,7 +23,7 @@ public partial class Hud : CanvasLayer
     private bool _cinematicBubble;
     private bool _hasCinematicAccent;
     private Color _cinematicAccent;
-    public Rect2 DialogRect => CinematicMode ? DialogueBox.FullScreen : DialogueBox.Board;
+    public Rect2 DialogRect => CinematicMode && !_cinematicBubble ? DialogueBox.FullScreen : DialogueBox.Board;
 
     public void SetCinematicMode(bool active, bool dialogueBubble = false, Color? accent = null)
     {
@@ -56,9 +56,7 @@ public partial class Hud : CanvasLayer
 
     // ── ボスカードのYアイコン（2026-09-17）──
     //   ボスバーのアバターは長らく「穢れ色の無地の円」で、Xのプロフィールカードを模した意匠なのに
-    //   肝心のアイコン画像が入っていなかった。ハブの投稿カードと同じ素材（char/v3/{id}_face.png、
-    //   ミナだけ char/mina_face.png）を同じ UiKit.FaceAvatar で出し、「いま戦っている相手＝TLで見た
-    //   あのアカウント」を一目で結ぶ。
+    //   ハブの投稿カードと同じアカウントアイコンで、戦っている相手とTLの投稿者を結ぶ。
     //   誰かの判定は ShowBossBar に渡る handle（全呼び出し元が BossHandles の定数）から引く。
     //   名前は本ボスだとフェーズ名（"あふれるわたし" 等）で本人名を含まないため、handle が唯一確実な鍵。
     private string _bossFaceId = "";                      // "akari"/"koharu"/"rei"/"mina"。空＝顔なし（ヒカゲ等）
@@ -108,6 +106,8 @@ public partial class Hud : CanvasLayer
     {
         _activeTechniques.Add(technique);
         _spellName = ActiveTechniqueNames;
+        _spellCompact = true;
+        EndTechniqueCutin();
     }
     internal void EndTechnique(BossCharacterTechnique technique)
     {
@@ -165,13 +165,8 @@ public partial class Hud : CanvasLayer
     private Color _flashRgb = new(1f, 1f, 1f);
     private double _hurtEdge; // 被弾エッジの残り時間
 
-    // ヒカゲスキル
-    // 集中モード（一本道 #10「集中モード」）のチップ状態。持っているあいだだけ出す。
-    //   _focusHas   … 所持しているか（未所持なら行ごと出さない＝画面を空けておく）
-    //   _focusReady … いま撃てるか（CDが明けている）
-    //   _focusRatio … 発動中は残り持続 1→0、それ以外は CD の充填 0→1（下のバーに出す）
-    private bool _focusHas, _focusReady, _focusOn;
-    private float _focusRatio;
+    private bool _specialHas, _specialReady, _specialOn;
+    private float _specialRatio;
 
     // ショットモード（現在モード表示＋切替トースト・設計書 §3-5）
     private GameManager.ShotMode _shotMode = GameManager.ShotMode.Rapid;
@@ -203,15 +198,6 @@ public partial class Hud : CanvasLayer
     private string CurPageText => (_dlgPages.Count > 0 && _dlgPage < _dlgPages.Count) ? _dlgPages[_dlgPage] : _dlgText;
     private bool OnLastPage => _dlgPages.Count == 0 || _dlgPage >= _dlgPages.Count - 1;
     private const float CharsPerSec = DialogueBox.DefaultCharsPerSec;
-    // ───────── 戦闘中の回想のテンポ（2026-09-26 作者指摘「まだ戦っている最中なのに長すぎる」）─────────
-    //   ボス戦の途中（HP 閾値）に戦闘を止めて挟む回想＝StoryFilm の memory／CharacterStoryTalk の間だけ立てる。
-    //   立っている間は
-    //   ・FastForwarding が既読条件（_dlgReadBefore）を要らなくなる＝初見でも Ctrl／RB 押しっぱなしで早送り。
-    //     本作の既読スキップは「未読行では効かない＝取りこぼさせない」が原則だが、戦闘の最中に挟む回想は
-    //     プレイヤーが**戻りたい戦闘**を待たせている。押し続けている人にだけ道を開ける（行は全部バックログに
-    //     残る）。撃破後のアフター（StoryFilm の aftermath）や道中の会話には及ばない。
-    //   立てる／降ろすのは回想の駆動側（StoryFilm._Ready／Restore、CharacterStoryTalk.Start／Finish）。
-    public bool BattleMemoryTempo;
     // 現在行の種類（タイプ送り音の音色＝話者を決める）。LineKind を取らない経路は既定＝Narration（無音）。
     private LineKind _dlgKind = LineKind.Narration;
     private DialogueBox.TypeCursor _typeCursor;   // 送り音の「どこまで鳴らしたか」（新しく出た文字を差分検出）
@@ -277,8 +263,8 @@ public partial class Hud : CanvasLayer
     // ロックオン：Shift 長押し / パッド RB / マウス左クリック（Player.TickLockOn の判定と一致させる）。
     private static string TokLock   => Pad.UsingPad ? Pad.Face(JoyButton.RightShoulder)
                                      : Pad.UsingMouse ? "左クリック" : "Shift";
-    // ホイールはロック中に対象送りへ回るため、集中の代表操作にはサイドボタンを表示する。
-    private static string TokFocus  => Pad.UsingPad ? Pad.Face(JoyButton.LeftShoulder)
+    // ホイールはロック中に対象送りへ回るため、必殺技の代表操作にはサイドボタンを表示する。
+    private static string TokSpecial => Pad.UsingPad ? Pad.Face(JoyButton.LeftShoulder)
                                       : Pad.UsingMouse ? "サイドボタン" : "C";
 
     // 操作子トークン（全割り当て版）：選択中の表示モードに属する割り当てを“全部”並べる。
@@ -322,17 +308,18 @@ public partial class Hud : CanvasLayer
 
         if (_flashAlpha > 0f) _flashAlpha = Mathf.Max(0f, _flashAlpha - (float)delta * 2.2f);
         if (_hurtEdge > 0) _hurtEdge -= delta;
+        if (_lifeLossNotice > 0) _lifeLossNotice -= delta;
         if (_bossBarFlash > 0) _bossBarFlash -= delta; // バー1本割れの白フラッシュ減衰（#26）
         if (_lifeShatterT > 0) _lifeShatterT -= delta; // ライフ砕け散りの残り時間（2026-09-16）
 
         // 会話ボックスのボタン列（AUTO/SKIP/LOG/MENU）。SKIP ラッチの自動解除も含むので FastForwarding を読む前に回す。
         TickDialogToolbar(delta);
 
-        // 既読高速送り中は現在ページを即時全表示し、後続ページも自動で進める（行送り自体は Step_Lines が FastForwarding を見て進める）。
+        // 高速送り中は現在ページを即時全表示し、後続ページも自動で進める（行送り自体は Step_Lines が FastForwarding を見て進める）。
         if (FastForwarding)
         {
             _dlgRevealed = CurPageText.Length;
-            if (!OnLastPage) AdvanceDialogPage();   // 既読は全ページを一気に抜けて最終ページ完了状態へ
+            if (!OnLastPage) AdvanceDialogPage();   // スキップは全ページを一気に抜けて最終ページ完了状態へ
         }
 
         bool pageWasRevealed = _dlgRevealed >= CurPageText.Length;
@@ -368,7 +355,17 @@ public partial class Hud : CanvasLayer
         UpdateDialoguePause();
 
         if (_bannerTimer > 0 && (_startStage == 0 || !BubblePaused)) { _bannerTimer -= delta; }
-        if (_bossLineTimer > 0) { _bossLineTimer -= delta; if (_bossLineTimer <= 0) _bossLine = ""; }
+        if (_bossLineTimer > 0)
+        {
+            if (_encounterSpeaker is { } owner)
+            {
+                if (!IsInstanceValid(owner) || owner.IsPurified || !owner.IsVisibleInTree()) _bossLineTimer = 0;
+                else if (!BossLineObscured) _bossLineTimer -= delta;
+            }
+            else if (_bossLineSpeaker.Length > 0 && HasActiveEnemies()) _bossLineTimer = 0;
+            else _bossLineTimer -= delta;
+            if (_bossLineTimer <= 0) { _bossLine = ""; _encounterSpeaker = null; }
+        }
         // スペル宣言は会話バブル表示中は時間を止める＝発動の宣言を“戦闘が始まる瞬間”に確実に見せる。
         // （ボス _Ready の宣言が開幕イントロのバブルに食われて見落とされていた問題への対処。
         //   発動＝宣言の同期はそのままに、見せ場だけ非バブル中に揃える。）
@@ -445,33 +442,21 @@ public partial class Hud : CanvasLayer
     // ストーリー重視ゲームの読み返し用に、表示済みの会話/ナレ/投稿を蓄積する（ADV のバックログ相当）。
     // SetDialog を通る全行（who=話者名/text/col=話者色/kind=種別）をここに積む。Backlog 画面が参照する。
     // シーンを跨いで保持したいので static（ゲーム1周ぶん）。古い行は上限で先頭から捨てる。
-    public readonly record struct LogLine(string Speaker, string Text, Color Color, LineKind Kind);
+    public readonly record struct LogLine(string Section, string Speaker, string Text, Color Color, LineKind Kind);
     private static readonly List<LogLine> _backlog = new();
     private const int BacklogMax = 200;
     public static System.Collections.Generic.IReadOnlyList<LogLine> Backlog => _backlog;
 
-    // 1行を会話ログへ積む（空テキスト＝クリアは積まない／直前と完全同一の連続行も積まない）。
-    private static void PushBacklog(string speaker, string text, Color col, LineKind kind)
-    {
-        if (string.IsNullOrEmpty(text)) return;
-        if (_backlog.Count > 0)
-        {
-            var last = _backlog[^1];
-            if (last.Text == text && last.Speaker == speaker) return; // 同一行の二重表示は弾く
-        }
-        _backlog.Add(new LogLine(speaker, text, col, kind));
-        if (_backlog.Count > BacklogMax) _backlog.RemoveRange(0, _backlog.Count - BacklogMax);
-    }
     public static void ClearBacklog() => _backlog.Clear();
 
     // 種別→ログ表示色（既存トークン/UiKit に合わせる。ShowDialog(LineKind) の色分けと一致）。
     public static Color KindColor(LineKind k) => k switch
     {
-        LineKind.Boy   => UiKit.Info,
+        LineKind.Boy   => UiKit.CutWarm,
         LineKind.Mina  => UiKit.Mina,
         LineKind.Other => UiKit.Kegare,
         LineKind.Companion => CompanionDialogue.Accent(GameManager.Instance?.SelectedJob ?? Job.Tank),
-        LineKind.Relay => UiKit.Info,
+        LineKind.Relay => UiKit.CutWarm,
         LineKind.Post  => UiKit.Text3,
         _              => UiKit.Text2, // Narration（ナレ＝ミナの語り）は淡色
     };
@@ -522,8 +507,11 @@ public partial class Hud : CanvasLayer
         switch (kind)
         {
             // 「あなた」の容姿を固定しないため、立ち絵の代わりに共通の人物シルエットを使う。
-            case LineKind.Boy:   speaker = "あなた"; color = UiKit.Info; portraitToUse = ""; break;
-            case LineKind.Mina:  speaker = MinaLabel; color = UiKit.Mina; break;
+            case LineKind.Boy:   speaker = "あなた"; color = KindColor(kind); portraitToUse = ""; break;
+            case LineKind.Mina:
+                speaker = MinaLabel; color = UiKit.Mina;
+                if (string.IsNullOrEmpty(portraitToUse)) portraitToUse = CompanionDialogue.Portrait(Job.Tank);
+                break;
             case LineKind.Other: speaker = otherName; color = UiKit.Kegare; break;
             case LineKind.Companion:
                 var job = _game?.SelectedJob ?? Job.Tank;
@@ -535,12 +523,13 @@ public partial class Hud : CanvasLayer
                 // 空欄だけ同行キャラの会話用ポートレートで補う。
                 if (string.IsNullOrEmpty(portraitToUse)) portraitToUse = CompanionDialogue.Portrait(job);
                 break;
-            case LineKind.Relay: speaker = "あなた（ミナの声）"; color = UiKit.Info; break;
+            case LineKind.Relay: speaker = "あなた（ミナの声）"; color = KindColor(kind); portraitToUse = ""; break;
             case LineKind.Post:  speaker = "Ｙ 投稿"; color = UiKit.Text3; portraitToUse = ""; break;
             default:             speaker = ""; color = default; portraitToUse = ""; dialog = false; break;
         }
-        if (CinematicMode && !_cinematicBubble) color = _hasCinematicAccent ? _cinematicAccent : UiKit.Text2;
-        SetDialog(text, speaker, color, dialog, portraitToUse, kind, draftMark: kind == LineKind.Boy);
+        bool reader = kind is LineKind.Boy or LineKind.Relay;
+        if (CinematicMode && !_cinematicBubble && !reader) color = _hasCinematicAccent ? _cinematicAccent : UiKit.Text2;
+        SetDialog(text, speaker, color, dialog, portraitToUse, kind, draftMark: reader);
         _messageTimer = 6.0;
         UpdateDialoguePause();
     }
@@ -552,13 +541,9 @@ public partial class Hud : CanvasLayer
         LineKind kind = LineKind.Narration, LineKind? logKind = null, bool draftMark = false)
     {
         // 表示前に会話ログ（バックログ）へ積む。話者色は未指定（default＝ナレ）のとき種別から補う。
-        // ※既読スキップ（高速送り）で飛ばした行もここを通る＝バックログには必ず残る。
+        // ※スキップ（高速送り）で飛ばした行もここを通る＝バックログには必ず残る。
         LineKind lk = logKind ?? kind;
-        Color logCol = speakerCol.A <= 0f ? KindColor(lk) : speakerCol;
-        PushBacklog(BacklogSpeaker(lk, speaker), text, logCol, lk);
-        // 既読スキップ（#22）：この行が過去に表示済みかを先に控え（＝高速送りの可否は表示前の状態で決める）、
-        // 表示と同時に既読へ記録する（read.json・全スロット共有）。
-        _dlgReadBefore = _game?.IsLineRead(text) ?? false;
+        PushLog(DialogLogSection(), lk, speaker, text, speakerCol);
         _game?.MarkLineRead(text);
         bool sameSpeaker = _dlgSpeaker == speaker && _dlgKind == kind;
         _dlgText = text; _dlgSpeaker = speaker; _dlgSpeakerCol = speakerCol;
@@ -626,17 +611,8 @@ public partial class Hud : CanvasLayer
     public bool AutoAdvance => _game?.AutoAdvanceDialog ?? false;
     public bool AutoAdvanceReady => AutoAdvance && DialogRevealed && _pageReadT >= (CurPacing?.AutoWait ?? DialogueBox.ReadPause);
 
-    // ───────── 既読スキップ（2周目の高速送り・Epic G #22）─────────
-    //   Ctrl（左右どちらも）/ パッド RB を「押しっぱなし」の間、既読の行だけ高速送りする。
-    //   未読行では効かない＝誤スキップで物語を取りこぼさせない（判定は行単位・表示前の既読状態）。
-    //   例外は戦闘中の回想（BattleMemoryTempo）だけ＝初見でも押しっぱなしで早送りできる（理由はそこのコメント）。
-    //   Ctrl は既読スキップ専用（やさしさ全開は撤去済み＝衝突する相手がいない）。
-    //   DemoPilot/QaPilot は Z/X と移動軸しか送出しない＝自動プレイの会話送りとは干渉しない。
-    private bool _dlgReadBefore;   // 現在行が「表示された時点で」既読だったか（SetDialog で確定）
-    //   SkipLatched … 会話ボックス上の SKIP ボタン（S／RB 押し離し／クリック）のラッチ。ON の間は押しっぱなしと同じ扱い
-    //   ＝Prologue／Epilogue／StoryFilm など SkipHeld を読む側は無改造で追従する。切れ方は src/DialogToolbar.cs。
     public static bool SkipHeld => Input.IsKeyPressed(Key.Ctrl) || Pad.Pressed(JoyButton.RightShoulder) || SkipLatched;
-    public bool FastForwarding => SkipHeld && (_dlgReadBefore || BattleMemoryTempo) && _messageTimer > 0 && _dlgText.Length > 0;
+    public bool FastForwarding => SkipHeld && _messageTimer > 0 && _dlgText.Length > 0;
 
     public void ShowBanner(string text) { _bannerText = text; _bannerTimer = 5.0; _bannerTime = ""; _bannerBest = ""; _bannerScore = ""; _bannerScoreBest = ""; _epic = false; _bannerRewardLife = false; _bannerRewardBomb = false; _startStage = 0; }
 
@@ -710,9 +686,23 @@ public partial class Hud : CanvasLayer
     private Color _bossLineCol = Colors.White;
     private double _bossLineTimer;
     private double _bossLineDuration;
+    private Enemy? _encounterSpeaker;
+    private bool BossLineObscured => BubblePaused || CinematicMode || (Bubbles?.ShieldBreak.Active ?? false);
+    private bool HasActiveEnemies() => GetTree().GetNodesInGroup("enemies").OfType<Enemy>()
+        .Any(enemy => !enemy.IsPurified && enemy.IsVisibleInTree());
+
     public void ShowBossLine(string speaker, string text, Color col, double dur)
     {
-        if (GameManager.BossRushActive) return;
+        if (GameManager.BossRushActive || speaker.Length > 0 && HasActiveEnemies()) return;
+        SetBossLine(speaker, text, col, dur, null);
+    }
+
+    internal void ShowEncounterLine(Enemy owner, Job speaker, string text)
+        => SetBossLine(Jobs.Get(speaker).CharacterName, text, CompanionDialogue.Accent(speaker), 3.4, owner);
+
+    private void SetBossLine(string speaker, string text, Color col, double dur, Enemy? owner)
+    {
+        _encounterSpeaker = owner;
         _bossLineSpeaker = speaker; _bossLine = text; _bossLineCol = col; _bossLineTimer = dur;
         _bossLineDuration = dur;
     }
@@ -766,10 +756,8 @@ public partial class Hud : CanvasLayer
         return false;
     }
 
-    // W0 専用・非正典。正典導線からは到達しない（2026-09-06 ユーザー決定: ヒカゲは使わない）。以後この系統への追加投資はしない。
-    // 集中モードの状態を Player から毎フレーム受ける（旧 SetHikageSkill の置き換え）。
-    public void SetFocusMode(bool has, bool ready, bool on, float ratio)
-    { _focusHas = has; _focusReady = ready; _focusOn = on; _focusRatio = Mathf.Clamp(ratio, 0f, 1f); }
+    public void SetSpecial(bool has, bool ready, bool on, float ratio)
+    { _specialHas = has; _specialReady = ready; _specialOn = on; _specialRatio = Mathf.Clamp(ratio, 0f, 1f); }
 
     // 現在のショットモードを設定。announce=true で切替トーストを表示。
     //   ★2026-09-13 ジョブ導入で V の切替が無くなり、現在の呼び出し元（Player の初回通知）は
@@ -880,18 +868,42 @@ public partial class Hud : CanvasLayer
     public void SetLives(int n)
     {
         n = Mathf.Max(0, n);
-        if (_livesInited && n < _lives) StartLifeShatter(n);
+        if (_livesInited && n < _lives)
+        {
+            _lifeLostAmount = _lives - n;
+            _lifeLossNotice = 1.2;
+            StartLifeShatter(n);
+        }
         _lives = n;
         _livesInited = true;
     }
 
     public void Flash() { _flashRgb = new Color(1f, 1f, 1f); _flashAlpha = 0.55f * Settings.FlashScale; }
+    public void BombFlash()
+    {
+        if (_hurtEdge > 0) return;
+        _flashRgb = new Color("89f2dd");
+        _flashAlpha = 0.16f * Settings.FlashScale;
+    }
     public void HitFlash() { _flashRgb = new Color(1f, 0.2f, 0.28f); _flashAlpha = 0.7f * Settings.HitFlashStrength * Settings.FlashScale; _hurtEdge = 0.9; }
 
     // ───────── 描画（子 HudCanvas から呼ばれる。設計座標 1280x720）─────────
     public void DrawAll(HudCanvas ci)
     {
         UiKit.BeginDesign(ci);
+        if (!CinematicMode || _cinematicBubble)
+        {
+            DrawSidePanel(ci);
+            DrawLifeBomb(ci);
+            DrawPurify(ci);
+            DrawScore(ci);
+            DrawTimer(ci);
+            DrawLockOn(ci);
+            DrawCombo(ci);
+            DrawShotMode(ci);
+            DrawPowerups(ci);
+            if (_specialHas) DrawSpecialChip(ci);
+        }
         if (CinematicMode)
         {
             if (_dlgText.Length > 0) DrawDialog(ci);
@@ -899,13 +911,6 @@ public partial class Hud : CanvasLayer
             UiKit.EndDesign(ci);
             return;
         }
-        DrawSidePanel(ci);   // 最初に描く＝背景(384幅のまま)の上に不透明の板を被せてプレイ領域を切り出す
-        DrawLifeBomb(ci);
-        DrawPurify(ci);
-        DrawScore(ci);
-        DrawTimer(ci);
-        DrawLockOn(ci);
-        DrawCombo(ci);
         // ボスの体力は画面上端のカードではなく、ボス本体の頭上の簡略ゲージ（src/BossGauge.cs）が描く
         //   （2026-09-27 作者指示）。状態はこの Hud が持ち、BossGauge は GaugeState を読む。旧カードの描画は撤去済み。
         // 【激情】メーターは HUD ではなく、盤面の奥（ZIndex -44）にボスの下書き（入力欄）として敷く → src/FuryDial.cs。
@@ -914,9 +919,6 @@ public partial class Hud : CanvasLayer
         bool sunk = Bubbles != null;
         if (!sunk && _cutinTimer > 0 && _cutinTex != null) DrawSpellCutin(ci);
         if ((!sunk || _spellCompact) && _spellTimer > 0) DrawSpellCard(ci);
-        DrawShotMode(ci);
-        DrawPowerups(ci);
-        if (_focusHas) DrawFocusChip(ci);
         if (_tutorialHint.Length > 0) DrawTutorialHint(ci);
         if (_tutorialOp.Length > 0) DrawTutorialKeys(ci);
         if (_shotModeToast > 0) DrawShotModeToast(ci);
@@ -956,8 +958,7 @@ public partial class Hud : CanvasLayer
         UiKit.EndDesign(ci);
     }
 
-    private static readonly Color SideSurface = new("1b1e23");
-    private static readonly Color SideRaised = new("24292f");
+    private static readonly Color SideSurface = new("101522");
     private static readonly Color SideInk = new("eff1f2");
     private static readonly Color SideMuted = new("a3adb6");
     private static readonly Color SideRule = new("394149");
@@ -977,12 +978,33 @@ public partial class Hud : CanvasLayer
     private void DrawSidePanel(HudCanvas ci)
     {
         const float pw = Field.PanelW;
-        ci.DrawRect(new Rect2(0, 0, pw, UiKit.DesignH), SideSurface);
-        ci.DrawRect(new Rect2(0, 0, pw, 112), SideRaised);
-        ci.DrawRect(new Rect2(PanelX, 0, 38, 3), AccountAccent);
-        ci.DrawRect(new Rect2(pw - 1f, 0, 1f, UiKit.DesignH), SideRule);
-        foreach (float y in new[] { 112f, RowPurify - 6f, RowScore - 14f })
-            ci.DrawRect(new Rect2(PostX, y, PostInnerW, 1), SideRule);
+        UiKit.VGradient(ci, new Rect2(0, 0, pw, UiKit.DesignH),
+            new[] { new Color("1a2034"), SideSurface, new Color("111725") }, new[] { 0f, .45f, 1f });
+        DrawStatusSurface(ci, new Rect2(10, 8, pw - 20, 98), AccountAccent);
+        DrawStatusSurface(ci, new Rect2(10, 116, pw - 20, 190), AccountAccent);
+        DrawStatusSurface(ci, new Rect2(10, 318, pw - 20, 84), SideTeal);
+        DrawStatusSurface(ci, new Rect2(10, 414, pw - 20, _specialHas ? 136 : 69), SideBlue);
+        DrawStatusSurface(ci, new Rect2(10, 562, pw - 20, 146), AccountAccent);
+        foreach (float y in new[] { 211f, 623f, 660f })
+            ci.DrawLine(new Vector2(PostX + 3, y), new Vector2(PostX + PostInnerW - 3, y), new Color("dce7ff", .07f), 1);
+        UiKit.HGradient(ci, new Rect2(pw - 7, 0, 7, UiKit.DesignH), new Color("050914", 0), new Color("050914", .45f));
+        ci.DrawLine(new Vector2(pw - .5f, 0), new Vector2(pw - .5f, UiKit.DesignH), new Color("dce7ff", .18f), 1);
+    }
+
+    private static void DrawStatusSurface(CanvasItem ci, Rect2 rect, Color accent)
+    {
+        var surface = new StyleBoxFlat
+        {
+            BgColor = new Color("1c2435", .82f), BorderColor = new Color("dce7ff", .08f),
+            CornerRadiusTopLeft = 12, CornerRadiusTopRight = 12,
+            CornerRadiusBottomLeft = 12, CornerRadiusBottomRight = 12,
+            ShadowColor = new Color("030611", .22f), ShadowSize = 4, ShadowOffset = new Vector2(0, 3),
+            AntiAliasing = true,
+        };
+        surface.SetBorderWidthAll(1);
+        ci.DrawStyleBox(surface, rect);
+        UiKit.HGradient(ci, new Rect2(rect.Position.X + 14, rect.Position.Y, rect.Size.X - 28, 1),
+            new Color(accent.Lightened(.35f), .2f), new Color(accent, 0));
     }
 
     private const float PanelX = 18f;
@@ -992,7 +1014,7 @@ public partial class Hud : CanvasLayer
     private const float RowBomb = 216f;
     private const float RowPurify = 320f;
     private const float RowLock = 416f;
-    private const float RowFocus = 490f;
+    private const float RowSpecial = 490f;
     private const float RowScore = 570f;
     private const float RowTime = 634f;
     private const float RowCombo = 666f;
@@ -1006,9 +1028,10 @@ public partial class Hud : CanvasLayer
     {
         int columns = Mathf.Max(5, Mathf.CeilToInt(count / 2f));
         float step = PostInnerW / columns;
-        float size = Mathf.Min(count > columns ? 24f : 28f, step - 4f);
+        bool twoRows = count > columns;
+        float size = Mathf.Min(twoRows ? 22f : 28f, step - 4f);
         return new Rect2(PostX + (slot % columns) * step + (step - size) * 0.5f,
-            (bomb ? RowBomb : RowLifeBomb) + 44f + (slot / columns) * 27f, size, size);
+            (bomb ? RowBomb : RowLifeBomb) + (twoRows ? 40f : 44f) + (slot / columns) * 24f, size, size);
     }
 
     // 操作子のキーキャップ（情報の隣に添えて「どのボタンか」を一目で示す）。2026-09-27 に旧 KeyBadge（文字の枠）から
@@ -1024,20 +1047,21 @@ public partial class Hud : CanvasLayer
         bool low = _lives <= 2 && _lives < maxLives;
 
         float x = PostX, y = RowLifeBomb, w = PostInnerW;
-        Color coreColor = LifeEmblem.GemColor(_game!.JobDef.CharacterId);
-        Color lifeColor = low ? SideRose : coreColor.Lightened(0.12f);
+        Color lifeColor = low ? SideRose : SideInk;
         if (low) ci.DrawRect(new Rect2(0, y + 8, 3f, 80f), SideRose);
-        UiKit.Text(ci, UiKit.ZenBold, new Vector2(x, y + 13), "ライフ", 15, low ? SideRose : SideMuted);
+        UiKit.Text(ci, UiKit.ZenBold, new Vector2(x, y + 13),
+            _lifeLossNotice > 0 ? $"被弾 −{_lifeLostAmount}" : "ライフ", 15,
+            _lifeLossNotice > 0 || low ? SideRose : SideMuted);
         string capacity = $" / {maxLives}";
         float capacityW = UiKit.TextW(UiKit.Mono, capacity, 14);
         UiKit.Text(ci, UiKit.Mono, new Vector2(x, y + 16), capacity, 14, SideMuted, HorizontalAlignment.Right, w);
-        UiKit.Text(ci, UiKit.Mono, new Vector2(x, y + 2), _lives.ToString("D2"), 30, lifeColor,
+        UiKit.Text(ci, UiKit.ZenBold, new Vector2(x, y - 3), _lives.ToString(), 32, lifeColor,
             HorizontalAlignment.Right, w - capacityW - 4f);
         DrawLifeMarks(ci, _lives, maxLives);
         UiKit.Text(ci, UiKit.ZenBold, new Vector2(x, RowBomb + 13), "ボム", 15, SideMuted);
         float capW = UiKit.KeyCapW(TokBomb, SideCapH);
         UiKit.KeyCap(ci, new Vector2(x + w - capW, RowBomb + 13f), TokBomb, SideCapH, alpha: SideCapAlpha);
-        UiKit.Text(ci, UiKit.Mono, new Vector2(x, RowBomb + 2f), bombs.ToString("D2"), 30, bombs > 0 ? SideGold : SideMuted,
+        UiKit.Text(ci, UiKit.ZenBold, new Vector2(x, RowBomb - 3f), bombs.ToString(), 32, bombs > 0 ? SideInk : SideMuted,
             HorizontalAlignment.Right, w - capW - 8f);
         DrawResourceMarks(ci, _bombMark, bombs, maxBombs, true);
     }
@@ -1053,6 +1077,7 @@ public partial class Hud : CanvasLayer
         var texture = _lifeMarks[_game.SelectedJob];
         var size = texture.GetSize() * (cell.Size.X / Mathf.Max(texture.GetWidth(), texture.GetHeight()));
         var rect = new Rect2(cell.GetCenter() - size / 2, size);
+        ci.DrawTextureRect(texture, new Rect2(rect.Position + new Vector2(0, 2), rect.Size), false, new Color(0, 0, 0, alpha * .35f));
         ci.DrawTextureRect(texture, rect, false, new Color(1, 1, 1, alpha));
     }
 
@@ -1062,6 +1087,8 @@ public partial class Hud : CanvasLayer
         {
             var cell = ResourceMarkRect(i, count, bomb);
             var size = texture.GetSize() * (cell.Size.X / Mathf.Max(texture.GetWidth(), texture.GetHeight()));
+            ci.DrawTextureRect(texture, new Rect2(cell.GetCenter() - size / 2 + new Vector2(0, 3), size), false,
+                new Color(0, 0, 0, i < value ? .35f : .1f));
             ci.DrawTextureRect(texture, new Rect2(cell.GetCenter() - size / 2, size), false,
                 new Color(1, 1, 1, i < value ? 1f : 0.22f));
         }
@@ -1076,6 +1103,8 @@ public partial class Hud : CanvasLayer
     private readonly LifeShard[] _lifeShards = new LifeShard[LifeShardCount];
     private int _lifeLostIndex = -1;      // 散っているマークの index（SetLives 減少時＝新残数の位置）
     private double _lifeShatterT;         // 残り秒（0 で非表示）
+    private double _lifeLossNotice;
+    private int _lifeLostAmount;
     private readonly RandomNumberGenerator _fxRng = new();
 
     private void StartLifeShatter(int lostIndex)
@@ -1139,38 +1168,42 @@ public partial class Hud : CanvasLayer
         float pulseHz = Mathf.Lerp(2.4f, 7.0f, lean);
         float pulse = 0.5f + 0.5f * Mathf.Sin((float)_t * pulseHz);
         UiKit.Text(ci, UiKit.ZenBold, new Vector2(x, y + 14f), full ? "浄化完了" : "浄化", 15, SideTeal);
-        UiKit.Text(ci, UiKit.Mono, new Vector2(x, y + 2f), $"{Mathf.RoundToInt(prog * 100f)}", 30, SideInk,
+        UiKit.Text(ci, UiKit.ZenBold, new Vector2(x, y - 3f), $"{Mathf.RoundToInt(prog * 100f)}", 32, SideInk,
             HorizontalAlignment.Right, w - 19f);
         UiKit.Text(ci, UiKit.Mono, new Vector2(x, y + 18f), "%", 14, SideTeal,
             HorizontalAlignment.Right, w);
-        var bar = new Rect2(x, y + 48f, w, 12f);
+        var bar = new Rect2(x, y + 51f, w, 6f);
         DrawMeter(ci, bar, prog, full ? SideTeal : SideTeal.Lerp(new Color("b3f0dc"), pulse * lean * 0.3f));
-        for (int i = 1; i < 8; i++)
-            ci.DrawRect(new Rect2(bar.Position.X + w * i / 8f - 1f, bar.Position.Y, 2f, bar.Size.Y), SideSurface);
         for (int i = 0; i <= 4; i++)
             ci.DrawLine(new Vector2(x + w * i / 4f, y + 67f), new Vector2(x + w * i / 4f, y + 71f), SideRule, 1f);
     }
 
     private static void DrawMeter(CanvasItem ci, Rect2 rect, float ratio, Color accent)
     {
-        UiKit.Box(ci, rect, SideRule, rect.Size.Y / 2f);
+        UiKit.Box(ci, new Rect2(rect.Position + new Vector2(0, 1), rect.Size), new Color("dce7ff", .07f), rect.Size.Y / 2f);
+        UiKit.Box(ci, rect, new Color("0c1220"), rect.Size.Y / 2f);
         float width = rect.Size.X * Mathf.Clamp(ratio, 0, 1);
         if (width > 0)
-            UiKit.Box(ci, new Rect2(rect.Position, new Vector2(width, rect.Size.Y)), accent,
-                Mathf.Min(width, rect.Size.Y) / 2f);
+        {
+            var fill = new Rect2(rect.Position, new Vector2(width, rect.Size.Y));
+            UiKit.Box(ci, fill, accent, Mathf.Min(width, rect.Size.Y) / 2f);
+            if (width > rect.Size.Y * 2)
+                ci.DrawLine(fill.Position + new Vector2(rect.Size.Y / 2, 1), new Vector2(fill.End.X - rect.Size.Y / 2, fill.Position.Y + 1),
+                    new Color(Colors.White, .2f), .7f, true);
+        }
     }
 
     private void DrawScore(HudCanvas ci)
     {
         long score = _game?.Score ?? 0;
         string scoreStr = UiKit.FormatScore(score);
-        if (UiKit.TextW(UiKit.Mono, scoreStr, 14) > PostInnerW)
+        if (UiKit.TextW(UiKit.ZenBold, scoreStr, 14) > PostInnerW)
             scoreStr = score.ToString("0.##E+0", System.Globalization.CultureInfo.InvariantCulture);
         float x = PostX, y = RowScore;
         UiKit.Text(ci, UiKit.Zen, new Vector2(x, y), "スコア", 15, SideMuted);
         int size = 27;
-        while (size > 14 && UiKit.TextW(UiKit.Mono, scoreStr, size) > PostInnerW) size--;
-        UiKit.Text(ci, UiKit.Mono, new Vector2(x, y + 22f), scoreStr, size, SideInk);
+        while (size > 14 && UiKit.TextW(UiKit.ZenBold, scoreStr, size) > PostInnerW) size--;
+        UiKit.Text(ci, UiKit.ZenBold, new Vector2(x, y + 20f), scoreStr, size, SideInk);
     }
 
     private void DrawTimer(HudCanvas ci)
@@ -1193,7 +1226,7 @@ public partial class Hud : CanvasLayer
         if (!player.LockedOn) return "対象を探しています";
         if (player.LockTarget is Enemy enemy)
         {
-            if (enemy.GaugeAttackResolving) return "攻撃が終わるまで回避";
+            if (enemy.GaugeAttackResolving) return "回避しながら本体に攻撃";
             if (enemy.GaugeBreaking) return "シールド破壊";
             if (enemy.GaugeReforming) return "シールド再形成中";
             if (enemy.GaugeBodyExposed) return "本体に攻撃";
@@ -1210,8 +1243,7 @@ public partial class Hud : CanvasLayer
         string character = _game!.JobDef.CharacterId;
         float x = PostX, y = RowLock, w = PostInnerW;
         Color accent = on ? LifeEmblem.GemColor(character) : armed ? SideTeal : SideMuted;
-        ci.DrawRect(new Rect2(0, y, Field.PanelW - 1f, RowFocus - RowLock), new Color(accent, armed ? 0.09f : 0.025f));
-        if (armed) ci.DrawRect(new Rect2(0, y + 12f, 2f, 42f), accent);
+        if (armed) UiKit.Box(ci, new Rect2(12, y, Field.PanelW - 24, 65), new Color(accent, .07f), 10);
         UiKit.Text(ci, UiKit.Zen, new Vector2(x + 36f, y), "ロックオン", 15, SideMuted);
         // ロックオンの意思（LockArmed）が立っている間はキャップを沈める＝「いま押さえている」ことを鍵の形でも見せる。
         float capW = UiKit.KeyCapW(TokLock, SideCapH);
@@ -1245,8 +1277,6 @@ public partial class Hud : CanvasLayer
         while (size > 10 && UiKit.TextW(UiKit.Mono, value, size) > w - 58f) size--;
         UiKit.Text(ci, UiKit.Mono, new Vector2(x, y + 2f), value, size, combo >= 2 ? SideRose : SideMuted,
             HorizontalAlignment.Right, w);
-        float comboRatio = combo >= 2 ? Mathf.Clamp(_game?.ComboTimeRatio ?? 0f, 0f, 1f) : 0f;
-        DrawMeter(ci, new Rect2(x, y + 35f, w, 3f), comboRatio, SideRose);
     }
 
     // 弾より奥に表示する技名POST。
@@ -1257,15 +1287,17 @@ public partial class Hud : CanvasLayer
         if (_spellCompact)
         {
             float alpha = Mathf.Min(1, Mathf.Min((float)age / .12f, (float)_spellTimer / .25f));
-            const float width = Field.PanelW - 76f - PanelX;
-            int size = 13;
-            while (size > 8 && UiKit.TextW(UiKit.ZenBold, _spellName, size) > width - 12) size--;
-            var rect = new Rect2(76, 62, width, 18);
+            const float width = Field.BossFrameWidth / UiKit.Scale - 32f;
+            const int size = 13;
+            var lines = UiKit.WrapLines(UiKit.ZenBold, _spellName, size, width - 16);
+            float lineHeight = UiKit.ZenBold.GetHeight(size);
+            var rect = new Rect2(Field.BossFrameLeft / UiKit.Scale + 16, 72, width, lines.Count * lineHeight + 8);
             var ink = new Color("b3e4eb");
             UiKit.Box(ci, rect, new Color(.035f, .06f, .09f, .80f * alpha), 4,
                 new Color(ink, .55f * alpha), .8f);
-            UiKit.Text(ci, UiKit.ZenBold, rect.Position + new Vector2(6, 1), _spellName, size,
-                new Color(ink, alpha));
+            for (int i = 0; i < lines.Count; i++)
+                UiKit.Text(ci, UiKit.ZenBold, rect.Position + new Vector2(8, 4 + i * lineHeight), lines[i], size,
+                    new Color(ink, alpha));
             return;
         }
 
@@ -1442,16 +1474,17 @@ public partial class Hud : CanvasLayer
         return p * p * ((s + 1f) * p + s) + 1f;
     }
 
-    private void DrawFocusChip(HudCanvas ci)
+    private void DrawSpecialChip(HudCanvas ci)
     {
-        Color accent = _focusOn ? AccountAccent : (_focusReady ? SideTeal : SideMuted);
-        string status = _focusOn ? "発動中" : _focusReady ? "発動可能" : "充填中";
-        float x = PostX, y = RowFocus, w = PostInnerW;
-        UiKit.Text(ci, UiKit.Zen, new Vector2(x, y + 7f), "集中", 15, SideMuted);
-        UiKit.KeyCap(ci, new Vector2(x + w - UiKit.KeyCapW(TokFocus, SideCapH), y + 5f),
-            TokFocus, SideCapH, pressed: _focusOn, alpha: SideCapAlpha);
-        UiKit.Text(ci, UiKit.ZenBold, new Vector2(x, y + 29f), status, 16, accent);
-        DrawMeter(ci, new Rect2(x + 74f, y + 39f, w - 74f, 4f), _focusRatio, accent);
+        Color accent = _specialOn ? AccountAccent : (_specialReady ? SideTeal : SideMuted);
+        string status = _specialOn ? "発動中" : _specialReady ? "発動可能" : "充填中";
+        float x = PostX, y = RowSpecial, w = PostInnerW;
+        UiKit.Text(ci, UiKit.Zen, new Vector2(x, y), "必殺技", 12, SideMuted);
+        UiKit.KeyCap(ci, new Vector2(x + w - UiKit.KeyCapW(TokSpecial, SideCapH), y - 1f),
+            TokSpecial, SideCapH, pressed: _specialOn, alpha: SideCapAlpha);
+        UiKit.Text(ci, UiKit.ZenBold, new Vector2(x, y + 20f), PlayerSpecial.NameFor(_game.SelectedJob), 14, accent);
+        UiKit.Text(ci, UiKit.Zen, new Vector2(x, y + 39f), status, 12, accent);
+        DrawMeter(ci, new Rect2(x + 62f, y + 47f, w - 62f, 4f), _specialRatio, accent);
     }
 
     private void DrawPowerups(HudCanvas ci)
@@ -1473,6 +1506,8 @@ public partial class Hud : CanvasLayer
     private void DrawShotMode(HudCanvas ci)
     {
         var job = _game.JobDef;
+        var avatar = new Vector2(42f, 38f);
+        UiKit.RadialGlow(ci, avatar, 31, AccountAccent, .22f);
         UiKit.FaceAvatar(ci, new Vector2(42f, 38f), 24f, _accountFaces[job.Id], AccountAccent, false, 0f);
         UiKit.Text(ci, UiKit.ZenBold, new Vector2(76f, 17f), job.CharacterName, 19, SideInk);
         UiKit.VerifiedBadge(ci, new Vector2(76f + UiKit.TextW(UiKit.ZenBold, job.CharacterName, 19) + 10f, 30f),
@@ -1483,12 +1518,12 @@ public partial class Hud : CanvasLayer
             GameManager.Diff.Easy => SideTeal, GameManager.Diff.Hard => SideGold,
             GameManager.Diff.Lunatic => SideRose, _ => SideInk,
         };
-        UiKit.Text(ci, UiKit.Mono, new Vector2(PanelX, 84f), _game.DiffName, 14, difficultyColor);
+        UiKit.Text(ci, UiKit.Rajdhani, new Vector2(PanelX, 82f), _game.DiffName, 16, difficultyColor);
         if (_game.DebugAttackGuides)
             UiKit.Text(ci, UiKit.Mono, new Vector2(PanelX, 69f), "DEBUG: GUIDE", 9, SideTeal);
         string status = _gameOverTitle.Length > 0 ? "終了" : BubblePaused ? "対話中" : "ダイブ中";
         if (_gameOverTitle.Length == 0 && GetTree().GetFirstNodeInGroup("boss_rush") is BossRushRoot rush)
-            status = rush.Completed ? "CLEAR" : $"RUSH {rush.Round + 1}/4";
+            status = rush.Completed ? "CLEAR" : rush.SingleBoss ? "BOSS単体" : $"RUSH {rush.Round + 1}/{rush.BossCount}";
         Color statusColor = BubblePaused ? SideMuted : SideTeal;
         float statusWidth = UiKit.TextW(UiKit.Zen, status, 11);
         ci.DrawCircle(new Vector2(Field.PanelW - PanelX - statusWidth - 8f, 93f), 2f, statusColor);
@@ -1659,17 +1694,11 @@ public partial class Hud : CanvasLayer
         string page = CurPageText;
         var box = DialogRect;
         var accent = _dlgSpeakerCol;
-        DialogueBox.DrawFrame(ci, box, _dlgSpeaker, accent, draft: _dlgDraftMark);
-        if (_dlgPortrait != null && (!CinematicMode || _cinematicBubble))
-        {
-            float breath = BreathAmp * 0.25f * Mathf.Sin((float)_t * Mathf.Tau / BreathPeriod);
-            float nod = _nodT > 0 ? NodAmp * 0.25f * Mathf.Sin((float)((NodTime - _nodT) / NodTime) * Mathf.Pi) : 0;
-            var center = box.Position + new Vector2(40, 27 + breath + nod);
-            float fade = Mathf.Clamp((float)(_portraitFadeT / PortraitFade), 0, 1);
-            UiKit.FaceAvatar(ci, center, 17, _dlgPortrait, accent, false, alpha: 1 - fade);
-            if (fade > 0 && _dlgPortraitPrev != null)
-                UiKit.FaceAvatar(ci, center, 17, _dlgPortraitPrev, accent, false, alpha: fade);
-        }
+        float breath = BreathAmp * 0.25f * Mathf.Sin((float)_t * Mathf.Tau / BreathPeriod);
+        float nod = _nodT > 0 ? NodAmp * 0.25f * Mathf.Sin((float)((NodTime - _nodT) / NodTime) * Mathf.Pi) : 0;
+        DialogueBox.DrawFrame(ci, box, _dlgSpeaker, accent, _dlgPortrait, _dlgDraftMark, faceTop: 0.06f,
+            faceOffsetY: breath + nod, previousPortrait: _dlgPortraitPrev,
+            previousAlpha: Mathf.Clamp((float)(_portraitFadeT / PortraitFade), 0, 1));
         DialogueBox.DrawBody(ci, box, page, _dlgRevealed,
             speed: _game?.MsgCharsPerSec ?? CharsPerSec, pacing: CurPacing);
         if (PageReady && !FastForwarding)
@@ -1694,14 +1723,15 @@ public partial class Hud : CanvasLayer
 
     private void DrawBossLine(CanvasItem ci)   // CanvasItem＝HudCanvas（保険）と BubbleLayer（通常）の両方から描ける
     {
-        if (BubblePaused || CinematicMode || (Bubbles?.ShieldBreak.Active ?? false)) return;
+        if (BossLineObscured) return;
         float enter = Ease((float)(_bossLineDuration - _bossLineTimer) / 0.2f);
         float a = Mathf.Clamp((float)_bossLineTimer / 0.3f, 0f, 1f) * enter * _calloutA;
         const float w = 736f;
         // 本文 24px（2026-09-26 に 20 から拡大）。行送り 31。
         var lines = UiKit.WrapLines(UiKit.ZenBold, _bossLine, 24, w - 44);
         float h = 43f + lines.Count * 31f;
-        float x = Field.DCenterX - w / 2f + (1f - enter) * 18f, y = 605f - h;
+        float x = Field.DCenterX - w / 2f + (1f - enter) * 18f;
+        float y = (_encounterSpeaker != null ? 702f : 605f) - h;
         ci.DrawRect(new Rect2(x, y, w, h), new Color(0.04f, 0.055f, 0.07f, 0.86f * a));
         ci.DrawLine(new Vector2(x, y), new Vector2(x, y + h), new Color(_bossLineCol, a), 3f);
         UiKit.Text(ci, UiKit.ZenBold, new Vector2(x + 20, y + 9), _bossLineSpeaker, 15, new Color(_bossLineCol, a));

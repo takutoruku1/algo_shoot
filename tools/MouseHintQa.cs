@@ -153,8 +153,7 @@ public partial class MouseHintQa : Node
         var log = GetNode<Backlog>("/root/Backlog");
         log.GetType().GetField("_autoplay", Private)!.SetValue(log, false);
         // 1行積んでおく（空でもフッタは出るが、実プレイに近い「本文あり」の状態で確かめる）。
-        typeof(Hud).GetMethod("PushBacklog", Stat)!
-            .Invoke(null, new object[] { "ミナ", "テスト行", UiKit.Mina, Hud.LineKind.Mina });
+        Hud.PushLog("プロローグ", Hud.LineKind.Mina, "ミナ", "テスト行");
 
         log.Open();
         await Frames(2);
@@ -317,8 +316,7 @@ public partial class MouseHintQa : Node
         // ── 会話ログ：とじる のホバー ──
         var log = GetNode<Backlog>("/root/Backlog");
         log.GetType().GetField("_autoplay", Private)!.SetValue(log, false);
-        typeof(Hud).GetMethod("PushBacklog", Stat)!
-            .Invoke(null, new object[] { "ミナ", "これはバックログの表示確認用の1行です。", UiKit.Mina, Hud.LineKind.Mina });
+        Hud.PushLog("プロローグ", Hud.LineKind.Mina, "ミナ", "これはバックログの表示確認用の1行です。");
         log.Open();
         await Frames(4);
         await ShotHover(log, Backlog.CloseHintRect().GetCenter(), "backlog_close_hover");

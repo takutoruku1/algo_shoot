@@ -24,6 +24,7 @@ public partial class HubJobQa : Node
         try
         {
             Check(OS.GetUserDataDir().Replace('\\', '/').Contains("/build/qa_story/"), "isolated save data");
+            typeof(Settings).GetProperty(nameof(Settings.PauseWhenUnfocused))!.SetValue(null, false);
             var game = GetNode<GameManager>("/root/Game");
             game.ResetPersistent();
             foreach (var job in Jobs.All) game.MarkIdleDialogSeen($"once_companion_select_{job.CharacterId}");
@@ -33,13 +34,36 @@ public partial class HubJobQa : Node
             await Frames(1);
             // Keep the desktop cursor outside this deterministic input test.
             GetNode<PauseMenu>("/root/PauseMenu").SetProcess(false);
+            if (Array.IndexOf(OS.GetCmdlineUserArgs(), "--unlocks") >= 0)
+            {
+                await CheckRescueReturns(game);
+                await Finish();
+                return;
+            }
             var hub = GD.Load<PackedScene>("res://Hub.tscn").Instantiate<Hub>();
             GetTree().Root.AddChild(hub);
             GetTree().CurrentScene = hub;
             await Frames(30);
+            bool allCards = OS.GetCmdlineUserArgs().Contains("--companion-cards");
+            if (allCards || OS.GetCmdlineUserArgs().Contains("--akari-card"))
+            {
+                await Keypress(Key.Tab);
+                Check(Mode(hub) == "Job" && Read<VideoStreamPlayer?>(hub, "_unlockMovie") == null, "new game has no arrival card");
+                foreach (var job in Jobs.All.Where(job => job.UnlockStageId.Length > 0 && (allCards || job.Id == Job.Melee)))
+                    hub = await CheckUnlockCard(hub, game, job);
+                if (allCards) CheckPendingCards(game);
+                await Finish();
+                return;
+            }
             if (Array.IndexOf(OS.GetCmdlineUserArgs(), "--feed") >= 0)
             {
                 await CheckProgressiveFeed(hub, game);
+                await Finish();
+                return;
+            }
+            if (Array.IndexOf(OS.GetCmdlineUserArgs(), "--sns") >= 0)
+            {
+                await CheckSocialFeed(hub, game);
                 await Finish();
                 return;
             }
@@ -386,20 +410,129 @@ public partial class HubJobQa : Node
             Check(GetTree().CurrentScene is Hub && Mode((Hub)GetTree().CurrentScene) == "Home", "records also returns home");
             GetTree().CurrentScene.QueueFree();
             await Frames(5);
-            game.ResetPersistent();
-            Read<HashSet<string>>(game, "_cleared").Add(GameManager.FirstStageId);
-            game.ShopTutorialSeen = true;
-            DisplayServer.WindowSetSize(new Vector2I(1280, 720));
+            await CheckRescueReturns(game);
+            await Finish();
+        }
+        catch (Exception ex)
+        {
+            GD.PushError($"[HubJobQA] FAIL {ex}");
+            GetTree().Quit(1);
+        }
+    }
+
+    private async Task<Hub> CheckUnlockCard(Hub hub, GameManager game, JobTuning job)
+    {
+        var previous = game.SelectedJob;
+        Check(!game.IsJobUnlocked(job.Id), $"{job.CharacterId} is locked before the rescue");
+        hub.QueueFree();
+        await Frames(2);
+        game.ShopTutorialSeen = true;
+        game.CompleteStage(job.UnlockStageId);
+        Check(game.NextUnlockCard?.Id == job.Id && game.SaveToSlot(1), "first clear queues the reveal in this save");
+        hub = GD.Load<PackedScene>("res://Hub.tscn").Instantiate<Hub>();
+        GetTree().Root.AddChild(hub);
+        GetTree().CurrentScene = hub;
+        await Frames(5);
+        Check(Mode(hub) == "Dialogue" && Read<VideoStreamPlayer?>(hub, "_unlockMovie") == null,
+            "return dialogue precedes the card reveal");
+        Call(hub, "EndDialogue");
+        await ToSignal(GetTree().CreateTimer(3), SceneTreeTimer.SignalName.Timeout);
+        Check(Mode(hub) == "Home" && game.LoadFromSlot(1) && game.NextUnlockCard?.Id == job.Id
+            && (Call(hub, "get_PendingHomeCard") as JobTuning)?.Id == job.Id,
+            "unopened reveal survives saving and loading");
+        await Shot($"{job.CharacterId}_card_before");
+        GD.Print($"[CardQA] {job.CharacterId} open frame {Engine.GetProcessFrames()}");
+        Input.ParseInputEvent(new InputEventKey { Keycode = Key.Tab, Pressed = true });
+        await Frames(3);
+        Input.ParseInputEvent(new InputEventKey { Keycode = Key.Tab, Pressed = false });
+        var movie = Read<VideoStreamPlayer>(hub, "_unlockMovie");
+        Check(Mode(hub) == "Job" && movie.IsPlaying() && movie.Stream.ResourcePath == $"res://assets/video/{job.CharacterId}_unlock.ogv",
+            "the character-switch button plays the Resolve card");
+        Check(Read<JobTuning[]>(hub, "_jobChoices")[Read<int>(hub, "_jobSel")].Id == job.Id
+            && game.SelectedJob == previous, $"{job.CharacterId} has focus without changing the active character");
+        await ToSignal(GetTree().CreateTimer(.40), SceneTreeTimer.SignalName.Timeout);
+        Check(movie.StreamPosition > .2 && movie.GetVideoTexture().GetSize() == new Vector2(864, 700),
+            "card clock advances with the intended artwork dimensions");
+        await Shot($"{job.CharacterId}_card_reveal");
+        await ToSignal(GetTree().CreateTimer(2.8), SceneTreeTimer.SignalName.Timeout);
+        Check(Read<VideoStreamPlayer?>(hub, "_unlockMovie") == null && Mode(hub) == "Job"
+            && Read<Texture2D?>(hub, "_unlockPortrait") != null, "the welcome stays visible after playback");
+        await Shot($"{job.CharacterId}_card_ready");
+        await Keypress(Key.Z);
+        Check(game.SelectedJob == job.Id && Mode(hub) == "Home", $"confirm selects {job.CharacterId} on the same screen");
+        await Keypress(Key.Tab);
+        Check(Mode(hub) == "Job" && Read<VideoStreamPlayer?>(hub, "_unlockMovie") == null
+            && Read<Texture2D?>(hub, "_unlockPortrait") == null,
+            "reopening does not play the reveal");
+        Check(game.LoadFromSlot(0) && game.NextUnlockCard == null, "consumed reveal survives reloading");
+        game.CompleteStage(job.UnlockStageId);
+        Check(game.NextUnlockCard == null, "replaying the stage does not queue a second reveal");
+        await Keypress(Key.Tab);
+        Check(game.LoadFromSlot(1) && game.NextUnlockCard?.Id == job.Id, "an earlier slot keeps its own pending reveal");
+        Click(hub, new Rect2(990, 198, 100, 34), "ProcessSwitchButton");
+        await Frames(12);
+        Check(Read<VideoStreamPlayer?>(hub, "_unlockMovie") != null, "clicking the home invitation opens the reveal");
+        await Keypress(Key.Z);
+        Check(game.SelectedJob == job.Id && Mode(hub) == "Home" && Read<VideoStreamPlayer?>(hub, "_unlockMovie") == null,
+            $"confirm during the animation selects {job.CharacterId} immediately and releases the movie");
+        return hub;
+    }
+
+    private static void CheckPendingCards(GameManager game)
+    {
+        game.ResetPersistent();
+        game.CompleteStage("akari");
+        game.CompleteStage("koharu");
+        game.CompleteStage("rei");
+        Check(game.SaveToSlot(2) && game.LoadFromSlot(2), "unopened cards survive reloading together");
+        foreach (var id in new[] { Job.Magic, Job.Heal, Job.Melee })
+        {
+            Check(game.NextUnlockCard?.Id == id, $"pending card {id} appears in rescue order, newest first");
+            game.AcknowledgeUnlockCard(Jobs.Get(id));
+        }
+        Check(game.NextUnlockCard == null, "viewing all cards clears all home invitations");
+        string oldSlot = Startup.DataPath("save_2.json");
+        var data = Json.ParseString(FileAccess.GetFileAsString(oldSlot)).AsGodotDictionary();
+        data.Remove("pendingUnlockCards");
+        foreach (bool showAkari in new[] { true, false })
+        {
+            data["akariUnlockCardPending"] = showAkari;
+            using (var file = FileAccess.Open(oldSlot, FileAccess.ModeFlags.Write)) file.StoreString(Json.Stringify(data));
+            Check(game.LoadFromSlot(2) && game.NextUnlockCard?.Id == (showAkari ? Job.Melee : (Job?)null),
+                "legacy saves preserve the Akari notice and skip previously rescued characters");
+        }
+    }
+
+    private async Task CheckRescueReturns(GameManager game)
+    {
+        game.ResetPersistent();
+        game.ShopTutorialSeen = true;
+        DisplayServer.WindowSetSize(new Vector2I(1280, 720));
+        foreach (var job in Jobs.All.Where(j => j.UnlockStageId.Length > 0))
+        {
             for (int visit = 0; visit < 2; visit++)
             {
-                game.JustClearedStageId = GameManager.FirstStageId;
-                hub = GD.Load<PackedScene>("res://Hub.tscn").Instantiate<Hub>();
+                game.CompleteStage(job.UnlockStageId);
+                var hub = GD.Load<PackedScene>("res://Hub.tscn").Instantiate<Hub>();
                 GetTree().Root.AddChild(hub);
                 GetTree().CurrentScene = hub;
                 await Frames(10);
-                Check(Mode(hub) == "Dialogue", "rescue conversation precedes the home screen");
-                Call(hub, "EndDialogue");
+                bool quietReturn = visit > 0 && game.AllStoryCleared && game.IsMinaLockedForFinal
+                    && CompanionDialogue.MenuLines(game.SelectedJob, CompanionDialogue.Menu.Return).Length == 0;
+                Check(Mode(hub) == (quietReturn ? "Home" : "Dialogue"),
+                    quietReturn ? "a replay while Mina is unreachable returns directly home" : "rescue conversation precedes the home screen");
                 if (visit == 0)
+                {
+                    Check(!GetTree().Paused && Read<double>(hub, "_toastT") > 0 && Read<string>(hub, "_toast") == $"{job.CharacterName}が使えるようになりました"
+                        && Read<string>(hub, "_toastSub").Contains("キャラ切り替え"), job.CharacterId + " notice names the playable character and how to select them");
+                    await Shot("unlock_" + job.CharacterId);
+                }
+                else if (quietReturn)
+                    Check(Read<string>(hub, "_toast") == $"{Handles.Mina} の投稿が 8 人に届いた",
+                        "quiet replay shows the return reward instead of an unlock notice");
+                else Check(Read<double>(hub, "_toastT") == 0, job.CharacterId + " replays do not announce an unlock");
+                if (!quietReturn) Call(hub, "EndDialogue");
+                if (visit == 0 && job.UnlockStageId == GameManager.FirstStageId)
                 {
                     Check(Mode(hub) == "HomeReveal" && Read<Texture2D>(hub, "_homeSnapshot").GetWidth() > 0, "first return captures SNS for the home reveal");
                     await Frames(26);
@@ -413,16 +546,10 @@ public partial class HubJobQa : Node
                 game.ResetIdleDialogSeen();
                 Check(game.IsIdleDialogSeen("once_phone_home"), "small-talk resets do not repeat the reveal");
                 Check(game.LoadFromSlot(0) && game.IsIdleDialogSeen("once_phone_home"), "home reveal completion survives save loading");
-                if (visit == 0) await Shot("home_first_rescue");
+                if (visit == 0 && job.UnlockStageId == GameManager.FirstStageId) await Shot("home_first_rescue");
                 hub.QueueFree();
                 await Frames(5);
             }
-            await Finish();
-        }
-        catch (Exception ex)
-        {
-            GD.PushError($"[HubJobQA] FAIL {ex}");
-            GetTree().Quit(1);
         }
     }
 
@@ -481,7 +608,7 @@ public partial class HubJobQa : Node
     }
 
     private readonly record struct FeedPost(string Id, string Kind, string Name, string Handle, string Text,
-        string Time, int Icon, bool Redacted);
+        string Time, int Icon);
 
     private static T EntryField<T>(object entry, string field) => (T)entry.GetType().GetField(field)!.GetValue(entry)!;
 
@@ -489,7 +616,7 @@ public partial class HubJobQa : Node
         .Where(entry => EntryField<object>(entry, "Sort").ToString() != "Pinned")
         .Select(entry => new FeedPost(EntryField<string>(entry, "Id"), EntryField<object>(entry, "Sort").ToString()!,
             EntryField<string>(entry, "Name"), EntryField<string>(entry, "Handle"), EntryField<string>(entry, "Tweet"),
-            EntryField<string>(entry, "RelT"), EntryField<int>(entry, "Icon"), EntryField<bool>(entry, "Redacted")))
+            EntryField<string>(entry, "RelT"), EntryField<int>(entry, "Icon")))
         .ToArray();
 
     private async Task CheckProgressiveFeed(Hub hub, GameManager game)
@@ -513,11 +640,11 @@ public partial class HubJobQa : Node
             Check(entries.All(entry => EntryField<bool>(entry, "Unlocked")), "the feed contains no locked post placeholders");
             Check(feed.Where(post => post.Kind == "Voice").Select(post => post.Id)
                 .SequenceEqual(voices.Take(progress + 1).Reverse()), $"progress {progress} only contains encountered voices, newest first");
-            Check(feed.Length == (progress + 1) * 4 && feed.Select(post => post.Id).Distinct().Count() == feed.Length,
-                "each encounter adds exactly four distinct posts");
-            Check(feed.Take(4).Count(post => post.Kind == "Filler") == 3 && feed[2].Id == voices[progress],
+            Check(feed.Length == 9 + progress * 5 && feed.Select(post => post.Id).Distinct().Count() == feed.Length,
+                "daily conversations and encountered voices have distinct stable IDs");
+            Check(feed.Take(5).Count(post => post.Kind == "Filler") == 4 && feed[2].Id == voices[progress],
                 "the next character appears between everyday posts in the new batch");
-            Check(feed.Skip(4).SequenceEqual(previous), "previous batches retain their text, authors and order after clearing");
+            Check((progress == 0 || feed.Skip(5).SequenceEqual(previous)), "previous batches retain their text, authors and order after clearing");
             Check(EntryField<string>(entries[Read<int>(hub, "_sel")], "Id") == voices[progress],
                 "stage-clear return selects the newly available voice, including Mina");
             Check(entries.Count(entry => EntryField<object>(entry, "Sort").ToString() == "Pinned") == (progress > 0 ? 1 : 0),
@@ -551,8 +678,8 @@ public partial class HubJobQa : Node
         game.CompleteStage(GameManager.FirstStageId);
         Call(hub, "BuildEntries");
         Check(FeedSnapshot(hub).SequenceEqual(previous), "replaying a cleared stage never duplicates its unlocked batch");
-        foreach (var (state, count, selected) in new[] { ("lock", 4, "akari"), ("first", 8, "koharu"),
-            ("all", 16, "final"), ("final", 16, "final") })
+        foreach (var (state, count, selected) in new[] { ("lock", 9, "akari"), ("first", 14, "koharu"),
+            ("all", 24, "final"), ("final", 24, "final") })
         {
             Write(hub, "_previewState", state);
             Call(hub, "ApplyPreview");
@@ -563,8 +690,107 @@ public partial class HubJobQa : Node
         Write(hub, "_previewState", null!);
         game.ResetPersistent();
         Call(hub, "BuildEntries");
-        Check(FeedSnapshot(hub).Length == 4 && FeedSnapshot(hub).All(post => post.Kind != "Voice" || post.Id == "akari"),
+        Check(FeedSnapshot(hub).Length == 9 && FeedSnapshot(hub).All(post => post.Kind != "Voice" || post.Id == "akari"),
             "starting over removes future posts instead of leaving locked rows");
+    }
+
+    private async Task CheckSocialFeed(Hub hub, GameManager game)
+    {
+        game.MarkIdleDialogSeen("once_sns_intro");
+        Write(hub, "_idleTalkPending", false);
+        Write(hub, "_t", 3d);
+        PadField("_usingMouse", false);
+        PadField("_autoUsingPad", false);
+        Call(hub, "OpenHomeApp", 0);
+        Check(Read<int>(hub, "_sel") == 0 && Read<float>(hub, "_feedScrollTarget") == 0,
+            "returning SNS readers start at the top of the everyday feed");
+        Write(hub, "_mode", Enum.Parse(Read<object>(hub, "_mode").GetType(), "Cards"));
+        Write(hub, "_cardsEnteredT", 0d);
+        await Frames(5);
+        var start = FeedSnapshot(hub);
+        Check(start.Count(p => p.Kind == "Filler") == 8, "eight daily conversations are available before any battle");
+        Check(!start.Any(p => p.Id == "plant_1"), "later episodes do not appear before their chapter");
+        await Shot("sns_daily_feed");
+        await KeyAction("ui_right");
+        Check(Read<int>(hub, "_footSel") == 2, "a horizontal arrow reaches the concerned-voice shortcut without traversing the whole feed");
+        await Keypress(Key.Z);
+        Check(EntryField<string>(Read<IList>(hub, "_entries")[Read<int>(hub, "_sel")]!, "Id") == "akari",
+            "keyboard shortcut selects the next story post");
+        Write(hub, "_sel", 0);
+        Write(hub, "_feedScroll", 0f);
+        Write(hub, "_feedScrollTarget", 0f);
+        long followers = game.Followers, impression = game.Impression;
+        float contamination = game.Contamination;
+        await Keypress(Key.Z);
+        Check(Mode(hub) == "SocialThread", "Z opens an everyday post instead of denying input or diving");
+        Check(Read<SnsVoices.Post>(hub, "_socialPost").Id == "plant_0", "reader opens the selected resident's post");
+        Check(Call(hub, "RelatedSocialPost", false) == null && Call(hub, "RelatedSocialPost", true) == null,
+            "unavailable episodes cannot be opened from the reader");
+        await Shot("sns_thread_first");
+        await Keypress(Key.Escape);
+        Check(Mode(hub) == "Cards" && Read<int>(hub, "_sel") == 0, "back returns to the original timeline position");
+        Click(hub, (Rect2)Call(hub, "CardHitRect", 0)!, "ProcessCards");
+        Check(Mode(hub) == "SocialThread", "mouse opens the same post and reply thread");
+        Click(hub, new Rect2(412, 16, 40, 40), "ProcessSocialThread", 0d);
+        Check(Mode(hub) == "Cards", "the reader's back button returns to the feed");
+        foreach (var stage in GameManager.Stages) Read<HashSet<string>>(game, "_cleared").Add(stage.Id);
+        Call(hub, "BuildEntries");
+        Call(hub, "LoadFaces");
+        await Frames(40);
+        Check(SnsVoices.Posts.Select(p => p.Id).Distinct().Count() == SnsVoices.Posts.Length, "all resident posts have unique IDs");
+        Check(SnsVoices.Posts.Sum(p => p.Replies.Length) == 60, "all sixty authored replies are present");
+        foreach (var post in SnsVoices.Posts)
+        {
+            Check(post.Replies.All(r => r.Author >= 0 && r.Author < SnsVoices.Count && r.Text.Length > 0),
+                $"{post.Id}: reply authors and texts are valid");
+            if (post.PreviousId.Length > 0)
+            {
+                var previous = SnsVoices.Posts.Single(p => p.Id == post.PreviousId);
+                Check(previous.Author == post.Author && previous.Chapter < post.Chapter,
+                    $"{post.Id}: previous episode preserves its author and points backward in time");
+            }
+            Check(UiKit.WrapLines(UiKit.Zen, post.Text, 17, 432).Count <= 3,
+                $"{post.Id}: timeline text fits without losing its ending");
+            Call(hub, "OpenSocialThread", post);
+            Check(Read<string[][]>(hub, "_socialLines").Length == post.Replies.Length + 1,
+                $"{post.Id}: full post and every reply are laid out");
+        }
+        Write(hub, "_sel", Array.FindIndex(FeedSnapshot(hub), p => p.Id == "plant_3") + 1);
+        Write(hub, "_feedScroll", 0f);
+        Write(hub, "_feedScrollTarget", 0f);
+        Call(hub, "OpenSocialThread", SnsVoices.Posts.Single(p => p.Id == "plant_3"));
+        await KeyAction("ui_left");
+        Check(Read<SnsVoices.Post>(hub, "_socialPost").Id == "plant_2", "left opens the earlier post in this resident's story");
+        await KeyAction("ui_right");
+        Check(Read<SnsVoices.Post>(hub, "_socialPost").Id == "plant_3", "right returns to the follow-up post");
+        Click(hub, new Rect2(416, 660, 218, 42), "ProcessSocialThread", 0d);
+        Check(Read<SnsVoices.Post>(hub, "_socialPost").Id == "plant_2", "mouse can browse earlier episodes too");
+        await Shot("sns_thread_followup");
+        if (DisplayServer.GetName() != "headless")
+        {
+            DisplayServer.WindowSetSize(new Vector2I(960, 540));
+            await Frames(20);
+            await Shot("sns_thread_small");
+            DisplayServer.WindowSetSize(new Vector2I(1280, 720));
+            await Frames(20);
+        }
+        Call(hub, "OpenSocialThread", SnsVoices.Posts.Single(p => p.Id == "draft_0"));
+        PadField("_wheelFrame", -100f);
+        Call(hub, "ProcessSocialThread", 1d);
+        PadField("_wheelFrame", 0f);
+        float max = Mathf.Max(0, Read<float>(hub, "_socialContentHeight") - 568f);
+        Check(max > 0 && Read<float>(hub, "_socialScrollTarget") == max, "scrolling reaches the final reply and clamps at the bottom");
+        await Shot("sns_thread_bottom");
+        await Keypress(Key.Escape);
+        Check(Read<float>(hub, "_feedScrollTarget") == 0 && Read<int>(hub, "_sel") == 1,
+            "browsing related posts preserves the original timeline selection and scroll");
+        var footType = typeof(Hub).GetNestedType("FootAct", BindingFlags.NonPublic)!;
+        Call(hub, "FooterClick", Enum.Parse(footType, "Voice"));
+        Check(EntryField<string>(Read<IList>(hub, "_entries")[Read<int>(hub, "_sel")]!, "Id") == "final",
+            "the concerned-voice shortcut still reaches the next story post");
+        Check(game.Followers == followers && game.Impression == impression && game.Contamination == contamination,
+            "reading residents' conversations does not change combat stats or currency");
+        Check(!Read<bool>(hub, "_dived"), "reading and scrolling never start a battle");
     }
 
     private async Task CheckSidePresentation(Hub hub, Rect2 phone)
@@ -620,7 +846,7 @@ public partial class HubJobQa : Node
         await Frames(3);
         await ToSignal(RenderingServer.Singleton, RenderingServer.SignalName.FramePostDraw);
         using var moved = GetViewport().GetTexture().GetImage();
-        foreach (var area in new[] { new Rect2I(30, 165, 330, 355), new Rect2I(925, 115, 300, 245) })
+        foreach (var area in new[] { new Rect2I(30, 165, 330, 355) })
         {
             float difference = 0;
             for (int y = area.Position.Y; y < area.End.Y; y += 4)
@@ -630,7 +856,7 @@ public partial class HubJobQa : Node
                     var b = moved.GetPixel(x, y);
                     difference += Mathf.Abs(a.R - b.R) + Mathf.Abs(a.G - b.G) + Mathf.Abs(a.B - b.B);
                 }
-            Check(difference / (area.Size.X * area.Size.Y / 16) > 0.003f, "sidebar artwork visibly moves while the phone is idle");
+            Check(difference / (area.Size.X * area.Size.Y / 16) > 0.003f, "companion artwork visibly moves while the phone is idle");
         }
         Write(hub, "_t", time);
         hub.SetProcess(true);
@@ -642,7 +868,9 @@ public partial class HubJobQa : Node
     {
         // Inject design-space mouse state without moving the desktop cursor.
         Vector2 previousPosition = Pad.MousePos();
-        PadField("_mousePos", rect.GetCenter());
+        Vector2 point = rect.GetCenter();
+        if (handler == "ProcessHome") point = (Transform2D)Call(hub, "HomePhoneTransform")! * point;
+        PadField("_mousePos", point);
         PadField("_usingMouse", true);
         PadField("_mL", true);
         PadField("_mLPrev", false);
@@ -692,6 +920,7 @@ public partial class HubJobQa : Node
 
     private async Task Shot(string name)
     {
+        if (DisplayServer.GetName() == "headless") return;
         string path = ProjectSettings.GlobalizePath("res://build/qa_story/hub_job/shots");
         DirAccess.MakeDirRecursiveAbsolute(path);
         await ToSignal(RenderingServer.Singleton, RenderingServer.SignalName.FramePostDraw);

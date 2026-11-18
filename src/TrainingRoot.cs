@@ -180,16 +180,15 @@ public partial class TrainingRoot : Node2D
         if (preset == 0)
         {
             foreach (var def in GameManager.Upgrades)
-                _game.TrainingSetUpgrade(def.Id, _snapshot.Upgrades.TryGetValue(def.Id, out int level) && level > 0);
+                _game.TrainingSetUpgrade(def.Id, _snapshot.Upgrades[_game.SelectedJob].Contains(def.Id));
         }
         else _game.TrainingSetAllUpgrades(preset == 2);
         ResetTrial();
     }
 
-    private void SetUpgradeDepth(int count)
+    private void ToggleUpgrade(string id)
     {
-        for (int i = 0; i < GameManager.Upgrades.Length; i++)
-            _game.TrainingSetUpgrade(GameManager.Upgrades[i].Id, i < count);
+        _game.TrainingSetUpgrade(id, !_game.Has(id));
         ResetTrial();
     }
 
@@ -294,7 +293,6 @@ public partial class TrainingRoot : Node2D
         string bonus = distance <= Jobs.CloseRange && _game.JobDef.CritEnabled ? "近距離ボーナス"
             : distance > Jobs.FarRange && _game.JobDef.FarMult > 1 ? "遠距離ボーナス" : "距離ボーナスなし";
         Text(408, 530, $"距離 {distance:0} / {bonus}", 14, UiKit.Info);
-        Text(408, 556, $"フォロワー補正 ×{_game.FollowerPowerMul:0.00}（本番と同じ）", 13, UiKit.Text2);
     }
 
     private void DrawTalk()
@@ -308,8 +306,12 @@ public partial class TrainingRoot : Node2D
 
     private void DrawControls()
     {
-        Text(40, 598, Pad.UsingPad ? "移動：Lスティック / ロック：RB / 溜め打ち：Y長押し / ボム：X / 回避：L3 / 集中：LB"
-            : "移動：矢印 / ロック：Shift・左クリック / 溜め打ち：Z長押し / ボム：X / 回避：Space / 集中：C", 13, UiKit.Text2);
+        string state = !_game.HasSpecial ? "未習得 / 測定設定で試用できます"
+            : _game.SpecialActive ? "発動中" : _game.SpecialReady ? "発動可能"
+            : $"再使用まで {Mathf.CeilToInt(_game.SpecialCooldownRatio * PlayerSpecial.Cooldown)}秒";
+        Text(40, 568, $"必殺技：{PlayerSpecial.NameFor(_game.SelectedJob)} / {state}", 14, UiKit.PurifyHi);
+        Text(40, 598, Pad.UsingPad ? "移動：Lスティック / ロック：RB / 溜め打ち：Y長押し / ボム：X / 回避：L3 / 必殺技：LB"
+            : "移動：矢印 / ロック：Shift・左クリック / 溜め打ち：Z長押し / ボム：X / 回避：Space / 必殺技：C", 13, UiKit.Text2);
         Text(40, 624, "ショットはオート / 設定：Tab / 未強化：[ / 最大強化：] / 購入済み：\\ / リセット：R", 13, UiKit.Text3);
     }
 
@@ -339,20 +341,20 @@ public partial class TrainingRoot : Node2D
             float range = ranges[i];
             Button(new Rect2(PanelX + 150 + i * 88, 296, 82, 30), names[i], () => SetDistance(range), Mathf.IsEqualApprox(_distance, range));
         }
-        Text(PanelX + 18, 335, $"ショップ強化 / 全{GameManager.Upgrades.Length}段（クリックした段まで適用）", 13, UiKit.Info);
+        Text(PanelX + 18, 335, $"ショップ強化 / 全{GameManager.Upgrades.Length}品（クリックで個別に切替）", 13, UiKit.Info);
         float y = ListTop - _scroll;
         for (int i = 0; i < GameManager.Upgrades.Length; i++, y += RowH)
         {
             if (y < ListTop || y + RowH > ListBottom) continue;
             var def = GameManager.Upgrades[i];
             bool on = _game.Has(def.Id);
-            int depth = i + 1;
             var rect = new Rect2(PanelX + 18, y, PanelW - 42, RowH - 3);
             UiKit.Box(_uiLayer, rect, new Color(UiKit.Purify, on ? 0.18f : 0.04f), 4,
                 new Color(UiKit.Purify, on ? 0.6f : 0.2f));
             Text(rect.Position.X + 9, y + 2, $"{i + 1:00}  {def.Name}" + (on ? "  ON" : ""), 14, on ? UiKit.White : UiKit.Text2);
-            Text(rect.Position.X + 34, y + 21, def.Desc, 12, UiKit.Text3);
-            _buttons.Add((rect, () => SetUpgradeDepth(depth)));
+            Text(rect.Position.X + 34, y + 21,
+                def.Id == "n_slow" ? PlayerSpecial.ShortDescriptionFor(_game.SelectedJob) : def.Desc, 12, UiKit.Text3);
+            _buttons.Add((rect, () => ToggleUpgrade(def.Id)));
         }
         float max = MaxScroll();
         if (max > 0)

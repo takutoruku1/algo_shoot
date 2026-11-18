@@ -1,0 +1,27 @@
+{
+  "schema": 1,
+  "asset": "assets/sns/mina_shared_sky_v1.png",
+  "created_date": "2026-10-30",
+  "mode": "built-in image_gen",
+  "tool": "image_gen.imagegen",
+  "intent": "generate with existing-project scene and style reference",
+  "tool_arguments": {
+    "prompt": "Use case: illustration-story. Create one finished original 2:1 landscape still illustration for an in-game SNS attachment, a virtual night-sky background that the character Mina chose to share with a friend before saying good night. This is a shared digital background, not a photograph from a trip.\n\nREFERENCE IMAGE ROLE: The supplied existing game artwork is a content-and-style reference. Use ONLY the NIGHT SKY INSIDE THE PHONE SCREEN behind the white-haired character. Ignore and exclude the character, phone frame, camera, table, room and all objects outside the screen. Reconstruct that same calm blue virtual sky as an unobstructed full-width landscape, continuing the partly hidden cloud shapes naturally. Match the soft polished 2D anime-background rendering and the existing navy/cobalt palette.\n\nCOMPOSITION: uninterrupted open sky, deep ink-blue in the upper portion, slightly softer cobalt blue toward the bottom. A single small, warm ivory FULL MOON, round rather than crescent, appears in the upper-left quadrant at about 23% of image width and 30% of image height. Moon diameter about 8% of image height, with gentle recognizable lunar mottling and a restrained halo. It must remain clearly visible when the whole image is displayed at 432 by 216 pixels. Sparse very small stars scattered irregularly across the upper half, fewer and subtler than a fantasy starfield. Soft thin pale-blue wispy clouds along the lower third and side edges, matching the forms and restrained lighting in the reference. Keep the moon and essential cloud shapes inside the central 85% safe area. The mood is intimate, quiet, restful and personal. Beautiful soft anime painting, not photorealistic and not a science diagram.\n\nEXCLUDE: people, faces, hair, characters, avatars, silhouettes, phone, screen border, camera, hands, desk, room, devices, objects, scenery on the ground, horizon line, buildings, mountains, water or ocean, plants, logos, typography, captions, text, numbers, UI controls, constellations with connecting lines, galaxies, Milky Way bands, planets, sci-fi effects, sparkles shaped like icons, heavy bloom, lens flare, shooting stars, dramatic cloud piles, sunrise or sunset colors. No grid or collage. Do not write the SNS caption in the image. Produce a single clean landscape image with an opaque background.",
+    "referenced_image_paths": [
+      "D:/dev/algo_shoot/char/bg2/ending/cg_ep_mina_screen_v1.png"
+    ],
+    "transparent_background": false
+  },
+  "generated_source": "C:/Users/takut/.codex/generated_images/01a188a3-1494-7993-89cc-cab0666c1b70/exec-dcd9cede-06cb-4f8c-a37e-285f8a2f8d2b.png",
+  "reference_region": "Sky inside the phone screen only, excluding Mina, phone and external scene.",
+  "story_basis": "Epilogue: Mina selects a starry virtual background to share across the screen and points out the small moon on the left.",
+  "intended_caption": "今夜は、この空を。おやすみなさい。",
+  "review": {
+    "dimensions": [1774, 887],
+    "aspect_ratio": "2:1",
+    "content": "Unobstructed blue night sky with warm full moon on the left, small stars and pale-blue cloud wisps; no characters, device, ground scenery or text.",
+    "style": "Compared with the virtual sky in cg_ep_mina_screen_v1.png; navy/cobalt palette and softly shaded anime clouds match.",
+    "crop": "Moon and core cloud forms remain safely inside a centered 2:1 display.",
+    "assets": "Only existing project reference and built-in generated output; no external downloads or purchased materials."
+  }
+}

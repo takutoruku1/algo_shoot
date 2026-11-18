@@ -1,0 +1,74 @@
+{
+  "generator": "Built-in image_gen, reference-guided generation",
+  "assets": [
+    {
+      "id": "akari_unsent",
+      "refs": [
+        "D:/dev/algo_shoot/char/bg2/opening/op_akari_v1.png"
+      ],
+      "prompt": "Use case: illustration-story. Create ONE finished 16:9 2D Japanese anime film keyframe for Refrain's opening. Reference image is the canonical character Akari AND the exact nighttime office; preserve her orange short ponytail, purple eyes, white cardigan/blouse and blue neckwear exactly. New close cinematic camera at her desk, seen diagonally from just beside the monitor: her tired three-quarter face on the right, a naturally held lavender smartphone and hesitant thumb in the lower-left foreground. Her attention rests on the phone; a restrained, pensive expression, no tears or smile. Office ceiling fluorescents plus cool phone bounce light; absolutely nighttime, NO sunlight or golden sunset beams. Recognizable softly focused existing window/blinds and desk in background. Draw the same clean fine anime line art, nuanced painted shadows, believable fabric folds, skin tones, glass/metal detail, fingers and proportions as reference. Rich finished anime illustration, not 3D or toy geometry. Phone screen angled away, no readable text required. Fill the whole widescreen composition; 8% head/hand safety margins; no collage, no split screen, no title, lyrics, captions, watermark, other people, story resolution or new setting. Output landscape 16:9.",
+      "file": "akari_unsent.png"
+    },
+    {
+      "id": "koharu_late",
+      "refs": [
+        "D:/dev/algo_shoot/char/bg2/opening/op_koharu_v1.png"
+      ],
+      "prompt": "Use case: illustration-story. ONE finished 16:9 Japanese 2D anime opening film keyframe. Reference is canonical Koharu, her precise bedroom, and visual style. New close camera from beside her laptop screen toward her face at the same desk. Preserve short dark hair in low side ties with burgundy bands, two pink hair clips, amber eyes, lavender floral pajamas. Her face at center-right has quietly tired attentive eyes; she is trying to keep watching the stream. One hand loosely holds exactly ONE lavender penlight over her open school notebook, other hand supports her cheek, natural anatomy. Laptop edge is an out-of-focus foreground strip on the left; subtle lavender screen light and existing warm ceiling lighting. Existing blue curtains/nighttime window and books softly behind her, consistent room layout. Fine anime outlines, richly painted background, nuanced skin/hair/fabric detail; match reference's drawn style and character identity, not shiny CG, not a 3D render. Intimate thoughtful scene, not crying, no ending or closure, no sleeping. Safe full head and hand framing for gentle camera move. No title, lyrics, captions, logos, watermark, extra penlights, other people or new room props. Full 16:9 landscape, single composition.",
+      "file": "koharu_late.png"
+    },
+    {
+      "id": "rei_before_onair",
+      "refs": [
+        "D:/dev/algo_shoot/char/bg2/opening/op_rei_v1.png"
+      ],
+      "prompt": "Use case: illustration-story. ONE finished 16:9 2D anime cinematic keyframe for a game's opening. Reference supplies Rei's REAL appearance and exact bedroom studio; preserve short purple bob, purple eyes, gray cardigan over white shirt, no star clip on real Rei. New medium close camera from monitor side, face and upper torso in three-quarter profile at center-right as she sits facing her monitor and microphone. One hand hovering just above the mouse, other near her cheek. Slightly tense mouth, tired but composed eyes, the moment before going on air; no smile of triumph, no tears, no plot resolution. Keep the single left-clamped black boom microphone at natural mouth height. Crop may include existing blue mug and paperback with mint bookmark, but add no props. Soft blue monitor light, warm ceiling fill, softly focused blue-gray curtains and bed behind, night outside. Rich hand-drawn anime film finish matching reference: fine linework, delicate nuanced shadows, tactile cloth and hair detail, carefully drawn hand and microphone. No 3D look, no plastic shading, no block geometry, no split screen. No lyrics, subtitles, title, watermark, fictional HUD overlay, extra monitor or ring light. Widescreen 16:9, safe margins around face and hand.",
+      "file": "rei_before_onair.png"
+    },
+    {
+      "id": "mina_signal",
+      "refs": [
+        "D:/dev/algo_shoot/char/bg2/opening/op_mina_v1.png",
+        "D:/dev/algo_shoot/char/bg2/prologue/bg_p4_timeline.png"
+      ],
+      "prompt": "Use case: illustration-story. Create ONE beautifully finished 16:9 Japanese 2D anime opening keyframe. Image 1 is the exact Mina identity/style reference; Image 2 is the canonical SNS timeline space, not a new fantasy place. Preserve Mina's very long silver-white hair, blue eyes, white frilled maid headband with navy trim, navy long-sleeved dress, white apron/collar, navy bow and rectangular cyan gem. New composition: medium-wide three-quarter view, Mina on the right looking toward a faint signal in the upper-left depth; one hand gently held against her own chest, other relaxed by her side, quiet attentive neutral expression. She is alone and has only just heard something; NO rescue, reunion, clasped hands, victory or other characters. Hair trails naturally left; no body deformation. Surround her with the same hand-painted glass wall displays and distant city lights from reference 2, cool dim teal atmosphere and drifting fine light threads, with strong layered foreground/middle/background and a readable silhouette, not identical glowing neon hallway panels, not a literal gate. Match image 1's refined anime linework and image 2's detailed drawn environment. Opaque full background, cinematic 16:9 landscape. No lyrics, readable prose, titles, logos, watermark, CGI, geometric mockup or photorealism.",
+      "file": "mina_signal.png"
+    },
+    {
+      "id": "akari_realm",
+      "refs": [
+        "D:/dev/algo_shoot/char/bg2/opening/op_akari_cutin_v1.png",
+        "D:/dev/algo_shoot/char/bg2/route/akari_far.png"
+      ],
+      "prompt": "Use case: illustration-story. Create ONE finished widescreen 16:9 Japanese 2D anime opening keyframe. Reference image 1 strictly defines the exact character, outfit, colors and hand-drawn style; reference image 2 defines the canonical realm's architecture, colors and atmosphere. Paint character and environment as one unified illustration with accurate perspective, subtle linework, rich painted light and shade, depth, beautiful hand anatomy. No pasted portrait, no 3D render, no plastic, no generic neon corridor, no collage. Frame the full head with 8% margin and waist-up or knee-up figure in a wide dramatic shot. No words, lyrics, captions, watermark, logo, extra people, reunion, rescue, outcome or victory. Akari stands in three-quarter profile on the left, tense and defiant, looking to the right, orange side ponytail blowing back; exact white cardigan, blouse, blue lanyard, purple eyes. She clutches her lavender phone close to her chest with one hand and her free hand is lowered, fingers slightly open. She is NOT reaching for the viewer. Existing floating office fragments and glowing dusk windows among blue-gray clouds tower behind her in sweeping perspective; warm amber edge-light against cool shadows. A few blank envelope-shaped sheets drift across the depth, natural paper planes not a wall of identical icons. Cinematic energy from diagonals, wind-blown hair and cloth; expression shows unresolved longing rather than triumph. Wide composition with deep clear right-side space.",
+      "file": "akari_realm.png"
+    },
+    {
+      "id": "koharu_realm",
+      "refs": [
+        "D:/dev/algo_shoot/char/bg2/opening/op_koharu_cutin_v1.png",
+        "D:/dev/algo_shoot/char/bg2/route/koharu_far.png"
+      ],
+      "prompt": "Use case: illustration-story. Create ONE finished widescreen 16:9 Japanese 2D anime opening keyframe. Reference image 1 strictly defines the exact character, outfit, colors and hand-drawn style; reference image 2 defines the canonical realm's architecture, colors and atmosphere. Paint character and environment as one unified illustration with accurate perspective, subtle linework, rich painted light and shade, depth, beautiful hand anatomy. No pasted portrait, no 3D render, no plastic, no generic neon corridor, no collage. Frame the full head with 8% margin and waist-up or knee-up figure in a wide dramatic shot. No words, lyrics, captions, watermark, logo, extra people, reunion, rescue, outcome or victory. Koharu in a dynamic turning pose on the right, exact dark teal hair in low ties with burgundy bands, striped lavender hairclip, amber eyes, black and lavender trimmed school-idol uniform, white collar, burgundy neck ribbon and pleated skirt from image 1. Hold exactly ONE lavender penlight in right hand, diagonal across her body; other hand naturally extended sideways for balance. Determined mouth slightly open, intense eyes, no triumphant grin. The existing lavender arched terraces, fabric swags, golden star banners and clouds form a sweeping depth behind her. Vivid lavender penlight glints and soft amber architectural light. No new wings or instruments. Loose ribbons and hair follow the turning action, clear silhouette and carefully drawn hands. Waist to knee crop, avoid low sexual camera angle.",
+      "file": "koharu_realm.png"
+    },
+    {
+      "id": "rei_realm",
+      "refs": [
+        "D:/dev/algo_shoot/char/bg2/opening/op_rei_cutin_v1.png",
+        "D:/dev/algo_shoot/char/bg2/route/rei_far.png"
+      ],
+      "prompt": "Use case: illustration-story. Create ONE finished widescreen 16:9 Japanese 2D anime opening keyframe. Reference image 1 strictly defines the exact character, outfit, colors and hand-drawn style; reference image 2 defines the canonical realm's architecture, colors and atmosphere. Paint character and environment as one unified illustration with accurate perspective, subtle linework, rich painted light and shade, depth, beautiful hand anatomy. No pasted portrait, no 3D render, no plastic, no generic neon corridor, no collage. Frame the full head with 8% margin and waist-up or knee-up figure in a wide dramatic shot. No words, lyrics, captions, watermark, logo, extra people, reunion, rescue, outcome or victory. Rei's AVATAR form, exact very long indigo-purple hair, purple eyes, gold five-point star hairclip on viewer-left, white short sleeved uniform with purple and fine gold trim and purple bow. She is on the left in a quiet but commanding three-quarter profile, one open hand raised gently to shoulder level like conducting an unheard voice, looking to the distant right. Calm poised face with a trace of loneliness, not a victory smile. The existing vast indigo starry-sky realm of tall towers and sweeping luminous orbit bridges from image 2 opens behind her; subtle violet light bands and pinprick stars, do not introduce a giant moon or new temple. Rich nighttime light, elegant restrained motion in flowing hair and hem. Waist-up framing, both hands anatomically plausible.",
+      "file": "rei_realm.png"
+    },
+    {
+      "id": "mina_departure",
+      "refs": [
+        "D:/dev/algo_shoot/char/bg2/opening/op_mina_v1.png",
+        "D:/dev/algo_shoot/char/bg2/prologue/bg_p4_timeline.png"
+      ],
+      "prompt": "Use case: illustration-story. ONE finished 16:9 2D anime film keyframe, newly composed from these canonical references. Image 1 specifies Mina's exact long silver hair, blue eyes, white frilled headband navy trim, navy maid dress and white apron, cyan rectangular gem. Image 2 specifies the exact glass-walled nighttime timeline room with city skyline, dim teal glass displays, floor reflections. New wider camera angle from near the glass wall: Mina alone in a three-quarter side view at the right third, looking resolutely to the left, caught just beginning a step forward. Full figure at around 70 percent frame height, keep full head and both feet inside frame with generous margins. Her hands are naturally relaxed beside her, no outstretched rescue hand. Her long hair and apron softly follow her step. Preserve her face, clothes and proportions exactly. Detailed, unified hand-painted anime background, fine character linework, subtle cool rim light from window, visible layered depth and rich shadows. A single faint light thread curves ahead into the existing space, not a new portal. Story is just beginning, unresolved. No other character, reunion, rescue, tears of joy, triumph or ending. No new architecture, flowers, birds, weapons, giant moon. No text, title, subtitles, lyrics, logo, watermark, 3D render or flat geometric mockup. One landscape 16:9 composition.",
+      "file": "mina_departure.png"
+    }
+  ]
+}

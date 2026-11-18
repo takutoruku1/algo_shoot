@@ -27,8 +27,7 @@ public partial class AccountIntroQa : Node
         Write(hub, "_mode", Enum.Parse(cur.GetType(), mode));
     }
 
-    private const string IntroHead = "ご報告。アカウントが、ひとつ、増えています。……名義は、わたくしではありません。あの方です。";
-    private const string IntroLast = "放つ光も、ダイブ中にお話しする内容も、その方によって変わります。……わたくしに戻すときも、同じ場所からどうぞ。";
+    private const string IntroHead = "ここに、あかりさんのアカウントが加わった。僕のダイブは、ミナだけに使える力じゃない。";
     private const string SeenKey = "once_account_intro";
 
     private int _fail;
@@ -36,6 +35,7 @@ public partial class AccountIntroQa : Node
 
     public override async void _Ready()
     {
+        typeof(Settings).GetProperty(nameof(Settings.PauseWhenUnfocused))!.SetValue(null, false);
         await Frames(2);
         Check(OS.GetUserDataDir().Replace('\\', '/').Contains("/build/qa_story/"), "isolated save data", OS.GetUserDataDir());
         var game = GetNode<GameManager>("/root/Game");
@@ -104,18 +104,17 @@ public partial class AccountIntroQa : Node
         Check(head >= 0, "account intro is in the return dialogue");
         if (head >= 0)
         {
-            Check(dlg.Length > head + 2 && dlg[head + 2].tx == IntroLast, "account intro keeps its 3 lines in order");
-            Check(head > 0 && dlg[head - 1].tx.Contains("被弾は"), "account intro follows the hit-count line", head > 0 ? dlg[head - 1].tx : "(none)");
-            Check(dlg.Length > head + 3 && dlg[head + 3].tx.StartsWith("……お疲れさまでした"), "account intro precedes 'お疲れさまでした'",
-                dlg.Length > head + 3 ? dlg[head + 3].tx : "(none)");
-            Check(dlg[^1].tx == "次の声も、もう、聞こえています。", "the closing line stays last", dlg[^1].tx);
-            Check(dlg.Skip(head).Take(3).All(l => l.sp == "ミナ"), "account intro speaker is ミナ");
+            var intro = ((string sp, string tx)[])typeof(Hub).GetField("AccountIntroAkari",
+                BindingFlags.Static | BindingFlags.NonPublic)!.GetValue(null)!;
+            Check(dlg.Skip(head).Take(intro.Length).SequenceEqual(intro), "account intro keeps the complete exchange in order");
+            Check(dlg.Take(head).Any(l => l.tx.Contains("被弾は")), "account intro follows the return report");
+            Check(dlg[head + 1].sp == "ミナ", "Mina answers the operator inside the phone");
         }
         Check((string?)Read<object?>(hub, "_dlgSeenKey") == SeenKey, "dialogue carries the once key");
         Check(!game.IsIdleDialogSeen(SeenKey), "once key is not consumed before reading");
         Check(!game.AccountNudgePending, "nudge is not reserved before reading");
         // 説明の1行目を表示した状態を撮る
-        Write(hub, "_dlgIdx", head);
+        Write(hub, "_dlgIdx", head >= 0 ? head + 1 : 0);
         Write(hub, "_dlgReveal", 999f);
         Write(hub, "_dlgPagedIdx", -1);
         hub.QueueRedraw();

@@ -18,10 +18,36 @@ public static class BulletArt
     }
     private static readonly Dictionary<Job, PlayerVisual> _playerShots = new();
     private static readonly Dictionary<(Job, int), PlayerVisual> _bossPatterns = new();
+    private static readonly Dictionary<(string, Color), PlayerVisual> _enemyVisuals = new();
+    private static readonly Dictionary<(Texture2D, Color), PlayerVisual> _enemyTextureVisuals = new();
+
+    internal static string EnemyKey(Texture2D texture)
+    {
+        foreach (var entry in _cache)
+            if (ReferenceEquals(entry.Value, texture)) return entry.Key;
+        if (texture is AtlasTexture atlas && texture.ResourcePath.Length == 0) return EnemyKey(atlas.Atlas);
+        return texture.ResourcePath.GetFile().GetBaseName();
+    }
+
+    internal static PlayerVisual EnemyVisual(string name, string ink)
+    {
+        var color = new Color(ink);
+        if (_enemyVisuals.TryGetValue((name, color), out var art)) return art;
+        var texture = name.StartsWith("res://") ? GD.Load<Texture2D>(name) : Get(name)!;
+        return _enemyVisuals[(name, color)] = EnemyVisual(texture, color);
+    }
+
+    internal static PlayerVisual EnemyVisual(Texture2D texture, Color color)
+    {
+        if (_enemyTextureVisuals.TryGetValue((texture, color), out var art)) return art;
+        using var image = texture.GetImage();
+        Rect2 region = image.GetUsedRect();
+        return _enemyTextureVisuals[(texture, color)] = new PlayerVisual(texture, region, region.GetCenter(), color);
+    }
 
     internal static PlayerVisual BossPattern(Job job, int pattern)
     {
-        if (pattern == 0) return PlayerShot(job);
+        if (pattern == 0) return CharacterShot(job);
         if (_bossPatterns.TryGetValue((job, pattern), out var art)) return art;
         string name = job switch
         {
@@ -38,7 +64,9 @@ public static class BulletArt
     }
     public static Texture2D PlayerMark(Job job) => LifeEmblem.Texture(Jobs.Get(job).CharacterId);
 
-    public static PlayerVisual PlayerShot(Job job)
+    public static PlayerVisual PlayerShot(Job job) => PlayerProjectileArt.Get(job).Front;
+
+    internal static PlayerVisual CharacterShot(Job job)
     {
         if (_playerShots.TryGetValue(job, out var art)) return art;
         string id = Jobs.Get(job).CharacterId;

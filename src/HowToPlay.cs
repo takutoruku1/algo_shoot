@@ -19,14 +19,14 @@ using Godot;
 //   ★2026-09-22：ユーザー要望「ボタン配置・強化アイテムの説明をメニューから確認できるように」。
 //     ・導線はポーズメニューの「あそびかた」行（PauseMenu.Act.HowTo）。タイトルには置かない
 //       （a210286 でタイトルの項目は意図して削られた＝TitleMenuQa「requested menu entries」）。
-//     ・未取得の操作（回避／溜め打ち／集中モード）は**行ごと消さず薄く出す**。「配置を確認する」画面で
+//     ・未取得の操作（回避／溜め打ち／必殺技）は**行ごと消さず薄く出す**。「配置を確認する」画面で
 //       行が消えると、どのボタンが空いているのか・何が増えるのかが分からないため。右端に入手条件を添える。
 //     ・末尾に「強化アイテム」ページを足した（ザコが落とす4種の欠片：見え方・効果・被弾で失う）。
 public partial class HowToPlay : CanvasLayer
 {
     private HowToCanvas _canvas = null!;
     private bool _open;
-    private int _page;            // 0..PageCount-1（0..2 が操作タブ／3=画面の見かた／4=コア機能／5=強化アイテム）
+    private int _page;
     private bool _lrHeld, _backHeld;
     private bool _autoplay;
 
@@ -36,8 +36,8 @@ public partial class HowToPlay : CanvasLayer
     // 操作の割り当て一覧タブ（先頭3ページ）。0=キーボード / 1=コントローラー / 2=マウス。
     public const int TabCount = 3;
     // 後続の読み物ページ：画面の見かた／コア機能／強化アイテム（2026-09-22 追加）。
-    public const int PageHud = TabCount, PageCore = TabCount + 1, PageItems = TabCount + 2;
-    public const int PageCount = TabCount + 3;
+    public const int PageHud = TabCount, PageCore = TabCount + 1, PageItems = TabCount + 2, PageTelegraphs = TabCount + 3;
+    public const int PageCount = TabCount + 4;
 
     // ── マウス用ジオメトリ（HowToCanvas.DrawScreen と同一式）──
     //   パネル：pad=64, x=pad, y=32, w=W-128, h=H-64。以降の3つはそこからの相対。
@@ -215,7 +215,7 @@ public partial class HowToCanvas : Node2D
 
         // ── ヘッダ（タイトル＋ページインジケータ）──
         UiKit.Draw(this, UiKit.SmallLabel, new Vector2(x + 32, y + 22), "HOW TO PLAY", UiKit.Info);
-        string[] titles = { "操作 — キーボード", "操作 — コントローラー", "操作 — マウス", "画面の見かた", "コア機能", "ドロップアイテム" };
+        string[] titles = { "操作 — キーボード", "操作 — コントローラー", "操作 — マウス", "画面の見かた", "コア機能", "ドロップアイテム", "攻撃の予兆" };
         UiKit.Text(this, UiKit.ZenBlack, new Vector2(x + 32, y + 38), "あそびかた — " + titles[Menu.Page], UiKit.FontTitle, UiKit.White);
         // ページドット（右上）。クリックで直接ジャンプできるので、ホバー中は一回り大きく光らせる。
         int hov = UiKit.HoveredId();
@@ -236,7 +236,8 @@ public partial class HowToCanvas : Node2D
         }
         else if (Menu.Page == HowToPlay.PageHud) DrawPageHud(x + 32, bodyY, w - 64);
         else if (Menu.Page == HowToPlay.PageCore) DrawPageCore(x + 32, bodyY, w - 64);
-        else DrawPageItems(x + 32, bodyY, w - 64);
+        else if (Menu.Page == HowToPlay.PageItems) DrawPageItems(x + 32, bodyY, w - 64);
+        else DrawPageTelegraphs(x + 32, bodyY, w - 64);
 
         // ── フッタ（操作ヒント）──
         //   [←→] タブ・ページ　[Esc] とじる を中央寄せ1行で（2026-09-27 にキーを UiKit.KeyCap へ）。
@@ -306,8 +307,7 @@ public partial class HowToCanvas : Node2D
 
     // ───────── ページ1〜3：操作の割り当て一覧（デバイス別・2列）─────────
     //   tab: 0=キーボード / 1=コントローラー(Xbox 表記) / 2=マウス。
-    //   ★未取得の能力（回避／集中モード）も行は出す（2026-09-22。以前は行ごと消していた）。
-    //     溜め打ちは 2026-09-25 から最初から使える＝常に通常の強調行で出る（入手条件は添えない）。
+    //   ★未取得の能力（回避／必殺技）も行は出す（2026-09-22。以前は行ごと消していた）。
     //     薄く描いて右端に入手条件を添える＝「どのボタンが何になるか」を取る前から一覧できる。
     //     取ったあとは通常の強調行（★）になる。
     //   ★低速移動は 2026-09-13 に機能ごと廃止＝どのタブにも存在しない。
@@ -316,7 +316,7 @@ public partial class HowToCanvas : Node2D
         var game = GetNodeOrNull<GameManager>("/root/Game");
         bool hasDodge = game?.HasDodge ?? false;
         float chargeSec = game?.ChargeNeedSec ?? 0.60f;
-        bool hasFocus = game?.HasFocusMode ?? false;
+        bool hasSpecial = game?.HasSpecial ?? false;
 
         // (token, 名前, 説明, accent, 強調?, 未取得の入手条件)。locked が空でなければ薄く描く。
         //   デバイスごとに直に書く＝このタブが「その機種の一覧表」になる。
@@ -346,16 +346,14 @@ public partial class HowToCanvas : Node2D
                 _ => "Shiftを押しながら、Aで前・Sで次の敵へ。\n対象を倒すと近い敵へ自動で移る",
             }, UiKit.Purify, false);
 
-        // 溜め打ち（最初から使える。2026-09-25 のユーザー決定で習得ゲートを撤廃）。
-        //   ショップの「溜め打ち 二段」（n_charge）を買うと、離さずさらに溜めて 2段目が撃てる
-        //   ＝買う前は1段だけの説明、買った後は2段目の秒数と伸びぶんも添える（どちらも実値）。
+        bool hasCharge = game?.HasChargeShot ?? false;
         bool tier2 = game?.HasChargeTier2 ?? false;
         string chargeDesc = $"{chargeSec:0.0}秒ためて離すと、{game!.JobDef.ChargeDescription}。"
             + (tier2 ? $"\n{game.ChargeTier2NeedSec:0.0}秒までためると2段目（威力 ×{ChargeTier.PowerMul:0.0}）"
                      : "\nたまる前に離すと不発。完了は光と音で知らせる");
         // キーボードは Z 長押し（2026-09-26 作者決定。旧 C）。
         Add(tab switch { 1 => Pad.Face(JoyButton.Y) + " 長押し", 2 => "左クリック 長押し", _ => "Z 長押し" },
-            "溜め打ち", chargeDesc, UiKit.Gold, true);
+            "溜め打ち", hasCharge ? chargeDesc : "ショップ「溜め打ち」で習得", UiKit.Gold, hasCharge, hasCharge ? "" : "未習得");
 
         Add(tab switch { 1 => Pad.Face(JoyButton.LeftStick), 2 => "右クリック", _ => "Space" }, "回避",
             (tab == 2 ? "カーソルの方向へ無敵ダッシュ。近ければその場回避"
@@ -364,20 +362,17 @@ public partial class HowToCanvas : Node2D
             UiKit.Gold, hasDodge, hasDodge ? "" : "未習得");
 
         Add(tab switch { 1 => Pad.Face(JoyButton.X), 2 => "中クリック", _ => "X" },
-            "ボム", "敵を攻撃し、短時間無敵になる。\n敵弾は消えない。残数を1つ使う", UiKit.Mina, false);
+            "ボム", "雑魚と敵の攻撃を欠片に変え、自動回収。\nボスにはダメージ。短時間無敵になる", UiKit.Mina, false);
 
-        // 集中モード（ショップの「集中モード」＝n_slow で覚える）。キーボードは C（2026-09-27。旧 V）。
         Add(tab switch { 1 => Pad.Face(JoyButton.LeftShoulder), 2 => "サイドボタン", _ => "C" },
-            "集中モード", "敵の時間だけが遅くなる。1.5秒"
-                + (tab == 2 ? "\n敵をロックしていない時はホイールでも発動" : "")
-                + (!hasFocus && tab != 2 ? "\nショップ「集中モード」で習得" : ""), UiKit.Purify, hasFocus,
-            hasFocus ? "" : tab == 2 ? "未習得 — ショップ" : "未習得");
+            "必殺技", SpecialControlDescription(game!.SelectedJob, tab, hasSpecial), UiKit.Purify, hasSpecial,
+            hasSpecial ? "" : "未習得 — ショップ");
 
         Add(tab switch { 1 => Pad.Face(JoyButton.A), 2 => "左クリック", _ => "Z / Enter / Space" },
             "会話を送る", "1回目で今のページを全文表示、2回目で続きを表示", UiKit.Info, false);
         Add(tab == 1 ? Pad.Face(JoyButton.RightShoulder) + " 長押し" : tab == 2 ? "左クリック" : "Ctrl 長押し",
-            "既読スキップ", tab == 2 ? "会話ボックス上の「▶▶」を押して開始・停止"
-                                    : "会話中、一度読んだ行だけ高速で送る", UiKit.Text2, false);
+            "スキップ", tab == 2 ? "会話ボックス上の「▶▶」を押して開始・停止"
+                                    : "未読の会話も高速で送る。選択肢では停止", UiKit.Text2, false);
         // メニューは M / Esc（2026-09-27。Esc でも開く＝PauseMenu.EscOpensHere）。ただしスマホ系の画面（ハブ/ショップ等）の
         //   Esc は従来どおり「もどる」。メニューの中の Esc は一段もどる。
         Add(tab == 1 ? Pad.Face(JoyButton.Start) : "M / Esc",
@@ -409,14 +404,19 @@ public partial class HowToCanvas : Node2D
         // 会話ボックス上辺のボタン列（AUTO / SKIP / LOG / MENU・src/DialogToolbar.cs）。割り当てはタブの機種で出す。
         string toolbar = tab switch
         {
-            1 => $"◇ 会話ボックス上のボタン：{Pad.Face(JoyButton.Y)} 自動送り / {Pad.Face(JoyButton.RightShoulder)} 短押し 既読スキップ / "
+            1 => $"◇ 会話ボックス上のボタン：{Pad.Face(JoyButton.Y)} 自動送り / {Pad.Face(JoyButton.RightShoulder)} 短押し スキップ / "
                  + $"{Pad.Face(JoyButton.Back)} ログ / {Pad.Face(JoyButton.Start)} メニュー",
-            2 => "◇ 会話ボックス上のボタン（▶ 自動送り / ▶▶ 既読スキップ / ログ / メニュー）：クリックで押せる",
-            _ => "◇ 会話ボックス上のボタン：A 自動送り / S 既読スキップ / L ログ / M メニュー（クリックでも押せる）",
+            2 => "◇ 会話ボックス上のボタン（▶ 自動送り / ▶▶ スキップ / ログ / メニュー）：クリックで押せる",
+            _ => "◇ 会話ボックス上のボタン：A 自動送り / S スキップ / L ログ / M メニュー（クリックでも押せる）",
         };
         UiKit.Text(this, UiKit.Zen, new Vector2(x, ny + 22f), toolbar, UiKit.FontLabel, UiKit.PurifyHi,
             HorizontalAlignment.Left, w);
     }
+
+    internal static string SpecialControlDescription(Job job, int tab, bool owned)
+        => $"{PlayerSpecial.NameFor(job)}：{PlayerSpecial.ShortDescriptionFor(job)}\n"
+            + (tab == 2 ? "非ロック時はホイールでも発動。" : owned ? "" : "ショップ「必殺技」で習得。")
+            + $"再使用 {PlayerSpecial.Cooldown:0}秒";
 
     // locked（未取得の入手条件）が空でなければ薄く描く：キー・名前・説明のαを落とし、★の位置に条件を出す。
     //   pad＝コントローラー表（いまの表示が KB でも A／B／X／Y を丸ボタン、LB／RB／L3 をピルで描く）。
@@ -455,12 +455,12 @@ public partial class HowToCanvas : Node2D
             (0, "LIFE",        "残りの体力。攻撃を受けると1つ減る",                    UiKit.Hp),
             (1, "BOMB",        "ボムの残り。" + TokBomb + " で攻撃しながら無敵になれる",        UiKit.Mina),
             (2, "浄化 ％",     "道中でどれだけ浄化が進んだかを表す",                   UiKit.Purify),
-            (1, "コンボ",      "連続で浄化するとSCOREも、こぼれる心の量も増える。猶予内に次を倒せないと途切れる", UiKit.Mina),
-            (1, "SCORE",       "遊びの得点。ハイスコアを狙える",                       UiKit.Gold),
+            (1, "コンボ",      "ザコもボスも1体撃破で＋1。時間制限はなく、ダメージを受けると0に戻る", UiKit.Mina),
+            (1, "SCORE",       "ステージを出るときの得点から、浄化した心を獲得",         UiKit.Gold),
             // ★2026-09-17 経済改修：通貨は撃破時ではなく「散った欠片を拾ったとき」に入る。
             //   拾う動作が報酬だと一目で分かる説明にする（実装と表記の一致＝§3 わかりやすさ）。
             // ショップはハブのスマホのアプリから開く（旧「ハブで X」の文字キーは廃止済み）。
-            (0, "浄化した心",  "欠片を拾うと貯まる通貨。ハブのショップで仲間共通の強化に使える", UiKit.Hp),
+            (0, "浄化した心",  "仲間で共有する通貨。ショップで選んだキャラの強化に使える", UiKit.Hp),
             (1, "フォロワー",  "届けた証。増えるほど全弾ダメージが微増（上限+50%）とインプレに上乗せ", UiKit.Info),
             (1, "TIME",        "クリアタイム。記録に挑戦",                            UiKit.Text2),
             (1, "ロックオン",  "待機中は対象探し。追尾中は下の文字でシールド／本体を確認", UiKit.Purify),
@@ -486,6 +486,46 @@ public partial class HowToCanvas : Node2D
                 UiKit.Box(this, new Rect2(c.X - 9, c.Y - 4, 18, 8), new Color(col, 0.85f), 4f);
                 break;
         }
+    }
+
+    private void DrawPageTelegraphs(float x, float y, float w)
+    {
+        var rows = new[] {
+            ("赤い経路：飛んでくる弾", "赤く塗られた帯が通り道。矢印は進行方向。", AttackTelegraph.Projectile),
+            ("橙の帯：線全体が発動", "帯の全体が一斉に危険になる。発動前に帯の外へ。", AttackTelegraph.Instant),
+            ("赤い斜線：塗られた側が危険", "枠や円の内外を確認し、斜線のない側へ移動する。", AttackTelegraph.Area),
+            ("赤い残像：危険範囲が移動", "同じ形の残像と矢印が、大きな攻撃の進み方を示す。", AttackTelegraph.Sweep),
+        };
+        for (int i = 0; i < rows.Length; i++)
+        {
+            float top = y + i * 106;
+            UiKit.Box(this, new Rect2(x, top, w, 96), new Color(rows[i].Item3, .055f), 10,
+                new Color(rows[i].Item3, .3f), 1);
+            UiKit.Text(this, UiKit.ZenBold, new Vector2(x + 220, top + 16), rows[i].Item1, UiKit.FontBody, rows[i].Item3);
+            UiKit.Text(this, UiKit.Zen, new Vector2(x + 220, top + 51), rows[i].Item2, UiKit.FontLabel, UiKit.Text2);
+            Vector2 from = new(x + 30, top + 48), to = new(x + 185, top + 48);
+            if (i == 0)
+            {
+                foreach (float offset in new[] { -7f, 7f })
+                    DrawDashedLine(from + Vector2.Down * offset, to + Vector2.Down * offset, rows[i].Item3, 1.6f, 7, true);
+                AttackTelegraph.Origin(this, from, rows[i].Item3);
+                for (int mark = 1; mark <= 3; mark++) AttackTelegraph.Arrow(this, from.Lerp(to, mark / 4f), Vector2.Right, rows[i].Item3);
+                DrawCircle(from.Lerp(to, .35f), 4, AttackTelegraph.Light);
+            }
+            else if (i == 1) AttackTelegraph.InstantBand(this, from, to, 10, 1, .65f);
+            else if (i == 2) AttackTelegraph.Box(this, new Rect2(x + 44, top + 20, 128, 56), rows[i].Item3);
+            else
+            {
+                for (int ghost = 0; ghost < 3; ghost++)
+                    AttackTelegraph.Box(this, new Rect2(x + 28 + ghost * 56, top + 26, 36, 44), new Color(rows[i].Item3, .4f + ghost * .2f), false);
+                AttackTelegraph.Arrow(this, from.Lerp(to, .43f), Vector2.Right, rows[i].Item3);
+                AttackTelegraph.Arrow(this, from.Lerp(to, .79f), Vector2.Right, rows[i].Item3);
+            }
+        }
+        UiKit.Text(this, UiKit.Zen, new Vector2(x, y + 435),
+            "赤い起点＝発生位置　白い固定マーク＝折返し　青い点線＝判定が消える範囲", UiKit.FontLabel, UiKit.Text2);
+        UiKit.Text(this, UiKit.Zen, new Vector2(x, y + 462),
+            "明るい目印が次、薄い目印が後続の予兆。実弾は手前に表示。", UiKit.FontLabel, UiKit.Text2);
     }
 
     private void DrawPageItems(float x, float y, float w)
@@ -528,10 +568,10 @@ public partial class HowToCanvas : Node2D
         var cards = new (string title, string body, Color accent)[]
         {
             ("ボム",
-             TokBomb + " で敵を攻撃し、短時間無敵に。敵弾は消えないので、安全な場所へ移動しよう。残数は限られる。",
+             TokBomb + " で雑魚と敵の攻撃を欠片に変えて自動回収。ボスにはダメージを与え、短時間無敵になる。残数は限られる。",
              UiKit.Mina),
             ("仲間と強化",
-             "撃ち方は仲間ごとに異なる。ハブのショップでは「浄化した心」を使い、回避・溜め打ち二段・弾数などを順番に強化できる。",
+             "撃ち方は仲間ごとに異なる。ショップで仲間を選び、共通の「浄化した心」を使って、回避や溜め打ちなど好きな強化から購入できる。",
              UiKit.Gold),
             // 後方弾カード：2026-09-15 後方弾の廃止（Player.cs 側で発射停止）に合わせて削除。
             ("浄化と汚染",

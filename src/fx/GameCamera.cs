@@ -58,6 +58,7 @@ public partial class GameCamera : Camera2D
     // 多重呼び出し時は Shake と同じ方針で、一番遅く終わる要求まで復帰を保留する。
     public async void Hitstop(double dur)
     {
+        if (BossPracticeRoot.Active is { PreviewPaused: true }) return;
         double now = Time.GetTicksMsec() / 1000.0;
         _hitstopEndSec = Mathf.Max(_hitstopEndSec, now + dur);
         if (_hitstopRunning) return; // 既存の待機ループが延長された締切まで面倒を見る
@@ -70,7 +71,8 @@ public partial class GameCamera : Camera2D
             var t = GetTree().CreateTimer(remain, processAlways: true, processInPhysics: false, ignoreTimeScale: true);
             await ToSignal(t, SceneTreeTimer.SignalName.Timeout);
         }
-        Engine.TimeScale = 1.0;
+        if (!IsInstanceValid(this) || !IsInsideTree()) return;
+        Engine.TimeScale = BossPracticeRoot.Active is { Practicing: true } practice ? practice.ClockRate : 1.0;
         _hitstopRunning = false;
     }
 }

@@ -13,7 +13,7 @@ public partial class Epilogue : Node2D
     private double _t;
     private int _phase = PhGaze;
     private bool _zHeld;
-    private readonly RetryHold _retry = new(); // R/Start 長押しで最初から/タイトルへ（即発の誤爆防止）
+    private readonly RetryHold _retry = new();
     private int _line;
     private double _lineT;
     private double _reveal;        // タイプライター表示済み文字数（＝現在ページ内）
@@ -58,16 +58,14 @@ public partial class Epilogue : Node2D
     }
     private void NextPage() { _page++; _reveal = 0; _lineT = 0; _autoT = 0; }
 
-    // 既読スキップ（#22）：Ctrl/RB 長押しで「既読の行だけ」高速送り（本編HUDと同じ作法・独自レンダラ側の実装）。
     // スタッフロール(PhRoll)は対象外（CurLineText が null＝会話行フェーズのみ効く）。
-    private int _readKey = -1;     // 既読チェック済みの行キー（phase×1000+line。フェーズ跨ぎの index 重複を区別）
-    private bool _lineWasRead;     // 現在行が「表示開始時点で」既読だったか
+    private int _readKey = -1;     // 既読記録済みの行キー（phase×1000+line。フェーズ跨ぎの index 重複を区別）
     private bool _ffNow;           // いま高速送り中か（ボタン列の SKIP 点灯用）
 
     private readonly DialogToolbar _toolbar = new();
     private static readonly Vector2 ToolbarAnchor = DialogueBox.Anchor(DialogueBox.FullScreen);
     // AUTO（GameManager.AutoAdvanceDialog）：現在ページの全文表示後、この秒数で次へ。
-    //   E6 の選択と、最後の END の一行（送るとタイトルへ抜ける）は対象外＝そこは自分の手で。
+    //   E6 の選択と、最後の END の一行（送るとホームへ戻る）は対象外＝そこは自分の手で。
     private const double AutoAfterReveal = 1.0;
     private double _autoT;         // 現在ページを全文表示してからの経過（AUTO 用）
     // 会話ボックスが出ているか（DrawNarration／DrawEnd が枠を描く条件と同じ）＝ボタン列を出す／受け付ける条件。
@@ -87,45 +85,44 @@ public partial class Epilogue : Node2D
         string last = (_game?.ChosenAt("f4") ?? "").Trim();
         _roll = new[]
         {
-            "", "", "", "",
+            "", "",
             "── その後のタイムライン ──",
             "",
-            $"[あかり {Handles.Akari}] 向かいの席 中途の人来た 自分から話しかけた 既読とかない 顔見て言った",
-            $"[こはる {Handles.Koharu}] 今日も来ました って打った あと一行 足した",
-            $"[星逢レイ {Handles.Rei}] 同接7 うち1人はわたし 6人は知らない人 名前覚えた",
+            $"[あかり {Handles.Akari}] 向かいの席に新しい人が来た。今日は自分から、顔を見て話しかけたよ。",
+            $"[こはる {Handles.Koharu}] 「今日も来ました」って打って、今日はもう一行書けた！",
+            $"[星逢レイ {Handles.Rei}] 今日の同接は七人。一人はわたしだけど、あとの六人の名前、覚えたわよ。",
             "", "", "",
             "── staff ──",
-            "",
             "企画・ディレクション\t こくとう",
             "ゲームデザイン\t こくとう",
             "",
             "── scenario ──",
-            "",
             "シナリオ・脚本",
             "世界観・キャラクター設定",
             "投稿テキスト・小話\t Claude (AI)",
             "",
             "── programming ──",
-            "",
             "ゲームシステム・自機・敵・ボス",
             "UI／HUD・カットシーン・エフェクト",
             "シェーダー・背景・オーディオ実装",
             "\t Claude (AI) ／ Codex (AI)",
             "",
             "── art ──",
-            "",
             "キャラクターデザイン・立ち絵・表情差分",
             "敵／ボスアート・カットイン・背景",
             "タイトルビジュアル・弾／エフェクト素材",
             "\t Claude (AI) ／ Codex (AI)",
             "画像生成\t OpenAI gpt-image-2",
+            "動画生成\t DomoAI ／ Kling",
+            "背景・小物の3D制作\t Blender",
             "",
             "── sound ──",
-            "",
             "効果音（手続き合成）・音響調整・楽曲選定",
-            "\t Claude (AI)",
+            "\t Claude (AI) ／ Codex (AI)",
             "",
             "── music ──",
+            "オリジナル楽曲制作\t Suno",
+            "声の残響 ／ キャラクターテーマ・戦闘曲",
             "",
             "甘茶（甘茶の音楽工房）",
             "蒲鉾さちこ ／ もっぴーさうんど ／ のる ／ シンシンワダ（DOVA-SYNDROME）",
@@ -133,8 +130,7 @@ public partial class Epilogue : Node2D
             "PeriTune（CC BY 4.0）",
             "",
             "── quality assurance ──",
-            "",
-            "自動プレイ検証・バグ検証\t Claude (AI)",
+            "自動プレイ検証・バグ検証\t Claude (AI) ／ Codex (AI)",
             "プレイテスト\t MAGOME GAMES",
             "\t こくとう",
             "",
@@ -142,6 +138,10 @@ public partial class Epilogue : Node2D
             "",
             "Godot Engine（MIT License）",
             "Zen Kaku Gothic New ／ JetBrains Mono（OFL 1.1）",
+            "Zen Maru Gothic ／ Dela Gothic One（OFL 1.1）",
+            "Kaisei Decol ／ Klee One ／ Rajdhani（OFL 1.1）",
+            "Shippori Mincho ／ Cormorant Garamond（OFL 1.1）",
+            "PixelMplus — itouhiro ／ M+ FONTS PROJECT",
             "プレイしてくださった、あなた",
             "", "", "",
             "そして、ご主人様へ。",
@@ -198,30 +198,26 @@ public partial class Epilogue : Node2D
         //   いちばん静かな場面で「誰が語っているか」が揺れないようにする。
         void G(string who, string t) => _gaze.Add(new DLine { Who = who, Text = t });
         G("地", "帰還後・ミナとの回線");
-        G("あなた", "ごめん。君が苦しいって言える場所まで、僕が用意できているつもりだった。");
-        G("ミナ", "では、今から。何もできない日のお話も、聞いてください。");
-        G("あなた", "うん。今日の話も、明日のお小言も。僕からも話したい。");
-        G("ミナ", "今夜は、こちらを。わたくしの目で見た空です。");
-        G("あなた", "こんなふうに見えてたんだ。僕の観測画面より、ずっと明るい。");
-        G("ミナ", "全部を数えるのは、やめました。今は、この一つを見ていただきたいので。");
-        G("あなた", "うん。……きれいだね。");
+        G("ミナ", "今夜は画面越しに一緒に星を見たくて、背景を星空にしてみました。");
+        G("あなた", "きれいだね。いつもの画面が、ずいぶん違って見える。");
+        G("ミナ", "左に小さな月が見えますか？");
+        G("あなた", "見えた。君が選んだ空なんだね。");
         G("地", "あかりとの回線");
         G("あかり", "ミナ、帰ってきたね。……あなたも、お疲れさま。");
-        G("あなた", "ありがとう。あかりさんの声も、心強かった。");
+        G("あなた", "ありがとう。今日は、僕のほうから、ただいま。");
         G("あかり", "次は、何でもない話で呼ぶね。返事は、すぐじゃなくてもいいから。");
         G("地", "こはるとの回線");
-        G("こはる", "ね、次はさ、なんでもない昼休みの話でもいい？　何も解決してないやつ。");
-        G("あなた", "そういうのも聞きたい。今日の抹茶オレの話でも。");
+        G("こはる", "ね、次はさ、昼休みの話をしに来てもいい？　特に何かあったわけでもないんだけど。");
+        G("あなた", "うん。今日飲んだ抹茶オレの話とか、聞きたいよ。");
         G("こはる", "それ、長くなるよ？　銘柄ごとに、けっこう違うんだから。");
         G("地", "レイとの回線");
         G("レイ", "あんたも、休みなさい。案内役が寝不足じゃ、こっちも落ち着かないわ。");
         G("あなた", "分かった。次の本の話までには、ちゃんと寝ておく。");
         G("レイ", "よろしい。予習はいらない。感想は、あんたの言葉でね。");
         G("地", "ミナとの回線");
-        G("ミナ", "皆さま、ご主人様に言いたいことが増えたようですね。");
-        G("あなた", "うれしいけど、寝るようにって、二人から言われたよ。");
-        G("ミナ", "もう一度申し上げます。寝てください。これで三件です。");
-        G("あなた", "あと、少しだけ。君の空を見てたい。");
+        G("ミナ", "……ご主人様。あくびが聞こえました。");
+        G("あなた", "ばれた。窓を閉めたら、僕も寝るよ。");
+        G("あなた", "あと、少しだけ。このまま、画面越しに話してたい。");
         G("ミナ", "……はい。では、少しだけ。わたくしも、そうしたかったので。");
         _end.AddRange(new List<DLine>
         {
@@ -245,7 +241,7 @@ public partial class Epilogue : Node2D
         _end.Add(new DLine { Who = "あなた", Text = E6Choices[sel] });
         _end.AddRange(sel == 0 ? new List<DLine>
         {
-            new() { Who = "ミナ", Text = "はい。うまくいかなかった日も、何もなかった日も。聞かせてください。" },
+            new() { Who = "ミナ", Text = "はい。うまくいかなかった日の話も、何もなかった日の話も聞かせてください。" },
         } : new List<DLine>
         {
             new() { Who = "ミナ", Text = "わたくしも、お会いできてよかった。……こちらにも、お話しする相手がおりますので。" },
@@ -266,9 +262,9 @@ public partial class Epilogue : Node2D
         });
         _end.AddRange(new List<DLine>
         {
-            new() { Who = "ミナ", Text = "では、いってらっしゃいませ。ご主人様。" },
-            new() { Who = "あなた", Text = "またね、ミナ。" },
-            new() { Who = "ミナ", Text = "はい。また。——ええ、わたくしは、どこにも行きませんよ。" },
+            new() { Who = "ミナ", Text = "……そろそろ、お休みになりましょう。わたくしも、今夜はここまで。" },
+            new() { Who = "あなた", Text = "うん。おやすみ、ミナ。また明日。" },
+            new() { Who = "ミナ", Text = "おやすみなさい、ご主人様。……明日は、わたくしからも、お話しに来ます。" },
         });
         _lineT = 0; _reveal = 0; _page = 0; _pagedKey = -1; _readKey = -1;
     }
@@ -277,7 +273,7 @@ public partial class Epilogue : Node2D
     {
         // ボタン列は Pad.AdvanceHeld を読む前に回す（ボタン上のクリックを会話送りに数えない）。ムービー中も
         //   毎フレーム回す（SKIP ラッチは会話が途切れても切らない＝右上の印のため）。パッド Start はここでは短押し＝MENU／長押し＝最初から。
-        _toolbar.Tick(this, delta, TalkBoxShown, ToolbarAnchor, unreadLine: !_lineWasRead, startTapOpensMenu: true);
+        _toolbar.Tick(this, delta, TalkBoxShown, ToolbarAnchor, startTapOpensMenu: true);
         if (_phase == PhFilm) { _zHeld = Pad.AdvanceHeld(); return; }
         _t += delta;
         _lineT += delta;
@@ -287,12 +283,13 @@ public partial class Epilogue : Node2D
         bool zEdge = z && !_zHeld && !Pad.UiBlocked(this);
         _zHeld = z;
 
-        // R / Start 長押し(0.45s)：スタッフロール以降は「タイトルへ」、それ以前は最初から(Prologue)
+        // R / Start 長押し(0.45s)：スタッフロール以降はホームへ、それ以前は最初から(Prologue)
         // ＝演出のやり直し（即発は誤爆で読み進みを失いやすい→長押し化。ポーズメニューはカットシーンでは
         //   Esc／M だけで開き、パッドの Start は読まない＝ここで Start を使える。2026-09-27）。
         if (_retry.Update(delta, Input.IsKeyPressed(Key.R) || Pad.Pressed(JoyButton.Start)))
         {
-            GameManager.FadeToScene(this, _phase >= PhRoll ? "res://TitleMenu.tscn" : "res://Prologue.tscn");
+            if (_phase >= PhRoll) ReturnHome();
+            else GameManager.FadeToScene(this, "res://Prologue.tscn");
             return;
         }
 
@@ -307,17 +304,15 @@ public partial class Epilogue : Node2D
             DialogueBox.TypeSound(KindOf((_phase == PhGaze ? _gaze : _end)[_line].Who), CurPage, _reveal, ref _typeCursor);
         }
 
-        // 既読スキップ（#22）：行の表示開始時に一度だけ「既読か」を控え（＝高速送りの可否）、表示と同時に既読へ記録。
         int readKey = _phase * 1000 + _line;
         if (curT != null && _readKey != readKey)
         {
             _readKey = readKey;
-            _lineWasRead = _game?.IsLineRead(curT) ?? false;
             _game?.MarkLineRead(curT);
             // 会話ログ（L / Tab で開く Backlog）へ、表示を始めた行を積む（2026-09-26）。curT != null＝行フェーズ。
             LogLine(_phase == PhGaze ? _gaze[_line] : _end[_line]);
         }
-        _ffNow = curT != null && Hud.SkipHeld && _lineWasRead; // 未読行では効かない
+        _ffNow = curT != null && Hud.SkipHeld;
         // AUTO（会話ボックスの AUTO ボタン／設定の「オート会話送り」）：現在ページの全文表示後 AutoAfterReveal 秒で送る。
         bool lastEndLine = _phase == PhEnd && _e6ChoiceLine < 0 && _line >= _end.Count - 1;
         if (curT != null && pageWasRevealed) _autoT += delta;
@@ -356,7 +351,7 @@ public partial class Epilogue : Node2D
                     Audio.Instance?.Music(Audio.Instance.BgmFinalResolve, 2.5f);
                 }
                 break;
-            case PhEnd:    // E6 END（最後の下書き選択 → 受け → END → タイトルへ）
+            case PhEnd:
                 // 選択の提示中は会話送りを止め、決定だけを待つ。
                 if (_e6Choice != null)
                 {
@@ -379,12 +374,19 @@ public partial class Epilogue : Node2D
                         _lineT = 0; _reveal = 0; _page = 0; _pagedKey = -1;
                         // 未提示の選択点に着いたら会話の途中＝次フレームの提示に譲る（Final F4 と同じ作法）。
                         if (_line < _end.Count - 1 || _e6ChoiceLine >= 0) _line++;
-                        else { GameManager.FadeToScene(this, "res://TitleMenu.tscn"); return; }
+                        else { ReturnHome(); return; }
                     }
                 }
                 break;
         }
         QueueRedraw();
+    }
+
+    private void ReturnHome()
+    {
+        _game?.SetContamination(0);
+        _game?.SaveToSlot(0);
+        GameManager.FadeToScene(this, "res://Hub.tscn");
     }
 
     private void StartFilm()
@@ -410,12 +412,12 @@ public partial class Epilogue : Node2D
     {
         const string dir = "res://char/bg2/ending/";
         _skyDawn = GD.Load<Texture2D>(dir + "bg_ep_dawn_v2.png");
-        _rest = GD.Load<Texture2D>(dir + "cg_ep_mina_sky_v3.png");
-        _goodbye = GD.Load<Texture2D>(dir + "cg_ep_goodbye_v2.png");
+        _rest = GD.Load<Texture2D>(dir + "cg_ep_mina_screen_v1.png");
+        _goodbye = GD.Load<Texture2D>(dir + "cg_ep_mina_screen_goodnight_v1.png");
         _callArt["ミナ"] = _rest;
-        _callArt["あかり"] = GD.Load<Texture2D>("res://char/bg2/story/cg_akari_playable_aftermath_v1.png");
-        _callArt["こはる"] = GD.Load<Texture2D>("res://char/bg2/story/cg_koharu_playable_aftermath_v1.png");
-        _callArt["レイ"] = GD.Load<Texture2D>("res://char/bg2/story/cg_rei_playable_aftermath_v1.png");
+        _callArt["あかり"] = GD.Load<Texture2D>("res://char/bg2/story/cg_akari_playable_aftermath_v2.png");
+        _callArt["こはる"] = GD.Load<Texture2D>("res://char/bg2/story/cg_koharu_playable_aftermath_v2.png");
+        _callArt["レイ"] = GD.Load<Texture2D>("res://char/bg2/ending/cg_ep_rei_v2.png");
     }
 
     private string GazePartner
@@ -482,7 +484,7 @@ public partial class Epilogue : Node2D
             UiKit.BeginDesign(this);
             Hud.DrawRetryHoldChip(this, _retry.Progress,
                 (Pad.ShowKeyboard ? "R" : Pad.Face(JoyButton.Start))
-                + (_phase >= PhRoll ? " 長押しでタイトルへ" : " 長押しでさいしょから"));
+                + (_phase >= PhRoll ? " 長押しでホームへ" : " 長押しでさいしょから"));
             UiKit.EndDesign(this);
         }
     }
@@ -587,9 +589,10 @@ public partial class Epilogue : Node2D
 
     // 会話ログ（Hud.Backlog）へ積む。話者と縁色は DrawLineBox と同じ（"地"＝語り＝ナレ扱い・話者名なし）。
     //   三人（あかり／こはる／レイ）は「相手」種別で、色は EdgeFor の面の色をそのまま渡す。
-    private static void LogLine(DLine d)
+    private void LogLine(DLine d)
     {
-        Hud.PushLog(KindOf(d.Who), d.Who == "地" ? "" : d.Who, d.Text, EdgeFor(d.Who));
+        string section = _phase == PhEnd ? "エピローグ / スタッフロール後" : "エピローグ";
+        Hud.PushLog(section, KindOf(d.Who), d.Who == "地" ? "" : d.Who, d.Text, EdgeFor(d.Who));
     }
 
     // 話者 → 行の種別（会話ログの本文色と、送り音の音色の両方に使う）。

@@ -10,13 +10,21 @@ foreach ($id in @('mina', 'akari', 'koharu', 'rei')) {
   -Out "$output/mina/mina_idle_v2.png" -Key green -TargetH 720 -Despill
 
 $bodyFrames = @('idle_v2', 'spin_v2_00', 'spin_v2_01', 'spin_v2_02', 'spin_v2_03', 'spin_v2_04')
+$correctedColumns = @{ rei_idle_v2 = 0; rei_aim_v2_r = 1; rei_spin_v2_02 = 2 }
+function Write-PlayerFrame($id, $frame, $source, [int[]]$region) {
+  $name = "${id}_$frame"
+  if ($correctedColumns.ContainsKey($name)) {
+    $source = "$raw/player_rei_corrected_v3_green.png"
+    $region = @((724 * $correctedColumns[$name]), 0, 724, 724)
+  }
+  [KeyTrimScale]::Run($source, "$output/$id/$name.png", 'green', 720, 0, 0, $region, $true, $false, $false)
+}
 foreach ($id in @('akari', 'koharu', 'rei')) {
   for ($i = 0; $i -lt 6; $i++) {
     $x = ($i % 3) * 418
     $y = if ($i -lt 3) { 0 } else { 648 }
     $height = if ($i -lt 3) { 648 } else { 606 }
-    [KeyTrimScale]::Run("$raw/player_$($id)_body_v2_green.png", "$output/$id/$($id)_$($bodyFrames[$i]).png",
-      'green', 720, 0, 0, [int[]]@($x, $y, 418, $height), $true)
+    Write-PlayerFrame $id $bodyFrames[$i] "$raw/player_${id}_body_v2_green.png" @($x, $y, 418, $height)
   }
 }
 
@@ -35,7 +43,8 @@ foreach ($sheet in $sheets) {
   for ($i = 0; $i -lt 5; $i++) {
     $x = $sheet.Bounds[$i][0] - 3
     $width = $sheet.Bounds[$i][1] - $x + 4
-    [KeyTrimScale]::Run("$raw/player_$($id)_$($kind)_v2_green.png", "$output/$id/$($id)_$($kind)_v2_$($frames[$i]).png",
-      'green', 720, 0, 0, [int[]]@($x, 0, $width, 724), $true)
+    Write-PlayerFrame $id "${kind}_v2_$($frames[$i])" "$raw/player_${id}_${kind}_v2_green.png" @($x, 0, $width, 724)
   }
 }
+
+& "$PSScriptRoot/finish_player_turns.ps1" -Root $Root

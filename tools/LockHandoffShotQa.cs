@@ -121,6 +121,7 @@ public partial class LockHandoffShotQa : Node
         GD.Print($"[LH] {tag} 待機中 1 秒の自弾の出現数={spawned}");
         Check($"{tag} (c) 待機中も通常弾が出る", spawned > 0);
 
+        GameManager.Instance!.TrainingSetUpgrade("n_charge_shot", true);
         // ── (d) 待機中に溜め打ち ──
         KeyEvent(Key.Z, true);
         await Frames(50);   // ChargeNeed 0.60 秒 + 余裕

@@ -1,0 +1,19 @@
+{
+  "frames": 48,
+  "cell": 128,
+  "columns": 8,
+  "pivot": [
+    64,
+    64
+  ],
+  "models": [
+    "mina_shot",
+    "mina_plane",
+    "akari_shot",
+    "akari_plane",
+    "koharu_shot",
+    "koharu_plane",
+    "rei_shot",
+    "rei_plane"
+  ]
+}

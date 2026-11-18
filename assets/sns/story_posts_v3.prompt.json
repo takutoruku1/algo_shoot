@@ -1,0 +1,111 @@
+{
+  "tool": "built-in image_gen",
+  "output": "assets/sns/story_posts_v3.png",
+  "columns": 3,
+  "rows": 3,
+  "cell_size": [
+    864,
+    432
+  ],
+  "slots": [
+    {
+      "slot": 0,
+      "id": "last_train",
+      "copy_from": {
+        "atlas": "assets/sns/story_posts_v2.png",
+        "slot": 0
+      }
+    },
+    {
+      "slot": 1,
+      "id": "draft_reply",
+      "copy_from": {
+        "atlas": "assets/sns/story_posts_v2.png",
+        "slot": 1
+      }
+    },
+    {
+      "slot": 2,
+      "id": "archive_night",
+      "references": [
+        {
+          "atlas": "assets/sns/story_posts_v2.png",
+          "slot": 2
+        }
+      ],
+      "prompt": "Use case: precise-object-edit. Edit the supplied in-game photo of Moko's late-night study desk. Keep the same warm desk lamp, blue evening window, purple laptop, closed-back dark headphones and painterly anime rendering. The stream just went on a short break. Put a simple wordless purple intermission graphic (e.g. a pale crescent and three small dots) on the laptop, no performer, no video thumbnails, no lettering. The open student exercise notebook in the foreground is nearly blank ruled paper with ONE simple freshly printed exercise (an elementary triangle with tiny tick marks and empty answer line); no worked solutions or dense notes. Pens are being looked for: keep only an empty pencil cup, no writing tools in sight. Headphones nudged aside on the desk. Slightly hurried and ready for the little challenge, late at night but inviting, no invented people or faces, no graphic overlays. One single full-bleed wide 2:1 still, screen and notebook near center, compose for 432x216 display; preserve real object proportions. No signs, logos, captions or watermarks."
+    },
+    {
+      "slot": 3,
+      "id": "penlight_drawer",
+      "references": [
+        {
+          "atlas": "assets/sns/story_posts_v2.png",
+          "slot": 3
+        }
+      ],
+      "prompt": "Use case: precise-object-edit. Edit the existing Refrain bedroom snapshot for Shiori's post about starting another encore at home. Preserve same familiar silver-grip penlights, fabric and anime bedroom lighting, at the scale of ordinary handheld concert light sticks. The SILVER HANDLE with PURPLE illuminated tube is front and center, casting a small clear violet reflection on the fabric. The mint stick rests separately nearby, switched OFF. The tickets are put away: show one folded ticket sleeve tucked INSIDE a modest open keepsake box, not a ticket sitting on top of the blanket or outside the box. Clearly different silhouettes for open box and lights, no bag smothering them. Make it look lightly impulsive, not a product advertisement. Preserve design and colors; no hands, people, lettering or logos, no floating sparks. Wide 2:1 full-bleed single photo, the lit purple cylinder and ticket box must stay visible in a centered crop at game thumbnail size."
+    },
+    {
+      "slot": 4,
+      "id": "unfinished_color",
+      "references": [
+        {
+          "atlas": "assets/sns/story_posts_v2.png",
+          "slot": 4
+        }
+      ],
+      "prompt": "Use case: precise-object-edit. Edit the supplied in-game photo of ao_ink's tablet. Keep the same tablet, viewpoint, loose drawing of the SAME anonymous long-haired profile character already sketched on the display, stylus, and Refrain's softly painted desk lighting. The post is about a trial blue they liked enough to keep: make ONE broad, tactile, unmistakably BLUE painterly swath on the character's shoulder/fabric, colored cobalt-to-sky-blue, deliberately incomplete. Let the rest of the portrait remain fine pale blue construction lines on a near-white drawing canvas with visibly unpainted areas. A small color swatch of the same vivid blue in the tablet interface is fine, but no legible lettering, layer names, meaningful UI labels or branding; no physical bright paint on the desk. Show an artist's work in progress, not a finished illustration. Keep original sketch identity. Foreground blue mark and drawing both readable at 432x216. One single wide landscape full-bleed image, no border, captions, watermarks or additional panels."
+    },
+    {
+      "slot": 5,
+      "id": "two_cups",
+      "copy_from": {
+        "atlas": "assets/sns/story_posts_v2.png",
+        "slot": 5
+      }
+    },
+    {
+      "slot": 6,
+      "id": "old_blanket",
+      "references": [
+        {
+          "image": "char/v3/icons/mob_01.png"
+        },
+        {
+          "atlas": "assets/sns/daily_photos.png",
+          "slot": 2
+        }
+      ],
+      "prompt": "Use case: photorealistic-natural. A single believable, mildly mundane phone snapshot that a seated person would take and attach to the in-game SNS post 'the cat chose my lap, I can't stand up'. Reference illustrations establish the PET'S IDENTITY ONLY: a modest adult silver-gray Japanese tabby, dark mackerel stripes, short fur and a small pale muzzle. Make an ordinary smartphone photo, with truly natural cat anatomy. Wide horizontal 2:1. Frame from MUCH FARTHER BACK, angled down over the seated owner's lap, a normal-sized SMALL cat taking up only about 40 percent of the picture width. Show both thighs from waistband edge right out to the two knees and a bit of the crumpled sofa and floor. The owner's clothed legs and the sofa form a natural support under the cat, normal perspective. Cat only just tucked itself sideways on one thigh, head resting against the inside of the other knee, closed eyes, ears relaxed, one forepaw tucked, hindquarters rounded. An unposed, slightly off-centre snapshot in ordinary diffuse indoor light from an unseen window in a modest Japanese apartment. Natural unfiltered neutral colors. Cat has modest irregular mackerel markings, real short fur in small clumps, do not outline each hair. Simple unobtrusive home clothing rather than perfectly pressed jeans. Phone-camera depth of field with surroundings legible, slight everyday exposure noise. No portrait lens blur, rim light, sunset, staged background, giant cat, perfect symmetry, staring performance, flat anime outlines, fingers, visible upper body, logos, captions, visible UI or watermarks. This should feel like 'wait, look where she fell asleep' rather than someone photographing a cat for a calendar."
+    },
+    {
+      "slot": 7,
+      "id": "muted_notifications",
+      "references": [
+        {
+          "atlas": "assets/sns/story_posts_v2.png",
+          "slot": 5
+        },
+        {
+          "image": "assets/sns/akari_warm_meal_v1.png"
+        }
+      ],
+      "prompt": "Use case: illustration-story. Single 2:1 horizontal Refrain SNS background illustration, a home cook's hasty picture taken at their small stove. Reference 1 gives the existing understated anime line and everyday interior. Reference 2 shows the game's drawings of meals; deliberately use much simpler matte shapes, quiet colors, soft indoor light instead of a golden glossy product shot. The barely tilted top-down view includes the burner with the empty pan near the right edge, the edge of a rumpled tea towel, and an everyday rather chipped blue-rimmed plate left of center holding a single batch of twelve Japanese pan-fried gyoza still joined after the flip. They were crowded into a little round pan by hand in three LOOSE staggered rows of four. Clearly separate all twelve outlines but make them individual: a stubby one, a long one, one slightly burst tip, different folds, a lightly browned one by a darker toasted one, uneven rusty caramel cooking marks. Closely packed, tips pointing in slightly different directions, irregular torn patches of pale thin crust connecting them (not a flawless golden lace disk). Actual browned flat bottoms face up. Frame shows the everyday kitchen counter and just a bit of rice-flour dust by the stove; all the dumplings fit. Hand-inked thin dark brown contours, broad patches of limited quiet flat color, no shine, no cinematic sun rays, no photographic detail, no advertising composition, no symmetrically lined-up identical pieces. No words, logos, other food or hands."
+    },
+    {
+      "slot": 8,
+      "id": "waiting_reply",
+      "references": [
+        {
+          "atlas": "assets/sns/story_posts_v2.png",
+          "slot": 2
+        },
+        {
+          "image": "assets/sns/akari_warm_meal_v1.png"
+        }
+      ],
+      "prompt": "Use case: illustration-story. One drawing for an ordinary working person's Japanese SNS post about a favorite school-lunch bread. Use the two supplied game pictures only for the established Refrain anime linework and drawings of ordinary objects. A just-started Japanese kinako agepan left on the corner of a scratched, matte grey office break table: the plain thin bakery-paper sleeve still covers half the little oblong fried koppe bread. The paper is creased, folded back a little too far and torn at one corner. At the exposed end a small bite is already missing; two big crumb shapes and a small smudge of powder inside the wrapper. Simple perspective from above and a little sideways, roll slightly askew, makeshift phone snapshot. Bread occupies under HALF the image width, placed just off center, a single partly cut-off plain mug near the far edge. Gentle flat fluorescent room light, neutral chinagraph pencil lines and a few matte cel-painted shadow shapes. Golden-brown dough in three quiet tones, no individually rendered grains, no sparkling sugar, no exaggerated specular sheen, no golden-hour lighting, no blurred sunset window, no fancy wooden table, no visual merchandising or hero product framing. A modest personal moment, not advertising. No writing, packaging labels, logos, faces or hands. Wide 2:1, stand-alone game SNS illustration, no panel frames or watermark."
+    }
+  ]
+}

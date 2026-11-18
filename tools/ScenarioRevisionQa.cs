@@ -37,8 +37,17 @@ public partial class ScenarioRevisionQa : Node
             _game.MsgCharsPerSec = 300;
             _game.AutoAdvanceDialog = true;
             await Frames(2);
-            if (OS.GetCmdlineUserArgs().Contains("--midboss-visuals"))
+            await CheckFinishedMusic();
+            bool endingVisuals = OS.GetCmdlineUserArgs().Contains("--ending-visuals");
+            if (endingVisuals)
+            {
+                await CheckEndings();
+                await CheckEndingArt();
+            }
+            else if (OS.GetCmdlineUserArgs().Contains("--midboss-visuals"))
                 await CheckKoharuOpening();
+            else if (OS.GetCmdlineUserArgs().Contains("--climax-visuals"))
+                await CheckClimaxes();
             else
             {
                 CheckChoices();
@@ -46,13 +55,15 @@ public partial class ScenarioRevisionQa : Node
                 await CheckPrologue();
                 await CheckKoharuOpening();
                 await CheckAkariChoicePayoff();
+                await CheckClimaxes();
                 foreach (var id in new[] { "Akari", "Koharu", "Rei" }) await CheckMemory(id);
                 foreach (var job in new[] { Job.Tank, Job.Melee, Job.Heal, Job.Magic }) await CheckFinalEntry(job);
+                await CheckRescueChoices();
                 await CheckMinaArt();
                 await CheckEndings();
                 await CheckEndingArt();
             }
-            await CheckReiMidAvatar();
+            if (!endingVisuals) await CheckReiMidAvatar();
             GetNode<BulletPool>("/root/Pool").DespawnAll();
             Audio.Instance?.StopMusic(0);
             foreach (var audio in GetNode<Audio>("/root/Audio").GetChildren().OfType<AudioStreamPlayer>())
@@ -69,6 +80,25 @@ public partial class ScenarioRevisionQa : Node
             GetTree().Paused = false;
             GetTree().Quit(1);
         }
+    }
+
+    private async Task CheckFinishedMusic()
+    {
+        var audio = Audio.Instance!;
+        audio.Music(audio.RedeemKoharu, 0);
+        await Frames(2);
+        var current = Read<AudioStreamPlayer>(audio, Read<bool>(audio, "_useA") ? "_musicA" : "_musicB");
+        current.Stop();
+        audio.StopMusic(0.1f);
+        await Frames(2);
+        Check(!audio.HasMusic && Read<Tween?>(audio, "_musicFadeTween") == null,
+            "stopping an already finished song creates no empty fade tween");
+        audio.Music(audio.BgmBossKoharu, 0);
+        await Frames(2);
+        current = Read<AudioStreamPlayer>(audio, Read<bool>(audio, "_useA") ? "_musicA" : "_musicB");
+        Check(audio.HasMusic && current.Playing, "music resumes normally after stopping a finished song");
+        audio.StopMusic(0);
+        await Frames(2);
     }
 
     private void CheckChoices()
@@ -457,6 +487,80 @@ public partial class ScenarioRevisionQa : Node
         _game.AutoAdvanceDialog = true;
     }
 
+    private async Task CheckClimaxes()
+    {
+        foreach (string id in new[] { "Akari", "Koharu", "Rei" })
+        {
+            _game.ResetPersistent();
+            _game.AutoSaveEnabled = false;
+            _game.AutoAdvanceDialog = true;
+            _game.SelectedJob = Job.Tank;
+            _game.SelectedEntry = GameManager.StageEntry.Start;
+            _game.Difficulty = GameManager.Diff.Normal;
+            var root = GD.Load<PackedScene>($"res://{id}.tscn").Instantiate<Node2D>();
+            GetTree().Root.AddChild(root);
+            GetTree().CurrentScene = root;
+            root.SetProcess(false);
+            root.GetNode("Stage" + id).SetProcess(false);
+            var world = root.GetNode<Node2D>("World");
+            world.GetNode<Player>("Player").SetPhysicsProcess(false);
+            var hud = root.GetNode<Hud>("Hud");
+            hud.SetProcess(false);
+            hud.HideBubble();
+            Enemy boss = id switch { "Akari" => new BossAkari(), "Koharu" => new BossKoharu(), _ => new BossRei() };
+            boss.Position = new Vector2(270, 100);
+            world.AddChild(boss);
+            boss.SetProcess(false);
+            boss.SetPhysicsProcess(false);
+            var lines = Read<(int who, string text, string face)[]>(boss, "_lines");
+            root.GetNode<StageBackground>("StageBackground").EnterBoss();
+            typeof(Enemy).GetMethod("TickEntrance", Private)!.Invoke(boss, new object[] { 0d });
+            typeof(Enemy).GetMethod("TickEntrance", Private)!.Invoke(boss, new object[] { 2d });
+            Check(Read<Sprite2D>(boss, "_bodySprite", typeof(Enemy)).Visible, id + ": the boss has appeared before defeat");
+            Audio.Instance!.Music(Audio.Instance.BgmBossAkari, 0);
+            typeof(Enemy).GetMethod("Redeem", Private)!.Invoke(boss, null);
+            var shown = new System.Collections.Generic.HashSet<int>();
+            int silence = id == "Koharu"
+                ? Array.FindIndex(lines, l => l.text == Field<string>(typeof(BossKoharu), "BgmStopLine"))
+                : Field<int>(boss.GetType(), "SilenceAtLine");
+            bool silenceChecked = false;
+            for (int tick = 0; tick < 1800 && Read<bool>(boss, "_seq"); tick++)
+            {
+                int line = Read<int>(boss, "_line");
+                if (shown.Add(line))
+                {
+                    Check(Read<string>(hud, "_dlgText") == lines[line].text,
+                        $"{id}: climax line {line} is actually displayed");
+                    var pages = Read<System.Collections.Generic.List<string>>(hud, "_dlgPages");
+                    Check(pages.Count > 0 && pages.All(p => p.Split('\n').Length <= Hud.DlgMaxLines),
+                        $"{id}: climax line {line} fits the dialogue pages");
+                    if (line == silence)
+                    {
+                        Check(!Audio.Instance.HasMusic, id + ": music still stops on the intended line");
+                        silenceChecked = true;
+                    }
+                    if (line >= lines.Length - 4)
+                    {
+                        hud.RevealDialogNow();
+                        await Shot(id + "_decision_" + line);
+                    }
+                }
+                hud.RevealDialogNow();
+                hud._Process(0.1);
+                boss._PhysicsProcess(0.1);
+                boss._Process(0.1);
+                await Frames(1);
+            }
+            Check(shown.Count == lines.Length && silenceChecked
+                && (bool)boss.GetType().GetProperty("Finished")!.GetValue(boss)!
+                && !hud.HoldBubble && !Hud.BubblePaused,
+                id + ": every decision line plays before the boss releases dialogue control");
+            root.QueueFree();
+            await Frames(4);
+            GetNode<BulletPool>("/root/Pool").DespawnAll();
+        }
+    }
+
     private async Task CheckMemory(string id)
     {
         _game.SelectedJob = Job.Tank;
@@ -504,7 +608,18 @@ public partial class ScenarioRevisionQa : Node
             film._Process(2);
             await Frames(1);
         }
-        await ToSignal(GetTree().CreateTimer(4.5), SceneTreeTimer.SignalName.Timeout);
+        var transformation = hud.GetChildren().OfType<BossTransformation>().SingleOrDefault();
+        if (transformation != null)
+        {
+            transformation.SetProcess(false);
+            for (int i = 0; i < 80 && IsInstanceValid(transformation); i++)
+            {
+                while (!hud.DialogRevealed) hud.RevealDialogNow();
+                hud._Process(2);
+                transformation._Process(2);
+                await Frames(1);
+            }
+        }
         Check(!IsInstanceValid(film) && !hud.CinematicMode && !Hud.BubblePaused,
             id + $" returns control after the memory (film={IsInstanceValid(film)}, cinematic={hud.CinematicMode}, paused={Hud.BubblePaused}, held={hud.HoldBubble})");
         root.QueueFree();
@@ -532,9 +647,105 @@ public partial class ScenarioRevisionQa : Node
             _game.RecordChoice("s3_7", word, Array.Empty<string>(), 1);
             var reply = ((int who, string text, string face)[])typeof(StageMina).GetMethod("S37Quote", Static)!.Invoke(null, new object[] { _game })!;
             Check(reply[0].who == 0 && reply[1].who == 6 && reply.All(l => l.who != 1), "past choice is discussed privately with the rescuer");
+            if (choice == 1)
+                Check(reply[0].text.Contains("戻ってから") && !reply[0].text.Contains("帰り着く前"),
+                    "rest recap places Mina's collapse after the return to the hub");
         }
         root.QueueFree();
         await Frames(4);
+    }
+
+    private async Task CheckRescueChoices()
+    {
+        var choices = Field<string[]>(typeof(StageRei), "S37Choices");
+        foreach (var job in new[] { Job.Melee, Job.Heal, Job.Magic })
+        foreach (bool replay in new[] { false, true })
+        for (int choice = -1; choice < choices.Length; choice++)
+        {
+            _game.ResetPersistent();
+            _game.AutoSaveEnabled = false;
+            _game.SelectedJob = job;
+            _game.Difficulty = GameManager.Diff.Normal;
+            _game.AutoAdvanceDialog = true;
+            if (replay) _game.RecordClearTime(GameManager.FinalStageId, _game.Difficulty, 90);
+            if (choice >= 0) _game.RecordChoice("s3_7", choices[choice], Array.Empty<string>(), 1);
+            string baseId = "mina_phase_3_" + Jobs.Get(job).CharacterId;
+            if (choice >= 0) FilmSkip.MarkSeen(_game, baseId);
+            var root = GD.Load<PackedScene>("res://MinaBattle.tscn").Instantiate<MinaRoot>();
+            GetTree().Root.AddChild(root);
+            GetTree().CurrentScene = root;
+            root.SetProcess(false);
+            root.Stage.SetProcess(false);
+            root.Hud.SetProcess(false);
+            root.Player.SetPhysicsProcess(false);
+            root.World.ProcessMode = ProcessModeEnum.Inherit;
+            int completions = 0;
+            MinaPhaseScene.Play(root.Hud, root.World, 3, () => completions++);
+            var scene = root.Hud.GetChildren().OfType<MinaPhaseScene>().Single();
+            scene.SetProcess(false);
+            string filmId = (string)typeof(MinaPhaseScene).GetProperty("FilmId", Private)!.GetValue(scene)!;
+            Check(!Read<FilmSkip>(scene, "_skip").Available,
+                $"{job}/{choice}/{replay}: reading another rescue approach never skips this unread scene");
+            var lines = Read<Array>(scene, "_lines").Cast<object>().ToArray();
+            string[] texts = lines.Select(l => (string)l.GetType().GetProperty("Text")!.GetValue(l)!).ToArray();
+            Check(choice < 0 ? filmId == baseId : filmId == baseId + (choice == 1 ? "_rest" : "_call"),
+                "save history selects a separate read key only for an actually chosen approach");
+            Check(choice == 1 ? texts.Any(t => t.Contains("次のお話を聞けません"))
+                : choice == 0 ? texts.Any(t => t.Contains("名前を呼んでいてください"))
+                : !texts.Any(t => t.Contains("あのときのように") || t.Contains("約束しました")),
+                $"{job}/{choice}/{replay}: Mina acts on the recorded choice without inventing missing history");
+            scene._Process(0.71);
+            for (int line = 0; line < lines.Length; line++)
+            {
+                Write(scene, "_line", line);
+                Call(scene, "ShowLine");
+                while (!root.Hud.DialogRevealed) root.Hud.RevealDialogNow();
+                var kind = Read<Hud.LineKind>(root.Hud, "_dlgKind");
+                Check(kind is Hud.LineKind.Mina or Hud.LineKind.Boy or Hud.LineKind.Companion,
+                    "rescue dialogue keeps the operator, Mina and the entered ally separate");
+                if (kind == Hud.LineKind.Companion)
+                    Check(Read<string>(root.Hud, "_dlgSpeaker") == Jobs.Get(job).CharacterName,
+                        "the chosen approach uses the entered ally's voice and portrait");
+                var pages = Read<System.Collections.Generic.List<string>>(root.Hud, "_dlgPages");
+                Check(pages.All(p => p.Split('\n').Length <= Hud.DlgMaxLines), "new rescue requests fit the dialogue pages");
+                if (!replay && choice >= 0 && kind == Hud.LineKind.Mina && line == 3)
+                    await Shot("rescue_" + job + (choice == 1 ? "_rest" : "_call"));
+            }
+            if (choice == 1)
+            {
+                Write(scene, "_line", 3);
+                Call(scene, "ShowLine");
+                while (!root.Hud.DialogRevealed) root.Hud.RevealDialogNow();
+                Write(root.Hud, "_pageReadT", 10d);
+                scene._Process(1.6);
+                Check(Read<int>(scene, "_line") == 3 && root.World.ProcessMode == ProcessModeEnum.Disabled,
+                    "the rest choice holds a visible pause after the full request, even with auto advance");
+                scene._Process(0.41);
+                Check(Read<int>(scene, "_line") == 4, "the visible pause releases without another input");
+                Write(scene, "_line", 3);
+                Call(scene, "ShowLine");
+                while (!root.Hud.DialogRevealed) root.Hud.RevealDialogNow();
+                Write(scene, "_held", false);
+                Input.ParseInputEvent(new InputEventKey { Keycode = Key.Z, PhysicalKeycode = Key.Z, Pressed = true });
+                await Frames(2);
+                scene._Process(0.3);
+                Input.ParseInputEvent(new InputEventKey { Keycode = Key.Z, PhysicalKeycode = Key.Z, Pressed = false });
+                Check(Read<int>(scene, "_line") == 4, "the rest pause never blocks the player's explicit next input");
+            }
+            for (int tick = 0; tick < 20 && completions == 0; tick++)
+            {
+                while (!root.Hud.DialogRevealed) root.Hud.RevealDialogNow();
+                Write(root.Hud, "_pageReadT", 10d);
+                scene._Process(2.1);
+            }
+            await Frames(3);
+            Check(completions == 1 && !root.Hud.CinematicMode && !Hud.BubblePaused
+                && root.World.ProcessMode == ProcessModeEnum.Inherit && _game.ProcessMode != ProcessModeEnum.Disabled,
+                "every rescue branch completes once and restores the battle");
+            Check(FilmSkip.Seen(_game, filmId), "completion records the actual rescue approach");
+            root.QueueFree();
+            await Frames(4);
+        }
     }
 
     private async Task CheckEndings()
@@ -545,6 +756,10 @@ public partial class ScenarioRevisionQa : Node
             GetTree().Root.AddChild(final);
             final.SetProcess(false);
             var talk = Read<IList>(final, "_talk");
+            Write(final, "_line", Array.IndexOf(Texts(talk), Field<string>(typeof(Final), "CueSilenceLine")));
+            Call(final, "MusicCue");
+            Check(Read<bool>(final, "_cueSilenceDone") && !Read<bool>(final, "_cueResolveDone"),
+                "the revised conversation falls silent before the player's reply");
             Write(final, "_line", talk.Count);
             if (choice == 0 && DisplayServer.GetName() != "headless")
             {
@@ -555,6 +770,9 @@ public partial class ScenarioRevisionQa : Node
             Call(final, "ApplyFinalChoice", choice);
             string sent = _game.ChosenAt("f4");
             Check(sent.Length > 0 && Texts(talk).Contains(sent) && !Texts(talk).Contains(Field<string[]>(typeof(Final), "FinalChoices")[1 - choice]), "F13 records and plays only the selected emotional reply");
+            Write(final, "_line", Array.IndexOf(Texts(talk), Field<string>(typeof(Final), choice == 0 ? "CueResolveLine" : "CueKeepLine")));
+            Call(final, "MusicCue");
+            Check(Read<bool>(final, "_cueResolveDone"), "both selected replies still trigger the receiving illustration and music");
             final.QueueFree();
             await Frames(3);
             for (int name = 0; name < 2; name++)
@@ -568,6 +786,9 @@ public partial class ScenarioRevisionQa : Node
                 Check(texts.Any(t => t.Contains("長い肩書き")) == (name == 1)
                     && texts.Any(t => t.Contains("37番目だから")) == (name == 0), "epilogue recalls only the chosen naming route");
                 Check(Read<string>(end, "_rollLast") == sent, "credits retain F13 even after the epilogue choice");
+                Check(texts[^2].Contains("おやすみ") && texts[^1].Contains("おやすみ")
+                    && !texts.Any(t => t.Contains("いってらっしゃい")),
+                    "both final choices and names close the same bedtime conversation");
                 if (choice == 0 && name == 0)
                 {
                     var gaze = Read<IList>(end, "_gaze");
@@ -603,6 +824,12 @@ public partial class ScenarioRevisionQa : Node
                     Write(end, "_reveal", 10000.0);
                     end.QueueRedraw();
                     await Shot("call_mina_end");
+                    Write(end, "_line", texts.Length - 1);
+                    Write(end, "_pagedKey", -1);
+                    Call(end, "EnsurePages");
+                    Write(end, "_reveal", 10000.0);
+                    end.QueueRedraw();
+                    await Shot("call_mina_goodnight");
                 }
                 end.QueueFree();
                 await Frames(3);
@@ -628,7 +855,7 @@ public partial class ScenarioRevisionQa : Node
             string rescuer = Jobs.Get(job).CharacterId;
             Check(shots[5].EndsWith("cg_mina_rescue_" + rescuer + "_v1.png"), "rescue CG matches " + rescuer);
             Check(!shots.Values.Any(p => p.Contains("reunion") || p.Contains("take_hand")), "rescued Mina never returns to the old black-haired group CG");
-            Check(lines.Count == 4 && shots.Count == 1, "the immediate aftermath only restores contact before the return conversations");
+            Check(lines.Count == 4, "the immediate aftermath has four lines before the return conversations");
             await ToSignal(GetTree().CreateTimer(2), SceneTreeTimer.SignalName.Timeout);
             film.SetProcess(false);
             for (int lineIndex = 0; lineIndex < lines.Count; lineIndex++)
@@ -674,15 +901,18 @@ public partial class ScenarioRevisionQa : Node
             && Field<string[]>(typeof(EndingFilm), "Speakers").Length == art.Length, "every ending cut has artwork, a speaker and a caption entry");
         Check(art.All(t => !t.ResourcePath.Contains("together") && !t.ResourcePath.EndsWith("cg_ep_rest.png")),
             "ending montage uses individual scenes");
+        Check(!Field<string[]>(typeof(EndingFilm), "Lines").Any(t => t.Contains("おやすみ")),
+            "the montage leaves the farewell for the conversation after the credits");
         var speakers = Field<string[]>(typeof(EndingFilm), "Speakers");
         foreach (string speaker in new[] { "あかり", "こはる", "レイ" })
             Check(speakers.Count(s => s == speaker) == 1, "the ending montage gives " + speaker + " one daily-life update");
-        foreach (double time in cuts.Take(cuts.Length - 1).Select(t => t + 0.2))
+        for (int shot = 0; shot < art.Length; shot++)
         {
-            typeof(EndingFilm).GetProperty("Elapsed")!.SetValue(film, time);
+            typeof(EndingFilm).GetProperty("Elapsed")!.SetValue(film, cuts[shot] + 1.2);
             film._Process(0);
             film.QueueRedraw();
             await Frames(3);
+            await Shot("ending_cut_" + shot);
         }
         await Shot("ending_last_cut");
         film.QueueFree();
@@ -700,7 +930,8 @@ public partial class ScenarioRevisionQa : Node
         await ToSignal(GetTree().CreateTimer(0.5), SceneTreeTimer.SignalName.Timeout);
         await Frames(3);
         await ToSignal(RenderingServer.Singleton, RenderingServer.SignalName.FramePostDraw);
-        string folder = ProjectSettings.GlobalizePath("res://build/scenario_sync/shots");
+        string folder = ProjectSettings.GlobalizePath(OS.GetCmdlineUserArgs().Contains("--ending-visuals")
+            ? "res://build/qa_story/ending_art_20261023/shots/ending" : "res://build/qa_story/story_followup_20261021/shots");
         DirAccess.MakeDirRecursiveAbsolute(folder);
         GetViewport().GetTexture().GetImage().SavePng(folder + "/" + name + ".png");
     }

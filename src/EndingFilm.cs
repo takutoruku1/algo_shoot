@@ -13,12 +13,12 @@ public partial class EndingFilm : Node2D
     private static readonly string[] Speakers = { "ミナ", "あかり", "こはる", "レイ", "ミナ", "あなた", "" };
     private static readonly string[] Lines =
     {
-        "皆さまから、その後のお話が届きました。",
-        "今日、仕事を残して帰ってきた。明日でいいって言えたよ。座ったら、お腹すいてるって気づいた。",
-        "途中で配信を閉じて寝たの。でも今日も、レイちゃんのこと好きだったよ。分かんない問題も、人に聞けた。",
-        "好きな本の話、最後までした。人は少なかったけど、次に話したいことができたわ。",
-        "わたくしが離れたあとにも、続いていたのですね。",
-        "うん。君が全部、持っていなくても。みんな、続きを生きてる。",
+        "新しいお話が、三件。……お返事は、明日にします。",
+        "今日の定食、お味噌汁がおいしくて当たりだったよ。明日は別の店にも寄ってみようかな。",
+        "隣の子と昨日の問題の続きをやってたら、好きな飲み物の話になっちゃった。次はあたしが持ってくね。",
+        "あの本、読み返したら、好きなところが増えたの。……次の話は、そこから。付き合いなさいよ。",
+        "ご主人様。お部屋の窓は、閉まりましたか。",
+        "うん。閉めたよ。……寝る前に、もう少しだけ話そう。",
         "",
     };
     private static readonly Rect2 SkipRect = DialogToolbar.FilmSkipRect;
@@ -57,15 +57,15 @@ public partial class EndingFilm : Node2D
         const string dir = "res://char/bg2/ending/";
         var akari = GD.Load<Texture2D>(dir + "cg_ep_akari_v1.png");
         var koharu = GD.Load<Texture2D>(dir + "cg_ep_koharu_v1.png");
-        var rei = GD.Load<Texture2D>(dir + "cg_ep_rei_v1.png");
+        var rei = GD.Load<Texture2D>(dir + "cg_ep_rei_v2.png");
         _art = new Texture2D[]
         {
-            GD.Load<Texture2D>(dir + "cg_ep_mina_sky_v3.png"),
+            GD.Load<Texture2D>(dir + "cg_ep_mina_screen_v1.png"),
             akari,
             koharu,
             rei,
-            GD.Load<Texture2D>(dir + "cg_ep_goodbye_v2.png"),
-            GD.Load<Texture2D>(dir + "cg_ep_goodbye_v2.png"),
+            GD.Load<Texture2D>(dir + "cg_ep_mina_screen_goodnight_v1.png"),
+            GD.Load<Texture2D>(dir + "cg_ep_mina_screen_goodnight_v1.png"),
             GD.Load<Texture2D>(dir + "bg_ep_dawn_v2.png"),
         };
         _inputArmed = !SkipHeld();
@@ -92,7 +92,7 @@ public partial class EndingFilm : Node2D
                 _loggedShot = Shot;
                 string sp = Speakers[_loggedShot];
                 if (Lines[_loggedShot].Length > 0)
-                    Hud.PushLog(sp == "ミナ" ? Hud.LineKind.Mina : sp == "あなた" ? Hud.LineKind.Boy : Hud.LineKind.Other,
+                    Hud.PushLog("エンディング", sp == "ミナ" ? Hud.LineKind.Mina : sp == "あなた" ? Hud.LineKind.Boy : Hud.LineKind.Other,
                         sp, Lines[_loggedShot], AccentFor(sp));
             }
             bool held = SkipHeld();
@@ -143,7 +143,7 @@ public partial class EndingFilm : Node2D
     {
         float zoom = shot switch
         {
-            0 => Mathf.Lerp(1.025f, 1.045f, progress),
+            0 => Mathf.Lerp(1f, 1.01f, progress),
             3 => Mathf.Lerp(1.025f, 1.01f, progress),
             4 or 5 => Mathf.Lerp(1.01f, 1f, progress),
             6 => 1f,

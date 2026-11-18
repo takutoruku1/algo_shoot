@@ -1,0 +1,27 @@
+{
+  "frames": 48,
+  "cell": 128,
+  "columns": 8,
+  "assets": [
+    "akari_docs",
+    "akari_sticky",
+    "akari_reply_plane",
+    "enemy_akari_deadline",
+    "enemy_akari_unsent",
+    "enemy_akari_vacant",
+    "koharu_glow_arrow",
+    "koharu_ticket",
+    "koharu_prayer_tag",
+    "enemy_koharu_cheer",
+    "enemy_koharu_comparison",
+    "enemy_koharu_parcel",
+    "rei_subscriber",
+    "rei_comment",
+    "enemy_rei_anonymous",
+    "enemy_rei_clipper",
+    "enemy_rei_metrics",
+    "mina_eraser",
+    "mina_folded_note",
+    "mina_unanswered"
+  ]
+}

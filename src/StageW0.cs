@@ -31,7 +31,7 @@ public partial class StageW0 : Node
         _step = 1;
         _stepStarted = false;
         _stepTime = 0;
-        GetNodeOrNull<GameManager>("/root/Game")?.SetStageTarget(StageTarget);
+        GetNodeOrNull<GameManager>("/root/Game")?.SetStageTarget(StageTarget, hasBoss: true);
     }
 
     public override void _Process(double delta)
@@ -142,7 +142,7 @@ public partial class StageW0 : Node
             _spawner = new Spawner { Name = "Spawner", World = World };
             AddChild(_spawner);
             _spawner.Begin();
-            Hud.ShowMessage("浄化ゲージを満タンに！タイムラインを晴らそう");
+            Hud.ShowMessage("浄化90％でボス戦へ！");
         }
         if (_stepTime >= 1.0) Advance();
     }
@@ -153,6 +153,7 @@ public partial class StageW0 : Node
         var game = GetNodeOrNull<GameManager>("/root/Game");
         if (game != null && game.PurifiedCount - _mainBase >= WaveCount)
         {
+            game.FinishStageRoad();
             _spawner?.Stop();
             Advance();
         }

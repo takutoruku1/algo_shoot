@@ -117,6 +117,7 @@ public static class UiKit
 
     // ── フォント（遅延ロード・AA付き）──
     private static FontFile? _zenR, _zenB, _zenBlack, _mono;
+    private static FontFile? _zenMaru, _delaGothic, _kaiseiDecol, _kleeOne, _rajdhani;
     private static FontFile Load(ref FontFile? slot, string path, bool msdf = true)
     {
         if (slot != null) return slot;
@@ -138,6 +139,12 @@ public static class UiKit
     public static FontFile ZenBlack => Load(ref _zenBlack, "res://assets/fonts/ZenKakuGothicNew-Black.ttf");
     // JetBrains Mono's 8 produces a broken MSDF glyph; rasterize numeric text at double resolution.
     public static FontFile Mono     => Load(ref _mono, "res://assets/fonts/JetBrainsMono.ttf", msdf: false);
+    public static FontFile ZenMaru  => Load(ref _zenMaru, "res://assets/fonts/ZenMaruGothic-Medium.ttf");
+    public static FontFile DelaGothic => Load(ref _delaGothic, "res://assets/fonts/DelaGothicOne-Regular.ttf");
+    public static FontFile KaiseiDecol => Load(ref _kaiseiDecol, "res://assets/fonts/KaiseiDecol-Medium.ttf");
+    public static FontFile KleeOne  => Load(ref _kleeOne, "res://assets/fonts/KleeOne-SemiBold.ttf");
+    // Rajdhani covers Latin and Devanagari; use a Japanese font for Japanese copy.
+    public static FontFile Rajdhani => Load(ref _rajdhani, "res://assets/fonts/Rajdhani-SemiBold.ttf");
 
     // ── 設計座標モードの開始/終了 ──
     // 以降の Draw 呼び出しを 1280×720 設計座標で行えるようスケール変換をかける。
@@ -433,6 +440,70 @@ public static class UiKit
         ci.DrawStyleBox(sb, r);
     }
 
+    public static void ExhibitBackdrop(CanvasItem ci, Color accent, float headerY = 90)
+    {
+        VGradient(ci, new Rect2(0, 0, DesignW, DesignH),
+            new[] { new Color("14202f"), new Color("0c1723"), new Color("080f19") }, new[] { 0f, .55f, 1f });
+        RadialGlow(ci, new Vector2(230, 30), 560, accent, .1f);
+        RadialGlow(ci, new Vector2(1130, 180), 430, new Color("8abbd0"), .06f);
+        ci.DrawColoredPolygon(new[] { new Vector2(90, 0), new Vector2(205, 0), new Vector2(520, 648), new Vector2(340, 648) }, new Color(accent, .025f));
+        ci.DrawColoredPolygon(new[] { new Vector2(1060, 0), new Vector2(1120, 0), new Vector2(900, 648), new Vector2(770, 648) }, new Color(accent, .025f));
+        ci.DrawLine(new Vector2(32, headerY), new Vector2(1248, headerY), new Color(accent, .22f), 1, true);
+        for (int i = -4; i <= 4; i++)
+            ci.DrawLine(new Vector2(640 + i * 92, 490), new Vector2(640 + i * 260, 720), new Color(accent, .022f), 1, true);
+        foreach (float y in new[] { 523f, 572f, 638f, 714f })
+            ci.DrawLine(new Vector2(0, y), new Vector2(1280, y), new Color(accent, .025f), 1);
+        HGradient(ci, new Rect2(0, 648, 1280, 72), new Color("10212c"), new Color("080f18"));
+        ci.DrawLine(new Vector2(32, 648), new Vector2(1248, 648), new Color(accent, .25f), 1);
+    }
+
+    public static void ExhibitPanel(CanvasItem ci, Rect2 r, Color accent, bool selected = false, float depth = 5)
+    {
+        depth *= .65f;
+        var shadow = new StyleBoxFlat { BgColor = new Color("0b1722"), ShadowColor = new Color(0, 0, 0, .28f),
+            ShadowSize = 7, ShadowOffset = new Vector2(0, depth + 2), CornerRadiusTopLeft = 8,
+            CornerRadiusTopRight = 8, CornerRadiusBottomLeft = 8, CornerRadiusBottomRight = 8 };
+        ci.DrawStyleBox(shadow, new Rect2(r.Position + new Vector2(0, depth), r.Size));
+        float x = r.Position.X, y = r.Position.Y, w = r.Size.X, h = r.Size.Y;
+        var points = new[] { new Vector2(x + 8, y), new Vector2(x + w - 8, y), new Vector2(x + w, y + 8),
+            new Vector2(x + w, y + h - 8), new Vector2(x + w - 8, y + h), new Vector2(x + 8, y + h),
+            new Vector2(x, y + h - 8), new Vector2(x, y + 8) };
+        Color top = (selected ? new Color("304854") : new Color("223440")).Lerp(accent, selected ? .12f : .025f);
+        Color bottom = (selected ? new Color("182c3b") : new Color("111e2b")).Lerp(accent, selected ? .035f : .005f);
+        ci.DrawPolygon(points, new[] { top, top, top, bottom, bottom, bottom, bottom, top });
+        ci.DrawPolyline(new[] { points[7], points[0], points[1], points[2], points[3], points[4], points[5], points[6], points[7] },
+            new Color(accent, selected ? .58f : .19f), 1, true);
+        ci.DrawLine(new Vector2(x + 10, y + 2), new Vector2(x + w - 10, y + 2), new Color(Colors.White, selected ? .3f : .12f), 1, true);
+        ci.DrawLine(new Vector2(x + 3, y + 10), new Vector2(x + 3, y + h - 10), new Color(Colors.White, .045f), 1);
+        ci.DrawLine(new Vector2(x + 10, y + h - 2), new Vector2(x + w - 10, y + h - 2), new Color("0a1620"), 1);
+        if (selected) ci.DrawLine(new Vector2(x + 16, y), new Vector2(x + Mathf.Min(w - 16, 100), y), accent, 2, true);
+    }
+
+    public static void ExhibitPlinth(CanvasItem ci, Vector2 center, Vector2 size, Color accent)
+    {
+        Vector2[] Ellipse(Vector2 at)
+        {
+            var points = new Vector2[49];
+            for (int i = 0; i < points.Length; i++)
+            {
+                float angle = i * Mathf.Tau / 48;
+                points[i] = at + new Vector2(Mathf.Cos(angle) * size.X, Mathf.Sin(angle) * size.Y);
+            }
+            return points;
+        }
+        RadialGlow(ci, center, size.X * 1.25f, accent, .12f);
+        ci.DrawColoredPolygon(Ellipse(center + new Vector2(0, 9)), new Color("0c1824"));
+        ci.DrawRect(new Rect2(center.X - size.X, center.Y, size.X * 2, 9), new Color("192c39"));
+        var surface = Ellipse(center);
+        var shades = new Color[surface.Length];
+        for (int i = 0; i < surface.Length; i++)
+            shades[i] = new Color("3a5260").Lerp(new Color("182b3b"), (surface[i].X - center.X + size.X) / (size.X * 2));
+        ci.DrawPolygon(surface, shades);
+        ci.DrawPolyline(surface, new Color(accent, .6f), 1.5f, true);
+        size *= .84f;
+        ci.DrawPolyline(Ellipse(center), new Color(accent, .18f), 1, true);
+    }
+
     // ── 縦リニアグラデ矩形（上→下に色を補間）──
     public static void VGradient(CanvasItem ci, Rect2 r, Color[] colors, float[] offsets)
         => ci.DrawTextureRect(GradTex(colors, offsets, vertical: true), r, false);
@@ -596,7 +667,7 @@ public static class UiKit
         float asc = ZenBold.GetAscent(size), desc = ZenBold.GetDescent(size);
         float w = TextW(ZenBold, initial, size);
         ci.DrawString(ZenBold, new Vector2(center.X - w / 2f, center.Y + (asc - desc) / 2f), initial,
-            HorizontalAlignment.Left, -1, size, new Color(0.06f, 0.05f, 0.10f, 0.92f));
+            HorizontalAlignment.Left, -1, size, new Color(0.06f, 0.05f, 0.10f, 0.92f * col.A));
     }
 
     // ── 顔アバター（円形クリップした立ち絵の頭部 ＋ アカウント色リング）──

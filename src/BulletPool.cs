@@ -9,26 +9,29 @@ public enum BossShotStyle { Ring, Aimed }
 // 生成した Bullet は Pool 自身の子として add する。
 public partial class BulletPool : Node2D
 {
-    private readonly HashSet<Bullet> _reiBullets = new();
-    private readonly List<Bullet> _reiFrameBullets = new();
+    private readonly HashSet<Bullet> _enemyBullets = new();
+    private readonly List<Bullet> _enemyFrameBullets = new();
 
-    private sealed partial class ReiUpdater : Node
+    private sealed partial class EnemyUpdater : Node
     {
         internal BulletPool Pool = null!;
         public override void _PhysicsProcess(double delta)
         {
             // Despawning during movement mutates the active set.
-            Pool._reiFrameBullets.Clear();
-            Pool._reiFrameBullets.AddRange(Pool._reiBullets);
-            foreach (var bullet in Pool._reiFrameBullets) bullet.StepRei(delta);
+            Pool._enemyFrameBullets.Clear();
+            Pool._enemyFrameBullets.AddRange(Pool._enemyBullets);
+            float timeScale = GameManager.EnemyTimeScale;
+            foreach (var bullet in Pool._enemyFrameBullets) bullet.StepEnemy(delta, timeScale);
         }
     }
-    internal void TrackReiBullet(Bullet bullet) => _reiBullets.Add(bullet);
-    internal void UntrackReiBullet(Bullet bullet) => _reiBullets.Remove(bullet);
+    internal void TrackEnemyBullet(Bullet bullet) => _enemyBullets.Add(bullet);
+    internal void UntrackEnemyBullet(Bullet bullet) => _enemyBullets.Remove(bullet);
 
     public override void _PhysicsProcess(double delta)
     {
-        foreach (var bullet in _reiBullets) bullet.SyncReiCollision();
+        if (_enemyBullets.Count == 0) return;
+        Vector2? target = (GetTree().GetFirstNodeInGroup("player") as Node2D)?.GlobalPosition;
+        foreach (var bullet in _enemyBullets) bullet.SyncEnemyCollision(target);
     }
 
     private const int PreallocCount = 512;
@@ -45,7 +48,7 @@ public partial class BulletPool : Node2D
     {
         // Sync collision pieces after both the player and every bullet have moved.
         ProcessPhysicsPriority = 100;
-        AddChild(new ReiUpdater { Pool = this, ProcessPhysicsPriority = -1 });
+        AddChild(new EnemyUpdater { Pool = this, ProcessPhysicsPriority = -1 });
         // 512 発を事前生成しプール（非アクティブ）
         for (int i = 0; i < PreallocCount; i++)
         {
@@ -134,8 +137,13 @@ public partial class BulletPool : Node2D
         fragment.BossAimTarget = target;
         fragment.BossBarrageWave = source.BossBarrageWave;
         fragment.BossBarrageId = source.BossBarrageId;
+        fragment.ZIndex = source.ZIndex;
+        fragment.ZAsRelative = source.ZAsRelative;
         fragment.UseCharacterProjectile(Job.Magic, source.BossStyle);
         if (source.BossPattern >= 0) fragment.UseBossPatternVisual(Job.Magic, source.BossPattern);
+        if (source.BossPattern >= 0)
+            fragment.UseBossIllustration(BulletArt.EnemyVisual(splitsRemaining > 0 ? "rei_subscriber" : "rei_comment",
+                splitsRemaining > 0 ? "ffb085" : "efa2db"), fitRadius: fragment.IllustrationRadius);
         fragment.DeployBossFormation(destination, edgeLaunch: true, warnedLaunch: warnedLaunch);
         return fragment;
     }

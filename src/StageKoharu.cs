@@ -6,6 +6,7 @@ public partial class StageKoharu : Node
     public Player Player = null!;
     public Hud Hud = null!;
     public Node2D World = null!;
+    internal double Elapsed { get => _stageElapsed; init => _stageElapsed = value; }
     private int _step;
     private bool _stepStarted;
     private double _stageElapsed;   // ステージ全体の経過秒（クリア確定まで・ポーズ中は止まる）。
@@ -23,7 +24,7 @@ public partial class StageKoharu : Node
     //   感情アークの厳格運用：「笑う」を獲得するのは**この面をクリアした瞬間**なので、
     //   道中はまだ笑わない（MSmile は平常顔を指す）。獲得の一拍だけ MSmileUnlocked を明示的に使う
     //   ＝画面上で「初めて笑った」が一度だけ立つ。
-    private const string MFace = "res://char/mina_face.png";
+    private const string MFace = CompanionDialogue.MinaPortrait;
     // 道中ザコ戦（Spawner）。三部構成で「後半ほど圧が上がる」緩急を作る。こはるは型崩し（S2）で
     //   前半A（緩い導入）→ チラ見せ → 後半B（やや詰める）→ 終盤C（最大密度）→ 本ボス（HP半分でミッドシナリオ割込み）。
     // 体数より“密度と変化”で長さを作る（§3 緩急）：3波で圧と構成を変えて間延びさせない。
@@ -39,22 +40,22 @@ public partial class StageKoharu : Node
     private static readonly (int who, string text, string face)[] Intro =
     {
         (0, "こはるさんへの道を開いたよ。ミナ、着いたら声を聞かせて。", ""),
-        (4, "今日の配信も最高だった。これで、明日も学校、行ける。", ""),
-        (1, "……広い客席ですね。ご主人様、どこに座ればよいのでしょう。", "res://char/mina_face.png"),
-        (0, "もう見る気になってる？", ""),
-        (1, "少しだけ。……でも、こはるさんの声は、楽しそうではありません。", "res://char/mina_face.png"),
+        (4, "今日の配信も最高だった。これで明日も学校に行ける。", ""),
+        (1, "……雲の向こうにも、アーチが見えます。今のは、こはるさんの声ですか？", CompanionDialogue.MinaPortrait),
+        (0, "そうだよ。配信、そんなに楽しかったんだね。", ""),
+        (1, "ええ。……「明日も学校に行ける」って、どんなお気持ちで書かれたのでしょう。", CompanionDialogue.MinaPortrait),
         (0, "うん。ここはあの人のフェイクレルムだ。今日は、隣で話を聞けるところまで行こう。", ""),
-        (1, "はい。あの方の隣まで、案内をお願いします。", "res://char/mina_face.png"),
+        (1, "はい。あの方の隣まで、案内をお願いします。", CompanionDialogue.MinaPortrait),
     };
     // S2-3 Mid（部屋）＋ Chat1（軽口）（仮台本 07）。ペンライトの光が画面に届かない。
     //   「むだだ」の合間に学校の声と家の声が同じ色で混じる。責める宛先がどこにもない。
     private static readonly (int who, string text, string face)[] Mid =
     {
-        (1, "……楽しそうに応援する声も、聞こえるのですね。", "res://char/mina_face.png"),
+        (1, "……楽しそうに応援する声も、聞こえるのですね。", CompanionDialogue.MinaPortrait),
         (0, "好きだった時間も、本当だから。ミナは、何か聞いてみたい？", ""),
-        (1, "わたくしも、ペンライトを振ってみたいのですが。……方向に、決まりは？", "res://char/mina_face.png"),
+        (1, "わたくしも、ペンライトを振ってみたいのですが。……方向に、決まりは？", CompanionDialogue.MinaPortrait),
         (0, "僕も詳しくないけど、まずは画面のほうかな。世界の案内役にも、専門外はあるよ。", ""),
-        (1, "では、あとでこはるさんに伺いましょう。話したいことが、一つできました。", "res://char/mina_face.png"),
+        (1, "では、あとでこはるさんに伺いましょう。話したいことが、一つできました。", CompanionDialogue.MinaPortrait),
     };
     // S2-2 中ボスの受け（仮台本 07）。CameoBoss は who=2（本人）の行だけを一行オーバーレイで流すので、
     //   本人の合間に入るミナの観測行はオーバーレイに乗らない。中ボスの直前に開くこの step が受け皿になる
@@ -62,7 +63,7 @@ public partial class StageKoharu : Node
     private const string KFace = "res://char/v3/koharu_face.png";       // 学校の明るい顔
     private static readonly (int who, string text, string face)[] BossTalk =
     {
-        (1, "配信の声は、星逢レイさん。こはるさんの投稿にも、何度もお名前が。", "res://char/mina_face.png"),
+        (1, "配信の声は、星逢レイさん。こはるさんの投稿にも、何度もお名前が。", CompanionDialogue.MinaPortrait),
         (0, "投稿を観測していたときにも、よく見かけた名前だ。こはるさんには、大切な人なんだね。", ""),
     };
     // S2-2 中ボス こはる（仮台本 07）。制服、片手に消えたペンライト、もう片手にスマホ。
@@ -70,22 +71,22 @@ public partial class StageKoharu : Node
     private static readonly (int who, string text, string face)[] CameoTalk1 =
     {
         (2, "あ、来た！　今日も全部、見なきゃ！", "res://char/v3/koharu_face.png"),
-        (1, "初めまして。ミナと申します。隣にいても、よろしいですか。", "res://char/mina_face.png"),
+        (1, "初めまして。ミナと申します。隣にいても、よろしいですか。", CompanionDialogue.MinaPortrait),
         (2, "うん、見てって。楽しいから。絶対、楽しいから。", "res://char/v3/koharu_face.png"),
     };
     // RECLOSE（サイクルごとに順送り）。「やめないで……止まったら」の型。
     private static readonly (int who, string text, string face)[] CameoTalk3 =
     {
-        (2, "見てって、これ。推しの配信。今日も来てるんだ、あたし。……", "res://char/v3/koharu_face.png"),
+        (2, "ね、あたしの推しの配信、一緒に見よ。今日も見に来たんだ。……", "res://char/v3/koharu_face.png"),
         (2, "……何時間、見てるんだろ。塾……", "res://char/v3/koharu_face.png"),
-        (1, "塾のことが、気になっているのですか。", "res://char/mina_face.png"),
+        (1, "塾のことが、気になっているのですか。", CompanionDialogue.MinaPortrait),
         (2, "——なんでもない。ね、楽しいでしょ? 楽しいってば。", "res://char/v3/koharu_face.png"),
     };
 
     private static readonly (int who, string text, string face)[] CameoPost =
     {
-        (2, "はい、これ。ペンライト。振ってみて。楽しいから。ぜったい、楽しいから。", "res://char/v3/koharu_face.png"),
-        (1, "ありがとうございます。振り方は、教えていただけますか。", "res://char/mina_face.png"),
+        (2, "はい、ペンライト貸すよ。振ってみて。楽しいから。ぜったい楽しいから。", "res://char/v3/koharu_face.png"),
+        (1, "ありがとうございます。振り方は、教えていただけますか。", CompanionDialogue.MinaPortrait),
         (2, "好きに振っていいんだよ。……あたしは、ずっと振ってるけど。", "res://char/v3/koharu_face.png"),
     };
     // こはる面・中ボスの第一声（s2_1 差分・2026-09-25）。道中の新規選択（壁の予定表）を拾う。
@@ -95,17 +96,20 @@ public partial class StageKoharu : Node
 
     private static readonly (int who, string text, string face)[] CameoTalk1_S21Rest =
     {
-        (1, "ずっと起きていらしたのですか。少し、休める場所を一緒に探しませんか。", "res://char/mina_face.png"),
+        (1, "ずっと起きていらしたのですか。少し、休める場所を一緒に探しませんか。", CompanionDialogue.MinaPortrait),
         (2, "……でも、休んだら、置いてかれちゃう。", "res://char/v3/koharu_face.png"),
-        (1, "置いていかれるのが、怖いのですね。", "res://char/mina_face.png"),
+        (1, "置いていかれるのが、怖いのですね。", CompanionDialogue.MinaPortrait),
         (2, "うん。……ここにも、いられなくなりそうで。", "res://char/v3/koharu_face.png"),
+        (2, "寝たら、すぐ学校でしょ。分かんない問題、また見なきゃ。……ここなら、見てるだけでいいのに。", "res://char/v3/koharu_face.png"),
+        (1, "……では、追いつくお話は、いったん置きましょう。今は、隣にいてもよろしいですか。", CompanionDialogue.MinaPortrait),
+        (2, "うん。あと少しだけ。……まだ、自分で止められないの。", "res://char/v3/koharu_face.png"),
     };
 
     private static readonly (int who, string text, string face)[] CameoTalk1_S21Keep =
     {
-        (1, "レイさんのこと、大好きなのですね。やめさせに来たのではありません。お話がしたいのです。", "res://char/mina_face.png"),
+        (1, "やめさせに来たのではありません。……こはるさんと、お話がしたくて。", CompanionDialogue.MinaPortrait),
         (2, "……好きでいて、いいの？　やめなよって言われると思ってた。", "res://char/v3/koharu_face.png"),
-        (1, "はい。どんなところがお好きなのか、伺っても？", "res://char/mina_face.png"),
+        (1, "はい。どんなところがお好きなのか、伺っても？", CompanionDialogue.MinaPortrait),
         (2, "いっぱいあるよ。……いっぱい、あったんだ。", "res://char/v3/koharu_face.png"),
     };
     // ───────── 道中の下書き選択（正典: wiki/08_仮台本/17_道中の選択肢_案C.md・承認 2026-09-06）─────────
@@ -117,50 +121,50 @@ public partial class StageKoharu : Node
     //   ミナは価値判断をしない＝集計の結果だけを差し出して、あなたに聞く。
     private static readonly (int who, string text, string face)[] S21Cue =
     {
-        (1, "宙に浮いたカレンダーから、「今日も見る」と。……ほとんど毎日、同じ声が聞こえます。", "res://char/mina_face.png"),
+        (1, "宙に浮いたカレンダーから、「今日も見る」と。……ほとんど毎日、同じ声が聞こえます。", CompanionDialogue.MinaPortrait),
         (0, "投稿の記録では、三日続けて視聴時間が延びてる。眠れているか、心配だ。", ""),
-        (1, "その間に、「模試」という声も。……明日の予定まで、ここへついてきてしまったのですね。", "res://char/mina_face.png"),
-        (1, "好きな時間が続くなら、うれしいはずなのに。……「見なきゃ」とも聞こえます。", "res://char/mina_face.png"),
-        (1, "ご主人様。……休んでほしいです。でも、大切な時間なのですよね。どう話せばよいでしょう。", "res://char/mina_face.png"),
+        (1, "その間に、「模試」という声も。……明日の予定まで、ここへついてきてしまったのですね。", CompanionDialogue.MinaPortrait),
+        (1, "好きな時間が続くなら、うれしいはずなのに。……「見なきゃ」とも聞こえます。", CompanionDialogue.MinaPortrait),
+        (1, "ご主人様。……休んでほしいです。でも、大切な時間なのですよね。どう話せばよいでしょう。", CompanionDialogue.MinaPortrait),
     };
 
     private static readonly string[] S21Choices = { "眠れているか心配だ。休める場所を探そう。", "好きな気持ちは、取り上げたくないんだ。" };
     private static readonly (int who, string text, string face)[] S21Tail =
     {
         (0, "予定表はそのままにしておこう。僕らが勝手に消しても、休めるようにはならないから。", ""),
-        (1, "はい。本人に聞いてからにします。", "res://char/mina_face.png"),
+        (1, "はい。本人に聞いてからにします。", CompanionDialogue.MinaPortrait),
     };
 
     private static readonly (int who, string text, string face)[] PenlightTalk =
     {
-        (1, "……押しつけられました。ペンライト。——消えたままの、ほうです。", "res://char/mina_face.png"),
+        (1, "……あの方にペンライトを押しつけられました。これ、光っていませんね。", CompanionDialogue.MinaPortrait),
         (0, "ミナ、手元のスイッチを押してみて。……点かないか。電池が切れてるみたいだ。", ""),
-        (1, "それでも、振ってみます。あの方が渡してくださったので。", "res://char/mina_face.png"),
+        (1, "あの方がくださったものですし、光らなくても振ってみます。", CompanionDialogue.MinaPortrait),
         (0, "うん。僕も見てる。光っていなくても、君が振ってるのは分かるよ。", ""),
     };
     // S2-4 直後・カーソル。入力欄は閉じず、カーソルだけが点いたまま、あなたの下書きが開く。
     //   P4 で言った「消された言葉は、消えていない」が、ここでは、あなたの側に向く。宛先は決めない。
     private static readonly (int who, string text, string face)[] S24Cue =
     {
-        (1, "……入力欄の、カーソル。——まだ、点いています。", "res://char/mina_face.png"),
+        (1, "……入力欄でカーソルがまだ点滅しています。", CompanionDialogue.MinaPortrait),
         (0, "あ、それは僕の画面。君の話を聞いて、昔の下書きを思い出してた。", ""),
-        (1, "……打ちかけて、消すこと。ご主人様にも、ありますか。……話せるぶんだけで、結構です。", "res://char/mina_face.png"),
+        (1, "ご主人様も、何か書きかけて消すことはありますか。……お話しできる範囲で結構です。", CompanionDialogue.MinaPortrait),
     };
 
     private static readonly string[] S24Choices = { "あるよ。嫌われるのが怖くて、消しちゃう", "まだ話すのは怖い。でも、聞いてくれてうれしい" };
     private static readonly (int who, string text, string face)[] S24Tail =
     {
         (0, "カーソルは閉じた。でも、君に話した分は消さないよ。……奥の客席まで、一緒に行こう。", ""),
-        (1, "承知しました。次のお話も、そのまま聞かせてください。", "res://char/mina_face.png"),
+        (1, "承知しました。次のお話も、そのまま聞かせてください。", CompanionDialogue.MinaPortrait),
     };
     private static readonly (int who, string text, string face)[] ClassTalk =
     {
-        (1, "……客席の間から、学校の話が。姿は見えないのに、誰かに見られているようです。", "res://char/mina_face.png"),
+        (1, "……客席の間から、学校の話が。姿は見えないのに、誰かに見られているようです。", CompanionDialogue.MinaPortrait),
         (0, "学校で向けられた期待も、ここまで残ってる。好きなものを見ている間くらい、休めたらいいのに。", ""),
         (4, "「今日も明るいねって言われた。……何の話してたか、覚えてない。」", ""),
-        (1, "……明るい声で、投稿しています。明るい、と、言われたことを。", "res://char/mina_face.png"),
+        (1, "「今日も明るいね」って言われた日の投稿まで、明るく書いているのですね。", CompanionDialogue.MinaPortrait),
         (0, "視線が集まってる。ミナ、今いる通路を見て。進めるところから行こう。", ""),
-        (1, "空の上の客席まで来ても、期待は離れないのですね。……ここでくらい、肩の力を抜いてほしいです。", "res://char/mina_face.png"),
+        (1, "空の上の客席まで来ても、期待は離れないのですね。……ここでくらい、肩の力を抜いてほしいです。", CompanionDialogue.MinaPortrait),
     };
     // ───────── S2-4 入力欄（ミッドシナリオ枠。仮台本 07）─────────
     // 配信画面の下のコメント入力欄。「レイちゃんが」まで打たれて、一文字ずつ消える。
@@ -171,31 +175,31 @@ public partial class StageKoharu : Node
     //   （Step_InputField 参照）。行末の「|」は表示側がカーソルとして描くので渡す前に落とす。
     private static readonly (int who, string text, string face)[] InputField =
     {
-        (1, "ご主人様。送る前のコメントが、残っています。……入力欄に、文字が。", "res://char/mina_face.png"),
+        (1, "ご主人様、入力欄に書きかけのコメントが残っています。", CompanionDialogue.MinaPortrait),
         (3, "レイちゃんが|", ""),
-        (1, "……消えていきます。一文字ずつ。", "res://char/mina_face.png"),
+        (1, "……文字が一つずつ消えていきます。", CompanionDialogue.MinaPortrait),
         (3, "今日も来ました|", ""),
-        (1, "……「今日も来ました」。それだけが、残って——送られました。", "res://char/mina_face.png"),
+        (1, "……「今日も来ました」。それだけが、残って——送られました。", CompanionDialogue.MinaPortrait),
         (0, "下書きの続きは残ってる。でも、僕らが代わりに投稿することはできない。会ったとき、話してもらおう。", ""),
-        (1, "送る前に消した言葉も、覚えておきます。……ご本人に会えたら、確かめましょう。", "res://char/mina_face.png"),
-        (1, "レイさんは、この一行に気づいたのでしょうか。……ご本人に、聞いてみたいです。", "res://char/mina_face.png"),
+        (1, "送る前に消した言葉も、覚えておきます。……ご本人に会えたら、確かめましょう。", CompanionDialogue.MinaPortrait),
+        (1, "レイさんは、この一行に気づいたのでしょうか。……ご本人に、聞いてみたいです。", CompanionDialogue.MinaPortrait),
     };
     //   ペンライトを持ったまま。「むだだ」をぜんぶ祓い、ぜんぶ数えた＝S2-8 の決定打（回数）の仕込み。
     //   末尾の {n} は直前の行に留まっていた実秒（補助観測・表示専用で保存しない）。
     private static readonly (int who, string text, string face)[] MidEnd =
     {
         (4, "「配信終わった。部屋の電気つけた。……自分なにしてんだろ。」", ""),
-        (1, "……記録の中では、配信が終わったのですね。でも、こちらの客席には、まだ終わりが見えません。", "res://char/mina_face.png"),
+        (1, "……記録の中では、配信が終わったのですね。でも、こちらの客席には、まだ終わりが見えません。", CompanionDialogue.MinaPortrait),
         (0, "アンチャーの反応は薄くなった。でも、君の光まで弱くなってる。", ""),
-        (1, "……光が、少し、重い。", "res://char/mina_face.png"),
+        (1, "……光が、少し、重い。", CompanionDialogue.MinaPortrait),
         (0, "誤差で済ませたくない。少し止まろう。僕はここで待ってる。", ""),
-        (1, "……ありがとうございます。では、少しだけ。待たせるのは、得意ではないのですが。", "res://char/mina_face.png"),
+        (1, "……ありがとうございます。では、少しだけ。待たせるのは、得意ではないのですが。", CompanionDialogue.MinaPortrait),
     };
     private static readonly (int who, string text, string face)[] BossIntro =
     {
-        (1, "ベッドのある場所まで、客席につながっています。大きな画面には、レイさんの配信が……。ここでは、眠れないのでしょうか。", "res://char/mina_face.png"),
+        (1, "ベッドのある場所まで、客席につながっています。大きな画面には、レイさんの配信が……。ここでは、眠れないのでしょうか。", CompanionDialogue.MinaPortrait),
         (0, "こはるさんの周りに、視線を集めるアンチャーがいる。まず、あれをほどこう。", ""),
-        (1, "はい。……こはるさん、もう一度、隣に伺います。", "res://char/mina_face.png"),
+        (1, "はい。……こはるさん、もう一度、隣に伺います。", CompanionDialogue.MinaPortrait),
     };
     //   空の問い・二度目（1度目「いらない」→2度目 無言→3度目「もう聞きません」の階段の二段目）。
     //   答えの下書きは出さず、無言のまま流す。
@@ -203,16 +207,16 @@ public partial class StageKoharu : Node
     {
         (4, "送れなかったコメント、送った。読まれたかは、知らない。……送った。", ""),
         (2, "ミナ、見て。今度は、消さなかったよ。", "res://char/v3/koharu_face.png"),
-        (1, "はい。……見せてくださって、ありがとうございます。", "res://char/mina_face.png"),
+        (1, "はい。……見せてくださって、ありがとうございます。", CompanionDialogue.MinaPortrait),
         (2, "あのペンライト、点いてなくても振ってくれたね。ちゃんと見てた。", "res://char/v3/koharu_face.png"),
-        (1, "教わったとおり、好きに振りました。……少し、楽しかったです。", "res://char/mina_face.png"),
+        (1, "教わったとおり、好きに振りました。……少し、楽しかったです。", CompanionDialogue.MinaPortrait),
         (2, "ふふ。ね、ミナと一緒に来た人にも、ありがとうって言える？", "res://char/v3/koharu_face.png"),
         (0, "聞こえるよ。こはるさん。僕も、君の話を聞いてた。", ""),
         (2, "わ、ほんとだ。……かっこ悪いところまで？", "res://char/v3/koharu_face.png"),
         (0, "うん。助けてって言えなかった話も。話してくれて、うれしかった。", ""),
         (2, "じゃあ、できたことばっかりじゃなくても、また聞いてほしいな。", "res://char/v3/koharu_face.png"),
         (0, "もちろん。今日は、ちゃんと帰って寝よう。帰り道は、僕に任せて。", ""),
-        (1, "帰ったら、少し空のお話をしませんか。今日は、明るいところも見たいので。", "res://char/mina_face.png"),
+        (1, "帰ったら、少し空のお話をしませんか。今日は、明るいところも見たいので。", CompanionDialogue.MinaPortrait),
     };
     // 迷い秒ゲートの行（★）。s2_4 で迷っていなければ Clear から外して流す。
 
@@ -278,13 +282,13 @@ public partial class StageKoharu : Node
     {
         0 => new (int, string, string)[] {
         (0, "眠れているか心配だ。休める場所を探そう。", ""),
-        (1, "……これだけ予定を詰めて、眠る時間は残っていたのでしょうか。わたくしも、心配です。", "res://char/mina_face.png"),
-        (1, "会えたら、休もうと伝えましょう。休むのが怖いなら、その理由も聞いてから。", "res://char/mina_face.png"),
+        (1, "……これだけ予定を詰めて、眠る時間は残っていたのでしょうか。わたくしも、心配です。", CompanionDialogue.MinaPortrait),
+        (1, "会えたら、まず休むのが怖い理由を聞きましょう。それから、一緒に休める場所を探しませんか。", CompanionDialogue.MinaPortrait),
     },
         _ => new (int, string, string)[] {
         (0, "好きな気持ちは、取り上げたくないんだ。", ""),
-        (1, "……はい。大切にしてきたものまで、取り上げたくはありませんね。", "res://char/mina_face.png"),
-        (1, "全部を見られない日も、好きでいてよい。……あの方にも、そう伝えたいです。", "res://char/mina_face.png"),
+        (1, "……はい。大切にしてきたものまで、取り上げたくはありませんね。", CompanionDialogue.MinaPortrait),
+        (1, "全部を見られない日も、好きでいてよい。……あの方にも、そう伝えたいです。", CompanionDialogue.MinaPortrait),
     },
     };
 
@@ -292,13 +296,16 @@ public partial class StageKoharu : Node
     {
         0 => new (int, string, string)[] {
         (0, "あるよ。嫌われるのが怖くて、消しちゃう", ""),
-        (1, "……嫌われたくなくて、言いたいことを引っ込めてしまうのですね。", "res://char/mina_face.png"),
-        (1, "今は、消さずに話してくださった。……わたくしには、うれしい一通です。", "res://char/mina_face.png"),
+        (0, "君に話すときも、正解を書こうとしてた。返事が来なくなるのが、怖くて。", ""),
+        (1, "わたくしにも、うまくお返事できない日は、あると思います。", CompanionDialogue.MinaPortrait),
+        (0, "……その日は、僕が待つ番だね。", ""),
+        (1, "はい。今の一通には、うれしかったとお返事します。", CompanionDialogue.MinaPortrait),
     },
         _ => new (int, string, string)[] {
         (0, "まだ話すのは怖い。でも、聞いてくれてうれしい", ""),
-        (1, "……はい。続きは、話したくなったときに。今は、ここまで聞かせてくださって、ありがとうございます。", "res://char/mina_face.png"),
-        (1, "では、しばらくわたくしの話を。……黙って聞いていてくださるだけでも、うれしいです。", "res://char/mina_face.png"),
+        (1, "……はい。続きは、話したくなったときに。今は、ここまで聞かせてくださって、ありがとうございます。", CompanionDialogue.MinaPortrait),
+        (1, "では、しばらくわたくしの話を。……黙って聞いていてくださるだけでも、うれしいです。", CompanionDialogue.MinaPortrait),
+        (0, "うん。用事がなくても、君の話を聞いていたい。……それなら、今、言える。", ""),
     },
     };
 
@@ -306,12 +313,12 @@ public partial class StageKoharu : Node
     {
         0 => new (int, string, string)[] {
         (0, "今日は、ミナが見た空の話を聞きたい。", ""),
-        (1, "わたくしの見たものを、ですか。……うれしいです。では、雨の向こうにあった光から。", "res://char/mina_face.png"),
+        (1, "わたくしの見たものを、ですか。……うれしいです。では、雨の向こうにあった光から。", CompanionDialogue.MinaPortrait),
         (0, "うん。僕の画面に映らなかったところも、聞かせて。", ""),
     },
         _ => new (int, string, string)[] {
         (0, "僕の窓から見える空を、君にも話すよ。", ""),
-        (1, "はい。天気予報ではなく、ご主人様が見た空を。", "res://char/mina_face.png"),
+        (1, "はい。天気予報ではなく、ご主人様が見た空を。", CompanionDialogue.MinaPortrait),
         (0, "分かった。窓を開けて、ちゃんと見てくる。", ""),
     },
     };
@@ -321,6 +328,7 @@ public partial class StageKoharu : Node
 
     public override void _Ready()
     {
+        Hud.SetElapsed((float)Elapsed);
         _step = 1;
         // 道中（A+B+C 三波）＋ボスで浄化カプセルが満ちる。
         var game = GetNodeOrNull<GameManager>("/root/Game");
@@ -346,7 +354,7 @@ public partial class StageKoharu : Node
             _playerMid = ClassTalk;
             _playerBoss = BossIntro;
         }
-        game?.SetStageTarget(MidWaveA + MidWaveB + MidWaveC + 1);
+        game?.SetStageTarget(MidWaveA + MidWaveB + MidWaveC + 1, hasBoss: true);
 
         // [一時/デバッグ] --input-field : S2-4 の入力欄（step 9）から始める。コメント欄UI の確認・スクショ専用。
         //   開幕バナー（STAGE 2 START）は本来ずっと前に出ているものなので、この入口では出さない。
@@ -385,7 +393,7 @@ public partial class StageKoharu : Node
     {
         if (Hud.CinematicMode) { _zHeld = Pad.AdvanceHeld(); return; }
         _lineHold += delta;
-        if (!_clearing && !Hud.BubblePaused) { _stageElapsed += delta; Hud.SetElapsed((float)_stageElapsed); }
+        if (!_clearing && !Hud.BubblePaused && Player.Lives > 0) { _stageElapsed += delta; Hud.SetElapsed((float)_stageElapsed); }
         // 会話送り：Z/Enter/ui_accept/Pad A に加えマウス左クリックでも送れる共通ヘルパ（マウス対応 P2）。
         bool z = Pad.AdvanceHeld();
         _zEdge = z && !_zHeld && !Pad.UiBlocked(this);
@@ -703,6 +711,7 @@ public partial class StageKoharu : Node
             StartMidwaveSpawner(MidWaveC, 0.7f);
         }
         if (!_spawner.Finished || !Spawner.BattlefieldClear(GetTree())) return;
+        GameManager.Instance!.FinishStageRoad();
         _spawner.QueueFree();
         _spawner = null!;
         GetNode<BulletPool>("/root/Pool").DespawnAll();
@@ -802,6 +811,7 @@ public partial class StageKoharu : Node
             var opening = _playerBoss;
             if (!_lunatic) _playerBoss = StageTutorial.TakeBoss(GetNodeOrNull<GameManager>("/root/Game"));
             if (!_lunatic) CameoIntroScene.PlayBoss(Hud, World, "koharu", opening, () => {
+                _boss.GetNode<BossPostSequence>("PostSequence").ResumeMusic();
                 _zHeld = Pad.AdvanceHeld(); _zEdge = false;
                 Step_Lines(0, _playerBoss);
             }, SpawnBoss);

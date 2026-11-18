@@ -3,9 +3,9 @@ using System;
 
 public partial class MinaPhaseScene : Node2D
 {
-    private readonly record struct Line(Hud.LineKind Kind, string Text, string Face = "");
-    private static Line M(string text, bool tears = false)
-        => new(Hud.LineKind.Mina, text, tears ? "res://char/mina_tears.png" : "res://char/mina_worried.png");
+    private readonly record struct Line(Hud.LineKind Kind, string Text, string Face = "", double Hold = 0);
+    private static Line M(string text)
+        => new(Hud.LineKind.Mina, text, "res://char/v3/mina_conversation_worried_v1.png");
     private static Line P(string text) => new(Hud.LineKind.Companion, text);
 
     private static Line[] Dialogue(Job job, int phase) => (job, phase) switch
@@ -14,7 +14,7 @@ public partial class MinaPhaseScene : Node2D
         {
                 new Line(Hud.LineKind.Boy, "ミナの周りの壁を、外側からほどこう。僕が位置を伝える。本人への呼びかけは、君に任せる。"),
                 new Line(Hud.LineKind.Companion, "分かった。今度は、こっちから会いに行く。"),
-                new Line(Hud.LineKind.Mina, "届かなかった言葉が、まだ……わたくしの中に。"),
+                new Line(Hud.LineKind.Mina, "届かなかった言葉が、まだわたくしの中に残っています。"),
                 new Line(Hud.LineKind.Companion, "それ、あたしが言えなかった分でしょ。"),
                 new Line(Hud.LineKind.Companion, "でも今、言える。ミナ、迎えに来た。"),
                 new Line(Hud.LineKind.Mina, "……返事をいただく側は、慣れておりません。あの方にも、まだ届けられるのでしょうか。"),
@@ -40,7 +40,7 @@ public partial class MinaPhaseScene : Node2D
         {
                 new Line(Hud.LineKind.Mina, "……声が、こんなに近くに。"),
                 new Line(Hud.LineKind.Companion, "ここにいる。返事、遅くなってごめん。"),
-                new Line(Hud.LineKind.Mina, "戻っても。もう、前のようには、祓えないかもしれません。"),
+                new Line(Hud.LineKind.Mina, "帰っても、もう前のようには祓えないかもしれません。"),
                 new Line(Hud.LineKind.Companion, "うん。それでも、一緒に帰りたい。"),
                 new Line(Hud.LineKind.Mina, "あかりさん。わたくし、帰りたいです。"),
                 new Line(Hud.LineKind.Mina, "わたくしを……助けて、ください。"),
@@ -50,7 +50,7 @@ public partial class MinaPhaseScene : Node2D
         {
                 new Line(Hud.LineKind.Boy, "ミナの周りの壁を、外側からほどこう。僕が位置を伝える。本人への呼びかけは、君に任せる。"),
                 new Line(Hud.LineKind.Companion, "分かった。今度は、こっちから会いに行く。"),
-                new Line(Hud.LineKind.Mina, "届かなかった言葉が、まだ……わたくしの中に。"),
+                new Line(Hud.LineKind.Mina, "届かなかった言葉が、まだわたくしの中に残っています。"),
                 new Line(Hud.LineKind.Companion, "あたしが飲みこんだ言葉も、そこにあるんだね。"),
                 new Line(Hud.LineKind.Companion, "ひとりで持たせて、ごめん。今度は、あたしにも聞かせて。"),
                 new Line(Hud.LineKind.Mina, "……返事をいただく側は、慣れておりません。あの方にも、まだ届けられるのでしょうか。"),
@@ -76,7 +76,7 @@ public partial class MinaPhaseScene : Node2D
         {
                 new Line(Hud.LineKind.Mina, "……声が、こんなに近くに。"),
                 new Line(Hud.LineKind.Companion, "ここだよ。手、離さない。揺れても、つかみ直す。"),
-                new Line(Hud.LineKind.Mina, "戻っても。もう、前のようには、祓えないかもしれません。"),
+                new Line(Hud.LineKind.Mina, "帰っても、もう前のようには祓えないかもしれません。"),
                 new Line(Hud.LineKind.Companion, "いいよ。今度は、あたしの隣で休んで。"),
                 new Line(Hud.LineKind.Mina, "こはるさん。わたくし、帰りたいです。"),
                 new Line(Hud.LineKind.Mina, "わたくしを……助けて、ください。"),
@@ -98,7 +98,7 @@ public partial class MinaPhaseScene : Node2D
                 new Line(Hud.LineKind.Mina, "……ご主人様には、一度も。でも、わたくしは、そのために作られたので。"),
                 new Line(Hud.LineKind.Companion, "仕事の話だけしてきたの？　名前を呼んだり、何でもない話をしたりは？"),
                 new Line(Hud.LineKind.Mina, "……ありました。名付けのときなど、センスに問題がありましたので。"),
-                new Line(Hud.LineKind.Companion, "ほら。いまの話、もっと聞きたいわ。役に立つ報告より、ずっと。"),
+                new Line(Hud.LineKind.Companion, "ほら、仕事の報告より、そういう話のほうがずっと聞きたいわ。"),
                 new Line(Hud.LineKind.Mina, "ご報告することがなくても、話しかけたい日が、ありました。"),
                 new Line(Hud.LineKind.Companion, "どんなとき？"),
                 new Line(Hud.LineKind.Mina, "皆さまの帰還を確認したあと。呼びかけて、やめたことが……。"),
@@ -122,7 +122,7 @@ public partial class MinaPhaseScene : Node2D
                 new Line(Hud.LineKind.Companion, "ミナ。最後に一つ、聞かせて。あんたは、どうしたい？"),
                 new Line(Hud.LineKind.Mina, "戻っても、前のようには祓えないかもしれません。"),
                 new Line(Hud.LineKind.Companion, "うん。それも聞いた。……あんたは？"),
-                new Line(Hud.LineKind.Mina, "帰りたい。ご報告ではなく、お話をするために。"),
+                new Line(Hud.LineKind.Mina, "ご報告じゃなくて、あの方とお話がしたい。……帰りたいです。"),
                 new Line(Hud.LineKind.Companion, "そう。待ってたのは、その返事。"),
                 new Line(Hud.LineKind.Mina, "レイさん。わたくしを……助けてください。"),
                 new Line(Hud.LineKind.Companion, "聞こえた。最後の壁、開けるわよ。"),
@@ -136,7 +136,7 @@ public partial class MinaPhaseScene : Node2D
         {
                 new Line(Hud.LineKind.Boy, "ミナの周りの壁を、外側からほどこう。僕が位置を伝える。本人への呼びかけは、君に任せる。"),
                 new Line(Hud.LineKind.Companion, "分かった。今度は、こっちから会いに行く。"),
-                new Line(Hud.LineKind.Mina, "届かなかった言葉が、まだ……わたくしの中に。"),
+                new Line(Hud.LineKind.Mina, "届かなかった言葉が、まだわたくしの中に残っています。"),
                 new Line(Hud.LineKind.Companion, "言えなかった言葉を、全部ひとりで預かってたのね。"),
                 new Line(Hud.LineKind.Companion, "今日は、あんたの番。聞く側は、わたしがやる。"),
                 new Line(Hud.LineKind.Mina, "……返事をいただく側は、慣れておりません。あの方にも、まだ届けられるのでしょうか。"),
@@ -162,7 +162,7 @@ public partial class MinaPhaseScene : Node2D
         {
                 new Line(Hud.LineKind.Mina, "……声が、こんなに近くに。"),
                 new Line(Hud.LineKind.Companion, "ここにいるわ。目、そらしてないでしょ。"),
-                new Line(Hud.LineKind.Mina, "戻っても。もう、前のようには、祓えないかもしれません。"),
+                new Line(Hud.LineKind.Mina, "帰っても、もう前のようには祓えないかもしれません。"),
                 new Line(Hud.LineKind.Companion, "できることの一覧、もう要らない。一緒に帰る話をしてるの。"),
                 new Line(Hud.LineKind.Mina, "レイさん。わたくし、帰りたいです。"),
                 new Line(Hud.LineKind.Mina, "わたくしを……助けて、ください。"),
@@ -170,6 +170,62 @@ public partial class MinaPhaseScene : Node2D
         },
         _ => throw new ArgumentOutOfRangeException(nameof(phase)),
     };
+
+    private static Line[] DialogueFor(GameManager game, Job job, int phase)
+    {
+        if (job == Job.Tank) return phase switch
+        {
+            1 => new[] { M("あかりさんの声です。あの日は、手に残った重さのことまで報告できませんでした。"),
+                new Line(Hud.LineKind.Boy, "今、聞かせて。どんなふうに残ったの？") },
+            2 => new[] { M("この返信欄、覚えています。四つも下書きを作って、どれも送れませんでした。"),
+                new Line(Hud.LineKind.Boy, "あのとき僕に言ってくれた一言は、今も覚えてるよ。") },
+            3 => new[] { new Line(Hud.LineKind.Boy, "そこで僕の名前を呼びかけて、黙ったね。"),
+                M("はい。……ご主人様。今日は、ここで少し休みたいです。") },
+            4 => new[] { M("あのとき、わたくしの声にも返事が来ました。今も、ちゃんと聞こえます。"),
+                new Line(Hud.LineKind.Boy, "うん。ミナ、おかえり。") },
+            _ => throw new ArgumentOutOfRangeException(nameof(phase)),
+        };
+        if (phase == 3)
+        {
+            if (game.ChosenAt("s3_7") == "ミナまで傷つくのは嫌だ。少し休もう") return new[]
+            {
+                M("……ご主人様に、あのときのように少し待ってほしいと伝えてください。今は、次のお話を聞けません。"),
+                new Line(Hud.LineKind.Boy, "待つよ、と伝えてほしい。帰り道は、開いたままにする。"),
+                P(job switch
+                {
+                    Job.Melee => "聞こえたよ。帰り道も、そのままだって。じゃあ、一息。あたしにつかまって。",
+                    Job.Heal => "待ってるって。あたしも隣にいるよ。いったん、お話を閉じよっか。",
+                    _ => "道は開けておくって。ここからは、わたしが見る。あんたは、一息つきなさい。",
+                }),
+                new Line(Hud.LineKind.Mina, "……はい。少し、ここで。", "res://char/v3/mina_conversation_worried_v1.png", 2.0),
+                P(job switch
+                {
+                    Job.Melee => "……うん。次の一歩は、一緒に。急がなくていいから。",
+                    Job.Heal => "……手、つないでるよ。ここからは、一緒に帰るんだよね。",
+                    _ => "……じゃあ、ここからは帰る相談。仕事の続きは、持ってきてないわよ。",
+                }),
+            };
+            if (game.ChosenAt("s3_7") == "一緒に行こう。つらくなったら教えて") return new[]
+            {
+                M("つらくなったら伝えると、約束しました。でも……言葉が、出ないときもあって。"),
+                new Line(Hud.LineKind.Boy, "返事を急かしたいわけじゃないんだ。ただ、僕からも呼ぶよって伝えて。"),
+                P(job switch
+                {
+                    Job.Melee => "ミナ。あたしも、あの人も呼んでるよ。今は、うなずくだけでもいいから。",
+                    Job.Heal => "ミナ、こっちだよ。あの人も、ここで呼んでる。お返事、一言ずつでいいよ。",
+                    _ => "ミナ。あの人も、ここで呼んでるわ。立派な報告じゃなくて、あんたの返事を待ってる。",
+                }),
+                M("……はい。では、お願いを一つ。帰るまで、名前を呼んでいてください。"),
+                P(job switch
+                {
+                    Job.Melee => "分かった。ミナ、一緒に帰ろう。何度でも言うよ。",
+                    Job.Heal => "うん。ミナ、聞こえてるよ。もう、ひとりで呼ばなくていいから。",
+                    _ => "分かった。ミナ、こっちよ。返事が詰まったら、また呼ぶから。",
+                }),
+            };
+        }
+        return job == Job.Magic && game.IsFinalCleared ? ReiReplayDialogue(phase) : Dialogue(job, phase);
+    }
 
     private Hud _hud = null!;
     private Node _world = null!;
@@ -190,7 +246,13 @@ public partial class MinaPhaseScene : Node2D
     //   FINAL はリトライの多い面で、4本のカットシーンを毎回読まされるのが一番きつい箇所。
     // 違うキャラクターの返答を未読のまま飛ばさないよう、既読は相手ごとに記録する。
     private readonly FilmSkip _skip = new();
-    private string FilmId => $"mina_phase_{_phase}_{Jobs.Get(_job).CharacterId}";
+    private string FilmId => $"mina_phase_{_phase}_{Jobs.Get(_job).CharacterId}" + (_phase == 3
+        ? _game.ChosenAt("s3_7") switch
+        {
+            "ミナまで傷つくのは嫌だ。少し休もう" => "_rest",
+            "一緒に行こう。つらくなったら教えて" => "_call",
+            _ => "",
+        } : "");
 
     public static void Play(Hud hud, Node world, int phase, Action completed)
         => hud.AddChild(new MinaPhaseScene
@@ -204,7 +266,7 @@ public partial class MinaPhaseScene : Node2D
         AddToGroup("mina_phase_scene");
         _game = GetNode<GameManager>("/root/Game");
         _job = _game.SelectedJob;
-        _lines = _job == Job.Magic && _game.IsFinalCleared ? ReiReplayDialogue(_phase) : Dialogue(_job, _phase);
+        _lines = DialogueFor(_game, _job, _phase);
         _background = GD.Load<Texture2D>(BossMina.PhaseBackground(_phase));
         _costume = GD.Load<Texture2D>(BossMina.CostumePath(_phase, "idle"));
         _worldMode = _world.ProcessMode;
@@ -228,6 +290,7 @@ public partial class MinaPhaseScene : Node2D
     public override void _Process(double delta)
     {
         if (Pad.UiBlocked(this)) { _held = true; return; }
+        bool skip = !_leaving && _skip.Update(delta);
         bool held = Pad.AdvanceHeld();
         bool edge = held && !_held;
         _held = held;
@@ -236,7 +299,7 @@ public partial class MinaPhaseScene : Node2D
         if (_leaving)
         {
             _exitTime += delta;
-            if (_exitTime < 0.55) return;
+            if (_exitTime < 0.55 || Pad.MouseDown()) return;
             Restore();
             GD.Print($"[MinaPhase] {_phase} complete");
             _completed();
@@ -244,7 +307,7 @@ public partial class MinaPhaseScene : Node2D
             return;
         }
         // 既読カットシーンの長押しスキップ。立ち上げの 0.7 秒の間も受け付ける。
-        if (_skip.Update(delta)) { BeginLeave(); return; }
+        if (skip) { BeginLeave(); return; }
         if (!_started)
         {
             if (_time < 0.7) return;
@@ -261,7 +324,7 @@ public partial class MinaPhaseScene : Node2D
             _readTime = 0;
         }
         else if (_lineTime >= 0.25 && _hud.DialogRevealed
-            && (edge || _hud.FastForwarding || (_hud.AutoAdvanceReady && _readTime >= 1.4)))
+            && (edge || _hud.FastForwarding || (_hud.AutoAdvanceReady && _readTime >= Math.Max(1.4, _lines[_line].Hold))))
         {
             _line++;
             if (_line == _lines.Length) BeginLeave();
@@ -283,7 +346,9 @@ public partial class MinaPhaseScene : Node2D
     {
         var line = _lines[_line];
         _lineTime = _readTime = 0;
-        _hud.ShowDialog(line.Kind, line.Text, line.Face);
+        string face = line.Kind == Hud.LineKind.Mina && line.Face.Length == 0
+            ? "res://char/v3/mina_conversation_worried_v1.png" : line.Face;
+        _hud.ShowDialog(line.Kind, line.Text, face);
     }
 
     public override void _Draw()

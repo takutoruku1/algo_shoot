@@ -32,7 +32,7 @@ public partial class EpilogueRollQa : Node
             DisplayServer.WindowSetSize(new Vector2I(1280, 720));
             _out = ProjectSettings.GlobalizePath("res://build/qa_story/roll/shots");
             DirAccess.MakeDirRecursiveAbsolute(_out);
-            GetNode<GameManager>("/root/Game").LastSentWord = "おかえり";
+            GetNode<GameManager>("/root/Game").RecordChoice("f4", "おかえり", Array.Empty<string>(), 0);
             await Frames(2);
 
             await VerifyTapDoesNotSkip();
@@ -161,14 +161,15 @@ public partial class EpilogueRollQa : Node
     private static bool HasInkInBand(Image image, int top, int bottom)
     {
         int bright = 0;
-        for (int y = top; y < bottom; y++)
-            for (int x = 120; x < 1160; x++)
+        float scaleX = image.GetWidth() / 1280f, scaleY = image.GetHeight() / 720f;
+        for (int y = (int)(top * scaleY); y < (int)(bottom * scaleY); y++)
+            for (int x = (int)(120 * scaleX); x < (int)(1160 * scaleX); x++)
             {
                 Color c = image.GetPixel(x, y);
                 if (c.R + c.G + c.B > 1.8f) bright++;
             }
         GD.Print($"[RollQA]   bright pixels in band y={top}..{bottom}: {bright}");
-        return bright > 200;
+        return bright > 200 * scaleX * scaleY;
     }
 
     private async Task<Image> Shot(string name)

@@ -5,6 +5,7 @@ public partial class StageMina : Node
     public Player Player = null!;
     public Hud Hud = null!;
     public Node2D World = null!;
+    internal double Elapsed { get => _stageElapsed; init => _stageElapsed = value; }
     private int _step;
     private bool _stepStarted;
     private double _stageElapsed;   // ステージ全体の経過秒（クリア確定まで・ポーズ中は止まる）。
@@ -18,27 +19,22 @@ public partial class StageMina : Node
     private const float SpawnX = 300f;
     private static readonly (int who, string text, string face)[] IntroHead =
     {
-        (0, "レイさん。ミナが、自分のフェイクレルムに閉じ込められた。……力を貸してほしい。", ""),
-        (6, "行く。場所は分かってるのね？", ""),
-        (0, "分かる。アンチャーも、帰り道も見えてる。でも、僕の声は今のミナに届かない。", ""),
+        (0, "レイさん。ミナと連絡が取れない。最後に届いたのは、この投稿だけだ。", ""),
+        (6, "差出人のところ、文字が崩れてる。……中には入れるのね？", ""),
+        (0, "うん。帰り道も見えてる。でも、僕の声は今のミナに届かない。", ""),
         (6, "だったら、わたしを送って。今度は、わたしが呼ぶ。", ""),
         (0, "ありがとう。……こんなときに、僕だけ外から。", ""),
         (6, "道を開けられるのは、あんたでしょう。そっちを頼むって言ってるの。", ""),
         (0, "……うん。必ず、二人を帰す。", ""),
     };
-    // The channel survives even when Mina can no longer move her body.
     private static readonly (int who, string text, string face)[] IntroTail =
     {
         (4, "既読、ついてる……返事、まだ。……もう、だれに送ったのか、わからない。", ""),
         (4, "なにしてんだろ、あたし……ぜんぶ、むだ。", ""),
-        (4, "気づいて……見て……。見られてるの、ガワだけ。", ""),
-        (0, "どれも、ミナが受け止めてきた言葉だ。ガラスの橋が、リボンでつながれてる。みんなを帰そうとしていたんだね。", ""),
-        (6, "……こんなに細い道を、一人で守っていたの。", ""),
-        (0, "あの子のところまで、僕が案内する。今度は、ミナも一緒に帰れるように。", ""),
-        (6, "……見えた。顔を上げて、ミナ。わたしが来たわ。", ""),
-        (1, "レイ、さん……。ここは、危ないです。ご案内は、まだ……。", "res://char/mina_face.png"),
-        (6, "今日は、案内されるほうでいなさい。迎えに来たの。", ""),
-        (1, "でも、まだ……終わっていない、仕事が。", "res://char/mina_face.png"),
+        (4, "気づいて……見て……。みんな、ガワしか見てない。", ""),
+        (6, "……最後の、わたしの声だわ。どうしてここに？", ""),
+        (0, "その先にも、音がする。少しだけ、そっちを向いて。", ""),
+        (6, "聞こえた。回線、つないでおいて。", ""),
     };
 
     private (int who, string text, string face)[] _intro = System.Array.Empty<(int, string, string)>();
@@ -46,7 +42,7 @@ public partial class StageMina : Node
     //   GameManager.IsLunatic のとき true。F1 の導入会話を流さず、タイトルカードのあと即・残響の波→ミナ戦へ。
     //   段間のカットシーン（MinaPhaseScene）と回想・邂逅の会話は BossMina 側が畳む。
     //   撃破後は MinaStoryFilm（アフター）も Final（F4）も Epilogue も流さず、記録だけ確定して FINAL CLEAR のリザルトを置き、
-    //   通常ならエピローグの末尾（Epilogue.PhEnd）が着地する先＝タイトルへ直行する。従来難易度は _lunatic=false で従来のまま。
+    //   エピローグを省略してホームへ帰還する。
     private bool _lunatic;
     private const double LunaticClearHold = 3.0;   // リザルトのバナーを読む間
     private double _lunaticClearT;
@@ -82,6 +78,10 @@ public partial class StageMina : Node
     private double _postDefeatT;
     private bool _clearing;
     private bool _returnShown;
+    private bool _clearRecorded;
+    private (bool isBest, float? prev) _clearTimeRecord;
+    private (bool isBest, long? prev) _clearScoreRecord;
+    private long _clearScore;
 
     // S3-7 の分岐受け（送った言葉を一度だけ観測で引用。断定はしない）。
     private static (int who, string text, string face)[] S37Quote(GameManager? game)
@@ -89,27 +89,34 @@ public partial class StageMina : Node
         return (game?.ChosenAt("s3_7") ?? "") switch
         {
             "一緒に行こう。つらくなったら教えて" => new (int, string, string)[] {
-        (0, "つらくなったら教えてって、言ったんだ。言ってくれたら、分かるつもりでいた。", ""),
-        (6, "言えないときもあるわ。……だから、今、迎えに行くんでしょう。", ""),
+        (0, "つらくなったら教えてって、言ったんだ。今度は、僕からも呼びたい。あの子に声が届くところまで、一緒に行ってほしい。", ""),
+        (6, "ええ。返事を探して黙ってしまっても、こっちから呼ぶわ。", ""),
         (0, "道を開いた。レイさん、ダイブを始める。", ""),
-        (6, "ええ。今度は、あの子の声を聞きに。", ""),
+        (6, "ええ。今度はわたしが、あの子の声を聞きに行くわ。", ""),
     },
             "ミナまで傷つくのは嫌だ。少し休もう" => new (int, string, string)[] {
-        (0, "休もうって言って、一度は止まれた。でも、抱えていたものまでは軽くできなかった。", ""),
-        (6, "休んだ時間まで、無駄にしないで。あの子が頼れたことは、残ってるわ。", ""),
+        (0, "戻ってから、今日は終わりにしようって話したんだ。まだ回線はつながってるのに、いくら呼んでも返事がなくて。", ""),
+        (6, "なら、道はあんたに任せる。あの子が動けなければ、わたしが手を貸すわ。", ""),
         (0, "道を開いた。レイさん、ダイブを始める。", ""),
-        (6, "ええ。今度は、あの子の声を聞きに。", ""),
+        (6, "ええ。今度はわたしが、あの子の声を聞きに行くわ。", ""),
     },
             _ => new (int, string, string)[] {
         (0, "手伝ってくれって、最初に頼んだのは僕なのに。ミナが助けてって言えなくなるまで……。", ""),
         (6, "今は、自分を責めるより、あの子のところへ連れていって。", ""),
         (0, "道を開いた。レイさん、ダイブを始める。", ""),
-        (6, "ええ。今度は、あの子の声を聞きに。", ""),
+        (6, "ええ。今度はわたしが、あの子の声を聞きに行くわ。", ""),
     },
         };
     }
     private static (int who, string text, string face)[] AdaptIntro((int who, string text, string face)[] lines, Job job)
     {
+        if (job == Job.Tank) return new (int, string, string)[]
+        {
+            (0, "ミナ。あのときの記録、一緒に開いてもいい？", ""),
+            (1, "はい。今なら、自分の言葉を聞きに行けます。", "res://char/v3/mina_conversation_v1.png"),
+            (0, "僕はスマホを持ってる。いつでも、こっちに声をかけて。", ""),
+            (1, "では、行ってまいります。帰り道も覚えていますよ、ご主人様。", "res://char/v3/mina_conversation_v1.png"),
+        };
         if (job == Job.Magic) return lines;
         string name = Jobs.Get(job).CharacterName;
         for (int i = 0; i < lines.Length; i++)
@@ -117,24 +124,24 @@ public partial class StageMina : Node
             var line = lines[i];
             line.text = (job, line.text) switch
             {
-                (Job.Melee, "行く。場所は分かってるのね？") => "行くよ。どこにいるの？",
+                (Job.Melee, "差出人のところ、文字が崩れてる。……中には入れるのね？") => "名前、読めないや。この投稿から入れるの？",
                 (Job.Melee, "だったら、わたしを送って。今度は、わたしが呼ぶ。") => "じゃあ、あたしを送って。今度は、あたしが呼ぶから。",
                 (Job.Melee, "道を開けられるのは、あんたでしょう。そっちを頼むって言ってるの。") => "道を開けられるのは、あなたでしょ。そっちは任せたよ。",
-                (Job.Melee, "言えないときもあるわ。……だから、今、迎えに行くんでしょう。") => "言えないときもあるよ。だから今、迎えに行こう。",
-                (Job.Melee, "休んだ時間まで、無駄にしないで。あの子が頼れたことは、残ってるわ。") => "休めたことまで、無駄にしないで。ミナが頼れた時間は、ちゃんとあったんだから。",
+                (Job.Melee, "ええ。返事を探して黙ってしまっても、こっちから呼ぶわ。") => "うん。返事が出なくても、こっちから呼ぶよ。名前なら、何度でも。",
+                (Job.Melee, "なら、道はあんたに任せる。あの子が動けなければ、わたしが手を貸すわ。") => "じゃあ、道は任せた。ミナが歩けなければ、あたしにつかまってもらう。",
                 (Job.Melee, "今は、自分を責めるより、あの子のところへ連れていって。") => "今は、ミナのところへ連れていって。迎えに行くの、手伝って。",
-                (Job.Melee, "ええ。今度は、あの子の声を聞きに。") => "うん。今度は、ミナの声を聞きに行こう。",
-                (Job.Melee, "……見えた。顔を上げて、ミナ。わたしが来たわ。") => "見えた。ミナ、あたしだよ。顔、上げて。",
-                (Job.Melee, "今日は、案内されるほうでいなさい。迎えに来たの。") => "今日は、あたしについてきて。迎えに来たんだよ。",
-                (Job.Heal, "行く。場所は分かってるのね？") => "行く。ミナ、どこにいるの？",
+                (Job.Melee, "ええ。今度はわたしが、あの子の声を聞きに行くわ。") => "うん。今度は、ミナの声を聞きに行こう。",
+                (Job.Melee, "……最後の、わたしの声だわ。どうしてここに？") => "最初の声、覚えてる。……あれ、あたしだ。",
+                (Job.Melee, "聞こえた。回線、つないでおいて。") => "聞こえたよ。切らないでね。",
+                (Job.Heal, "差出人のところ、文字が崩れてる。……中には入れるのね？") => "名前のところだけ読めないね。ここから潜れる？",
                 (Job.Heal, "だったら、わたしを送って。今度は、わたしが呼ぶ。") => "じゃあ、あたしを送って。今度は、あたしが呼びたい。",
                 (Job.Heal, "道を開けられるのは、あんたでしょう。そっちを頼むって言ってるの。") => "道を開いてくれるの、あなただもん。帰り道も、お願いしていい？",
-                (Job.Heal, "言えないときもあるわ。……だから、今、迎えに行くんでしょう。") => "言えないときも、あるよ。今なら、迎えに行けるんだよね。",
-                (Job.Heal, "休んだ時間まで、無駄にしないで。あの子が頼れたことは、残ってるわ。") => "休めたのは、よかったと思うよ。頼ってもいいって、もう一度伝えたい。",
+                (Job.Heal, "ええ。返事を探して黙ってしまっても、こっちから呼ぶわ。") => "うん。お返事が出ないときも、あたしから呼ぶね。",
+                (Job.Heal, "なら、道はあんたに任せる。あの子が動けなければ、わたしが手を貸すわ。") => "道、お願い。あたしはミナの手をつなぐ。途中で休んでも、離さないよ。",
                 (Job.Heal, "今は、自分を責めるより、あの子のところへ連れていって。") => "今は、ミナのところへ連れていって。あたしも、力になりたい。",
-                (Job.Heal, "ええ。今度は、あの子の声を聞きに。") => "うん。今度は、あたしが聞く番だね。",
-                (Job.Heal, "……見えた。顔を上げて、ミナ。わたしが来たわ。") => "ミナ、見えた。こっちだよ。あたし、来たよ。",
-                (Job.Heal, "今日は、案内されるほうでいなさい。迎えに来たの。") => "今日は、あたしについてきて。迎えに来たから。",
+                (Job.Heal, "ええ。今度はわたしが、あの子の声を聞きに行くわ。") => "うん。今度は、あたしが聞く番だね。",
+                (Job.Heal, "……最後の、わたしの声だわ。どうしてここに？") => "ふたつ目の声……あたし、あんな声だったんだ。",
+                (Job.Heal, "聞こえた。回線、つないでおいて。") => "うん。あなたの声も、まだ聞こえてるよ。",
                 _ => line.text.Replace("レイさん", name + "さん").Replace("レイ、さん", name + "、さん"),
             };
             lines[i] = line;
@@ -144,11 +151,12 @@ public partial class StageMina : Node
 
     public override void _Ready()
     {
+        Hud.SetElapsed((float)Elapsed);
         _step = 1;
         World.ProcessMode = ProcessModeEnum.Disabled;
         var game = GetNodeOrNull<GameManager>("/root/Game");
         _lunatic = game?.IsLunatic == true;
-        game?.SetStageTarget(EchoTotal + 1);   // 道中の残響ぜんぶ＋ボス
+        game?.SetStageTarget(EchoTotal + 1, hasBoss: true);
         // 導入は S3-7 の分岐受け1行だけが可変。
         // ★FINAL はジョブに関わらず常にミナ本編（2026-09-15 ユーザー承認仕様）。
         //   旧 CompanionDialogue.Final（他ジョブ時に導入をその子の掛け合いへ置換）は廃止した。
@@ -193,9 +201,10 @@ public partial class StageMina : Node
 
     public override void _Process(double delta)
     {
+        if (_step == 4 && IsInstanceValid(_boss) && _boss.IsPurified) RecordClear();
         if (Hud.CinematicMode) { _zHeld = Pad.AdvanceHeld(); return; }
         _lineHold += delta;
-        if (!_clearing && !Hud.BubblePaused) { _stageElapsed += delta; Hud.SetElapsed((float)_stageElapsed); }
+        if (!_clearRecorded && !Hud.BubblePaused && Player.Lives > 0) { _stageElapsed += delta; Hud.SetElapsed((float)_stageElapsed); }
         // 会話送り：Z/Enter/ui_accept/Pad A に加えマウス左クリックでも送れる共通ヘルパ（マウス対応 P2）。
         bool z = Pad.AdvanceHeld();
         _zEdge = z && !_zHeld && !Pad.UiBlocked(this);
@@ -274,8 +283,8 @@ public partial class StageMina : Node
         {
             Hud.LineKind.Boy => "",
             Hud.LineKind.Companion => face,                                                             // 「あなた」に顔は無い
-            Hud.LineKind.Mina => string.IsNullOrEmpty(face) ? "res://char/mina_face.png" : face, // ミナも行ごと表情
-            _ => "res://char/mina_face.png",
+            Hud.LineKind.Mina => string.IsNullOrEmpty(face) ? "res://char/v3/mina_conversation_v1.png" : face, // ミナも行ごと表情
+            _ => "res://char/v3/mina_conversation_v1.png",
         };
         Hud.ShowDialog(kind, text, portrait, otherName: "ミナ");
     }
@@ -304,7 +313,7 @@ public partial class StageMina : Node
         if (!_echoSpawner.Finished) return;
         if (_wave + 1 < EchoWaves.Length)
         {
-            if (game.PurifiedCount - _waveBase < EchoWaves[_wave].count && !game.StageCleared) return;
+            if (game.PurifiedCount - _waveBase < EchoWaves[_wave].count && !game.SpawnTargetReached) return;
             _wave++;
             _waveBase = game.PurifiedCount;
             _echoSpawner.Stop();
@@ -314,6 +323,7 @@ public partial class StageMina : Node
         }
         // 最後の波は「予定数が湧き切ってから」ミナ本体へ（数を削って早出しにしない）。
         if (!Spawner.BattlefieldClear(GetTree())) return;
+        game.FinishStageRoad();
 
         _echoSpawner.Stop();
         _echoSpawner.QueueFree();
@@ -334,8 +344,11 @@ public partial class StageMina : Node
             _stepStarted = true;
             // 今ランでボス戦に到達した印（ゲームオーバーの「ボスから・スコア半分消費」はこれが立っている
             //   ときだけ出る）。残響戦（ボス出現前）で倒れたときは出さない＝到達していないボスからは再開できない。
-            GetNodeOrNull<GameManager>("/root/Game")?.NotifyBossReached();
+            var game = GetNode<GameManager>("/root/Game");
+            game.NotifyBossReached();
+            game.RevealFinalBoss();
             if (!_lunatic) CameoIntroScene.PlayBoss(Hud, World, "mina", System.Array.Empty<(int, string, string)>(), () => {
+                _boss.GetNode<BossPostSequence>("PostSequence").ResumeMusic();
                 _zHeld = Pad.AdvanceHeld(); _zEdge = false;
             }, SpawnBoss);
             else SpawnBoss();
@@ -390,8 +403,23 @@ public partial class StageMina : Node
         _bossActive = false;
         Advance();
     }
+    private void RecordClear()
+    {
+        if (_clearRecorded) return;
+        _clearRecorded = true;
+        var game = GetNode<GameManager>("/root/Game");
+        _clearTimeRecord = game.RecordClearTime(GameManager.FinalStageId, game.Difficulty, (float)_stageElapsed);
+        _clearScore = game.Score;
+        _clearScoreRecord = game.RecordScore(GameManager.FinalStageId, game.Difficulty, _clearScore);
+        game.SettleStageScore();
+        // エンディングの途中で終了しても撃破記録が残る、必須のクリアセーブ。
+        game.SaveToSlot(0);
+    }
+
     private void Step_Transition()
     {
+        RecordClear();
+        if (LunaticUnlock.PlayIfPending(GetParent())) return;
         if (!_returnShown)
         {
             _returnShown = true;
@@ -400,11 +428,7 @@ public partial class StageMina : Node
         }
         if (_clearing) return;
         _clearing = true;
-        // FINAL クリア確定＝この瞬間に経過秒を確定しベスト記録（記録画面/カードで参照）。
-        var game = GetNodeOrNull<GameManager>("/root/Game");
-        game?.RecordClearTime("final", game.Difficulty, (float)_stageElapsed);
-        if (game != null) game.RecordScore("final", game.Difficulty, game.Score);
-        game?.AutoSave(); // 記録を永続化（FINAL は CompleteStage を通らないためここで保存）。
+        GetNode<GameManager>("/root/Game").SaveToSlot(0);
         GetNodeOrNull<BulletPool>("/root/Pool")?.DespawnAll();
         // 撃破＝穢れを祓った。本決着（対話で帰還）は Final へ委ねる。
         // 暗転してから渡す（ボス背景のフラッシュ止め・2026-09-22。StageRei と同じ理由）。
@@ -412,27 +436,26 @@ public partial class StageMina : Node
     }
 
     // ルナティックの締め：アフター（MinaStoryFilm）も Final（F4）も Epilogue も流さない。
-    //   記録は Step_Transition と同じ作法で確定し、他の面と同じ様式のリザルト（FINAL CLEAR＋TIME/SCORE）を
-    //   LunaticClearHold 秒置いてから、通常ならエピローグの末尾が着地する先（タイトル）へ暗転して直行する。
+    //   FINAL CLEAR のリザルトを表示してからホームへ戻る。
     private void Step_LunaticFinish(double delta)
     {
+        if (_returnShown && LunaticUnlock.PlayIfPending(GetParent())) return;
         if (!_returnShown)
         {
             _returnShown = true;
-            var game = GetNodeOrNull<GameManager>("/root/Game");
-            float clearTime = (float)_stageElapsed;
-            var rec = game?.RecordClearTime("final", game.Difficulty, clearTime) ?? (true, (float?)null);
-            long score = game?.Score ?? 0;
-            var recScore = game?.RecordScore("final", game.Difficulty, score) ?? (true, (long?)null);
-            game?.AutoSave(); // 記録を永続化（FINAL は CompleteStage を通らないためここで保存）。
+            RecordClear();
             GetNodeOrNull<BulletPool>("/root/Pool")?.DespawnAll();
-            Hud.ShowClearBanner("FINAL CLEAR", clearTime, rec.isBest, rec.prev, score, recScore.isBest, recScore.prev);
+            Hud.ShowClearBanner("FINAL CLEAR", (float)_stageElapsed, _clearTimeRecord.isBest, _clearTimeRecord.prev,
+                _clearScore, _clearScoreRecord.isBest, _clearScoreRecord.prev);
             return;
         }
         _lunaticClearT += delta;
         if (_lunaticClearT < LunaticClearHold || _clearing) return;
         _clearing = true;
-        GameManager.FadeToScene(this, "res://TitleMenu.tscn");
+        var game = GetNode<GameManager>("/root/Game");
+        game.SetContamination(0);
+        game.SaveToSlot(0);
+        GameManager.FadeToScene(this, "res://Hub.tscn");
     }
 
 }

@@ -4,6 +4,11 @@ using System.Linq;
 // once キーは小話の既読リセットでも残し、仲間の潜行ではミナの案内を消費しない。
 public static class StageTutorial
 {
+    public const string ChoiceSeenKey = "once_tutorial_choice";
+    public const string SkipKey = "once_tutorial_skip";
+    public static bool Skipped(GameManager? game) => game?.IsIdleDialogSeen(SkipKey) == true;
+    public static bool NeedsChoice(GameManager game) => !game.IsIdleDialogSeen(ChoiceSeenKey)
+        && !game.IsIdleDialogSeen(RouteSeenKey);
     public const string RouteSeenKey = "once_tutorial_route";
     public const string ShieldSeenKey = "once_tutorial_shield";
     public const string LockSeenKey = "once_tutorial_lock";
@@ -21,28 +26,28 @@ public static class StageTutorial
     private static readonly (int who, string text, string face)[] Route =
     {
         (0, "まず移動から。入力した方向へ進める。攻撃が当たるのは、身体の中心にあるコアだ。そこを守ろう。", ""),
-        (1, "こちらですね。服の端をかすめるくらいなら、大丈夫、と。", "res://char/mina_face.png"),
+        (1, "こちらですね。服の端をかすめるくらいなら、大丈夫、と。", CompanionDialogue.MinaPortrait),
         (0, "うん。光は自動で放たれる。最初は、よけることと狙うことに慣れよう。", ""),
-        (1, "余計なボタンを探しておりました。少なくて助かります。", "res://char/mina_face.png"),
+        (1, "余計なボタンを探しておりました。少なくて助かります。", CompanionDialogue.MinaPortrait),
     };
 
     private static readonly (int who, string text, string face)[] Shield =
     {
         (0, "アンチャーの周りを回っているのが、アンフォールダー。まず、あれを砕く。浄化が進めば、本人の本音へ近づける。", ""),
-        (1, "言葉を消すのではなく、塞いでいるものをほどくのですね。", "res://char/mina_face.png"),
+        (1, "言葉を消すのではなく、塞いでいるものをほどくのですね。", CompanionDialogue.MinaPortrait),
     };
 
     private static readonly (int who, string text, string face)[] Lock =
     {
         (0, "狙う相手を選ぶときはロックオン。背後にも光が届く。狙う相手は切替操作で選べるけれど、ロック中は少し移動が遅くなるよ。", ""),
-        (1, "狙いに夢中で、ぶつからないようにします。", "res://char/mina_face.png"),
+        (1, "狙いに夢中で、ぶつからないようにします。", CompanionDialogue.MinaPortrait),
         (0, "ロックを解除すれば、元の動きに戻る。ロックした相手を浄化したあとは、次の相手へ狙いが移る。", ""),
     };
 
     private static readonly (int who, string text, string face)[] Bomb =
     {
-        (0, "囲まれたらボム。アンチャーをまとめて祓い、短い無敵の間に退避できる。弾は残るから、空いた場所へ。残数も見ておこう。", ""),
-        (1, "温存したまま倒れては、元も子もありませんね。", "res://char/mina_face.png"),
+        (0, "囲まれたらボム。雑魚と敵の攻撃が心の欠片に変わって、自動で集まるよ。ボスにはダメージを与え、短い無敵の間に退避できる。残数も見ておこう。", ""),
+        (1, "温存したまま倒れては、元も子もありませんね。", CompanionDialogue.MinaPortrait),
     };
 
     private static readonly ControlCard.Topic[] RouteCues =
@@ -56,9 +61,9 @@ public static class StageTutorial
     private static readonly (int who, string text, string face)[] Boss =
     {
         (0, "あの人が、フェイクレルムの主だ。まずは、周りのアンフォールダーをすべて砕こう。", ""),
-        (1, "砕いたら、すぐに近づいてよいのですか。", "res://char/mina_face.png"),
+        (1, "砕いたら、すぐに近づいてよいのですか。", CompanionDialogue.MinaPortrait),
         (0, "攻撃が残っていたら、終わるまで避けよう。「本体に攻撃」の合図で光を届ける。アンフォールダーが戻ったら、またそちらから。", ""),
-        (1, "合図を待って、光と言葉を届けます。", "res://char/mina_face.png"),
+        (1, "合図を待って、光と言葉を届けます。", CompanionDialogue.MinaPortrait),
         (0, "うん。僕の声は本人には届かない。こちらで危険を見てるから、君の言葉を聞かせてあげて。", ""),
     };
 
@@ -70,23 +75,23 @@ public static class StageTutorial
     {
         (0, "このフロアのアンチャーは、距離を詰めてくる。落ちる途中で速くなるものにも気をつけて。", ""),
         (0, "同じ場所に留まらず、空いた側へ進もう。", ""),
-        (1, "はい。道を教えていただけるのは、助かります。", "res://char/mina_face.png"),
+        (1, "はい。道を教えていただけるのは、助かります。", CompanionDialogue.MinaPortrait),
     };
 
     private static readonly (int who, string text, string face)[] AnkerKoharu =
     {
         (0, "ここは速い攻撃と、遅く残る攻撃が混ざる。構えた合図を見てから、一歩ずつよけよう。", ""),
-        (1, "全部に反応すると、別のものにぶつかりそうです。", "res://char/mina_face.png"),
+        (1, "全部に反応すると、別のものにぶつかりそうです。", CompanionDialogue.MinaPortrait),
         (0, "近いものからでいい。僕も、後ろを見てる。", ""),
-        (1, "では、前はわたくしが。お願いします。", "res://char/mina_face.png"),
+        (1, "では、前はわたくしが。お願いします。", CompanionDialogue.MinaPortrait),
     };
 
     private static readonly (int who, string text, string face)[] AnkerRei =
     {
         (0, "この場所では、上からも背後からも来る。攻撃の予兆を見て、進路から離れよう。", ""),
-        (1, "見られる方向が多すぎますね。……落ち着かないです。", "res://char/mina_face.png"),
+        (1, "見られる方向が多すぎますね。……落ち着かないです。", CompanionDialogue.MinaPortrait),
         (0, "ロックオンで狙いを絞ろう。近づいてくるアンチャーから、ひとつずつ。", ""),
-        (1, "はい。囲まれる前に、道を開きます。", "res://char/mina_face.png"),
+        (1, "はい。囲まれる前に、道を開きます。", CompanionDialogue.MinaPortrait),
     };
 
     // ④ 強化アイテム説明（2026-09-22・ユーザー要望「最初のステージの一番最初に強化弾の説明を」）。
@@ -101,7 +106,7 @@ public static class StageTutorial
     private static readonly (int who, string text, string face)[] ItemsAkari =
     {
         (0, "今の欠片で、力が変わった。色の枠が目印だよ。光が強くなったり、速く動けたりする。敵をたくさん倒すと、LIFEを1回復するハートも落ちるよ。", ""),
-        (1, "お着替えなしで変われるのは、手軽ですね。危なくないところから、拾います。", "res://char/mina_face.png"),
+        (1, "お着替えなしで変われるのは、手軽ですね。危なくないところから、拾います。", CompanionDialogue.MinaPortrait),
         (0, "拾った強化は、左のLIFEの上に出る。光と移動の強化は被弾すると消えるよ。普通の心の欠片は、帰ったあとにショップで使える。", ""),
     };
 
@@ -110,10 +115,7 @@ public static class StageTutorial
     //   ・回避 … ショップの品目 n_dodge（HasDodge。2026-09-22 ユーザー指示で「1面クリアの物語報酬」から変更）。
     //     発火条件は HasDodge かつ未見＝買ったあと最初に入った面の冒頭。ここは HasDodge だけを見る＝
     //     習得経路がどちらでも動く（本文はステージ名・主の名を出さないので、どの面で流れても嘘にならない）。
-    //   ・溜め打ち … 2026-09-25 のユーザー決定で**最初から使える**（ショップの n_charge は「溜め打ち 二段」＝
-    //     速さの強化になった）。あかり面では板の敵と戦ってから案内する。
-    //     本文（SkillCharge）の1行目も同日に差し替え済み＝「この光に備わっている
-    //     使い方」の提示で、習得・購入の含意は無い。
+    //   ・溜め打ち … 基本を買った後、あかり面では板の敵と戦ってから案内する。
     //   ・溜め打ち2段目 … ショップの品目 n_charge「溜め打ち 二段」（HasChargeTier2）。発火条件は
     //     HasChargeTier2 かつ未見＝買ったあと最初に入った面の冒頭で、回避（SkillDodge）と同じ作法。
     //     既存の SkillCharge（1段目）は一行も変えない＝この4行は「その先がある」ことだけを足す。
@@ -127,9 +129,9 @@ public static class StageTutorial
     private static readonly (int who, string text, string face)[] SkillDodge =
     {
         (0, "回避が使えるようになった。向かっている方向へ、一瞬で駆け抜けられる。方向を入れていなければ、その場で避けるよ。", ""),
-        (1, "短い無敵時間で、攻撃をすり抜けるのですね。", "res://char/mina_face.png"),
+        (1, "短い無敵時間で、攻撃をすり抜けるのですね。", CompanionDialogue.MinaPortrait),
         (0, "うん。でも、連続では使えない。抜けた先が空いているか、先に見よう。", ""),
-        (1, "逃げるために使っても？", "res://char/mina_face.png"),
+        (1, "逃げるために使っても？", CompanionDialogue.MinaPortrait),
         (0, "もちろん。無事でいるための力だよ。", ""),
     };
 
@@ -137,7 +139,7 @@ public static class StageTutorial
     {
         (0, "次はチャージ。押し続けると光が集まる。頭上の弧が満ちて、白く光ったら離して。", ""),
         (0, "アンフォールダーを貫く、重い一発になる。溜めている間は通常の光が止まるよ。溜まる前に離したときは、通常の光へ戻る。", ""),
-        (1, "では、安全な場所を選んで試します。必殺技の名前は、帰ってからですね。", "res://char/mina_face.png"),
+        (1, "では、安全な場所を選んで試します。必殺技の名前は、帰ってからですね。", CompanionDialogue.MinaPortrait),
     };
 
     // ⑥ 2段階チャージの説明（2026-09-25）。ショップの n_charge（「溜め打ち 二段」1200）を買うと
@@ -148,9 +150,9 @@ public static class StageTutorial
     private static readonly (int who, string text, string face)[] SkillCharge2 =
     {
         (0, "チャージの二段目が開いた。白い合図でも離さず、もう少し待つ。同じ輪がもう一周満ちて、暖かな白で光ったら、二段目だ。", ""),
-        (1, "強いぶん、溜める時間も長いのですね。", "res://char/mina_face.png"),
+        (1, "強いぶん、溜める時間も長いのですね。", CompanionDialogue.MinaPortrait),
         (0, "うん。その間は通常の光が止まる。安全な場所を決めてから使おう。", ""),
-        (1, "承知しました。欲張って、帰り道まで失わないようにします。", "res://char/mina_face.png"),
+        (1, "承知しました。欲張って、帰り道まで失わないようにします。", CompanionDialogue.MinaPortrait),
     };
 
     // ⑤の各行で出す操作カードの話題（本文の [card: ...] 注記どおり。RouteCues と同じ考え方＝
@@ -216,7 +218,7 @@ public static class StageTutorial
     public static (int who, string text, string face)[] TakeShield(GameManager? game) => Take(game, ShieldSeenKey, Shield);
     public static (int who, string text, string face)[] TakeLock(GameManager? game) => Take(game, LockSeenKey, Lock);
     public static (int who, string text, string face)[] TakeBomb(GameManager? game) => Take(game, BombSeenKey, Bomb);
-    public static (int who, string text, string face)[] TakeCharge(GameManager? game) => Take(game, SkillChargeSeenKey, SkillCharge);
+    public static (int who, string text, string face)[] TakeCharge(GameManager? game) => game?.HasChargeShot == true ? Take(game, SkillChargeSeenKey, SkillCharge) : None;
 
     // 本ボス出現時に一度だけ返す。同上。
     public static (int who, string text, string face)[] TakeBoss(GameManager? game) => Take(game, BossSeenKey, Boss);
@@ -250,7 +252,7 @@ public static class StageTutorial
     private static (int who, string text, string face)[] Take(
         GameManager? game, string key, (int who, string text, string face)[] lines)
     {
-        if (game == null) return None;
+        if (game == null || Skipped(game)) return None;
         if (CharacterStory.DiveActive(game)) return None;   // 他ジョブ潜行＝出さない・once も消費しない
         if (game.IsIdleDialogSeen(key)) return None;        // セーブ単位で一度きり
         game.MarkIdleDialogSeen(key);                       // 表示が確定した瞬間に消費（次回セーブで永続）

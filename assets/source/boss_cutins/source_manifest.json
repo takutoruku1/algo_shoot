@@ -1,0 +1,140 @@
+{
+  "project": "Refrain - Boss Transformations 20261118",
+  "duration_seconds": 3,
+  "fps": 60,
+  "resolution": [
+    1280,
+    720
+  ],
+  "impact_seconds": 1.28,
+  "encoding": "ffmpeg 7.1 libtheora q9 yuv420p",
+  "mina_before_atlas": {
+    "source": "char/v3/mina_phases/rain_v1.png",
+    "godot_region": [
+      69,
+      91,
+      652,
+      837
+    ],
+    "crop": "assets/source/boss_cutins/mina_rain_idle.png"
+  },
+  "videos": [
+    {
+      "id": "akari",
+      "path": "assets/video/akari_transform_v3.ogv",
+      "resolve_render": "build/qa_story/boss_cutins_revision3/renders/akari_transformation_r3.mp4",
+      "before": "char/v3/boss_akari_body_idle_v3.png",
+      "after": "char/v3/animal_forms/akari_animal_idle_v1.png",
+      "sha256": "94d29c067d67279ea0c18e6c150ee1c8362ed3576a7bc65133fad987ac87739d",
+      "probe": {
+        "programs": [],
+        "stream_groups": [],
+        "streams": [
+          {
+            "codec_name": "theora",
+            "width": 1280,
+            "height": 720,
+            "r_frame_rate": "60/1"
+          }
+        ],
+        "format": {
+          "duration": "3.000000"
+        }
+      },
+      "additional_motifs": [
+        "char/v3/fx/akari/card_unsent_2.png",
+        "char/v3/fx/akari/card_unsent_3.png"
+      ]
+    },
+    {
+      "id": "koharu",
+      "path": "assets/video/koharu_transform_v3.ogv",
+      "resolve_render": "build/qa_story/boss_cutins_revision3/renders/koharu_transformation_r3.mp4",
+      "before": "char/v3/boss_koharu_body_idle.png",
+      "after": "char/v3/animal_forms/koharu_animal_idle_v1.png",
+      "sha256": "00eb4789e38d632b3461754c9770aa61e538ad549ac3c12fb9bd61f9aabc0c91",
+      "probe": {
+        "programs": [],
+        "stream_groups": [],
+        "streams": [
+          {
+            "codec_name": "theora",
+            "width": 1280,
+            "height": 720,
+            "r_frame_rate": "60/1"
+          }
+        ],
+        "format": {
+          "duration": "3.000000"
+        }
+      }
+    },
+    {
+      "id": "rei",
+      "path": "assets/video/rei_transform_v3.ogv",
+      "resolve_render": "build/qa_story/boss_cutins_revision3/renders/rei_transformation_r3.mp4",
+      "before": "char/v3/boss_rei_body_idle.png",
+      "after": "char/v3/animal_forms/rei_animal_idle_v1.png",
+      "sha256": "9c2ffbb1d972ea1636a32b89ab1629bf4a976850fd94f2d69b6c6d3cc9c07af7",
+      "probe": {
+        "programs": [],
+        "stream_groups": [],
+        "streams": [
+          {
+            "codec_name": "theora",
+            "width": 1280,
+            "height": 720,
+            "r_frame_rate": "60/1"
+          }
+        ],
+        "format": {
+          "duration": "3.000000"
+        }
+      }
+    },
+    {
+      "id": "mina",
+      "path": "assets/video/mina_transform_v3.ogv",
+      "resolve_render": "build/qa_story/boss_cutins_revision3/renders/mina_transformation_r3.mp4",
+      "before": "assets/source/boss_cutins/mina_rain_idle.png",
+      "after": "char/v3/mina_dragon/mina_dragon_idle_v1.png",
+      "sha256": "90b470bd1911f86438ace92b0b7fe2f2b69ff0e2c7aa028aa71c000a28f15f4f",
+      "probe": {
+        "programs": [],
+        "stream_groups": [],
+        "streams": [
+          {
+            "codec_name": "theora",
+            "width": 1280,
+            "height": 720,
+            "r_frame_rate": "60/1"
+          }
+        ],
+        "format": {
+          "duration": "3.000000"
+        }
+      }
+    }
+  ],
+  "revision": 3,
+  "resolve_project_file": "assets/source/boss_cutins/Refrain_Boss_Transformations_20261118_r3.drp",
+  "motion": {
+    "body_center": [
+      0.5,
+      0.5
+    ],
+    "body_translation": false,
+    "impact_frame": 77,
+    "sequence": [
+      "plasma_and_motifs_converge",
+      "original_silhouette_charges",
+      "single_full_frame_impact",
+      "four_shockwaves_and_motif_burst",
+      "afterglow_sparks"
+    ],
+    "uniform_scale_only": true,
+    "motif_count": 36,
+    "radial_ray_count": 48,
+    "afterglow_spark_count": 42
+  }
+}

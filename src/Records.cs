@@ -47,7 +47,6 @@ public partial class Records : Node2D
         for (int i = 0; i < Stages.Length; i++)
         {
             if (Known(i)) _avatars[i] = GD.Load<Texture2D>(CompanionDialogue.AccountPortrait(Stages[i].job));
-            // The final name is known before its room has been restored.
             if (Cleared(i)) _memories[i] = GD.Load<Texture2D>(Stages[i].art);
         }
         foreach (var a in OS.GetCmdlineUserArgs())
@@ -55,7 +54,7 @@ public partial class Records : Node2D
     }
 
     private bool Cleared(int index) => index == 3 ? _game.IsFinalCleared : _game.IsStageCleared(Stages[index].id);
-    private bool Known(int index) => index == 3 ? _game.AllStoryCleared || _game.IsFinalCleared : Cleared(index);
+    private bool Known(int index) => index == 3 ? _game.FinalBossRevealed : Cleared(index);
     private string StageName(int index) => Known(index) ? Jobs.Get(Stages[index].job).CharacterName : "???";
     private Color StageAccent(int index) => Known(index) ? CompanionDialogue.Accent(Stages[index].job) : Muted;
     private static Rect2 TabRect(int index) => new(48 + index * 296, 102, 296, 76);
@@ -149,11 +148,7 @@ public partial class Records : Node2D
     public override void _Draw()
     {
         UiKit.BeginDesign(this);
-        DrawRect(new Rect2(0, 0, W, H), Surface);
-        DrawRect(new Rect2(0, 0, W, 88), Raised);
-        DrawRect(new Rect2(0, 88, W, 1), Line);
-        DrawRect(new Rect2(0, 648, W, H - 648), Raised);
-        DrawRect(new Rect2(0, 648, W, 1), Line);
+        UiKit.ExhibitBackdrop(this, StageAccent(_sel));
         DrawHeader();
         DrawTabs();
         DrawMemory();
@@ -174,14 +169,16 @@ public partial class Records : Node2D
 
     private void DrawHeader()
     {
-        UiKit.Text(this, UiKit.ZenBlack, new Vector2(48, 22), "記録", 32, Ink);
-        UiKit.Text(this, UiKit.Mono, new Vector2(130, 37), "RECORDS", 13, Muted);
+        UiKit.Text(this, UiKit.Mono, new Vector2(48, 14), "REFRAIN / MEMORY ARCHIVE", 13, TimeInk);
+        UiKit.Text(this, UiKit.ZenBlack, new Vector2(48, 31), "記録", 32, Ink);
+        UiKit.Text(this, UiKit.Zen, new Vector2(140, 45), "歩んだ軌跡、取り戻した景色。", 14, Muted);
+        UiKit.ExhibitPanel(this, new Rect2(930, 16, 302, 58), TimeInk, false, 4);
         int clears = ClearCount();
         UiKit.Text(this, UiKit.Zen, new Vector2(950, 24), "クリアステージ", 13, Muted);
-        UiKit.Text(this, UiKit.Mono, new Vector2(1088, 22), $"{clears:00} / 04", 26, clears == 4 ? TimeInk : Ink,
-            HorizontalAlignment.Right, 144);
+        UiKit.Text(this, UiKit.Mono, new Vector2(1080, 22), $"{clears:00} / 04", 26, clears == 4 ? TimeInk : Ink,
+            HorizontalAlignment.Right, 136);
         for (int i = 0; i < Stages.Length; i++)
-            DrawRect(new Rect2(950 + i * 72, 64, 66, 3), Cleared(i) ? StageAccent(i) : Line);
+            DrawRect(new Rect2(950 + i * 68, 64, 62, 3), Cleared(i) ? StageAccent(i) : Line);
     }
 
     private void DrawTabs()
@@ -190,20 +187,22 @@ public partial class Records : Node2D
         {
             var r = TabRect(i);
             bool active = _sel == i;
-            if (active || _hover == i) DrawRect(r, active ? Raised : new Color("191d20"));
+            UiKit.ExhibitPanel(this, new Rect2(r.Position, r.Size - new Vector2(12, 0)), StageAccent(i), active || _hover == i, active ? 7 : 4);
             UiKit.FaceAvatar(this, r.Position + new Vector2(35, 35), 22, _avatars[i], StageAccent(i), false, 0);
             UiKit.Text(this, UiKit.Mono, r.Position + new Vector2(75, 11), Stages[i].label, 13, Muted);
             UiKit.Text(this, UiKit.ZenBold, r.Position + new Vector2(75, 32), StageName(i), 20, active ? Ink : Muted);
             if (Cleared(i)) UiKit.Text(this, UiKit.Mono, r.Position + new Vector2(212, 29), "CLEAR", 13, TimeInk);
         }
-        DrawLine(new Vector2(48, 178), new Vector2(1232, 178), Line, 1);
-        DrawRect(new Rect2(_tabX, 176, 296, 3), StageAccent(_sel));
+        DrawRect(new Rect2(_tabX + 12, 176, 260, 3), StageAccent(_sel));
     }
 
     private void DrawMemory()
     {
         var art = _memories[_sel];
         float reveal = Mathf.Clamp((float)_revealT / 0.24f, 0, 1);
+        Color accent = StageAccent(_sel);
+        UiKit.ExhibitPanel(this, new Rect2(34, 192, 476, 434), accent, false, 10);
+        UiKit.Box(this, MemoryRect.Grow(4), new Color("080e13"), 1, new Color(accent, .4f), 1);
         if (art != null)
         {
             Vector2 sourceSize = art.GetSize();
@@ -220,8 +219,14 @@ public partial class Records : Node2D
                 HorizontalAlignment.Center, 448);
             DrawLine(new Vector2(236, 425), new Vector2(308, 425), Line, 2);
         }
-        DrawRect(new Rect2(48, 578, 448, 3), art != null ? StageAccent(_sel) : Line);
-        UiKit.Text(this, UiKit.Mono, new Vector2(48, 594), art != null ? "REAL REALM" : "NOT CLEARED", 13,
+        DrawColoredPolygon(new[] { new Vector2(48, 204), new Vector2(168, 204), new Vector2(496, 498), new Vector2(496, 578), new Vector2(470, 578) }, new Color(1, 1, 1, .035f));
+        foreach (var corner in new[] { new Vector2(43, 199), new Vector2(501, 199), new Vector2(43, 583), new Vector2(501, 583) })
+        {
+            DrawCircle(corner + new Vector2(0, 1), 2.5f, new Color("04090e"));
+            DrawCircle(corner, 1.5f, new Color(accent, .7f));
+        }
+        DrawRect(new Rect2(48, 578, 448, 3), art != null ? accent : Line);
+        UiKit.Text(this, UiKit.Mono, new Vector2(54, 594), art != null ? "REAL REALM" : "NOT CLEARED", 13,
             art != null ? StageAccent(_sel) : Muted);
         UiKit.Text(this, UiKit.Zen, new Vector2(252, 592), art != null ? "取り戻した景色" : "記録なし", 14, Muted,
             HorizontalAlignment.Right, 244);
@@ -230,6 +235,8 @@ public partial class Records : Node2D
     private void DrawBests()
     {
         var stage = Stages[_sel];
+        UiKit.ExhibitPanel(this, new Rect2(536, 252, 302, 98), TimeInk, true, 7);
+        UiKit.ExhibitPanel(this, new Rect2(852, 252, 396, 98), ScoreInk, true, 7);
         UiKit.Text(this, UiKit.ZenBlack, new Vector2(552, 199), StageName(_sel), 30, Ink);
         UiKit.Text(this, UiKit.Zen, new Vector2(1070, 213), "記録", 13, Muted);
         UiKit.Text(this, UiKit.Mono, new Vector2(1114, 212), $"{RecordCount(stage.id):00} / 04", 15, Muted,
@@ -246,8 +253,6 @@ public partial class Records : Node2D
             bestTime.HasValue ? TimeInk : Muted);
         DrawValue(bestScore.HasValue ? UiKit.FormatScore(bestScore.Value.score) : "--", new Rect2(868, 289, 364, 48), 38,
             bestScore.HasValue ? ScoreInk : Muted);
-        DrawLine(new Vector2(844, 264), new Vector2(844, 340), Line, 1);
-        DrawLine(new Vector2(552, 360), new Vector2(1232, 360), Line, 1);
     }
 
     private void DrawTable()
@@ -263,14 +268,13 @@ public partial class Records : Node2D
             var time = _game.GetBestTime(id, diff.diff);
             var score = _game.GetBestScore(id, diff.diff);
             bool hasRecord = time.HasValue || score.HasValue;
-            if (hasRecord) DrawRect(new Rect2(552, y, 680, 49), Raised);
+            UiKit.ExhibitPanel(this, new Rect2(536, y, 712, 49), hasRecord ? diff.color : Line, false, 3);
             DrawRect(new Rect2(552, y + 12, 3, 25), hasRecord ? diff.color : Line);
             UiKit.Text(this, UiKit.Mono, new Vector2(570, y + 13), diff.label, 16, hasRecord ? diff.color : Muted);
             DrawValue(time.HasValue ? UiKit.FormatTime(time.Value) : "--", new Rect2(746, y + 10, 182, 30), 22,
                 time.HasValue ? Ink : Muted, true);
             DrawValue(score.HasValue ? UiKit.FormatScore(score.Value) : "--", new Rect2(994, y + 10, 216, 30), 22,
                 score.HasValue ? Ink : Muted, true);
-            DrawLine(new Vector2(552, y + 49), new Vector2(1232, y + 49), Line, 1);
         }
     }
 
@@ -291,7 +295,7 @@ public partial class Records : Node2D
     private void DrawFooter()
     {
         // 「ホームに戻る」はクリックできるボタン（キーの表記は外した＝右下のヒント帯の もどる に一本化）。
-        if (_hover == 4) UiKit.Box(this, HomeRect, new Color("2a3335"), 6);
+        UiKit.ExhibitPanel(this, HomeRect, TimeInk, _hover == 4, 3);
         Vector2 arrow = new(70, 682);
         DrawLine(arrow + new Vector2(-8, 0), arrow + new Vector2(8, 0), Ink, 1.8f, true);
         DrawPolyline(new[] { arrow + new Vector2(-2, -6), arrow + new Vector2(-8, 0), arrow + new Vector2(-2, 6) }, Ink, 1.8f, true);

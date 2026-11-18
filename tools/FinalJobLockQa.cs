@@ -36,8 +36,10 @@ public partial class FinalJobLockQa : Node
             if (!OS.GetUserDataDir().Replace('\\', '/').Contains("/build/qa_story/"))
                 throw new Exception("Use isolated QA save data.");
             var game = GetNode<GameManager>("/root/Game");
+            typeof(Settings).GetProperty(nameof(Settings.PauseWhenUnfocused))!.SetValue(null, false);
             game.ResetPersistent();
             game.AutoSaveEnabled = false;
+            game.ShopTutorialSeen = true;
             foreach (var job in Jobs.All) game.MarkIdleDialogSeen($"once_companion_select_{job.CharacterId}");
             game.MarkIdleDialogSeen("once_phone_home");
             game.MarkIdleDialogSeen("once_sns_intro");
@@ -51,13 +53,16 @@ public partial class FinalJobLockQa : Node
 
             Check(game.AllStoryCleared && !game.IsFinalCleared, "three stages cleared but FINAL is still untouched");
             Check(game.IsMinaLockedForFinal, "Mina is locked for the first FINAL attempt");
+            await CheckHomeTab(game);
 
             var hub = await OpenHub(game);
             int final = FindFinal(hub);
             Check(final >= 0, $"the FINAL card is on the timeline (index {final})");
+            CheckFinalAccount(hub, final, false);
             Write(hub, "_sel", final);
             Call(hub, "UpdateFeedScrollTarget");
             await Frames(20);
+            await Shot("final_masked_timeline");
 
             // (a) FINAL のカードを開いた状態のアカウント一覧にミナが出ない。
             game.SelectedJob = Job.Tank;
@@ -108,7 +113,7 @@ public partial class FinalJobLockQa : Node
             await ConfirmZ(hub);
             Check(Read<bool>(hub, "_dived"), "akari dives into FINAL");
             Check(game.PendingStageScene == "res://MinaBattle.tscn", $"the FINAL scene is queued ({game.PendingStageScene})");
-            await Frames(8);
+            await WaitForFinal();
             Check(GetTree().CurrentScene is MinaRoot, $"the FINAL scene actually loads ({GetTree().CurrentScene?.GetType().Name})");
             GetTree().CurrentScene?.QueueFree();
             await Frames(8);
@@ -132,10 +137,14 @@ public partial class FinalJobLockQa : Node
             game.ClearTimes.Clear();
             Check(!game.IsFinalCleared, "clearing the in-memory record locks Mina again");
             Check(game.LoadFromSlot(0) && game.IsFinalCleared, "the FINAL clear record survives save and load");
+            Check(game.FinalBossRevealed, "existing FINAL clear records reveal the boss without an encounter flag");
+            game.MarkEndingRollSeen();
+            await CheckHomeTab(game);
             await CheckMouseEntry(game, Job.Tank);
             game.SelectedJob = Job.Tank;
             hub = await OpenHub(game);
             final = FindFinal(hub);
+            CheckFinalAccount(hub, final, true);
             Write(hub, "_sel", final);
             Call(hub, "UpdateFeedScrollTarget");
             await Settle(hub);
@@ -147,7 +156,7 @@ public partial class FinalJobLockQa : Node
             Write(hub, "_mode", Enum.Parse(typeof(Hub).GetNestedType("Mode", Private)!, "Detail"));
             await ConfirmZ(hub);
             Check(Read<bool>(hub, "_dived") && game.SelectedJob == Job.Tank, "Mina dives into FINAL on a replay");
-            await Frames(8);
+            await WaitForFinal();
             GetTree().CurrentScene?.QueueFree();
             await Frames(8);
 
@@ -164,7 +173,7 @@ public partial class FinalJobLockQa : Node
             hub = await OpenHub(game);
             Call(hub, "DiveAuto");
             Check(game.SelectedJob != Job.Tank, $"the automatic dive swaps off Mina ({game.JobDef.CharacterName})");
-            await Frames(8);
+            await WaitForFinal();
             Check(GetTree().CurrentScene is MinaRoot, "the automatic dive still reaches FINAL");
         }
         catch (Exception e)
@@ -211,22 +220,21 @@ public partial class FinalJobLockQa : Node
         {
             DisplayServer.WindowSetSize(size);
             await Frames(20);
-            var (x, y, w, h) = ((float, float, float, float))Call(hub, "DetailBox", false)!;
-            Rect2 button = FinalButtonRect(hub);
+            var (x, y, w, h) = ((float, float, float, float))Call(hub, "DetailBox", true)!;
+            Rect2 button = (Rect2)Call(hub, "TierHitRect", (int)GameManager.Diff.Hard)!;
             Check(new Rect2(x, y, w, h).Encloses(button)
-                && !button.Intersects((Rect2)Call(hub, "DetailJobRect", false)!)
-                && !button.Intersects(new Rect2(x + 24, y + 344, w - 48, 76)),
-                "FINAL entry button fits without overlapping the account control or lock hint");
+                && !button.Intersects((Rect2)Call(hub, "DetailJobRect", true)!),
+                "FINAL difficulty button fits without overlapping the account control");
             if (job == Job.Melee) await Shot($"final_ready_{size.X}x{size.Y}");
         }
         DisplayServer.WindowSetSize(new Vector2I(1280, 720));
         game.SelectedEntry = GameManager.StageEntry.Boss;
-        ClickAt(hub, FinalButtonRect(hub), "ProcessDetail", 0.01);
+        ClickAt(hub, (Rect2)Call(hub, "TierHitRect", (int)GameManager.Diff.Hard)!, "ProcessDetail", 0.01);
         Check(Read<bool>(hub, "_dived") && game.PendingStageScene == "res://MinaBattle.tscn",
             $"{job}: one mouse click starts FINAL");
         Check(game.Difficulty == GameManager.Diff.Hard && game.SelectedEntry == GameManager.StageEntry.Start,
             "FINAL preserves difficulty and starts from the beginning");
-        await Frames(8);
+        await WaitForFinal();
         Check(GetTree().CurrentScene is MinaRoot && game.SelectedJob == job, $"{job}: Mina stage actually loads with the selected character");
         GetTree().CurrentScene?.QueueFree();
         await Frames(8);
@@ -254,7 +262,30 @@ public partial class FinalJobLockQa : Node
         Set("_usingMouse", false);
     }
 
-    private async Task<Hub> OpenHub(GameManager game)
+    private async Task CheckHomeTab(GameManager game)
+    {
+        game.SelectedJob = Job.Magic;
+        var hub = await OpenHub(game, home: true);
+        Check(Mode(hub) == "Home", "start at the phone home without opening SNS");
+        Write(hub, "_sel", FindFinal(hub));
+        await Settle(hub);
+        await Keypress(hub, Key.Tab);
+        Check(Mode(hub) == "Job", "Tab opens the home character list");
+        int mina = Array.FindIndex(Read<JobTuning[]>(hub, "_jobChoices"), j => j.Id == Job.Tank);
+        Check(mina >= 0, "home offers Mina even with FINAL selected behind the phone");
+        if (mina >= 0)
+        {
+            await Shot(game.IsFinalCleared ? "home_tab_after_ending" : "home_tab_before_final");
+            for (int i = 0; i < Jobs.All.Length && Read<int>(hub, "_jobSel") != mina; i++) await Keypress(hub, Key.Down);
+            await ConfirmZ(hub);
+            Check(game.SelectedJob == Job.Tank && Mode(hub) == "Home", "confirm Mina directly from home");
+            if (game.IsFinalCleared) await Shot("home_mina_selected");
+        }
+        hub.QueueFree();
+        await Frames(5);
+    }
+
+    private async Task<Hub> OpenHub(GameManager game, bool home = false)
     {
         game.PendingStageScene = "";
         var hub = GD.Load<PackedScene>("res://Hub.tscn").Instantiate<Hub>();
@@ -263,9 +294,31 @@ public partial class FinalJobLockQa : Node
         await Frames(20);
         // ハブは電話のホーム画面から始まるので、検証対象のタイムラインへ直接置く（会話・小話は挟まない）。
         Write(hub, "_idleTalkPending", false);
-        Write(hub, "_mode", Enum.Parse(typeof(Hub).GetNestedType("Mode", Private)!, "Cards"));
+        if (!home) Write(hub, "_mode", Enum.Parse(typeof(Hub).GetNestedType("Mode", Private)!, "Cards"));
         await Frames(5);
         return hub;
+    }
+
+    private void CheckFinalAccount(Hub hub, int index, bool cleared)
+    {
+        var entry = Read<Array>(hub, "_entries").GetValue(index)!;
+        string name = (string)entry.GetType().GetField("Name")!.GetValue(entry)!;
+        string handle = (string)entry.GetType().GetField("Handle")!.GetValue(entry)!;
+        var icon = Call(hub, "FaceFor", GameManager.FinalStageId);
+        var mina = Read<Dictionary<string, Texture2D>>(hub, "_playerFaces")["mina"];
+        Check(name == (cleared ? "ミナ" : FinalAccount.Name) && handle == (cleared ? Handles.Mina : FinalAccount.Handle)
+            && icon != null && ReferenceEquals(icon, mina) == cleared, "FINAL post uses the right name, handle and icon for this save");
+        Call(hub, "UpdateVoiceMedallions", 0.016);
+        var medals = Read<Array>(Read<VoiceMedallions>(hub, "_voiceMedallions"), "_medals");
+        for (int i = 0; i < medals.Length; i++)
+        {
+            object medal = medals.GetValue(i)!;
+            bool saved = i < GameManager.Stages.Length || cleared;
+            var number = (Label3D)medal.GetType().GetField("Number")!.GetValue(medal)!;
+            Check(number.Text == (i + 1).ToString() && number.Visible == !saved
+                && (medal.GetType().GetField("Face")!.GetValue(medal) != null) == saved,
+                $"stage {i + 1} shows the numbered or portrait side according to clearance");
+        }
     }
 
     private static int FindFinal(Hub hub)
@@ -292,9 +345,9 @@ public partial class FinalJobLockQa : Node
 
     private async Task Keypress(Hub hub, Key key)
     {
-        Input.ParseInputEvent(new InputEventKey { Keycode = key, Pressed = true });
+        Input.ParseInputEvent(new InputEventKey { Keycode = key, PhysicalKeycode = key, Pressed = true });
         await Frames(20);
-        Input.ParseInputEvent(new InputEventKey { Keycode = key, Pressed = false });
+        Input.ParseInputEvent(new InputEventKey { Keycode = key, PhysicalKeycode = key, Pressed = false });
         await Frames(3);
     }
 
@@ -305,8 +358,19 @@ public partial class FinalJobLockQa : Node
     //   検証したいのはゲートそのものではないので、実時間で越えさせてから押す。
     private async Task Settle(Hub hub)
     {
-        while (Read<double>(hub, "_t") <= 0.35) await Frames(10);
+        for (int i = 0; i < 120 && Read<double>(hub, "_t") <= 0.35; i++) await Frames(10);
+        if (Read<double>(hub, "_t") <= 0.35) throw new Exception("Hub did not become interactive.");
         await Frames(3);
+    }
+
+    private async Task WaitForFinal()
+    {
+        for (int i = 0; i < 1800; i++)
+        {
+            if (GetTree().CurrentScene is MinaRoot && !LoadingScreen.IsActive) return;
+            await Frames(1);
+        }
+        throw new Exception("FINAL did not finish loading.");
     }
 
     private async Task ConfirmZ(Hub hub)

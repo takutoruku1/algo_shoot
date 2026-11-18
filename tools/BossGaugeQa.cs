@@ -94,12 +94,15 @@ public partial class BossGaugeQa : Node
         game.ResetPersistent(); game.AutoSaveEnabled = false;
         game.Difficulty = GameManager.Diff.Normal;
         game.MarkIdleDialogSeen("once_midboss_shield");
+        game.MarkIdleDialogSeen(StageTutorial.ChoiceSeenKey);
+        game.MarkIdleDialogSeen(StageTutorial.SkipKey);
 
         var root = _sceneRoot = GD.Load<PackedScene>("res://Akari.tscn").Instantiate<AkariRoot>();
         GetTree().Root.AddChild(root);
         GetTree().CurrentScene = root;
         await Frames(2);
         root.Stage.SetProcess(false);
+        root.World.ProcessMode = ProcessModeEnum.Inherit;
         var hud = root.Hud; _hud = hud;
         var player = root.Player;
         player.SetPhysicsProcess(false);   // 自弾が中ボスに当たって UpdateBossBar を上書きしないように
@@ -108,6 +111,12 @@ public partial class BossGaugeQa : Node
         hud.HoldBubble = false; hud.HideBubble();
         Write(hud, "_bannerTimer", 0d);
         await Frames(4);
+
+        if (OS.GetCmdlineUserArgs().Contains("--break-duration"))
+        {
+            await BreakDuration(root, game);
+            return;
+        }
 
         // ── ① 中ボス（CameoBoss）を StageAkari.Step_BossCameo と同じ作り方で出す ──
         var cameo = SpawnCameo(root, "AkariCameo", new Vector2(Field.CenterX + 40, 100));
@@ -219,6 +228,154 @@ public partial class BossGaugeQa : Node
 
     }
 
+    private async Task BreakDuration(AkariRoot root, GameManager game)
+    {
+        void Call(Enemy boss, string name, params object[] args)
+            => typeof(Enemy).GetMethod(name, P)!.Invoke(boss, args);
+        int Hp(Enemy boss) => (int)BaseField(boss, "_hp").GetValue(boss)!;
+        root.AddToGroup("boss_rush");
+        foreach (var difficulty in Enum.GetValues<GameManager.Diff>())
+        foreach (string id in new[] { "akari", "koharu", "rei", "mina" })
+        {
+            game.Difficulty = difficulty;
+            Enemy boss = id switch
+            {
+                "akari" => new BossAkari(), "koharu" => new BossKoharu(),
+                "rei" => new BossRei(), _ => new BossMina(),
+            };
+            boss.ProcessMode = ProcessModeEnum.Disabled;
+            root.World.AddChild(boss);
+            boss.GlobalPosition = new Vector2(Field.BossCenterX, 100);
+            Call(boss, "TickEntrance", 0d);
+            Call(boss, "TickEntrance", 100d);
+            var danmaku = (BossDanmaku)BaseField(boss, "_danmaku").GetValue(boss)!;
+            BaseField(boss, "_danmaku").SetValue(boss, null);
+            var gauge = Gauges(boss).Single();
+            gauge.ProcessMode = ProcessModeEnum.Always;
+            string label = $"{id}/{difficulty}";
+            int bombDamage = Mathf.RoundToInt(Enemy.BombStrikeBase * game.BombPowerMul);
+            var returningAttack = boss is BossKoharu && difficulty == GameManager.Diff.Easy
+                ? BossCharacterTechnique.Begin(boss, BossTechniqueKind.Normal, 1) : null;
+            foreach (var panel in boss.GetChildren().OfType<Panel>().ToArray()) panel.Shatter();
+            if (returningAttack != null)
+            {
+                returningAttack.Cancel();
+                var pool = GetNode<BulletPool>("/root/Pool");
+                int before = Hp(boss);
+                void Hit() => Call(boss, "OnBodyHitByPlayerBullet", pool.Spawn(boss.GlobalPosition, Vector2.Right, false, damage: 1));
+                Hit();
+                int first = Hp(boss);
+                Hit();
+                Check(label + ": simultaneous normal shots respect hit cooldown", first < before && Hp(boss) == first);
+                boss._PhysicsProcess(.12);
+                Hit();
+                Check(label + ": spaced normal shots still damage the returning exposed body",
+                    boss.BossFrameReturning && boss.GaugeBodyExposed && Hp(boss) < first);
+                boss._PhysicsProcess(1.2);
+            }
+            Call(boss, "TickBossPhase", 0.45d);
+            root.Hud.HoldBubble = false;
+            root.Hud.HideBubble();
+            Check(label + ": break cue opens the body at a full window", boss.GaugeBodyExposed && boss.GaugeWindowLeft == 1);
+            BaseField(boss, "_windowDamage").SetValue(boss, 180 - 3);
+            int initialHp = Hp(boss);
+            boss.Purify();
+            Call(boss, "TickBossPhase", 0.1d);
+            Check(label + $": bomb damage crosses the old 180-point cap ({initialHp - Hp(boss)}/{bombDamage})", initialHp - Hp(boss) == bombDamage);
+            Check(label + ": burst damage cannot close the window", boss.GaugeBodyExposed
+                && Mathf.IsEqualApprox(boss.GaugeWindowLeft, 1 - .1f / 8));
+            initialHp = Hp(boss);
+            boss.Purify();
+            Check(label + $": body remains damageable after the old cap ({initialHp - Hp(boss)}/{bombDamage})", Hp(boss) == initialHp - bombDamage);
+            Call(boss, "TickBossPhase", 1.9d);
+
+            _keepDialogue = true;
+            Hud.BubblePaused = true;
+            boss._PhysicsProcess(3);
+            Hud.BubblePaused = false;
+            _keepDialogue = false;
+            Check(label + ": dialogue preserves the remaining six seconds", Mathf.IsEqualApprox(boss.GaugeWindowLeft, .75f));
+            var transform = new BossTransformation();
+            BaseField(boss, "_transformation").SetValue(boss, transform);
+            boss._PhysicsProcess(3);
+            BaseField(boss, "_transformation").SetValue(boss, null);
+            transform.Free();
+            Check(label + ": transformation preserves the remaining six seconds", Mathf.IsEqualApprox(boss.GaugeWindowLeft, .75f));
+
+            Call(boss, "TickBossPhase", 5.99d);
+            Check(label + ": ordinary window remains open until eight seconds", boss.GaugeBodyExposed && boss.GaugeWindowLeft > 0);
+            Call(boss, "TickBossPhase", .011d);
+            Check(label + ": ordinary window closes at eight seconds", boss.GaugeReforming && !boss.GaugeBodyExposed);
+            Call(boss, "EnterShielded");
+
+            int maxHp = (int)BaseField(boss, "_maxHp").GetValue(boss)!;
+            float boundary = id == "mina" ? .8f : id == "akari" ? .52f : .5f;
+            BaseField(boss, "_hp").SetValue(boss, Mathf.RoundToInt(maxHp * boundary));
+            for (int phase = 1; phase <= (boss is BossMina ? 4 : 1); phase++)
+            {
+                foreach (var panel in boss.GetChildren().OfType<Panel>().Where(p => !p.IsQueuedForDeletion()).ToArray()) panel.Shatter();
+                Call(boss, "TickBossPhase", .45d);
+                Call(boss, "TickBossPhase", 2d);
+                Check(label + $" phase {phase}: transition begins with six seconds of fatigue left", boss.GaugeWindowLeft == .75f);
+                BaseField(boss, "_danmaku").SetValue(boss, danmaku);
+                if (boss is BossMina mina)
+                {
+                    typeof(BossMina).GetMethod("BeginPhaseTransition", P)!.Invoke(mina, null);
+                    double before = (double)BaseField(boss, "_phaseT").GetValue(boss)!;
+                    boss._PhysicsProcess(1);
+                    Check(label + ": phase transition pauses the timer", (double)BaseField(boss, "_phaseT").GetValue(boss)! == before);
+                    typeof(BossMina).GetMethod("CompletePhaseTransition", P)!.Invoke(mina, null);
+                }
+                else
+                {
+                    Call(boss, "AdvanceForm2");
+                }
+                for (int frame = 0; frame < 360 && boss.Transforming; frame++) await Frames(1);
+                root.Hud.HideBubble();
+                Check(label + $" phase {phase}: next form clears fatigue and restores the shield", !boss.Transforming
+                    && !boss.GaugeVulnerable && !boss.GaugeReforming && !boss.GaugeAttackResolving
+                    && boss.GaugeWindowLeft == 0 && !(bool)BaseField(boss, "_bodyDown").GetValue(boss)!
+                    && boss.UnfoldersActive && boss.GetChildren().OfType<Panel>().Any(p => !p.IsQueuedForDeletion()));
+                await Frames(2);
+                Check(label + $" phase {phase}: transformed body no longer accepts exposed-window hits",
+                    !boss.Monitoring && !boss.GetCollisionMaskValue(2));
+                if (_shot) await Wait(.8);
+                await Shot($"{id}_{difficulty}_form_{phase}_ready", checkBand: false);
+                boss._PhysicsProcess(1d / 60);
+                Check(label + $" phase {phase}: next technique starts on the first combat tick", danmaku.ActiveTechnique is { Finished: false });
+                danmaku.ActiveTechnique?.Cancel();
+                BaseField(boss, "_danmaku").SetValue(boss, null);
+                boss.TickBossFrame(2);
+                await Frames(2);
+            }
+            foreach (var panel in boss.GetChildren().OfType<Panel>().Where(p => !p.IsQueuedForDeletion()).ToArray()) panel.Shatter();
+            Call(boss, "TickBossPhase", .45d);
+            Call(boss, "TickBossPhase", 2d);
+            initialHp = Hp(boss);
+            boss.Purify();
+            Check(label + ": previous form HP floor cannot block new-form damage", Hp(boss) == initialHp - bombDamage);
+            Call(boss, "TickSwapAnim", 1d);
+            await Frames(2);
+            if (_shot)
+            {
+                root.Hud.HideSpellCard();
+                await Wait(1.4);
+                Check(label + ": gauge displays the exposed state", gauge.LastFillKind == "break" && gauge.LastStateLabel == "本体に攻撃");
+            }
+            await Shot($"{id}_{difficulty}_break_remaining", checkBand: false);
+            Call(boss, "TickBossPhase", 5.99d);
+            Check(label + ": window remains open until eight seconds", boss.GaugeBodyExposed && boss.GaugeWindowLeft > 0);
+            Call(boss, "TickBossPhase", .011d);
+            Check(label + ": window closes at eight seconds", boss.GaugeReforming && !boss.GaugeBodyExposed);
+            initialHp = Hp(boss);
+            boss.Purify();
+            Check(label + ": reformed guard prevents body damage", Hp(boss) == initialHp);
+            boss.QueueFree();
+            await Frames(3);
+        }
+        root.RemoveFromGroup("boss_rush");
+    }
+
     private async Task RecoveryGauge(Hud hud, Enemy boss, string prefix)
     {
         bool physics = boss.IsPhysicsProcessing();
@@ -291,7 +448,7 @@ public partial class BossGaugeQa : Node
                 string detail = (string)typeof(Hud).GetMethod("LockStatusDetail", BindingFlags.Static | BindingFlags.NonPublic)!
                     .Invoke(null, new object[] { player })!;
                 Check($"{prefix}: sidebar follows the same combat state ({detail})", detail == (phase == "Reclose" ? "シールド再形成中"
-                    : phase == "Resolving" ? "攻撃が終わるまで回避" : label));
+                    : phase == "Resolving" ? "回避しながら本体に攻撃" : label));
             }
         }
 
@@ -311,19 +468,19 @@ public partial class BossGaugeQa : Node
         await Frames(2);
         if (boss.UsesTechniqueCycle)
         {
-            State("Resolving", "resolving", "攻撃終了待ち");
-            Check($"{prefix}: resolving keeps the attack active and hides body-attack callouts", boss.GaugeAttackResolving
-                && !boss.GaugeVulnerable && !boss.GaugeBodyExposed && boss.GaugeWindowLeft == 0 && !callout.Active
+            State("Resolving", "break", "回避しながら攻撃");
+            Check($"{prefix}: resolving permits body damage while keeping the attack active", boss.GaugeAttackResolving
+                && !boss.GaugeVulnerable && boss.GaugeBodyExposed && boss.GaugeWindowLeft == 0 && !callout.Active
                 && uiAttack is { Finished: false });
-            Check($"{prefix}: resolving has no large BREAK cue", !boss.GetParent().GetChildren().OfType<BossBreakFx>().Any(fx => !fx.IsQueuedForDeletion()));
-            await BodyShot(false);
+            Check($"{prefix}: resolving has no large BREAK cue", !boss.GetChildren().OfType<BossBreakFx>().Any(fx => !fx.IsQueuedForDeletion()));
+            await BodyShot(true);
             await Shot($"{prefix}_resolving_evade");
             await Zoom(gauge, $"{prefix}_resolving_evade_zoom", recovery: true);
             CompleteTechnique();
             await Advance(0);
         }
         State("Break", "breaking", "シールド破壊");
-        Check($"{prefix}: actual BREAK displays the large cue", boss.GetParent().GetChildren().OfType<BossBreakFx>().Any(fx => !fx.IsQueuedForDeletion()));
+        Check($"{prefix}: actual BREAK displays the large cue", boss.GetChildren().OfType<BossBreakFx>().Any(fx => !fx.IsQueuedForDeletion()));
         Check($"{prefix}: all panels are gone before the body attack cue", Panels().Length == 0);
         Check($"{prefix}: break cue precedes body vulnerability", boss.GaugeBreaking && !boss.GaugeBodyExposed
             && boss.GaugeVulnerable && boss.GaugeWindowLeft == 1f && boss.GaugeBreakFresh > 0.5f);

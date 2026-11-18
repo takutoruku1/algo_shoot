@@ -1,0 +1,18 @@
+{
+  "tool": "built-in image_gen",
+  "output": "assets/sns/daily_photos.png",
+  "layout": {
+    "columns": 2,
+    "rows": 3
+  },
+  "references": [
+    "char/ui/sns_akari_v1.png",
+    "char/v3/icons/mob_03.png",
+    "char/v3/icons/mob_02.png",
+    "char/v3/icons/mob_01.png"
+  ],
+  "prompts": [
+    "Use case: illustration-story. Asset type: a game SNS photo atlas, six original everyday snapshots in one exact 3-column by 2-row grid, equal square cells, edge-to-edge without gutters, captions, frames, UI, typography, watermarks or logos. References: image 1 is the existing game's soft anime illustration style only; image 2 defines the monstera species and white ceramic pot; image 3 defines the warm brown Shiba dog; image 4 defines the grey tabby cat. Produce candid, warm, detailed but clean anime-background snapshots rather than isolated icons or promotional art. Every cell has its subject fully within its central 70% so it can be displayed with a modest landscape crop. Top-left: a white ceramic pot with a small monstera on a sunny wooden home desk, several mature leaves and one tightly unfurling pale leaf, quiet personal snapshot. Top-middle: the same brown Shiba dog seen full-body sitting beside a plain vent at the corner of a neighborhood bakery exterior, a little bread visible behind glass, leash exits frame, no people and no writing. Top-right: the grey tabby curled asleep over a computer keyboard on a lived-in desk, warm window light, no screen text. Bottom-left: clean laundry and a towel hanging on a modest apartment balcony in a blue summer breeze, sky and a few distant roofs, no beach in foreground. Bottom-middle: a close personal snapshot of a fuller monstera with a small new shoot beside a laptop showing an abstract finished design made of rounded colorful rectangles, no legible text or real app logos. Bottom-right: same Shiba in a little neighborhood park, playfully following a single orange fallen leaf, natural joyful pose, no people. Preserve the existing project's gentle palette and illustrated-world consistency. These are ordinary social posts, not fantasy scenes. No borders between cells; precise even 3 by 2 grid.",
+    "Reformat this exact six-picture atlas for use in a game's SNS timeline. Make a square atlas with EXACTLY TWO COLUMNS AND THREE ROWS, six equal LANDSCAPE cells, with no gutters, borders or labels. Keep these same illustrations, subjects, palettes and identities; simply recompose into wide snapshots. Reading order: row1 left=desk monstera and white pot, row1 right=Shiba sitting by bakery vent; row2 left=grey tabby asleep on keyboard, row2 right=laundry on sunny balcony; row3 left=monstera beside laptop with abstract rounded design, row3 right=Shiba playing with orange fallen leaf in park. Two columns, three rows. Each individual cell is landscape 3:2 and fully fills its grid cell. All scenes keep the focal subject visible with a wide 16:9 center crop. No words, no logo, no new characters."
+  ]
+}

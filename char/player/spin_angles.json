@@ -1,0 +1,73 @@
+{
+  "tool": "ImageGen",
+  "references": "Existing spin_00 through spin_04 for both costumes of each character.",
+  "shared_prompt": "Produce the missing half of the vertical-axis dodge turnaround for this existing 2D game. The input is an authoritative reference sheet: row 1 is the original/default costume, row 2 the alternate costume, same character; each row shows front, right 3/4, right profile, rear 3/4, back. DELIVER a new single transparent RGBA sprite sheet with exactly SIX isolated intact full-body sprites, 3 equal columns x 2 equal rows. Maintain each row's costume, anatomy, proportion, line widths, near-flat anime cel paint, poses and expressions exactly per reference, no enhancements. Wide enough for six evenly spaced uncut figures. 1st column is back three-quarter view turned a little toward screen LEFT (mostly back of head, see sliver of left-pointing nose); middle column pure profile with nose facing screen LEFT; last column front three-quarter, still looking to screen LEFT with both eyes visible. Do not mirror the right-facing artwork. We now look at the character's anatomical LEFT side (the opposite side from the right-facing reference), so items attached to their anatomical RIGHT are on the far side and become occluded by the head/torso. Match stance of floating with bent knees and same crossed leg order in world space, same hand holds same prop. Use genuine transparent negative space between sprites and around edges; absolutely no backgrounds, shadows, text, labels, ground planes or row dividers. Do not reproduce input sheet. Every column must be a distinct yaw, body and face both turning left. Never show a right-facing or straight-back sprite. Match the texture quality and restrained detail of the references, especially eyes and chibi proportions.",
+  "sheets": [
+    {
+      "source": "char/raw/dodge_turns/mina.png",
+      "uses_shared_prompt": true,
+      "prompt": "Top row: Mina silver-haired maid, centered headband and navy neck bow. The anatomical RIGHT hand stays over chest, the other slightly extended; in these LEFT-facing views show her near left arm and the far right hand as appropriate. Bottom: Mina's white cape/navy costume, both hands tucked at chest. The single navy bow with cyan knot flower on the anatomical RIGHT temple is largely hidden behind the head in left profile and disappears from its near temple; in back three-quarter it can peep past far right SILHOUETTE only. No headband on bottom row.",
+      "frames": [
+        ["mina/mina_spin_v2_05.png", 194, 14, 277, 472],
+        ["mina/mina_spin_v2_06.png", 665, 15, 252, 469],
+        ["mina/mina_spin_v2_07.png", 1089, 16, 257, 468],
+        ["mina/costume_v1/spin_05.png", 216, 528, 274, 455],
+        ["mina/costume_v1/spin_06.png", 654, 528, 301, 455],
+        ["mina/costume_v1/spin_07.png", 1058, 528, 314, 455]
+      ]
+    },
+    {
+      "source": "char/raw/dodge_turns/koharu.png",
+      "uses_shared_prompt": true,
+      "prompt": "Koharu's one small low side pony tied plum scrunchie AND pink double hair barrette both sit on the character's anatomical RIGHT side. In new left-facing profiles the visible near left temple is unadorned, neither barrette nor ponytail on this side; ponytail may peek from far edge at rear, never attach visible pink clip to the near temple. Top uniform blazer/pleated skirt, short purple cylindrical item held at sternum in anatomical RIGHT hand, other hand a fist. Bottom rain cape/teal skirt with closed violet umbrella held with BOTH hands at sternum and tip hanging straight down. Copy exactly. Brown eyes.",
+      "frames": [
+        ["koharu/koharu_spin_v2_05.png", 64, 24, 267, 565],
+        ["koharu/koharu_spin_v2_06.png", 467, 26, 272, 563],
+        ["koharu/koharu_spin_v2_07.png", 869, 22, 272, 553],
+        ["koharu/costume_v1/spin_05.png", 60, 676, 280, 567],
+        ["koharu/costume_v1/spin_06.png", 462, 677, 286, 565],
+        ["koharu/costume_v1/spin_07.png", 864, 674, 287, 559]
+      ]
+    },
+    {
+      "source": "char/raw/dodge_turns/rei.png",
+      "uses_shared_prompt": true,
+      "prompt": "Rei has just ONE gold star hairpin on her anatomical RIGHT temple. The near temple in these LEFT-facing views shows plain indigo hair WITHOUT a star hairpin. In profile the far-side pin is fully hidden. Bottom costume has a gold STAR MICROPHONE in her hands at chest, a prop separate from her hairpin, and one white and one dark thigh stocking: anatomical RIGHT thigh wears white stocking, anatomical LEFT thigh wears dark stocking (see the reference front). Keep these legs correctly sided; the dark stocking is on the near-left leg in left profile. Top white/violet magical idol dress has no microphone; her anatomical RIGHT hand is resting on chest and left arm held at side. Preserve pink/gold hair tips, white socks on both top legs, correct hemlines and the small hair/body proportion.",
+      "frames": [
+        ["rei/rei_spin_v2_05.png", 147, 11, 305, 480],
+        ["rei/rei_spin_v2_06.png", 637, 11, 307, 479],
+        ["rei/rei_spin_v2_07.png", 1106, 11, 299, 481],
+        ["rei/costume_v1/spin_05.png", 149, 518, 319, 482],
+        ["rei/costume_v1/spin_06.png", 628, 518, 326, 478],
+        ["rei/costume_v1/spin_07.png", 1100, 518, 330, 488]
+      ]
+    },
+    {
+      "source": "char/raw/dodge_turns/akari.png",
+      "uses_shared_prompt": false,
+      "prompt": "Make a matching game animation sprite sheet of AKARI from this reference. Each figure floating with her same bent legs. Output six full-body sprites on real transparent alpha, separated into a grid of THREE columns by TWO rows, identical sizes. Ink, colors, head size and face should match reference exactly. Anatomical continuity is critical. Her short single side ponytail is attached to her RIGHT temple. Her LEFT temple is plain bob. Right = the side on the left of her body as seen from the front. Follow these precise different yaw directions:\nTOP ROW office cardigan: depict three distinct views with nose LEFT in all three, from rear-left three-quarter, to pure left-facing profile, to front three-quarter looking left with both eyes visible. The PHONE is always held close to sternum in her RIGHT hand (FAR arm), and the NEAR left arm extends gently down and outward, never holds or touches the phone. In center and right columns draw the instant with the near left hand free in front of the body and reaching slightly behind her (toward screen RIGHT as the nose points LEFT). In rear-left view likewise see her NEAR left loose sleeve and free hand. The far ponytail may peek from the opposite silhouette but near temple is bare.\nBOTTOM ROW mint hoodie, navy skirt, white sneakers, white satchel held by strap at anatomical RIGHT hip and phone clasped in both hands. First cell MUST be a rear three-quarters view FACING RIGHT, nose points RIGHT, see mostly back of hair/hood and near RIGHT-hand ponytail, right hip with bag in view. Second cell pure profile facing LEFT, near temple and hip plain; the bag remains on hidden far hip and mostly occluded. Third cell front three-quarter facing LEFT, near left hip is on the screen RIGHT of her body, no bag there. A small bit of white satchel may show on the far edge of torso, to SCREEN LEFT (same side as nose). Keep ponytail on far side of head, softly peeking from silhouette only as visible. Keep the single exact small shoulder purse and phone in the designs. Hands do not swap at any rotation angle. Transparent gutters, no shadow, no effects, no extra items or lettering. Do not mirror the right-facing images.",
+      "frames": [
+        ["akari/akari_spin_v2_07.png", 1142, 8, 261, 460],
+        ["akari/costume_v1/spin_03.png", 154, 519, 212, 481],
+        ["akari/costume_v1/spin_06.png", 668, 520, 207, 476],
+        ["akari/costume_v1/spin_07.png", 1145, 520, 239, 477]
+      ]
+    },
+    {
+      "source": "char/raw/dodge_turns/akari_profile.png",
+      "uses_shared_prompt": false,
+      "prompt": "Create ONLY TWO transparent isolated sprites side by side, both of the OFFICE AKARI woman from TOP row of input (ignore bottom costume). Match original chibi proportions, brown cropped bob, cream cardigan, business trousers, blue ID lanyard and purple eyes. This is the missing reverse half of the spin. Left cell: exact 225° back three-quarter looking LEFT (mainly see back of her cardigan, almost no face, far eye invisible). Right cell: exact 270° pure left-facing profile nose LEFT with only one eye. We see her left side. Keep her far right arm bent so her RIGHT hand holds the dark smartphone to her chest: near left sleeve must connect to free hand relaxed and extended away from chest toward SCREEN RIGHT. In the left cell from behind this extended left arm emerges from the LEFT shoulder nearer the viewer, and the phone on the far side of her chest is mostly hidden by her torso. Only show the visible portion of the phone in each view. CRITICAL HAIR: do not draw a ponytail, scrunchie, tied tuft, bump or hair elastic on either visible side of head. From both new views, ONLY the bare LEFT side of the ordinary smooth bob with no ponytail is visible; her far-side short ponytail is completely occluded behind the bob, like looking at the opposite side of a one-sided hairstyle. Copy exact neat orange bob shape, not longer hair. Preserve levitating knee bend and crossed feet in blue pumps, same static pose from two angles. No highlights around character, no shadows, no text, no floor, preserve native alpha. Full bodies with transparent space around and between them. Only TWO figures, both turned to the LEFT.",
+      "frames": [
+        ["akari/akari_spin_v2_06.png", 884, 54, 364, 861]
+      ]
+    },
+    {
+      "source": "char/raw/dodge_turns/akari_rear.png",
+      "uses_shared_prompt": false,
+      "prompt": "One single isolated full-body sprite on transparent alpha of Akari in the cream cardigan and dark pants from the UPPER row of the reference. Match chibi game art exactly. Draw the next frame directly AFTER the rear-view reference (top last): character viewed nearly from behind with head and feet rotated 40 degrees toward the LEFT of the page. Still see almost entirely back, a small left ear and sliver of face at left; do not draw front of cardigan or ID badge. Exact arm continuity from that rear-view reference: LEFT arm on SCREEN LEFT hangs low and outward, with its small EMPTY hand protruding to SCREEN LEFT around hip height, palm relaxed. RIGHT arm on SCREEN RIGHT bends forward at elbow, holding the dark smartphone to her chest, completely hidden BEHIND her torso; at most a tiny sliver of phone past the left-facing torso. We must see the near left shoulder/sleeve connecting to the low free hand toward screen left, with the distant right elbow tucked forward, no hands crossing the back. This is not the existing back-right mirrored: the tiny one-sided ponytail is still anchored to the physical right of her head, on the distant side (may just peek past silhouette at the extreme RIGHT behind the otherwise unadorned smooth left side of her bob). Preserve floating pose/ankles, pumps, simple professional art, similar head/leg length to reference, generous transparent margins, no shading around sprite.",
+      "frames": [
+        ["akari/akari_spin_v2_05.png", 207, 146, 605, 1146]
+      ]
+    }
+  ]
+}

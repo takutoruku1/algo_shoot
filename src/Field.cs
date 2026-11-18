@@ -1,4 +1,5 @@
 using Godot;
+using System.Collections.Generic;
 
 // Field : プレイフィールド（弾と自機が動ける矩形）の座標を1か所に集めた定数群。
 //   内部解像度 384×216 の中で「盤面はどこか」を定義する唯一の場所。盤面を動かしたい時は
@@ -10,12 +11,29 @@ public static class Field
 {
     // 内部座標(384×216)のプレイフィールド矩形。ここだけを直せば盤面が動く。
     public const float Left = 66f;
-    public const float Top = 0f, Right = 384f, Bottom = 216f;
-    public const float Width = Right - Left;
+    public const float Top = 0f, WorldRight = 384f, Bottom = 216f;
+    public const float BossFrameWidth = 66f, BossFrameLeft = WorldRight - BossFrameWidth;
+    public static float BossFrameCenterX => Right + BossFrameWidth / 2;
+    private static readonly HashSet<Enemy> Bosses = new();
+    public static bool BossArenaActive => Bosses.Count > 0;
+    public static bool BossFrameActive => Right < WorldRight;
+    internal static void EnterBossArena(Enemy boss) => Bosses.Add(boss);
+    internal static void LeaveBossArena(Enemy boss) => Bosses.Remove(boss);
+    public static float Right
+    {
+        get
+        {
+            float right = WorldRight;
+            foreach (var boss in Bosses) right = Mathf.Min(right, boss.BossArenaRight);
+            return right;
+        }
+    }
+    public static float Width => Right - Left;
     public const float Height = Bottom - Top;
-    public const float CenterX = (Left + Right) * 0.5f;
+    public static float CenterX => (Left + Right) * 0.5f;
     public const float CenterY = (Top + Bottom) * 0.5f;
     public static Rect2 Rect => new Rect2(Left, Top, Width, Height);
+    public static Rect2 BossFrameRect => new(Right, Top, BossFrameWidth, Height);
 
     // ── 自機の初期位置 ──
     //   「ステージ開始で湧く場所」であり、「場が仕切り直される瞬間（中ボス戦・ボス戦・道中の波の継ぎ目・
@@ -31,9 +49,9 @@ public static class Field
     //   HUD は BeginDesign で 1280×720 に伸ばして描くので、盤面に揃えたい UI はこちらを見る。
     //   中央寄せは画面全体の中央ではなく DCenterX を使う。
     public const float DLeft = Left / UiKit.Scale;
-    public const float DCenterX = CenterX / UiKit.Scale;
-    public const float DWidth = Width / UiKit.Scale;
-    public const float DRight = DLeft + DWidth;
+    public static float DCenterX => CenterX / UiKit.Scale;
+    public static float DWidth => Width / UiKit.Scale;
+    public static float DRight => DLeft + DWidth;
     public const float PanelW = Left / UiKit.Scale;
 
     // ── ボスの徘徊ゾーン（BossMover.Configure に渡す既定値）──
@@ -48,8 +66,8 @@ public static class Field
     //   2026-09-08 に 0.34 → 0.42（半幅 111px＝可動域 222px。盤面 264px の 84%）。ユーザー実機指摘
     //   「移動範囲増やして／移動距離が短すぎて固定の場所で撃つだけで倒せる」への横側の手当て。
     public const float BossZoneHalfWK = 0.42f;
-    public const float BossZoneHalfW = Width * BossZoneHalfWK;
-    public const float BossCenterX = CenterX + BossOffsX;
+    public static float BossZoneHalfW => Width * BossZoneHalfWK;
+    public static float BossCenterX => CenterX + BossOffsX;
 
     // ── ボスの徘徊ゾーン（縦）──
     //   2026-09-08 まで、三ボスとも Configure に「中心 y=70 / 半高 28」を直書きしていた。可動域は

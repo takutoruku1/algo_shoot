@@ -1,0 +1,98 @@
+{
+  "mina_plane": {
+    "reference": "assets/source/player_projectiles/meshy/references/mina_plane.png",
+    "job_id": "ac0efd81-63ba-4c61-af4f-778ae35b3fd6",
+    "params": {
+      "model": "meshy_image_to_3d",
+      "count": 1,
+      "medias": [
+        {
+          "role": "image",
+          "value": "82ff8124-0c3f-4767-ab3f-f3f686d199a9"
+        }
+      ],
+      "should_texture": true,
+      "enable_pbr": true,
+      "should_remesh": true,
+      "target_polycount": 60000,
+      "topology": "triangle",
+      "symmetry_mode": "auto",
+      "enable_rigging": false,
+      "enable_animation": false,
+      "texture_prompt": "Premium highly detailed physically based paper airplane game projectile, preserve the reference shape and folds exactly. Creamy ivory thick folded stationery paper with realistic fine paper fibers, crisp layered fold edges, cyan metallic folded edges, clear ice-blue diamond memory seal. Refined realistic materials, delicate specular highlights on gemstone and colored trim, soft rough paper surface. Single isolated object, no stand, no background, no text or new symbols.",
+      "seed": 202611184
+    }
+  },
+  "akari_plane": {
+    "reference": "assets/source/player_projectiles/meshy/references/akari_plane.png",
+    "job_id": "1b357b7b-2691-4417-ad20-3acc388ecd8d",
+    "params": {
+      "model": "meshy_image_to_3d",
+      "count": 1,
+      "medias": [
+        {
+          "role": "image",
+          "value": "cf95f18c-d9e7-407e-9c69-0799ccce2376"
+        }
+      ],
+      "should_texture": true,
+      "enable_pbr": true,
+      "should_remesh": true,
+      "target_polycount": 60000,
+      "topology": "triangle",
+      "symmetry_mode": "auto",
+      "enable_rigging": false,
+      "enable_animation": false,
+      "texture_prompt": "Premium highly detailed physically based paper airplane game projectile, preserve the reference shape and folds exactly. Creamy ivory thick folded stationery paper with realistic fine paper fibers, crisp layered fold edges, warm orange and gold folded edges, faceted amber seal and orange flame streamer. Refined realistic materials, delicate specular highlights on gemstone and colored trim, soft rough paper surface. Single isolated object, no stand, no background, no text or new symbols.",
+      "seed": 202611185
+    }
+  },
+  "koharu_plane": {
+    "reference": "assets/source/player_projectiles/meshy/references/koharu_plane.png",
+    "job_id": "cba56da0-dacf-43f8-b5aa-86b1a549a067",
+    "params": {
+      "model": "meshy_image_to_3d",
+      "count": 1,
+      "medias": [
+        {
+          "role": "image",
+          "value": "97312117-f4b3-484b-bcdd-16341f386458"
+        }
+      ],
+      "should_texture": true,
+      "enable_pbr": true,
+      "should_remesh": true,
+      "target_polycount": 60000,
+      "topology": "triangle",
+      "symmetry_mode": "auto",
+      "enable_rigging": false,
+      "enable_animation": false,
+      "texture_prompt": "Premium highly detailed physically based paper airplane game projectile, preserve the reference shape and folds exactly. Creamy ivory thick folded stationery paper with realistic fine paper fibers, crisp layered fold edges, mint green folded edges and twin green ribbon tails, pale lavender heart jewel seal. Refined realistic materials, delicate specular highlights on gemstone and colored trim, soft rough paper surface. Single isolated object, no stand, no background, no text or new symbols.",
+      "seed": 202611186
+    }
+  },
+  "rei_plane": {
+    "reference": "assets/source/player_projectiles/meshy/references/rei_plane.png",
+    "job_id": "17e1d72c-9f07-4f49-925f-a9dddf044de3",
+    "params": {
+      "model": "meshy_image_to_3d",
+      "count": 1,
+      "medias": [
+        {
+          "role": "image",
+          "value": "478ea928-0c3b-461f-99fb-06787b4084ef"
+        }
+      ],
+      "should_texture": true,
+      "enable_pbr": true,
+      "should_remesh": true,
+      "target_polycount": 60000,
+      "topology": "triangle",
+      "symmetry_mode": "auto",
+      "enable_rigging": false,
+      "enable_animation": false,
+      "texture_prompt": "Premium highly detailed physically based paper airplane game projectile, preserve the reference shape and folds exactly. Creamy ivory thick folded stationery paper with realistic fine paper fibers, crisp layered fold edges, violet folded edges with distinct purple wing tips, polished gold star seal. Refined realistic materials, delicate specular highlights on gemstone and colored trim, soft rough paper surface. Single isolated object, no stand, no background, no text or new symbols.",
+      "seed": 202611187
+    }
+  }
+}

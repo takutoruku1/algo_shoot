@@ -11,7 +11,7 @@ public partial class Audio
     private readonly AudioStreamWav?[] _akariBreakSounds = new AudioStreamWav?[5];
     public int AkariMusicDepth => _akariDepthTarget;
 
-    public void StartAkariMusic(int depth, float fade = 1f)
+    public void StartAkariMusic(int depth, float fade = 1f, bool transformed = false)
     {
         if (Muted) return;
         if (_akariFilter == null)
@@ -23,7 +23,7 @@ public partial class Audio
             _akariFilter = new AudioEffectLowPassFilter { CutoffHz = 15000f };
             AudioServer.AddBusEffect(_akariBus, _akariFilter);
         }
-        Music(BgmBossAkari, fade);
+        Music(transformed ? BgmBossAkariRemix : BgmBossAkari, fade);
         _akariDepthTarget = Mathf.Clamp(depth, 0, 5);
         var current = _useA ? _musicA : _musicB;
         current.Bus = "AkariTheme";

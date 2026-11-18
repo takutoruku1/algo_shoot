@@ -1,0 +1,80 @@
+{
+  "generator": "built-in image_gen",
+  "purpose": "Restore stage aftermath art resolution while retaining the current scenes.",
+  "generated": [
+    {
+      "path": "res://char/bg2/story/cg_akari_office_reply.png",
+      "source": "C:\\Users\\takut\\.codex\\generated_images\\01a1af30-2241-72f0-bebc-57a1c4e53436\\exec-3bb3f7fc-4fb8-460c-9cf5-d4542989946f.png",
+      "reference": "D:/dev/algo_shoot/char/v3/akari_story_atlas.png",
+      "prompt": "Use case: identity-preserve. Asset type: one full-screen Japanese anime visual-novel CG for the existing game Refrain. Primary request: faithfully restore ONE indicated panel of the supplied contact sheet into one crisp high-resolution 16:9 landscape illustration, at least 1920x1080 if possible. This is resolution restoration of the SAME approved illustration, not a redesign. Preserve exact original drawing style, identities, faces, hairstyles, hair colors, clothing, objects, poses, expressions, framing, relative positions, lighting and environment. Carefully render clean fine ink lines and defined small details, no pixelated lines, no artificial blur, no sharpening halos, no painterly reinterpretation. The selected panel must fill the entire output, no contact sheet, no panels, no borders, no text, no watermark. Input image: edit target is ONLY the BOTTOM LEFT panel (row 3 column 1) of the 2-column by 3-row sheet. Exactly one blonde office woman Akari, low side ponytail, violet eyes, cream cardigan over white collared blouse, blue ID lanyard, dark skirt, standing in office looking down at the blue smartphone held in front of her chest. Her other hand rests on the dark chair back. Large office window with horizontal blinds, sunlit office, printer and umbrellas at the left. Preserve her thoughtful quiet expression, full scene composition and lighting. Do not use any other panel or add a person."
+    },
+    {
+      "path": "res://char/bg2/story/cg_koharu_school_help.png",
+      "source": "C:\\Users\\takut\\.codex\\generated_images\\01a1af30-2241-72f0-bebc-57a1c4e53436\\exec-ab0d425c-a31d-4581-b868-8b802f8b337e.png",
+      "reference": "D:/dev/algo_shoot/char/v3/koharu_story_atlas_v2.png",
+      "prompt": "Use case: identity-preserve. Asset type: one full-screen Japanese anime visual-novel CG for the existing game Refrain. Primary request: faithfully restore ONE indicated panel of the supplied contact sheet into one crisp high-resolution 16:9 landscape illustration, at least 1920x1080 if possible. This is resolution restoration of the SAME approved illustration, not a redesign. Preserve exact original drawing style, identities, faces, hairstyles, hair colors, clothing, objects, poses, expressions, framing, relative positions, lighting and environment. Carefully render clean fine ink lines and defined small details, no pixelated lines, no artificial blur, no sharpening halos, no painterly reinterpretation. The selected panel must fill the entire output, no contact sheet, no panels, no borders, no text, no watermark. Input image: edit target is ONLY the TOP LEFT panel (row 1 column 1) of the 2-column by 4-row sheet. Preserve the TWO seated schoolgirls and their exact composition: left Koharu has dark desaturated teal hair in low twin ponytails, small white/pink striped clip, amber eyes, charcoal blazer, pale cream vest, white shirt and purple ribbon, happily points to the open schoolbook with index finger; right classmate has short brown bob, brown eyes, navy blazer and red bow, hands together, smiling in attentive surprise. Warm afternoon classroom with green chalkboard behind, another pupil seen from behind on far right. Desk in foreground, pink pencil pouch left, open books and hands. Exactly same school uniform colors and no new characters."
+    },
+    {
+      "path": "res://char/bg2/story/cg_koharu_school_spring.png",
+      "source": "C:\\Users\\takut\\.codex\\generated_images\\01a1af30-2241-72f0-bebc-57a1c4e53436\\exec-efca2e61-93f2-4707-a970-65e3c051428d.png",
+      "reference": "D:/dev/algo_shoot/char/v3/koharu_story_atlas_v2.png",
+      "prompt": "Use case: identity-preserve. Asset type: one full-screen Japanese anime visual-novel CG for the existing game Refrain. Primary request: faithfully restore ONE indicated panel of the supplied contact sheet into one crisp high-resolution 16:9 landscape illustration, at least 1920x1080 if possible. This is resolution restoration of the SAME approved illustration, not a redesign. Preserve exact original drawing style, identities, faces, hairstyles, hair colors, clothing, objects, poses, expressions, framing, relative positions, lighting and environment. Carefully render clean fine ink lines and defined small details, no pixelated lines, no artificial blur, no sharpening halos, no painterly reinterpretation. The selected panel must fill the entire output, no contact sheet, no panels, no borders, no text, no watermark. Input image: edit target is ONLY the TOP RIGHT panel (row 1 column 2) of the 2-column by 4-row sheet. Preserve the TWO seated schoolgirls and exact composition: left Koharu has dark desaturated teal hair in low twin ponytails, small white/pink striped clip, amber eyes, charcoal blazer, pale cream vest, white shirt and purple ribbon, her right hand rests thoughtfully near chin, looking quiet and unsure at her cheerful classmate; right classmate has long dark brown hair, navy blazer, purple ribbon, smiling closed eyes while explaining and pointing at open book. Bright new classroom, soft daylight windows behind, distant seated classmates, pink pencil pouch lower left, books across desk. Preserve the original nuanced contrast in expressions. No redesign or outfit changes."
+    },
+    {
+      "path": "res://char/bg2/story/cg_koharu_school_return.png",
+      "source": "C:\\Users\\takut\\.codex\\generated_images\\01a1af30-2241-72f0-bebc-57a1c4e53436\\exec-32bdf8d9-08bb-4028-b0ae-7cec87871a8d.png",
+      "reference": "D:/dev/algo_shoot/char/v3/koharu_story_atlas_v2.png",
+      "prompt": "Use case: identity-preserve. Asset type: one full-screen Japanese anime visual-novel CG for the existing game Refrain. Primary request: faithfully restore ONE indicated panel of the supplied contact sheet into one crisp high-resolution 16:9 landscape illustration, at least 1920x1080 if possible. This is resolution restoration of the SAME approved illustration, not a redesign. Preserve exact original drawing style, identities, faces, hairstyles, hair colors, clothing, objects, poses, expressions, framing, relative positions, lighting and environment. Carefully render clean fine ink lines and defined small details, no pixelated lines, no artificial blur, no sharpening halos, no painterly reinterpretation. The selected panel must fill the entire output, no contact sheet, no panels, no borders, no text, no watermark. Input image: edit target is ONLY the BOTTOM RIGHT panel (row 4 column 2) of the 2-column by 4-row sheet. Preserve the TWO seated schoolgirls and exact composition: left Koharu has dark desaturated teal hair in low twin ponytails, small white/pink striped clip, amber eyes, charcoal blazer, pale cream vest, white shirt and purple ribbon, her right hand rests thoughtfully near chin, her expression a small hopeful attentive smile; right classmate has long dark brown hair, brown eyes, navy blazer and purple ribbon, open eyes and warm smile, pointing down to their shared open schoolbook. Bright morning classroom windows behind, distant classmates, pink pencil pouch lower left, desk and book foreground. Preserve exact original framing and gestures, differentiate from the top-right panel by both girls' open warm attentive eyes and small hopeful smiles. No redesign or outfit changes."
+    }
+  ],
+  "recovered": [
+    {
+      "path": "res://char/bg2/story/cg_koharu_comment.png",
+      "source": "char/raw/room_redesign_20261018/generated/koharu_comment.png"
+    },
+    {
+      "path": "res://char/bg2/story/cg_rei_avatar.png",
+      "source": "char/raw/room_redesign_20261018/generated/rei_avatar.png"
+    },
+    {
+      "path": "res://char/bg2/story/cg_rei_draft.png",
+      "source": "char/raw/room_redesign_20261018/generated/rei_draft.png",
+      "source_region_pixels": [
+        388,
+        96,
+        1200,
+        675
+      ]
+    },
+    {
+      "path": "res://char/bg2/story/cg_rei_publish.png",
+      "source": "char/raw/room_redesign_20261018/generated/rei_publish.png",
+      "source_region_pixels": [
+        388,
+        96,
+        1200,
+        675
+      ]
+    },
+    {
+      "path": "res://char/bg2/story/cg_rei_book.png",
+      "source": "char/raw/room_redesign_20261018/generated/rei_book.png",
+      "source_region_pixels": [
+        388,
+        96,
+        1200,
+        675
+      ]
+    },
+    {
+      "path": "res://char/bg2/story/cg_rei_done.png",
+      "source": "char/raw/room_redesign_20261018/generated/rei_done.png",
+      "source_region_pixels": [
+        388,
+        96,
+        1200,
+        675
+      ]
+    }
+  ]
+}

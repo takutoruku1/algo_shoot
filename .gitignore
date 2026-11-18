@@ -16,6 +16,7 @@ mono_crash.*.json
 bin/
 obj/
 build/
+output/mobile_evidence/
 
 # Visual Studio / Rider / VS Code
 .vs/

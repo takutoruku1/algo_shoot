@@ -2,9 +2,13 @@ using Godot;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Runtime.InteropServices;
 
 public partial class MinaBossTechnique : BossCharacterTechnique
 {
+    internal override bool UsesArenaBody => Kind == BossTechniqueKind.Extra && Variant == 1
+        || Kind == BossTechniqueKind.Area;
+
     private sealed class Memory
     {
         public Bullet Bullet = null!;
@@ -12,7 +16,7 @@ public partial class MinaBossTechnique : BossCharacterTechnique
         public Vector2 Origin, Direction;
         public double Born;
         public int Index;
-        public uint Layer, Mask;
+
         public bool Live => Bullet.Active && Bullet.ActivationId == Activation;
     }
     private sealed class ElasticConnection
@@ -26,6 +30,20 @@ public partial class MinaBossTechnique : BossCharacterTechnique
     }
     private readonly List<Memory> _memories = new();
     private readonly List<ElasticConnection> _connections = new();
+    internal readonly record struct CacheSlide(int From, int To, Vector2 SideA, Vector2 SideB);
+    private readonly List<CacheSlide> _cacheSlides = new();
+    private const double CachePeriod = 5.05;
+    internal static Rect2 CacheCell(int index) => new(Field.Left + index % 3 * Field.Width / 3,
+        Field.Top + index / 3 * Field.Height / 3, Field.Width / 3, Field.Height / 3);
+    internal Vector2 CacheEntry => CacheCell(_cacheSlides[0].From).GetCenter();
+    internal (CacheSlide Slide, double Age) VisibleCacheSlide
+    {
+        get
+        {
+            int step = Math.Clamp((int)(Math.Max(0, Time - _warning) / CachePeriod), 0, _cacheSlides.Count - 1);
+            return (_cacheSlides[step], Time - _warning - step * CachePeriod);
+        }
+    }
     private bool _connectionsLocked;
     private double _connectionWarning, _connectionLastRelease;
     private float _connectionRadius;
@@ -34,28 +52,127 @@ public partial class MinaBossTechnique : BossCharacterTechnique
     private const float ConnectionFriction = 12;
     private readonly bool[] _read = new bool[32];
     private Vector2 _anchor, _center, _axis, _initialBoss;
-    private Vector2 _returnCenter, _returnSpan;
+    private Vector2 WingCenter => new(Field.CenterX, Boss.TechniqueCenter.Y);
     private Vector2 _airlockOrigin, _airlockAxis;
     private double _airlockEntryAt, _airlockOpenAt, _airlockExitAt;
-    private float _returnPhase;
     private double _warning, _next;
     private int _id, _beat;
     private readonly bool[] _cells = new bool[35], _nextCells = new bool[35];
     private readonly int[] _visits = new int[35];
     private readonly double[] _markedAt = new double[35];
+    private readonly double[] _firstStepAt = new double[35];
+    private double VisitDuration => 15 + Tier;
     private int _lastCell = -1, _generation = -1;
-    private readonly float[] _springX = new float[16], _springV = new float[16];
+    private double _visitEnteredAt;
+    internal readonly record struct VisitEcho(Vector2 From, Vector2 To, Rect2 Bounds, double StartsAt, double FiresAt, double EndsAt);
+    private readonly List<VisitEcho> _visitEchoes = new();
+    internal IEnumerable<VisitEcho> VisibleVisitEchoes => _visitEchoes.Where(echo => Time < echo.EndsAt);
+    private double _visitEchoReadyAt;
     private readonly HashSet<(ulong, ulong)> _received = new();
-    private double _replyAt = -1;
-    private bool _waitingReply;
+
+    internal sealed class StarReply
+    {
+        internal Vector2 Target;
+        internal Vector2[] Sources = Array.Empty<Vector2>();
+        internal double StartsAt, FiresAt;
+        internal bool Fired;
+        internal int Pulses;
+        internal float EntryTime, ExitTime;
+        internal Vector2 FarEdge(Vector2 source) => new(source.X < Field.Left ? Field.Right + 12 : Field.Left - 12,
+            Field.Bottom - (source.Y - Field.Top));
+        internal Vector2 Position(Vector2 source, float age)
+            => age <= EntryTime ? source.Lerp(Target, age / EntryTime)
+                : Target.Lerp(FarEdge(source), (age - EntryTime) / ExitTime);
+    }
+    internal readonly List<StarReply> StarReplies = new();
+    private readonly List<(StarReply Reply, Memory Star)> _answerStars = new();
+    internal bool ReplyReady => Time >= _warning && Time >= _next && Time < _warning + 14 && StarReplies.Count < 3;
+    internal bool ReplyFailed => Time >= _warning + 14 && StarReplies.Count < 3;
+    private readonly List<(int Letter, Vector2 At, double WarnedAt)> _unansweredStars = new();
+    private const double UnansweredLead = 2.7;
+    private const double UnansweredHold = 10.8;
+    internal float UnansweredRadius => 24 + 3 * Tier;
+    internal float StarReplySpeed => 56 + Tier * 3;
     private double _exchangeAt;
     private int _exchanges;
     private bool _exchangePending;
+    private const double SnapshotHold = 2.6;
+    private sealed class SnapshotBand
+    {
+        internal int Side;
+        internal float Y, Velocity;
+    }
+    private readonly List<SnapshotBand> _snapshotBands = new();
+    internal readonly record struct BurdenFall(float Left, double StartsAt, double FiresAt);
+    private readonly List<BurdenFall> _burdenFalls = new();
+    internal IReadOnlyList<BurdenFall> VisibleBurdenFalls => _burdenFalls;
+    internal IEnumerable<(int Side, float Y, float Velocity)> VisibleSnapshotBands => _snapshotBands.Select(band => (band.Side, band.Y, band.Velocity));
+    internal double SnapshotExchangeDelay => _exchangePending ? Math.Max(0, _exchangeAt - Time) : double.PositiveInfinity;
+    internal bool SnapshotDraining => _exchanges >= 2 + Tier && Time >= _next;
+    internal float SnapshotThickness => 12 + Tier * 3;
+    private Rect2 SnapshotBounds(int side, float y)
+    {
+        float retreat = SnapshotDraining ? Mathf.SmoothStep(0, 1, (float)Math.Clamp((Time - _next) / 1.2, 0, 1)) : 0;
+        float width = Field.Width / 2;
+        return new Rect2(Field.Left + side * width + (side == 0 ? -1 : 1) * retreat * width,
+            y - SnapshotThickness / 2, width, SnapshotThickness);
+    }
     private int Density => Tier == 0 ? 6 : 6 + Tier * 6;
     private float Speed => 42 + Tier * 7;
-    private static readonly Color MemoryInk = new("efabd9");
+    internal float WrapSpeed => 36 + Tier * 2;
+    private Color MemoryInk => Kind == BossTechniqueKind.Area ? MemoryVisual.Accent : WarningVisual.Accent;
+    private BulletArt.PlayerVisual MemoryVisual => Variant switch
+    {
+        0 => BulletArt.EnemyVisual("res://assets/fx/mina_folded_note.svg", "ffbf8b"),
+        1 => BulletArt.EnemyVisual("mina_memory", "efa6cb"),
+        2 => BulletArt.EnemyVisual("mina_eraser", "b5e6ae"),
+        3 => BulletArt.EnemyVisual("res://assets/fx/mina_photo.svg", "d5a2f5"),
+        _ => BulletArt.EnemyVisual("mina_butterfly", "f4d389"),
+    };
     private Texture2D _memoryIllustration = null!;
-    protected override bool UsesCustomHazardArt => Kind == BossTechniqueKind.Area;
+    private Node2D _memoryCanvas = null!;
+    private readonly MemoryArtBatch _memoryArt = new();
+    private Node2D _memoryWarningCanvas = null!;
+    private readonly MemoryArtBatch _memoryWarnings = new();
+    protected override bool UsesDangerForecast => true;
+    protected override void DrawDangerForecast(Node2D canvas)
+    {
+        base.DrawDangerForecast(canvas);
+        if (Kind == BossTechniqueKind.Area)
+        {
+            foreach (var cue in _easyMemoryCues)
+            {
+                if (cue.Cancelled || Time < cue.StartsAt || Time >= cue.FiresAt) continue;
+                if (cue.Mode == 1) canvas.DrawRect(cue.Bounds[0], Colors.White);
+                if (cue.Mode != 2) continue;
+                float progress = EasyMemoryProgress(cue);
+                if (progress <= 0) continue;
+                var room = new Rect2(cue.Points[0] - cue.Size * .5f, cue.Size);
+                foreach (var bounds in EasyRoomPressure(room))
+                    canvas.DrawRect(new Rect2(bounds.Position, new Vector2(bounds.Size.X * progress, bounds.Size.Y)), Colors.White);
+            }
+        }
+        else if (_id == 15 && Time < _warning)
+        {
+            float start = Mathf.Pi / 2 - BurdenSwing, end = Mathf.Pi / 2 + BurdenSwing;
+            var sweep = new Vector2[66];
+            sweep[0] = BurdenPivot;
+            for (int i = 0; i <= 64; i++)
+                sweep[i + 1] = BurdenPivot + Vector2.FromAngle(Mathf.Lerp(start, end, i / 64f)) * BurdenLength;
+            canvas.DrawColoredPolygon(sweep, Colors.White);
+            AttackTelegraph.MaskStroke(canvas, BurdenPivot, sweep[1], 3);
+            AttackTelegraph.MaskStroke(canvas, BurdenPivot, sweep[^1], 3);
+            canvas.DrawArc(BurdenPivot, BurdenLength, start, end, 65, Colors.White, BurdenRadius * 2);
+            canvas.DrawCircle(sweep[1], BurdenRadius, Colors.White);
+            canvas.DrawCircle(sweep[^1], BurdenRadius, Colors.White);
+        }
+    }
+
+    protected override bool UsesCustomHazardArt => Kind == BossTechniqueKind.Area || _id == 18;
+    protected override bool DirectionalWarnings => Kind == BossTechniqueKind.Edge
+        || Kind == BossTechniqueKind.Crossfire && Variant == 4;
+    protected override Color AttackLineInk => WarningVisual.Accent.Darkened(.12f);
+    protected override bool PreserveAttackEndDisc => Kind == BossTechniqueKind.Area;
 
     protected override void Start()
     {
@@ -63,7 +180,7 @@ public partial class MinaBossTechnique : BossCharacterTechnique
         _center = new Vector2(Mathf.Clamp(_anchor.X, Field.Left + 70, Field.Right - 70),
             Mathf.Clamp(_anchor.Y, 60, Field.Bottom - 60));
         _axis = _anchor.X < Field.CenterX ? Vector2.Left : Vector2.Right;
-        _initialBoss = Boss.GlobalPosition;
+        _initialBoss = Boss.TechniqueCenter;
         if (Kind == BossTechniqueKind.Area)
         {
             StartEasyMemory();
@@ -78,7 +195,7 @@ public partial class MinaBossTechnique : BossCharacterTechnique
             BossTechniqueKind.Area => 4 + Variant,
             BossTechniqueKind.Crossfire => 9 + Variant,
             BossTechniqueKind.Dodge => 14,
-            BossTechniqueKind.Extra => 15 + Variant + (Evolved ? 2 : 0),
+            BossTechniqueKind.Extra => Variant == 1 ? 18 : 15 + (Evolved ? 2 : 0),
             _ => throw new InvalidOperationException("Mina uses five phase signatures, not an animal or legacy finale."),
         };
         var identity = _id switch
@@ -88,11 +205,11 @@ public partial class MinaBossTechnique : BossCharacterTechnique
             2 => ("未送信の花冠", "mina.weighted-pending-queue", "印の多い記憶から落ちる。落下順を見て間を渡る"),
             3 => ("四方のリフレイン", "mina.boundary-wrap", "端を抜けた記憶の、反対側の再入口を読む"),
             4 => ("消せなかった声", "mina.overloaded-vessel", "抱え込んで膨らむ側から離れ、崩れる方向を外す"),
-            5 => ("未送信、再送", "mina.acknowledged-drafts", "未送信の文字に触れて既読にすると、その場所の着弾が止まる"),
+            5 => ("未送信、再送", "mina.acknowledged-drafts", "封筒に触れて開くと、その場所の着弾が止まる"),
             6 => ("拍手の檻", "mina.protective-airlock", "手前の扉を抜けて待ち、奥の扉が開いてから進む"),
             7 => ("閉じない配信", "mina.self-propagating-records", "点滅する次の記録を読み、次の世代で消える区画へ移る"),
             8 => ("リフレイン・帰り道", "mina.return-junctions", "接続の開いた枝を選び、途切れる枝から離れる"),
-            9 => ("消せない応答", "mina.delayed-spring", "隣の節が近づく圧縮を読み、ほどけた節の側へ抜ける"),
+            9 => ("消せない応答", "mina.delayed-spring", "端から届く振動で片側のばねが閉じる。ほどける側の節の間へ移り、押し返されたら反対側へ渡る"),
             10 => ("交差する記憶", "mina.snapshot-exchange", "記憶の位置と向きが向かいの領域へ写る。保存された予告から離れる"),
             11 => ("記憶の往復", "mina.second-visit-weight", "二度通った場所に重さが残る。まだ通っていない道を選ぶ"),
             12 => ("つなぎ直す記録", "mina.momentum-handoff", "動く記憶が止まった記憶に触れると、動きが受け渡される"),
@@ -101,9 +218,61 @@ public partial class MinaBossTechnique : BossCharacterTechnique
             15 => ("抱えた言葉の重さ", "mina.suspended-burden", "振り子が端で遅くなる間に、重りの下を通る"),
             16 => ("返せなかった四行", "mina.retracted-line", "四行のうち、打消し線のついた一行は発火しない"),
             17 => ("龍翼・抱えきれないもの", "mina.wing-displacement", "翼が押す向きの変化を見て、流れの弱い側へ回る"),
-            _ => ("龍翼・ただいま", "mina.return-distance", "龍から離れすぎず近づきすぎず、一緒に帰る"),
+            _ => ("ただいまの距離", "mina.return-distance", "予兆中に広い側へ回り込み、近づくMINAの本体と外側の記憶の間を保つ"),
         };
         Identify(identity.Item1, identity.Item2, identity.Item3);
+        if (_id == 11)
+            Identify(identity.Item1, identity.Item2, "足跡のインクが乾いた区画へ戻ると、その場が閉じる。まだ白い区画をつなぎ、同じ場所に居続けない");
+        if (Tier == 3 && _id == 11)
+            Identify(identity.Item1, identity.Item2, "通った足跡から同じ行や列へ記憶が広がる。横へ外して次の道を選び、二重の足跡へ戻らない");
+        if (_id == 3)
+        {
+            _warning = WarnFor(170, 3.8);
+            Identify(identity.Item1, identity.Item2, "右端を抜けた記憶は同じ段の左端へ戻る。列の後ろを通るか、隣の段へ移る");
+        }
+        if (_id == 15)
+        {
+            if (Tier != 3)
+            {
+                _hardBurdenPivot = new Vector2(Field.CenterX, Field.Top + 12);
+                float reach = Math.Min(BurdenLength * .95f, Field.Width / 2 - BurdenRadius - 3);
+                _hardBurdenSwing = Mathf.Asin(reach / BurdenLength);
+            }
+            _warning = WarnFor(290, 6.2);
+            Identify(identity.Item1, identity.Item2, "大きく振れる重りをくぐる。折返しでほどけた手紙の束は、斜線の列を読んで横へ避ける");
+            if (Tier == 3) Identify(identity.Item1, identity.Item2, "振り子を渡った場所が重りに写る。折返しでその場所へ落ちる束を外し、次の振れを渡る");
+        }
+        if (_id == 9) _warning = WarnFor(145, 3.6);
+        if (_id == 0)
+        {
+            Identify(identity.Item1, identity.Item2, "動く記憶が細くなった側を回り込み、移動元の空き区画へ入る");
+            PrepareSlidingCache();
+            _warning = WarnFor(300, 6.2);
+        }
+        if (_id == 10)
+        {
+            _warning = WarnFor(140, 3.6);
+            _next = _warning + 2.6;
+            for (int side = 0; side < 2; side++)
+            for (int band = 0; band < 3 + (Tier + 1) / 2; band++)
+            {
+                float rest = Field.Top + (band + .5f) * Field.Height / (3 + (Tier + 1) / 2);
+                _snapshotBands.Add(new SnapshotBand { Side = side, Y = rest,
+                    Velocity = ((side + band) % 2 == 0 ? 1 : -1) * (12 + 2 * Tier + band * 2) });
+            }
+        }
+        if (_id == 17)
+        {
+            Identify(identity.Item1, identity.Item2, "翼が押す向きを読み、風に逆らって足場を保つ。強い側は移動が鈍る");
+            _warning = WarnFor(100, 3.6);
+            if (Tier == 3) Identify(identity.Item1, identity.Item2, "強い風の側へ翼が振り下ろされる。風が変わる前に中央へ寄り、畳まれる翼の側へ渡る");
+        }
+        if (_id == 13)
+        {
+            Identify(identity.Item1, identity.Item2, "射撃で三度返答し、その場所へ返る星の線を外す。返さなかった手紙は、待っていた場所に星として残る");
+            _warning = 3.6;
+            _next = _warning;
+        }
         if (_id == 6) PrepareAirlock();
         if (_id == 14)
         {
@@ -132,13 +301,11 @@ public partial class MinaBossTechnique : BossCharacterTechnique
         }
         if (_id == 18)
         {
-            _warning = WarnFor(Math.Abs(_anchor.DistanceTo(_initialBoss) - 65), 2);
-            var mina = (BossMina)Boss;
-            var near = mina.KeepDragonInField(new Vector2(Field.Left, Field.Top));
-            var far = mina.KeepDragonInField(new Vector2(Field.Right, Field.Bottom));
-            _returnCenter = (near + far) * .5f;
-            _returnSpan = (far - near) * .5f - Vector2.One * 2;
-            _returnPhase = ((_initialBoss - _returnCenter) / _returnSpan).Angle();
+            // Radial entry alone can strand the player at an edge; budget entry into an orbit as well.
+            float side = _anchor.Y < Field.CenterY ? -1 : 1;
+            Vector2 opening = new Vector2(Field.CenterX, Field.CenterY) + Vector2.FromAngle(side * Mathf.Pi / 3) * 76;
+            _warning = WarnFor(_anchor.DistanceTo(opening) + 12, 2.4);
+            _warning = Math.Max(_warning, WarnFor(Math.Abs(_anchor.DistanceTo(Boss.GlobalPosition) - ((ReturnInner + ReturnOuter) / 2)) + 10, 2.4));
         }
     }
 
@@ -160,8 +327,8 @@ public partial class MinaBossTechnique : BossCharacterTechnique
             case 6: ProtectiveAirlock(); break;
             case 7: PropagatingRecords(); break;
             case 8: ReturnJunctions(); break;
-            case 9: DelayedSpring(delta); break;
-            case 10: LocalOverwrite(); break;
+            case 9: DelayedSpring(); break;
+            case 10: LocalOverwrite(delta); break;
             case 11: SecondVisitWeight(); break;
             case 12: MomentumHandoff(); break;
             case 13: ReplyDrivenStars(); break;
@@ -183,24 +350,74 @@ public partial class MinaBossTechnique : BossCharacterTechnique
         return memory;
     }
 
+    protected override BulletArt.PlayerVisual WarningVisual => Kind == BossTechniqueKind.Area ? MemoryVisual : _id switch
+    {
+        0 => BulletArt.EnemyVisual("res://assets/fx/mina_memory_drawer.svg", "efa6cb"),
+        3 => BulletArt.EnemyVisual("mina_butterfly", "d5a2f5"),
+        10 => BulletArt.EnemyVisual("res://assets/fx/mina_snapshot_pair.svg", "f6b48e"),
+        13 => BulletArt.EnemyVisual("res://assets/fx/mina_reply_star.svg", "f4d389"),
+        15 => BulletArt.EnemyVisual("res://assets/fx/mina_pendulum.svg", "cdb0f4"),
+        17 => BulletArt.EnemyVisual("res://assets/fx/mina_feather.svg", "b5e6ae"),
+        _ => BulletArt.EnemyVisual("mina_memory", "efabd9"),
+    };
+
+    private void PrepareSlidingCache()
+    {
+        int[] rim = { 0, 1, 2, 5, 8, 7, 6, 3 };
+        using var core = new CircleShape2D { Radius = Player.HitRadius + 3 };
+        var bodies = Boss.GetChildren().OfType<CollisionShape2D>().Where(shape => Boss.BodyContactDamaging && !shape.Disabled).ToArray();
+        var routes = new List<CacheSlide>();
+        foreach (int from in rim)
+        foreach (int to in rim.Where(to => Math.Abs(to % 3 - from % 3) + Math.Abs(to / 3 - from / 3) == 1))
+        {
+            Vector2 a = CacheCell(from).GetCenter(), b = CacheCell(to).GetCenter();
+            bool horizontal = from / 3 == to / 3;
+            float inset = TargetOpening / 2;
+            float outside = horizontal ? (from / 3 == 0 ? Field.Top + inset : Field.Bottom - inset)
+                : (from % 3 == 0 ? Field.Left + inset : Field.Right - inset);
+            Vector2 sideA = horizontal ? new(a.X, outside) : new(outside, a.Y);
+            Vector2 sideB = horizontal ? new(b.X, outside) : new(outside, b.Y);
+            Vector2[] points = { a, sideA, sideB, b };
+            bool clear = true;
+            for (int segment = 1; segment < points.Length; segment++)
+            {
+                int samples = (int)Math.Ceiling(points[segment - 1].DistanceTo(points[segment]) / 2);
+                for (int sample = 0; sample <= samples; sample++)
+                    if (bodies.Any(body => body.Shape.Collide(body.GlobalTransform, core,
+                        new Transform2D(0, points[segment - 1].Lerp(points[segment], sample / (float)samples))))) clear = false;
+            }
+            if (clear) routes.Add(new CacheSlide(from, to, sideA, sideB));
+        }
+        int current = routes.Select(route => route.From).Distinct().OrderBy(cell => CacheCell(cell).GetCenter().DistanceSquaredTo(_anchor)).First();
+        int previous = -1;
+        for (int step = 0; step < Tier + 2; step++)
+        {
+            var options = routes.Where(route => route.From == current).ToArray();
+            var onward = options.Where(route => route.To != previous).ToArray();
+            var slide = (onward.Length == 0 ? options : onward)[0];
+            _cacheSlides.Add(slide);
+            previous = current;
+            current = slide.To;
+        }
+    }
+    private Rect2 MovingCacheBounds(CacheSlide slide, double age)
+    {
+        Vector2 size = CacheCell(slide.To).Size;
+        float squeeze = age < 1.25 ? Mathf.Clamp((float)(age - .6) / .65f, 0, 1) : age < 3.85 ? 1
+            : 1 - Mathf.Clamp((float)(age - 3.85) / .7f, 0, 1);
+        if (slide.From / 3 == slide.To / 3) size.Y = Mathf.Lerp(size.Y, 18 + 2 * Tier, squeeze);
+        else size.X = Mathf.Lerp(size.X, 18 + 2 * Tier, squeeze);
+        Vector2 center = CacheCell(slide.To).GetCenter().Lerp(CacheCell(slide.From).GetCenter(), Mathf.Clamp((float)(age - 1.25) / 2.6f, 0, 1));
+        return new Rect2(center - size * .5f, size);
+    }
+
     private void SlidingCache()
     {
-        double period = 1.45;
-        int turn = Math.Max(0, (int)((Time - _warning) / period));
-        int moves = 5 + Tier;
-        if (Time > _warning + moves * period) { Finish(); return; }
-        int empty = new[] { 4, 3, 0, 1, 2, 5, 8, 7, 6 }[turn % 9];
-        int next = new[] { 3, 0, 1, 2, 5, 8, 7, 6, 3 }[turn % 9];
-        float move = Time < _warning ? 0 : Mathf.Clamp((float)((Time - _warning) % period - 0.65) / 0.65f, 0, 1);
-        Vector2 origin = _center - new Vector2(57, 57);
-        for (int i = 0; i < 9; i++)
-        {
-            if (i == empty) continue;
-            Vector2 at = origin + new Vector2(i % 3 * 38, i / 3 * 38);
-            if (i == next) at = at.Lerp(origin + new Vector2(empty % 3 * 38, empty / 3 * 38), move);
-            Box(new Rect2(at, new Vector2(24, 24)), Time > _warning);
-        }
-        Hint(origin + new Vector2(next % 3 * 38, next / 3 * 38 - 4), "→");
+        if (Time >= _warning + _cacheSlides.Count * CachePeriod) { Finish(); return; }
+        var cue = VisibleCacheSlide;
+        for (int cell = 0; cell < 9; cell++)
+            if (cell != cue.Slide.From && cell != cue.Slide.To) Box(CacheCell(cell), Time >= _warning);
+        Box(MovingCacheBounds(cue.Slide, cue.Age), Time >= _warning);
     }
 
     private void DecompressingPages()
@@ -237,7 +454,7 @@ public partial class MinaBossTechnique : BossCharacterTechnique
             {
                 for (int k = 0; k < (Tier == 0 ? 1 : 2 + Tier); k++)
                     Disc(at + new Vector2((k - (1 + Tier) * 0.5f) * 10, 0), 7, false, (float)(Time / release));
-                Hint(at + new Vector2(-5, -11), new string('·', weight + 1));
+                Cue(at + new Vector2(-5, -11), AttackTelegraph.Symbol.Pips, count: weight + 1);
             }
             if (At(release))
                 for (int k = 0; k < (Tier == 0 ? 1 : 2 + Tier); k++)
@@ -248,36 +465,26 @@ public partial class MinaBossTechnique : BossCharacterTechnique
 
     private void BoundaryWrap()
     {
-        for (int i = 0; i < 2 + Tier; i++)
+        double elapsed = Time - _warning;
+        if (elapsed > (2 * Field.Width + 8) / WrapSpeed) { Finish(); return; }
+        for (int row = 0; row < 2 + Tier; row++)
+        for (int packet = 0; packet < (3 + Tier + (Tier >= 2 ? Tier - 1 : 0)); packet++)
         {
-            float y = 35 + i * 146f / (1 + Tier);
-            Line(new Vector2(Field.Left, y), new Vector2(Field.Right, y), 5, false);
-            if (At(_warning))
-                for (int j = 0; j < 3; j++)
-                    Remember(new Vector2(Field.Left + 14 + j * 18, y), Vector2.Right, i, Speed);
-        }
-        foreach (var memory in _memories)
-        {
-            if (!memory.Live || memory.Bullet.LeadIn) continue;
-            float travelled = (float)(Time - memory.Born) * Speed;
-            float x = Field.Left + 10 + Mathf.PosMod(memory.Origin.X - Field.Left - 10 + travelled, Field.Width - 20);
-            bool seam = x < Field.Left + 22 || x > Field.Right - 22;
-            memory.Bullet.Velocity = Vector2.Zero;
-            memory.Bullet.GlobalPosition = new Vector2(x, memory.Origin.Y);
-            if (memory.Layer == 0)
+            float phase = Mathf.PosMod(row * Field.Width / (2 + Tier) + packet * 28, Field.Width);
+            float distance = phase + (float)Math.Max(0, elapsed) * WrapSpeed;
+            if (distance > 2 * Field.Width + 6) continue;
+            float x = Field.Left + (distance < 2 * Field.Width ? Mathf.PosMod(distance, Field.Width) : distance - Field.Width);
+            var rect = new Rect2(x - 6, Field.Top + row * Field.Height / (2 + Tier), 12, Field.Height / (2 + Tier));
+            void Add(Rect2 part)
             {
-                memory.Layer = memory.Bullet.CollisionLayer;
-                memory.Mask = memory.Bullet.CollisionMask;
+                part = part.Intersection(Field.Rect);
+                if (part.HasArea()) Box(part, elapsed >= 0);
             }
-            if (seam) memory.Bullet.MakeHarmless();
-            else
-            {
-                memory.Bullet.CollisionLayer = memory.Layer;
-                memory.Bullet.CollisionMask = memory.Mask;
-            }
-            Hint(new Vector2(Field.Left + 7, memory.Origin.Y - 10), "↔");
+            Add(rect);
+            if (rect.Position.X < Field.Left) Add(new Rect2(rect.Position + Vector2.Right * Field.Width, rect.Size));
+            if (rect.End.X > Field.Right && distance < 2 * Field.Width)
+                Add(new Rect2(rect.Position - Vector2.Right * Field.Width, rect.Size));
         }
-        if (Time > _warning + (Field.Width - 20) / Speed * 1.7) Finish();
     }
 
     private void OverloadedVessel()
@@ -312,9 +519,9 @@ public partial class MinaBossTechnique : BossCharacterTechnique
         {
             Vector2 at = new(Field.Left + 38 + i % 3 * 94, 63 + i / 3 * 88);
             if (Time < deadline && Player.GlobalPosition.DistanceTo(at) < 19) _read[i] = true;
-            if (_read[i]) { Hint(at + new Vector2(-8, 0), "既読"); continue; }
+            if (_read[i]) { Cue(at + new Vector2(-8, 0), AttackTelegraph.Symbol.Received); continue; }
             Box(new Rect2(at - new Vector2(26, 20), new Vector2(52, 40)), Time >= deadline && Time < deadline + 1);
-            Hint(at + new Vector2(-12, -24), "未送信");
+            Cue(at + new Vector2(-12, -24), AttackTelegraph.Symbol.Envelope);
             if (Time < deadline + 1.1)
                 for (int k = 0; k < 1 + Tier; k++) Disc(at + new Vector2(k * 9, 0), 6, false);
             if (At(deadline + 1.1))
@@ -363,7 +570,7 @@ public partial class MinaBossTechnique : BossCharacterTechnique
             Vector2 to = _airlockAxis.X == 0 ? new Vector2(Field.Right, at.Y) : new Vector2(at.X, Field.Bottom);
             bool closed = gate == 0 ? entered : !open || sealedRoom;
             if (closed) Line(from, to, 3 + Tier * .4f, true);
-            Hint(at + _airlockAxis.Orthogonal() * 25, gate == 0 ? entered ? "手前：閉" : "手前：開" : closed ? "奥：閉" : "奥：開");
+            Cue(at + _airlockAxis.Orthogonal() * 25, (gate == 0 ? entered : closed) ? AttackTelegraph.Symbol.Locked : AttackTelegraph.Symbol.Link);
         }
         if (!open)
             Box(AirlockPressure(24), entered, (float)Math.Min(1, Time / _airlockEntryAt));
@@ -412,7 +619,7 @@ public partial class MinaBossTechnique : BossCharacterTechnique
             Vector2 at = new(Field.Left + 26 + i % 7 * 38, 16 + i / 7 * 38);
             if (_cells[i]) Box(new Rect2(at, new Vector2(26, 26)), Time >= _warning);
             else if (_nextCells[i]) Box(new Rect2(at, new Vector2(26, 26)), false);
-            if (_nextCells[i] && !_cells[i]) Hint(at + new Vector2(5, 17), "+");
+            if (_nextCells[i] && !_cells[i]) Cue(at + new Vector2(5, 17), AttackTelegraph.Symbol.Envelope);
         }
     }
     private void NextGeneration()
@@ -441,7 +648,7 @@ public partial class MinaBossTechnique : BossCharacterTechnique
             Vector2 end = fork + new Vector2(42, sign * 64);
             bool severed = sign < 0 != upConnected;
             Line(fork, end, width, severed && t >= 0.8 + branch * 2.4);
-            Hint(end + new Vector2(-8, 0), severed ? "×" : "接続");
+            Cue(end + new Vector2(-8, 0), severed ? AttackTelegraph.Symbol.BrokenLink : AttackTelegraph.Symbol.Link);
         }
         if (Time < _warning + branch * 2.4 + 1.1)
             for (int i = 0; i < Density / 2; i++)
@@ -452,126 +659,158 @@ public partial class MinaBossTechnique : BossCharacterTechnique
                     new Vector2(-1, upConnected ? 0.55f : -0.55f), i, 45);
     }
 
-    private void DelayedSpring(double delta)
+    private float SpringPropagationSpeed => 38 + 4 * Tier;
+    private double SpringWaveDuration => (Field.Width + 160) / SpringPropagationSpeed;
+    private int SpringWaveCount => 3 + Tier + (Tier >= 2 ? Tier - 1 : 0);
+    private double SpringInterval => 3.25 - Tier * .53;
+    internal IEnumerable<(float Front, float Top, bool Live)> VisibleSpringWaves
     {
-        double t = Time - _warning;
-        const int count = 16;
-        float rest = (Field.Width - 32) / (count - 1);
-        if (_springX[0] == 0)
-            for (int i = 0; i < count; i++) _springX[i] = Field.Left + 16 + i * rest;
-        for (int pulse = 0; pulse < 1 + Tier; pulse++)
-            if (At(_warning + pulse * 2.4)) _springV[0] = 120;
-        if (t >= 0)
+        get
         {
-            var force = new float[count];
-            for (int i = 0; i < count; i++)
+            for (int wave = 0; wave < SpringWaveCount; wave++)
             {
-                float left = i == 0 ? Field.Left + 16 - rest : _springX[i - 1];
-                float right = i == count - 1 ? Field.Right - 16 + rest : _springX[i + 1];
-                force[i] = ((right - _springX[i] - rest) - (_springX[i] - left - rest)) * 75 - _springV[i] * 2;
-            }
-            for (int i = 0; i < count; i++)
-            {
-                _springV[i] += force[i] * (float)delta;
-                _springX[i] += _springV[i] * (float)delta;
+                double elapsed = Time - _warning - wave * SpringInterval;
+                if (elapsed < -2.8 || elapsed >= SpringWaveDuration) continue;
+                yield return (Field.Left - 80 + (float)Math.Max(0, elapsed) * SpringPropagationSpeed,
+                    Field.Top + (wave + (_anchor.Y < Field.CenterY ? 0 : 1)) % 2 * Field.Height / 2, elapsed >= 0);
             }
         }
-        for (int i = 0; i < count; i++)
+    }
+    private static float[] CompressedSpringNodes(float front)
+        => Enumerable.Range(0, 16).Select(i => {
+            float rest = Field.Left + i * Field.Width / 15;
+            float offset = (rest - front) / 24;
+            return rest + 12 * Mathf.Exp(-offset * offset);
+        }).ToArray();
+
+    private void DelayedSpring()
+    {
+        if (Time >= _warning + (SpringWaveCount - 1) * SpringInterval + SpringWaveDuration) { Finish(); return; }
+        foreach (var wave in VisibleSpringWaves)
         {
-            Vector2 p = new(_springX[i], _center.Y);
-            bool compressed = i > 0 && _springX[i] - _springX[i - 1] < rest * 0.78f
-                || i < count - 1 && _springX[i + 1] - _springX[i] < rest * 0.78f;
-            Disc(p, 5, t >= 0 && compressed);
-            if (i > 0) Line(new Vector2(_springX[i - 1], _center.Y), p, 0.5f, false);
+            if (!wave.Live)
+                Box(new Rect2(Field.Left, wave.Top, Field.Width, Field.Height / 2), false);
+            var nodes = CompressedSpringNodes(wave.Front);
+            for (int i = 0; i < nodes.Length; i++)
+            {
+                bool compressed = i > 0 && nodes[i] - nodes[i - 1] < Field.Width / 15 * .85f
+                    || i < nodes.Length - 1 && nodes[i + 1] - nodes[i] < Field.Width / 15 * .85f;
+                if (!compressed || !wave.Live) continue;
+                float left = Mathf.Clamp(i == 0 ? Field.Left : (nodes[i - 1] + nodes[i]) * .5f, Field.Left, Field.Right);
+                float right = Mathf.Clamp(i == nodes.Length - 1 ? Field.Right : (nodes[i + 1] + nodes[i]) * .5f, Field.Left, Field.Right);
+                if (right <= left) continue;
+                Box(new Rect2(left, wave.Top, right - left, Field.Height / 2), true);
+            }
         }
-        if (t > 4 + Tier * 2.4) Finish();
     }
 
-    private void LocalOverwrite()
+    private void LocalOverwrite(double delta)
     {
-        int count = 3 + Tier;
-        Vector2 Center(int side) => new(Field.Left + 72 + side * 174, 108);
-        for (int side = 0; side < 2; side++)
+        if (Time < _warning)
         {
-            var center = Center(side);
-            Hint(center + Vector2.Up * 62, _exchangePending ? "保存した記憶 → 交換" : "記憶を保持");
-            for (int i = 0; i < count; i++)
-            {
-                Vector2 p = center + new Vector2((i % 3 - 1) * 24, i < 3 ? -25 : 25);
-                Vector2 direction = Vector2.FromAngle(.4f + i * 1.12f + side * 1.7f);
-                if (Time < _warning) Disc(p, 8, false);
-                if (At(_warning)) Remember(p, direction, side * count + i, 18 + Tier * 3);
-            }
+            foreach (var band in _snapshotBands) Box(SnapshotBounds(band.Side, band.Y), false, (float)(Time / _warning));
+            return;
         }
-        if (At(_warning)) _next = Time + 2.6;
-        if (!_exchangePending && Time >= _next && Time > _warning && _exchanges < 2 + Tier)
+        bool draining = _exchanges >= 2 + Tier && Time >= _next;
+        if (draining && Time >= _next + 1.2) { Finish(); return; }
+        if (!_exchangePending && !draining && Time >= _next)
         {
             _exchangePending = true;
-            _exchangeAt = Time + WarnFor(38, 1.3);
-            foreach (var memory in _memories.Where(m => m.Live))
-            {
-                memory.Origin = memory.Bullet.GlobalPosition;
-                memory.Direction = memory.Bullet.Velocity;
-            }
-        }
-        foreach (var memory in _memories.Where(m => m.Live && !m.Bullet.LeadIn))
-        {
-            int side = memory.Index / count;
-            Vector2 center = Center(side);
-            if (_exchangePending)
-            {
-                Vector2 destination = Center(1 - side) + memory.Origin - center;
-                Disc(destination, 8, false, (float)(1 - (_exchangeAt - Time) / WarnFor(38, 1.3)));
-                Line(destination, destination + memory.Direction.Normalized() * 20, .5f, false);
-                if (Time >= _exchangeAt)
-                {
-                    memory.Bullet.GlobalPosition = destination;
-                    memory.Bullet.Velocity = memory.Direction;
-                    memory.Index = (1 - side) * count + memory.Index % count;
-                    continue;
-                }
-            }
-            Vector2 position = memory.Bullet.GlobalPosition;
-            Vector2 velocity = memory.Bullet.Velocity;
-            if (position.X <= center.X - 35 && velocity.X < 0 || position.X >= center.X + 35 && velocity.X > 0)
-                velocity.X = -velocity.X;
-            if (position.Y <= center.Y - 44 && velocity.Y < 0 || position.Y >= center.Y + 44 && velocity.Y > 0)
-                velocity.Y = -velocity.Y;
-            memory.Bullet.Velocity = velocity;
+            _exchangeAt = Time + SnapshotHold;
         }
         if (_exchangePending && Time >= _exchangeAt)
         {
+            foreach (var band in _snapshotBands) band.Side = 1 - band.Side;
             _exchangePending = false;
             _exchanges++;
-            _next = Time + 2.6 - Tier * .15;
+            _next = Time + 2.8;
         }
-        if (_exchanges == 2 + Tier && Time >= _next) Finish();
+        foreach (var band in _snapshotBands)
+        {
+            if (!_exchangePending && !draining)
+            {
+                band.Y += band.Velocity * (float)delta;
+                if (band.Y <= Field.Top && band.Velocity < 0 || band.Y >= Field.Bottom && band.Velocity > 0)
+                {
+                    band.Y = Mathf.Clamp(band.Y, Field.Top, Field.Bottom);
+                    band.Velocity = -band.Velocity;
+                }
+            }
+            Box(SnapshotBounds(band.Side, band.Y), true);
+            if (_exchangePending)
+                Box(SnapshotBounds(1 - band.Side, band.Y), false, (float)((SnapshotHold - (_exchangeAt - Time)) / .6));
+        }
     }
 
     private void SecondVisitWeight()
     {
         double t = Time - _warning;
-        if (t >= 0)
+        if (t >= 0 && t < VisitDuration)
         {
             int x = Mathf.Clamp((int)((Player.GlobalPosition.X - Field.Left) / (Field.Width / 7)), 0, 6);
             int y = Mathf.Clamp((int)(Player.GlobalPosition.Y / (Field.Bottom / 5)), 0, 4);
             int cell = y * 7 + x;
             if (cell != _lastCell)
             {
+                if (Tier == 3 && _lastCell >= 0 && Time >= _visitEchoReadyAt)
+                {
+                    int lastX = _lastCell % 7, lastY = _lastCell / 7;
+                    bool horizontal = lastY == y;
+                    Vector2 size = new(Field.Width / 7, Field.Height / 5);
+                    Vector2 from = Field.Rect.Position + new Vector2((lastX + .5f) * size.X, (lastY + .5f) * size.Y);
+                    Vector2 to = Field.Rect.Position + new Vector2((x + .5f) * size.X, (y + .5f) * size.Y);
+                    Rect2 bounds = horizontal
+                        ? new Rect2(Field.Left, Field.Top + y * size.Y, Field.Width, size.Y)
+                        : new Rect2(Field.Left + x * size.X, Field.Top, size.X, Field.Height);
+                    double lead = WarnFor(Math.Max(size.X, size.Y) + Player.HitRadius * 2, 1.35);
+                    if (Time + lead + 1.8 <= _warning + VisitDuration)
+                    {
+                        _visitEchoes.Add(new(from, to, bounds, Time, Time + lead, Time + lead + 1.8));
+                        _visitEchoReadyAt = Time + lead + 1.85;
+                    }
+                }
                 _visits[cell]++;
-                if (_visits[cell] == 2) _markedAt[cell] = Time;
+                if (_visits[cell] == 1) _firstStepAt[cell] = Time;
+                if (_visits[cell] == 2) _markedAt[cell] = _firstStepAt[cell];
                 _lastCell = cell;
+                _visitEnteredAt = Time;
+            }
+            if (_visits[cell] == 1 && Time - _visitEnteredAt >= (Tier == 0 ? 2.4 : 1.5))
+            {
+                _visits[cell] = 2;
+                _markedAt[cell] = Time;
             }
         }
+        if (t >= VisitDuration) { Finish(); return; }
+        Vector2 tile = new(Field.Width / 7, Field.Height / 5);
         for (int i = 0; i < 35; i++)
         {
-            if (_visits[i] < 2) continue;
-            Vector2 at = new(Field.Left + i % 7 * (Field.Width / 7), i / 7 * (Field.Height / 5));
-            var rect = new Rect2(at + Vector2.One * 6, new Vector2(Field.Width / 7 - 12, Field.Height / 5 - 12));
-            Box(rect, Time > _markedAt[i] + WarnFor(30));
+            var cell = new Rect2(Field.Rect.Position + new Vector2(i % 7, i / 7) * tile, tile);
+            if (_visits[i] == 1)
+            {
+                Box(cell, false, Mathf.Clamp((float)(Time - _firstStepAt[i]) / .45f, 0, 1), cueOnly: true);
+                continue;
+            }
+            if (_visits[i] == 0) continue;
+            double closesAt = _markedAt[i] + Math.Max(2.55, WarnFor(tile.Length() / 2, 1.7));
+            Box(cell, Time >= closesAt, Mathf.Clamp((float)((Time - _markedAt[i]) / .35), 0, 1));
         }
-        if (t > 9 + Tier) Finish();
+        foreach (var echo in VisibleVisitEchoes)
+        {
+            Box(echo.Bounds, Time >= echo.FiresAt, (float)Math.Clamp((Time - echo.StartsAt) / (echo.FiresAt - echo.StartsAt), 0, 1));
+            if (Time < echo.FiresAt)
+            {
+                Line(echo.From, echo.To, 1, false, cueOnly: true);
+                Cue(echo.To, AttackTelegraph.Symbol.Footprint);
+            }
+        }
+
     }
+
+    internal IEnumerable<(Rect2 Bounds, int Visits, float Imprint)> VisibleVisitMarks
+        => Enumerable.Range(0, 35).Select(i => (new Rect2(Field.Left + i % 7 * Field.Width / 7,
+            Field.Top + i / 7 * Field.Height / 5, Field.Width / 7, Field.Height / 5), _visits[i],
+            i == _lastCell ? Mathf.Clamp((float)((Time - _visitEnteredAt) / 1.5), 0, 1) : 0));
 
     private void MomentumHandoff()
     {
@@ -606,41 +845,67 @@ public partial class MinaBossTechnique : BossCharacterTechnique
 
     private void ReplyDrivenStars()
     {
-        if (Time < _warning)
-            for (int i = 0; i < Density / 2; i++)
-                Disc(new Vector2(Field.Right - 28 - i % 3 * 23, 36 + i / 3 * 60), 6, false);
-        if (At(_warning))
-        {
-            for (int i = 0; i < Density / 2; i++)
-                Remember(new Vector2(Field.Right - 28 - i % 3 * 23, 36 + i / 3 * 60), Vector2.Left, i, 0);
-            _replyAt = Time + 1.3;
-            _waitingReply = true;
-        }
-        bool newReply = false;
+        bool sent = false;
         foreach (var shot in GetTree().GetNodesInGroup("player_bullets").OfType<Bullet>().Where(b => b.Active))
-            if (_received.Add((shot.GetInstanceId(), shot.ActivationId))) newReply = true;
-        if (newReply && !_waitingReply && Time >= _replyAt + 0.65 && Time > _warning && Time < _warning + 7)
+            if (_received.Add((shot.GetInstanceId(), shot.ActivationId))) sent = true;
+        if (sent && ReplyReady)
         {
-            _replyAt = Time + 1.1;
-            _waitingReply = true;
+            float x = Player.GlobalPosition.X < Field.CenterX ? Field.Right + 12 : Field.Left - 12;
+            int sources = 4 + 2 * Tier;
+            var reply = new StarReply { Target = Player.GlobalPosition, StartsAt = Time, FiresAt = Time + 2.4,
+                Sources = Enumerable.Range(0, sources).Select(i => new Vector2(x, Field.Top + (i + .5f) * Field.Height / sources)).ToArray() };
+            reply.EntryTime = reply.Sources.Max(p => p.DistanceTo(reply.Target)) / StarReplySpeed;
+            reply.ExitTime = reply.Sources.Max(p => reply.FarEdge(p).DistanceTo(reply.Target)) / StarReplySpeed;
+            StarReplies.Add(reply);
+            _next = Time + 3.5;
         }
-        foreach (var memory in _memories)
+        foreach (var (reply, star) in _answerStars)
         {
-            if (!memory.Live || memory.Bullet.LeadIn) continue;
-            if (_waitingReply)
-                Line(memory.Bullet.GlobalPosition, memory.Bullet.GlobalPosition + Vector2.Left * 44, 5, false);
-            if (_waitingReply && Time >= _replyAt)
-                memory.Bullet.Velocity = Vector2.Left * 64;
-            else if (!_waitingReply && Time >= _replyAt + 0.65)
-                memory.Bullet.Velocity = Vector2.Zero;
+            if (!star.Live) continue;
+            float age = (float)(Time - star.Born);
+            if (age >= reply.EntryTime + reply.ExitTime) { Pool.Despawn(star.Bullet); continue; }
+            Vector2 position = reply.Position(star.Origin, age);
+            Vector2 velocity = age <= reply.EntryTime ? (reply.Target - star.Origin) / reply.EntryTime
+                : (reply.FarEdge(star.Origin) - reply.Target) / reply.ExitTime;
+            star.Bullet.GlobalPosition = position;
+            star.Bullet.Velocity = velocity;
+            if (velocity != Vector2.Zero) star.Bullet.Rotation = velocity.Angle();
         }
-        if (_waitingReply && Time >= _replyAt)
+        foreach (var reply in StarReplies)
         {
-            _waitingReply = false;
-            _beat++;
+            if (!reply.Fired)
+                foreach (var source in reply.Sources)
+                {
+                    float progress = (float)((Time - reply.StartsAt) / .6);
+                    Line(source, reply.Target, 4, false, progress);
+                    Line(reply.Target, reply.FarEdge(source), 4, false, progress);
+                }
+            if (reply.Fired || Time < reply.FiresAt + reply.Pulses * ((8 + TargetOpening) / StarReplySpeed)) continue;
+            foreach (var source in reply.Sources)
+            {
+                var memory = Remember(source, source.DirectionTo(reply.Target), _beat++, StarReplySpeed);
+                memory.Bullet.Homing = false;
+                memory.Bullet.UseBossIllustration(WarningVisual, fitRadius: 4);
+                memory.Bullet.CancelLeadIn();
+                {
+                    memory.Bullet.BossPathDriven = true;
+                    _answerStars.Add((reply, memory));
+                }
+            }
+            reply.Fired = ++reply.Pulses == 5;
         }
-        Hint(new Vector2(Field.CenterX, 16), _waitingReply ? "返答の予告" : "射撃に応答");
-        if (Time > _warning + 9) Finish();
+        for (int letter = 1; letter <= 3; letter++)
+        {
+            if (At(_warning + letter * 3.5) && StarReplies.Count < letter)
+                _unansweredStars.Add((letter, Player.GlobalPosition, Time));
+        }
+        _unansweredStars.RemoveAll(star => Time >= star.WarnedAt + UnansweredLead + UnansweredHold
+            || Time < star.WarnedAt + UnansweredLead && StarReplies.Count >= star.Letter);
+        foreach (var star in _unansweredStars)
+            Disc(star.At, UnansweredRadius, Time >= star.WarnedAt + UnansweredLead,
+                Mathf.Clamp((float)(Time - star.WarnedAt) / .6f, 0, 1));
+        if ((StarReplies.Count == 3 || ReplyFailed) && StarReplies.All(reply => reply.Fired)
+            && _unansweredStars.Count == 0 && !OwnedShots.Any()) Finish();
     }
 
     private void ElasticDisconnection()
@@ -676,7 +941,7 @@ public partial class MinaBossTechnique : BossCharacterTechnique
                 Vector2 end = ConnectionWarningEnd(connection);
                 float progress = (float)(1 - (connection.ReleaseAt - Time) / (_connectionWarning + connection.Rank * ConnectionInterval));
                 Line(connection.End, end, _connectionRadius, false, progress);
-                Hint(connection.Root + Vector2.Up * 10, (connection.Rank + 1).ToString());
+                Cue(connection.Root + Vector2.Up * 10, AttackTelegraph.Symbol.Pips, count: (connection.Rank + 1));
                 continue;
             }
             if (!connection.Released)
@@ -719,21 +984,53 @@ public partial class MinaBossTechnique : BossCharacterTechnique
         return connection.End + connection.Direction * length;
     }
 
+    private const float BurdenRadius = 22;
+    private float SwingRate => .62f + Tier * .035f;
+    private double SwingEnd => 1.5 * Math.PI / SwingRate;
+    private Vector2 _hardBurdenPivot;
+    private float _hardBurdenSwing;
+    private Vector2 BurdenPivot => Tier == 3 ? new(Field.CenterX, Field.Top - 8) : _hardBurdenPivot;
+    private float BurdenLength => Field.Bottom - TargetOpening - BurdenRadius - BurdenPivot.Y;
+    private float BurdenSwing => Tier == 3 ? 1.05f : _hardBurdenSwing;
+    private float BurdenAngle => Mathf.Sin(Math.Max(0, (float)(Time - _warning)) * SwingRate) * BurdenSwing;
+    internal Vector2 VisibleBurdenWeight => BurdenPivot + Vector2.Down.Rotated(BurdenAngle) * BurdenLength;
+    private readonly List<float> _burdenTurnMarks = new();
+
     private void SuspendedBurden()
     {
-        Vector2 pivot = new(Field.CenterX, 18);
-        double t = Time - _warning;
-        float angle = Mathf.Sin(Math.Max(0, (float)t) * 1.65f) * 0.85f;
-        Vector2 weight = pivot + Vector2.Down.Rotated(angle) * 132;
-        Line(pivot, weight, 0.7f, false);
-        Disc(weight, 16 + Tier * 2, t > 0);
-        if (Time > _warning && Time >= _next)
+        double age = Time - _warning;
+        if (age < SwingEnd)
         {
-            _next = Time + 1.9;
-            for (int i = 0; i < 1 + Tier; i++)
-                Remember(weight + new Vector2((i - Tier * 0.5f) * 8, 8), Vector2.Down, i, 32);
+            Line(BurdenPivot, VisibleBurdenWeight, 3, age >= 0, Mathf.Clamp((float)(Time / _warning), 0, 1));
+            Disc(VisibleBurdenWeight, BurdenRadius, age >= 0);
         }
-        if (t > 8) Finish();
+        float width = 52 + Tier * 5, speed = 43 + Tier * 4;
+        for (int turn = 0; turn < 2; turn++)
+        {
+            double turnAt = _warning + (.5 + turn) * Math.PI / SwingRate;
+            if (Time < turnAt) continue;
+            if (_burdenFalls.Count == turn)
+            {
+                float center = Tier == 3 ? Player.GlobalPosition.X : VisibleBurdenWeight.X;
+                _burdenTurnMarks.Add(center);
+                _burdenFalls.Add(new(Mathf.Clamp(center - width / 2, Field.Left, Field.Right - width), turnAt, turnAt + 2.65));
+            }
+            var fall = _burdenFalls[turn];
+            for (int bundle = 0; bundle < 3 + Tier; bundle++)
+            {
+                double firesAt = fall.FiresAt + bundle * .47;
+                float left = Mathf.Lerp(fall.Left, Field.CenterX - width / 2, bundle / (2f + Tier));
+                if (Time < firesAt)
+                    Box(new Rect2(left, Field.Top, width, Field.Height), false, Mathf.Clamp((float)(Time - turnAt) / .55f, 0, 1));
+                else
+                {
+                    float y = Field.Top - 12 + (float)(Time - firesAt) * speed;
+                    if (y < Field.Bottom) Box(new Rect2(left, y, width, 12), true);
+                }
+            }
+        }
+        if (_burdenFalls.Count == 2 && Time >= _burdenFalls[1].FiresAt + (2 + Tier) * .47 + (Field.Height + 12) / speed)
+            Finish();
     }
 
     private void RetractedLine()
@@ -746,7 +1043,7 @@ public partial class MinaBossTechnique : BossCharacterTechnique
             bool cancelled = row == safe && Time > reveal;
             if (cancelled)
             {
-                Hint(new Vector2(Field.Left + 20, y), "取消");
+                Cue(new Vector2(Field.Left + 20, y), AttackTelegraph.Symbol.Undo);
                 continue;
             }
             Box(new Rect2(Field.Left + 12, y - 16, Field.Width - 24, 32), Time >= _warning + 0.5 && Time < _warning + 1.3);
@@ -757,49 +1054,111 @@ public partial class MinaBossTechnique : BossCharacterTechnique
         if (Time > _warning + 8) Finish();
     }
 
+    private static int WingWeakSide(double age) => (int)(Math.Max(0, age) / 4.8) % 2 == 0 ? -1 : 1;
+
+    internal (int WeakSide, double At)? VisibleWingSwitch
+    {
+        get
+        {
+            double age = Time - _warning;
+            int nextBeat = (int)(Math.Max(0, age) / 4.8) + 1;
+            double next = nextBeat * 4.8;
+            double lead = Tier switch { 0 => 2.4, 1 => 1.8, 2 => 1.2, _ => 3.2 };
+            return age >= 0 && nextBeat < 3 && next - age <= lead
+                ? (WingWeakSide(next), _warning + next) : null;
+        }
+    }
+
+    internal Vector2 VisibleWingWind
+    {
+        get
+        {
+            double age = Time - _warning;
+            if (age < 0 || age >= 14.4) return Vector2.Zero;
+            int side = Player.GlobalPosition.X < Field.CenterX ? -1 : 1;
+            int weak = WingWeakSide(age);
+            return Vector2.Right * side * (side == weak ? 12 : 38);
+        }
+    }
+
+    internal (Rect2 Bounds, double FiresAt, double EndsAt)? VisibleWingSweep
+    {
+        get
+        {
+            if (Tier != 3) return null;
+            double age = Time - _warning;
+            int beat = Math.Clamp((int)(Math.Max(0, age) / 4.8), 0, 2);
+            double start = _warning + beat * 4.8;
+            if (Time >= start + 4.8) return null;
+            int strong = -WingWeakSide(beat * 4.8);
+            float left = strong < 0 ? Field.Left : Field.CenterX - 12;
+            float right = strong < 0 ? Field.CenterX + 12 : Field.Right;
+            return (new Rect2(left, Field.Top, right - left, Field.Height), start + 2.4, start + 4.8);
+        }
+    }
+
     private void WingDisplacement(double delta)
     {
         double t = Time - _warning;
-        if (t < 0)
-            for (int i = 0; i < Density; i++)
-                Disc(new Vector2(Field.Left + 24 + i * (Field.Width - 48) / (Density - 1), 25), 6, false);
-        if (At(_warning))
-            for (int i = 0; i < Density; i++)
-                Remember(new Vector2(Field.Left + 24 + i * (Field.Width - 48) / (Density - 1), 25), Vector2.Down, i, 22);
-        if (t >= 0)
-            foreach (var memory in _memories)
-            {
-                if (!memory.Live || memory.Bullet.LeadIn) continue;
-                Vector2 p = memory.Bullet.GlobalPosition;
-                float beat = (float)(t % 3);
-                float force = beat < 1.2f ? Mathf.Sin(beat / 1.2f * Mathf.Pi) * 38 : 0;
-                float side = Math.Sign(p.X - Boss.GlobalPosition.X);
-                memory.Bullet.Velocity = new Vector2(side * force, 22 + Math.Abs(p.X - Boss.GlobalPosition.X) * 0.12f);
-            }
-        if (t > 8) Finish();
+        WingFeathers();
+        if (t >= 14.4 && !_memories.Any(feather => feather.Live)) { Finish(); return; }
+        Box(new Rect2(Field.Left, Field.Top, 14, Field.Height), t >= 0, (float)(Time / _warning));
+        Box(new Rect2(Field.Right - 14, Field.Top, 14, Field.Height), t >= 0, (float)(Time / _warning));
+        if (VisibleWingSweep is { } sweep)
+            Box(sweep.Bounds, Time >= sweep.FiresAt, (float)Math.Clamp(1 - (sweep.FiresAt - Time) / 2.4, 0, 1));
+        if (t >= 0) Player.GlobalPosition = (Player.GlobalPosition + VisibleWingWind * (float)delta)
+            .Clamp(Field.Rect.Position, Field.Rect.End);
     }
 
+    private void WingFeathers()
+    {
+        int columns = 7 + 2 * Tier;
+        for (int beat = 0; beat < 3; beat++)
+        for (int column = 0; column < columns; column++)
+        {
+            double fire = _warning + beat * 4.8;
+            float x = Field.Left + (column + (beat % 2 == 0 ? .35f : .65f)) * Field.Width / columns;
+            Vector2 from = new(x, Field.Top - 8);
+            int weak = WingWeakSide(beat * 4.8);
+            int side = x < Field.CenterX ? -1 : 1;
+            Vector2 velocity = new(weak * (side == weak ? 10 : 24), 38 + 2 * Tier);
+            if (Time >= fire - 2.7 && Time < fire)
+                Line(from, from + velocity * ((Field.Height + 18) / velocity.Y), 3, false,
+                    Mathf.Clamp((float)(Time - fire + 2.7) / .6f, 0, 1));
+            for (int pulse = 0; pulse < 3 + Tier; pulse++)
+                if (At(fire + pulse * .32)) ReleaseFeather(from, velocity, column);
+        }
+    }
+
+    private void ReleaseFeather(Vector2 from, Vector2 velocity, int column)
+    {
+        var feather = Remember(from, velocity, column, velocity.Length());
+        feather.Bullet.Homing = false;
+        feather.Bullet.UseBossIllustration(WarningVisual, fitRadius: 3);
+        feather.Bullet.CancelLeadIn();
+    }
+
+    internal float ReturnInner => Evolved ? 39 : 23;
+    internal float ReturnOuter => ReturnInner + (Tier switch { 0 => 48, 1 => 38, 2 => 30, _ => 24 });
+    internal float ReturnSpeed => Tier switch { 0 => 24, 1 => 29, 2 => 37, _ => 40 };
+    internal double ReturnWarning => _warning;
     private void ReturnDistance(double delta)
     {
         double t = Time - _warning;
-        double duration = Tier switch { 2 => 13, 3 => 12, _ => 8 };
-        if (t >= 0)
+        double duration = Tier >= 2 ? 18 : 14;
+        if (t >= 0 && t < duration)
         {
-            Vector2 desired;
-            if (Tier >= 2)
-            {
-                float angle = _returnPhase + (float)t * (Tier == 2 ? .5f : .56f);
-                var target = _returnCenter + new Vector2(Mathf.Cos(angle), Mathf.Sin(angle)) * _returnSpan;
-                desired = Boss.GlobalPosition.MoveToward(target, (Tier == 2 ? 29 : 32) * (float)delta);
-            }
-            else desired = _initialBoss + new Vector2(Mathf.Sin((float)t * 0.6f) * 18, Mathf.Sin((float)t * 0.9f) * 9);
-            Boss.GlobalPosition = ((BossMina)Boss).KeepDragonInField(desired);
+            Boss.GlobalPosition = Boss.GlobalPosition.MoveToward(Player.GlobalPosition, ReturnSpeed * (float)delta)
+                .Clamp(new Vector2(Field.Left + 12, Field.Top + 12), new Vector2(Field.Right - 12, Field.Bottom - 12));
         }
+        if (At(_warning)) Boss.ShowAnimalAttack();
         Vector2 center = Boss.GlobalPosition;
-        float inner = 39, outer = Tier == 0 ? 99 : 96 - Tier * 4;
-        Disc(center, inner, t >= 0 && t < duration);
-        OutsideDisc(center, outer, t >= 0 && t < duration);
-        LastPosition = center + Vector2.Left * 65;
+        if (t < duration)
+        {
+            Disc(center, ReturnInner, t >= 0);
+            OutsideDisc(center, ReturnOuter, t >= 0);
+        }
+        LastPosition = center;
         if (t > duration + .2) Finish();
     }
 
@@ -824,7 +1183,9 @@ public partial class MinaBossTechnique : BossCharacterTechnique
         public double? InitialStartsAt, InitialEndsAt;
         public Vector2 Position, PriorPosition;
         public bool CurrentRowCard, CardAccessVerified, CardStartBodyOverlap;
+        public bool AcceptsReply = true;
         public Vector2[] CardAccessPath = Array.Empty<Vector2>();
+        public AttackCurveRoute? Route;
         public double CardTravelSeconds;
     }
     private readonly List<MinaEasyMemoryCue> _easyMemoryCues = new();
@@ -833,19 +1194,25 @@ public partial class MinaBossTechnique : BossCharacterTechnique
     private int _easyRoundsCreated;
     private Vector2 _easyConnectionPull;
     private CircleShape2D? _easyCardProbe;
-    private int EasyRounds => Variant switch { 0 => 3, 1 => 3 + Tier, 2 => 1, 3 => 4 + Tier, _ => 1 };
-    private int EasyBurdenLoads => (Tier switch { 0 => 4, 1 => 6, 2 => 9, _ => 12 }) + (Evolved ? 2 : 0);
-    private int EasyBurdenRows => 3 + Tier * 2;
+    private int EasyRounds => Variant switch { 0 => Tier >= 2 ? 2 : 3, 1 => 3 + Tier, 2 => 1, 3 => 4 + Tier, _ => 1 };
+    private int EasyBurdenLoads => Tier >= 2 ? 4 + Tier * 2 : (Tier == 0 ? 4 : 6) + (Evolved ? 2 : 0);
+    private int EasyBurdenRows => Tier >= 2 ? Tier + 2 : 3 + Tier * 2;
     private int EasyDraftRows => 4 + Tier * 2;
-    private int EasyRelayChains => 3 + Tier * 3 + (Evolved ? 1 : 0);
-    private double EasyRoundInterval => Variant switch { 0 => 5.4, 1 => 5.2, 2 => 0, 3 => 4.4 + Tier * .3 + (Evolved ? .4 : 0), _ => 6.4 };
+    private int EasyRelayChains => Tier switch { 0 => 7, 1 => 7, 2 => 8, _ => 8 };
+    private double EasyRoundInterval => Variant switch { 0 => Tier >= 2 ? 14.8 : 5.4, 1 => Tier == 3 ? 4.8 : 6 + Tier * .3 + (Evolved ? .4 : 0), 2 => 0, 3 => 4.4 + Tier * .3 + (Evolved ? .4 : 0), _ => 6.4 };
     internal override IEnumerable<BossEasyCue> EasyCues => Kind == BossTechniqueKind.Area
         ? _easyMemoryCues.Select(c => new BossEasyCue(c.Key, c.StartsAt, c.FiresAt,
             EasyMemoryProgress(c), c.Fired, c.Cancelled))
         : base.EasyCues;
 
+    protected override IEnumerable<(Vector2 Origin, double StartsAt, double FiresAt)> TelegraphTimings
+        => _easyMemoryCues.Where(cue => !cue.Cancelled && !cue.Fired)
+            .Select(cue => (cue.Mode == 1 ? cue.Card
+                : cue.Mode is 3 or 5 ? cue.Bounds[0].Position + Vector2.One * 3 : cue.Points[0],
+                cue.StartsAt, cue.FiresAt));
+
     private float EasyMemoryProgress(MinaEasyMemoryCue cue)
-        => Mathf.Clamp((float)((Time - cue.StartsAt - .4) / .8), 0, 1);
+        => cue.Mode == 1 ? 1 : Mathf.Clamp((float)((Time - cue.StartsAt - .4) / .8), 0, 1);
 
     private bool EasyMemorySegmentEnded(MinaEasyMemoryCue cue)
         => cue.Mode == 4 ? cue.Exited || cue.ReleaseCue >= 0 && _easyMemoryCues[cue.ReleaseCue].Energized
@@ -854,17 +1221,24 @@ public partial class MinaBossTechnique : BossCharacterTechnique
     private void StartEasyMemory()
     {
         if (Kind != BossTechniqueKind.Area || Variant is < 0 or > 4)
-            throw new InvalidOperationException("Mina uses one distinct Area technique per AttackPhase; retired Normal, Edge and Extra slots are not aliases.");
+            throw new InvalidOperationException("A memory phase requires Area/0 through Area/4.");
         TextureFilter = TextureFilterEnum.Linear;
-        _memoryIllustration = BulletArt.Get(Variant switch {
-            0 => "mina_memory", 1 => "mina_unanswered", 2 => "mina_eraser", _ => "mina_butterfly",
-        })!;
+        _memoryIllustration = BossProjectileArt.For(MemoryVisual)!.Texture;
+        var material = new ShaderMaterial { Shader = GD.Load<Shader>("res://shaders/mina_memory_art.gdshader") };
+        material.SetShaderParameter("memory_art", _memoryIllustration);
+        material.SetShaderParameter("frame_grid", new Vector2(ProjectileTurntable.Columns, ProjectileTurntable.FrameCount / ProjectileTurntable.Columns));
+        _memoryWarningCanvas = new Node2D { UseParentMaterial = true, ShowBehindParent = true };
+        _memoryWarningCanvas.Draw += () => _memoryWarnings.Draw(_memoryWarningCanvas);
+        AddChild(_memoryWarningCanvas);
+        _memoryCanvas = new Node2D { Material = material };
+        _memoryCanvas.Draw += () => _memoryArt.Draw(_memoryCanvas);
+        AddChild(_memoryCanvas);
         _id = 4 + Variant;
         _warning = 3.2;
         var identity = Variant switch
         {
             0 => ("抱えた声の順送り", "mina.unfolding-burden", "重い記憶から解凍される。広がり終える頁の短い端を回る"),
-            1 => ("未送信、既読の返事", "mina.acknowledged-rows", "手の届く下書きを既読にする。届いた返事の行には着弾しない"),
+            1 => ("未送信、既読の返事", "mina.acknowledged-rows", "チェックの付いた行へ。封筒に触れると、その行の着弾も止まる"),
             2 => ("拍手の檻・二重の扉", "mina.traveling-airlock", "前後の扉の間を保ち、開いてゆく保護室について進む"),
             3 => ("閉じない配信・残る世代", "mina.inherited-records", "今いる区画も次の種になる。次の記録が生まれない隣の区画へ移る"),
             _ => ("つなぎ直す帰り道", "mina.connected-homeward-relay", "短く引いて張りを固定する。受渡した記憶は危険なまま止まるので、通った後ろへ戻らない"),
@@ -896,26 +1270,27 @@ public partial class MinaBossTechnique : BossCharacterTechnique
                 if (progress > 0) EasyMemoryPathHazards(cue.Points, cue.Radius, progress, false);
                 continue;
             }
-            if (cue.Mode == 1 && !cue.Cancelled && Time < cue.FiresAt
+            if (cue.Mode == 1 && cue.AcceptsReply && !cue.Cancelled && Time < cue.FiresAt
                 && !_easyReadRounds.Contains(cue.Round) && Player.GlobalPosition.DistanceTo(cue.Card) <= 14)
             {
                 cue.Cancelled = true;
                 cue.CancelledAt = Time;
                 _easyReadRounds.Add(cue.Round);
             }
-            if (cue.Cancelled || Time < cue.StartsAt || EasyMemorySegmentEnded(cue)) continue;
+            if (Time < cue.StartsAt || EasyMemorySegmentEnded(cue)) continue;
+            if (cue.Cancelled) continue;
             if (cue.Mode is 4 or 7 ? !cue.Energized : Time < cue.FiresAt)
             {
                 float progress = EasyMemoryProgress(cue);
                 if (progress <= 0) continue;
-                if (cue.Mode is 0 or 1 or 3 or 5)
+                if (cue.Mode is 0 or 3 or 5)
                     foreach (var bounds in cue.Bounds)
                         Box(new Rect2(bounds.Position, new Vector2(bounds.Size.X * progress, bounds.Size.Y)), false, progress);
                 else if (cue.Mode is 4 or 7)
                     EasyMemoryPathHazards(cue.Points, cue.Radius, progress, false);
-                else
+                else if (cue.Mode == 2)
                     foreach (var bounds in cue.Bounds)
-                        Box(new Rect2(bounds.Position, new Vector2(bounds.Size.X * progress, bounds.Size.Y)), false, progress);
+                        Box(new Rect2(bounds.Position, new Vector2(bounds.Size.X * progress, bounds.Size.Y)), false, progress, cueOnly: true);
                 continue;
             }
             float age = (float)(Time - cue.FiresAt);
@@ -945,6 +1320,15 @@ public partial class MinaBossTechnique : BossCharacterTechnique
         if (_easyRoundsCreated == EasyRounds && _easyMemoryCues.All(c => Time >= c.EndsAt) && relayDrained) Finish();
     }
 
+    private float RelayPitch => Field.Height / (EasyRelayChains - 1);
+    private float RelayRadius(float mass) => Math.Min(9 + (mass - 1) * 3, (RelayPitch - TargetOpening) / 2 - 2);
+    private float RelayBow(float x)
+    {
+        float span = Mathf.Clamp((x - Field.Left) / Field.Width, 0, 1);
+        float pull = (_anchor.Y < Field.CenterY ? -8 : 8) + _easyConnectionPull.Y * .46f;
+        return Mathf.Sin(span * Mathf.Pi) * pull;
+    }
+
     private void PrepareEasyMemoryRound(int round, double start)
     {
         Vector2 reserved = Player.GlobalPosition;
@@ -952,14 +1336,17 @@ public partial class MinaBossTechnique : BossCharacterTechnique
         {
             float[] rows = Tier == 0 ? new[] { 24, Mathf.Clamp(reserved.Y, 82, 134), Field.Bottom - 24 }
                 : Enumerable.Range(0, EasyBurdenRows).Select(row => (row + (round == 0 ? .5f : round == 1 ? 0 : 1)) * Field.Height / EasyBurdenRows).ToArray();
+            if (Tier >= 2)
+                for (int row = 0; row < rows.Length; row++) rows[row] = Field.Top + (row + .5f) * Field.Height / EasyBurdenRows;
             int direction = round % 2 == 0 ? 1 : -1;
             for (int row = 0; row < EasyBurdenRows; row++)
                 for (int load = 0; load < EasyBurdenLoads; load++)
                 {
-                    float height = Tier == 0 ? row == 1 ? 62 : 52 : Field.Height / EasyBurdenRows - 7;
+                    float height = Tier == 0 ? row == 1 ? 62 : 52 : Field.Height / EasyBurdenRows - (Tier >= 2 ? 0 : 7);
                     Vector2 from = new(direction > 0 ? Field.Left - 20 : Field.Right + 20, rows[row]);
                     Vector2 to = new(direction > 0 ? Field.Right + 20 : Field.Left - 20, rows[row]);
-                    double fire = start + 3.2 + (EasyBurdenRows - 1 - row) * (.42 / (1 + Tier * .5)) + load * (.38 - Tier * .045);
+                    double fire = start + 3.2 + (EasyBurdenRows - 1 - row) * (Tier >= 2 ? .9 : .42 / (1 + Tier * .5))
+                        + load * (Tier >= 2 ? .55 : .38 - Tier * .045);
                     _easyMemoryCues.Add(new MinaEasyMemoryCue
                     {
                         Key = $"burden:{round}:{row}:{load}", Group = $"burden:{round}:{row}", Mode = 0,
@@ -974,19 +1361,24 @@ public partial class MinaBossTechnique : BossCharacterTechnique
         {
             float rowHeight = Field.Height / EasyDraftRows;
             int current = Mathf.Clamp((int)((reserved.Y - Field.Top) / rowHeight), 0, EasyDraftRows - 1);
-            int answered = (current + 1 + round) % EasyDraftRows;
+            var cards = Enumerable.Range(0, EasyDraftRows)
+                .Select(row => EasyAccessibleDraftCard(reserved, row, Math.Abs(row - current) <= 1)).ToArray();
+            int answered = Enumerable.Range(0, EasyDraftRows).Where(row => Math.Abs(row - current) == 1)
+                .OrderByDescending(row => cards[row].Verified).ThenBy(row => round % 2 == 0 ? row : -row).First();
             for (int row = 0; row < EasyDraftRows; row++)
             {
-                var card = EasyAccessibleDraftCard(reserved, row, row == current);
+                var card = cards[row];
                 _easyMemoryCues.Add(new MinaEasyMemoryCue
                 {
                     Key = $"draft:{round}:{row}", Group = $"draft:{round}:{row}", Mode = 1,
-                    Round = round, Index = row, StartsAt = start, FiresAt = start + 3.2, EndsAt = start + 6 + Tier * .3 + (Evolved ? .4 : 0),
+                    Round = round, Index = row, StartsAt = start, FiresAt = start + 3.2,
+                    EndsAt = (round + 1) * EasyRoundInterval,
                     Card = card.Card, CardReserved = reserved,
                     Bounds = new[] { new Rect2(Field.Left, Field.Top + row * rowHeight, Field.Width, rowHeight) },
                     Cancelled = row == answered, CancelledAt = row == answered ? start : null,
                     CurrentRowCard = row == current, CardAccessPath = card.Path, CardAccessVerified = card.Verified,
                     CardStartBodyOverlap = card.InitialOverlap, CardTravelSeconds = card.Seconds,
+                    AcceptsReply = Tier != 3 || row != current,
                 });
             }
         }
@@ -1043,68 +1435,56 @@ public partial class MinaBossTechnique : BossCharacterTechnique
             Array.Copy(next, _easyRecordState, 35);
             for (int i = 0; i < 35; i++)
             {
-                if (!next[i]) continue;
                 var cell = new Rect2(Field.Left + i % 7 * Field.Width / 7, Field.Top + i / 7 * Field.Height / 5,
-                    Field.Width / 7, Field.Height / 5).Grow(-1);
+                    Field.Width / 7, Field.Height / 5);
+                var center = (cell.GetCenter() * 2).Round() / 2;
+                if (!next[i]) continue;
                 _easyMemoryCues.Add(new MinaEasyMemoryCue
                 {
                     Key = $"generation:{round}:{i}", Group = $"generation:{round}:{i}", Mode = 3,
-                    Round = round, Index = i, StartsAt = start, FiresAt = start + 3.2, EndsAt = start + 5.8 + Tier * .3 + (Evolved ? .4 : 0),
-                    Bounds = new[] { cell }, Card = cell.GetCenter(),
+                    Round = round, Index = i, StartsAt = start, FiresAt = start + 3.2, EndsAt = start + 5.95 + Tier * .3 + (Evolved ? .4 : 0),
+                    Bounds = new[] { cell }, Card = center,
                 });
             }
         }
         else
         {
-            Vector2 margin = Vector2.One * 28;
             Vector2 target = reserved;
-            Vector2 drift = _easyConnectionPull * .22f;
-            Vector2 opposite = new(target.X < Field.CenterX ? Field.Right - 28 : Field.Left + 28,
-                target.Y < Field.CenterY ? Field.Bottom - 28 : Field.Top + 28);
-            Vector2[][] networks = {
-                new[] { new Vector2(Field.Left - 28, 28), target, opposite,
-                    new Vector2(Field.CenterX, target.Y < Field.CenterY ? 28 : Field.Bottom - 28), new Vector2(Field.Right + 28, 108) },
-                new[] { new Vector2(Field.Right - 28, Field.Top - 28), new Vector2(Field.Left + 28, Field.Bottom - 28),
-                    target, new Vector2(Field.Right - 28, Field.CenterY), new Vector2(Field.Left - 28, 28) },
-                new[] { new Vector2(Field.Right + 28, Field.Bottom - 28), new Vector2(Field.Left + 28, 28),
-                    new Vector2(Field.Right - 28, 28), new Vector2(Field.Left + 28, Field.Bottom - 28),
-                    new Vector2(Field.Right + 28, Field.Bottom + 28) },
-            };
+            var profile = GD.Load<Curve2D>("res://assets/attack_curves/mina_handoff.tres");
+            float restingY = target.Y - RelayBow(target.X);
+            int linked = Mathf.Clamp(Mathf.RoundToInt((restingY - Field.Top) / RelayPitch), 0, EasyRelayChains - 1);
             for (int chain = 0; chain < EasyRelayChains; chain++)
             {
-                var network = networks[chain % networks.Length].ToArray();
-                if (chain >= networks.Length && Tier > 0)
-                    for (int node = 1; node < network.Length - 1; node++)
-                        network[node] = new Vector2(Field.Left + 28 + (chain * 3 + node * 2) % 7 * (Field.Width - 56) / 6,
-                            28 + (chain + node * 3) % 5 * (Field.Height - 56) / 4);
-                for (int node = 1; node < network.Length - 1; node++)
-                    if (network[node] != target)
-                        network[node] = (network[node] + drift).Clamp(Field.Rect.Position + margin, Field.Rect.End - margin);
-                for (int node = 1; node < network.Length - 1; node++)
-                    if (network[node - 1].DistanceTo(network[node]) < 48)
-                    {
-                        if (network[node] == target)
-                            network[node - 1] = opposite;
-                        else network[node] = new Vector2(network[node - 1].X < Field.CenterX ? Field.Right - 28 : Field.Left + 28,
-                            network[node - 1].Y < Field.CenterY ? Field.Bottom - 28 : Field.Top + 28);
-                    }
+                bool right = target.X <= Field.CenterX;
+                float row = chain == linked ? restingY : Field.Top + chain * RelayPitch;
+                var network = new Vector2[5];
+                float middleX = Mathf.Clamp(target.X, Field.Left + 82, Field.Right - 82);
+                float entryX = right ? Field.Left - 28 : Field.Right + 28;
+                float exitX = right ? Field.Right + 28 : Field.Left - 28;
+                for (int node = 0; node < network.Length; node++)
+                {
+                    float x = node <= 2 ? Mathf.Lerp(entryX, middleX, node / 2f)
+                        : Mathf.Lerp(middleX, exitX, (node - 2) / 2f);
+                    network[node] = new Vector2(x, row + RelayBow(x));
+                }
                 int chainStart = _easyMemoryCues.Count;
-                double chainStartAt = start + chain * (Tier switch { 0 => .65, 1 => .5, 2 => .36, _ => .25 });
+                double chainStartAt = start + chain * (Tier switch { 0 => .58, 1 => .46, 2 => .34, _ => .22 });
                 double fire = chainStartAt + 3.2;
                 float speed = 52 + Tier * 7 + _easyConnectionPull.Length() * .5f;
                 float[] masses = { 1, 1.25f, 1.5f, 1.1f };
                 for (int node = 0; node < network.Length - 1; node++)
                 {
-                    float radius = 10 + (masses[node] - 1) * 3;
+                    float radius = RelayRadius(masses[node]);
                     Vector2 direction = network[node].DirectionTo(network[node + 1]);
-                    float nextRadius = node + 1 < masses.Length ? 10 + (masses[node + 1] - 1) * 3 : 0;
+                    float nextRadius = node + 1 < masses.Length ? RelayRadius(masses[node + 1]) : 0;
                     Vector2 contact = node + 1 < masses.Length ? network[node + 1] - direction * (radius + nextRadius) : network[node + 1];
-                    double arrival = fire + network[node].DistanceTo(contact) / speed;
+                    var route = AttackCurveRoute.Between(profile, network[node], contact, .06f);
+                    double arrival = fire + route.Length / speed;
                     _easyMemoryCues.Add(new MinaEasyMemoryCue
                     {
                         Key = $"handoff:{chain}:{node}", Group = $"handoff:{chain}:{node}", Mode = 4,
                         Round = chain, Index = node, StartsAt = chainStartAt, FiresAt = fire,
-                        ArrivesAt = arrival, Points = new[] { network[node], contact }, Radius = radius,
+                        ArrivesAt = arrival, Points = route.Points, Route = route, Radius = radius,
                         Mass = masses[node], Speed = speed, Position = network[node], PriorPosition = network[node],
                         Predecessor = node == 0 ? -1 : chainStart + node - 1,
                         Successor = node + 1 == masses.Length ? -1 : chainStart + node + 1,
@@ -1115,13 +1495,13 @@ public partial class MinaBossTechnique : BossCharacterTechnique
                 }
             }
             double drained = _easyMemoryCues.Where(cue => cue.Successor < 0).Max(cue => cue.ArrivesAt);
-            var held = _easyMemoryCues.Where(cue => cue.Successor >= 0).OrderByDescending(cue => cue.Speed * cue.Mass).ToArray();
+            var held = _easyMemoryCues.Where(cue => cue.Successor >= 0).OrderByDescending(cue => cue.Index).ThenBy(cue => cue.Round).ToArray();
             for (int rank = 0; rank < held.Length; rank++)
             {
                 var memory = held[rank];
-                Vector2 direction = memory.Points[1].DirectionTo(memory.Points[0]);
-                Vector2 exit = EasyMemoryRecoilExit(memory.Points[1], direction, memory.Radius);
-                double release = drained + .2 + rank * .24;
+                Vector2 direction = Vector2.Right * Math.Sign(memory.Points[0].X - memory.Points[^1].X);
+                Vector2 exit = EasyMemoryRecoilExit(memory.Points[^1], direction, memory.Radius);
+                double release = drained + .2 + (rank / EasyRelayChains) * .24;
                 float speed = 50 + (memory.Speed * memory.Mass - 48) * .3f;
                 int heldIndex = _easyMemoryCues.IndexOf(memory);
                 memory.ReleaseCue = _easyMemoryCues.Count;
@@ -1130,11 +1510,11 @@ public partial class MinaBossTechnique : BossCharacterTechnique
                 {
                     Key = $"release:{memory.Round}:{memory.Index}", Group = $"release:{memory.Round}:{memory.Index}", Mode = 7,
                     Round = memory.Round, Index = memory.Index, StartsAt = release - 3.2, FiresAt = release,
-                    Points = new[] { memory.Points[1], exit }, Radius = memory.Radius, Speed = speed, Mass = memory.Mass,
-                    Position = memory.Points[1], PriorPosition = memory.Points[1], HeldMemory = heldIndex,
+                    Points = new[] { memory.Points[^1], exit }, Radius = memory.Radius, Speed = speed, Mass = memory.Mass,
+                    Position = memory.Points[^1], PriorPosition = memory.Points[^1], HeldMemory = heldIndex,
                     InitialStartsAt = memory.StartsAt, InitialEndsAt = memory.StartsAt + 3.2,
-                    ArrivesAt = release + memory.Points[1].DistanceTo(exit) / speed,
-                    EndsAt = release + memory.Points[1].DistanceTo(exit) / speed + .02,
+                    ArrivesAt = release + memory.Points[^1].DistanceTo(exit) / speed,
+                    EndsAt = release + memory.Points[^1].DistanceTo(exit) / speed + .02,
                 });
             }
             foreach (var terminal in _easyMemoryCues.Where(cue => cue.Mode == 4 && cue.Successor < 0))
@@ -1145,7 +1525,7 @@ public partial class MinaBossTechnique : BossCharacterTechnique
     private bool EasyDraftBodyHit(Vector2 position)
     {
         _easyCardProbe ??= new CircleShape2D { Radius = Player.HitRadius };
-        if (Boss.CollisionLayer == 0 || !Boss.Monitorable) return false;
+        if (!Boss.BodyContactDamaging || Boss.CollisionLayer == 0 || !Boss.Monitorable) return false;
         foreach (uint owner in Boss.GetShapeOwners())
         {
             if (Boss.IsShapeOwnerDisabled(owner)) continue;
@@ -1157,13 +1537,12 @@ public partial class MinaBossTechnique : BossCharacterTechnique
     }
 
     private (Vector2 Card, Vector2[] Path, double Seconds, bool Verified, bool InitialOverlap) EasyAccessibleDraftCard(
-        Vector2 reserved, int row, bool current)
+        Vector2 reserved, int row, bool verifyRoute)
     {
         float height = Field.Height / EasyDraftRows;
         float top = Field.Top + row * height + 8, bottom = Field.Top + (row + 1) * height - 8;
-        float[] ys = Math.Abs(reserved.Y - top) >= Math.Abs(reserved.Y - bottom)
-            ? new[] { top, bottom } : new[] { bottom, top };
-        float away = reserved.X <= Boss.GlobalPosition.X ? -1 : 1;
+        float[] ys = { (top + bottom) / 2, top, bottom };
+        float away = reserved.X <= Boss.TechniqueCenter.X ? -1 : 1;
         float x = Mathf.Clamp(reserved.X + away * 42, Field.Left + 20, Field.Right - 20);
         bool initialOverlap = EasyDraftBodyHit(reserved);
         // At an edge the inset can reverse the offset; keep a visible edge lane and the opposite row end available.
@@ -1174,7 +1553,7 @@ public partial class MinaBossTechnique : BossCharacterTechnique
             {
                 Vector2 card = new(cardX, cardY);
                 if (EasyDraftBodyHit(card) || card.DistanceTo(reserved) <= 16) continue;
-                if (!current || initialOverlap) return (card, Array.Empty<Vector2>(), 0, false, initialOverlap);
+                if (!verifyRoute || initialOverlap) return (card, Array.Empty<Vector2>(), 0, false, initialOverlap);
                 float detourX = EasyDraftDetourX(reserved, card, away);
                 Vector2[][] paths = { new[] { reserved, card },
                     new[] { reserved, new Vector2(detourX, reserved.Y), new Vector2(detourX, card.Y), card } };
@@ -1212,7 +1591,7 @@ public partial class MinaBossTechnique : BossCharacterTechnique
         float x = away < 0 ? Math.Min(from.X, card.X) : Math.Max(from.X, card.X);
         foreach (uint owner in Boss.GetShapeOwners())
         {
-            if (Boss.IsShapeOwnerDisabled(owner)) continue;
+            if (!Boss.BodyContactDamaging || Boss.IsShapeOwnerDisabled(owner)) continue;
             Transform2D transform = Boss.GlobalTransform * Boss.ShapeOwnerGetTransform(owner);
             for (int shape = 0; shape < Boss.ShapeOwnerGetShapeCount(owner); shape++)
             {
@@ -1275,7 +1654,7 @@ public partial class MinaBossTechnique : BossCharacterTechnique
             cue.PriorPosition = cue.Position;
             if (cue.Predecessor < 0 && Time >= cue.FiresAt) cue.Energized = true;
             if (!cue.Energized || cue.Exited || cue.Transferred) continue;
-            cue.Position = cue.Points[0].MoveToward(cue.Points[1], Math.Max(0, (float)(Time - cue.FiresAt)) * cue.Speed);
+            cue.Position = cue.Route!.At(Math.Max(0, (float)(Time - cue.FiresAt)) * cue.Speed);
             if (Time < cue.ArrivesAt) continue;
             if (cue.Successor < 0)
             {
@@ -1342,73 +1721,105 @@ public partial class MinaBossTechnique : BossCharacterTechnique
 
     private void DrawEasyMemory()
     {
-        var warning = new Color("ff7d88", .58f);
+        _memoryArt.Clear();
+        _memoryWarnings.Clear();
         var live = new Color("fff0d9");
         var seen = new HashSet<string>();
+        bool Preview(MinaEasyMemoryCue cue) => cue.Mode == 7 && Time < cue.StartsAt
+            && cue.InitialStartsAt is double start && cue.InitialEndsAt is double end && Time >= start && Time < end;
+        bool Warning(MinaEasyMemoryCue cue) => cue.Mode is 4 or 7 ? !cue.Energized : Time < cue.FiresAt;
+        var groupFires = _easyMemoryCues.Where(cue => !cue.Cancelled && (Preview(cue)
+            || Time >= cue.StartsAt && !EasyMemorySegmentEnded(cue) && Warning(cue)))
+            .GroupBy(cue => cue.Group).ToDictionary(group => group.Key, group => group.Min(cue => Math.Max(Time, cue.FiresAt)));
+        double first = groupFires.Values.DefaultIfEmpty(double.PositiveInfinity).Min();
+        if (Variant == 1)
+            for (int row = 1; row < EasyDraftRows; row++)
+            {
+                float y = Field.Top + row * Field.Height / EasyDraftRows;
+                _memoryWarnings.Line(new Vector2(Field.Left, y), new Vector2(Field.Right, y), new Color(MemoryInk, .2f), .5f);
+            }
+        if (Variant == 2)
+            foreach (var room in _easyMemoryCues.Where(cue => cue.Mode == 2))
+                foreach (var door in EasyAirlockDoors(room))
+                {
+                    if (Time < door.OpensAt - 1.2 || Time >= door.OpensAt) continue;
+                    Vector2 travel = door.Exit.GetCenter() - door.Entry.GetCenter();
+                    Vector2 direction = Math.Abs(travel.X) > Math.Abs(travel.Y)
+                        ? Vector2.Right * Math.Sign(travel.X) : Vector2.Down * Math.Sign(travel.Y);
+                    Vector2 side = direction.Orthogonal();
+                    float extent = Math.Abs(direction.X) * door.Entry.Size.X * .5f + Math.Abs(direction.Y) * door.Entry.Size.Y * .5f;
+                    float halfWidth = Math.Abs(side.X) * door.Entry.Size.X * .5f + Math.Abs(side.Y) * door.Entry.Size.Y * .5f;
+                    Vector2 opening = door.Entry.GetCenter() + direction * extent;
+                    _memoryWarnings.Line(opening - side * halfWidth, opening + side * halfWidth, MemoryInk, 1.2f);
+                    AttackTelegraph.Arrow(this, opening - direction * 5, direction, MemoryInk);
+                }
         if (Variant == 4 && _easyMemoryCues.Count == 0)
         {
             Vector2 pulled = _anchor + _easyConnectionPull;
-            DrawLine(_anchor, pulled, new Color(MemoryInk, .4f), .8f, true);
+            _memoryWarnings.Line(_anchor, pulled, new Color(MemoryInk, .4f), .8f);
             DrawEasyMemoryPort(_anchor, new Color(MemoryInk, .5f));
-            DrawMemoryEnvelope(pulled, new Vector2(8, 5), new Color("dcecf1"));
+            DrawWarningMemoryEnvelope(pulled, new Vector2(8, 5), new Color("dcecf1"));
         }
-        foreach (var cue in _easyMemoryCues.OrderBy(c => c.Fired ? 1 : 0))
+        foreach (var cue in _easyMemoryCues.OrderBy(cue => Warning(cue) ? 0 : 1)
+            .ThenByDescending(cue => groupFires.GetValueOrDefault(cue.Group, cue.FiresAt)).ThenBy(cue => cue.FiresAt))
         {
+            bool next = groupFires.GetValueOrDefault(cue.Group, cue.FiresAt) <= first + .02;
+            Color warning = AttackTelegraph.OrderedInk(MemoryInk, next);
             if (cue.Mode == 7 && Time < cue.StartsAt && cue.InitialStartsAt is double preview
                 && cue.InitialEndsAt is double previewEnd && Time >= preview && Time < previewEnd)
             {
                 if (GameManager.ShowAttackTelegraphs)
                 {
                     float progress = Mathf.Clamp((float)((Time - preview - .4) / .8), 0, 1);
-                    if (progress > 0) DrawEasyMemoryRoute(cue.Points, progress, new Color(warning, .24f), cue.Radius);
+                    if (progress > 0) DrawEasyMemoryRoute(cue.Points, progress, new Color(warning, .65f), cue.Radius);
                 }
                 continue;
             }
             if (Time < cue.StartsAt || EasyMemorySegmentEnded(cue)) continue;
+            if (cue.Mode == 1 && (cue.Cancelled || Time < cue.FiresAt))
+            {
+                DrawDraftRow(cue);
+                continue;
+            }
             if (cue.Mode is 4 or 7 ? !cue.Energized : Time < cue.FiresAt)
             {
-                if (!GameManager.ShowAttackTelegraphs || !seen.Add(cue.Group)) continue;
+                if (!seen.Add(cue.Group)) continue;
+                if (!GameManager.ShowAttackTelegraphs) continue;
                 float progress = EasyMemoryProgress(cue);
-                if (cue.Cancelled)
-                {
-                    foreach (var bounds in cue.Bounds) DrawEasyMemoryBox(bounds, new Color("72dfff", .65f), false);
-                    DrawMemoryEnvelope(cue.Card, new Vector2(10, 7), new Color("aee6ed"));
-                    DrawLine(cue.Card + new Vector2(-5, 0), cue.Card + new Vector2(-1, 4), new Color("aee6ed"), 1, true);
-                    DrawLine(cue.Card + new Vector2(-1, 4), cue.Card + new Vector2(7, -5), new Color("aee6ed"), 1, true);
-                    continue;
-                }
-                if (cue.Mode is 0 or 1 or 3 or 5)
+                if (cue.Mode is 0 or 3 or 5)
                 {
                     foreach (var bounds in cue.Bounds)
                         if (progress > 0) DrawEasyMemoryBox(new Rect2(bounds.Position,
                             new Vector2(bounds.Size.X * progress, bounds.Size.Y)), warning, false);
                     Vector2 origin = cue.Mode == 0
                         ? new Vector2(Mathf.Clamp(cue.Points[0].X, Field.Left + 3, Field.Right - 3), cue.Points[0].Y)
-                        : cue.Mode == 1 ? new Vector2(cue.Card.X, cue.Bounds[0].Position.Y + 3) : cue.Bounds[0].Position + Vector2.One * 3;
-                    DrawEasyMemoryOrigin(origin);
+                        : cue.Bounds[0].Position + Vector2.One * 3;
+                    DrawEasyMemoryOrigin(origin, next);
                     if (cue.Mode == 0 && progress > 0)
+                    {
                         DrawEasyMemoryRoute(cue.Points, progress, warning);
-                    if (cue.Mode == 1) DrawMemoryEnvelope(cue.Card, new Vector2(10, 7), warning);
-                    if (cue.Mode == 3) DrawMemoryEnvelope(cue.Card, new Vector2(7, 5), new Color(MemoryInk, .72f));
+                        Vector2 at = cue.Points[0].Lerp(cue.Points[^1], progress);
+                        AttackTelegraph.Box(this, new Rect2(at - cue.Size * .5f, cue.Size).Intersection(Field.Rect),
+                            new Color(warning, warning.A * .5f), false);
+                    }
+                    if (cue.Mode == 3 && cue.Bounds.Length == 1)
+                        DrawWarningMemoryEnvelope(cue.Card, new Vector2(7, 5), new Color(MemoryInk, .72f));
                 }
                 else if (cue.Mode == 2)
                 {
                     if (progress > 0)
-                        DrawEasyMemoryBox(new Rect2(Field.Rect.Position,
-                            new Vector2(Field.Width * progress, Field.Height)), new Color(warning, .32f), false);
-                    DrawEasyMemoryOrigin(Field.Rect.Position + Vector2.One * 3);
-                    if (progress > 0) DrawEasyMemoryRoute(cue.Points, progress, new Color("d7e8ec", .38f), directionMarks: false);
-                    foreach (var at in cue.Points)
-                        DrawEasyMemoryBox(new Rect2(at - cue.Size * .5f, cue.Size), new Color("d7e8ec", .25f * progress), false);
+                        foreach (var bounds in EasyRoomPressure(new Rect2(cue.Points[0] - cue.Size * .5f, cue.Size)))
+                            AttackTelegraph.Box(this, new Rect2(bounds.Position, new Vector2(bounds.Size.X * progress, bounds.Size.Y)),
+                                new Color(warning, .85f));
+                    DrawEasyMemoryOrigin(Field.Rect.Position + Vector2.One * 3, next);
                 }
                 else
                 {
-                    DrawEasyMemoryOrigin(cue.Points[0].Clamp(Field.Rect.Position + Vector2.One * 3, Field.Rect.End - Vector2.One * 3));
+                    DrawEasyMemoryOrigin((cue.Points[0]).Clamp(Field.Rect.Position + Vector2.One * 3, Field.Rect.End - Vector2.One * 3), next);
                     if (progress > 0) DrawEasyMemoryRoute(cue.Points, progress, warning, cue.Radius);
                     if (cue.Mode == 4 && cue.Predecessor >= 0)
                     {
-                        DrawEasyMemoryPort(cue.Points[0], new Color("dfc4df", .72f));
-                        DrawMemoryEnvelope(cue.Points[0], new Vector2(7, 5), new Color(MemoryInk, .45f));
+                        DrawEasyMemoryPort(cue.Points[0], AttackTelegraph.OrderedInk(new Color("dfc4df"), next));
                     }
                     if (cue.Mode == 4 && cue.Successor >= 0)
                         DrawEasyMemoryPort(_easyMemoryCues[cue.Successor].Points[0], warning);
@@ -1425,51 +1836,109 @@ public partial class MinaBossTechnique : BossCharacterTechnique
             else if (cue.Mode is 1 or 3 or 5)
             {
                 foreach (var bounds in cue.Bounds) DrawEasyMemoryBox(bounds, live, true);
-                if (cue.Mode != 5) DrawMemoryEnvelope(cue.Card, new Vector2(8, 5), new Color(MemoryInk));
+                if (cue.Mode != 5 && (cue.Mode != 3 || cue.Bounds.Length == 1))
+                    DrawLiveMemoryEnvelope(cue.Card, new Vector2(8, 5), new Color(MemoryInk));
             }
             else if (cue.Mode == 2)
             {
                 var room = EasyRoomProtectedBounds(cue, Time - cue.FiresAt);
                 foreach (var bounds in EasyRoomPressure(room)) DrawEasyMemoryBox(bounds, live, true);
-                DrawRect(room, new Color("fff0d9"), false, 1.2f, true);
+                _memoryArt.Outline(room, new Color("fff0d9"), 1.2f);
                 foreach (var door in EasyAirlockDoors(cue))
                     if (Time >= door.OpensAt - .4 && Time <= door.ClosesAt + .4)
                     {
-                        DrawEasyMemoryPort(door.Entry.GetCenter(), new Color("efb8d7", .55f));
-                        DrawEasyMemoryPort(door.Exit.GetCenter(), new Color("fff0d9"));
+                        DrawLiveMemoryPort(door.Entry.GetCenter(), new Color("efb8d7", .55f));
+                        DrawLiveMemoryPort(door.Exit.GetCenter(), new Color("fff0d9"));
                     }
             }
             else
             {
                 Vector2 at = cue.Position;
-                DrawEasyMemorySweep(cue.PriorPosition, at, cue.Radius, new Color("6d4b74", .9f));
+                DrawEasyMemoryDisc(at, cue.Radius, new Color("6d4b74", .9f));
                 if (cue.Transferred && cue.ReleaseCue >= 0)
-                    DrawRect(new Rect2(at - Vector2.One * (cue.Radius - 2), Vector2.One * (cue.Radius - 2) * 2),
-                        new Color("fff0d9"), false, .8f, true);
+                    _memoryArt.Outline(new Rect2(at - Vector2.One * (cue.Radius - 2), Vector2.One * (cue.Radius - 2) * 2),
+                        new Color("fff0d9"), .8f);
                 if (cue.TransferredAt is double transferred && Time - transferred < .2)
-                    DrawEasyMemoryPort(at, new Color("fff7e8"));
+                    DrawLiveMemoryPort(at, new Color("fff7e8"));
+            }
+        }
+        ((ShaderMaterial)_memoryCanvas.Material).SetShaderParameter("model_frame", ProjectileTurntable.FrameAt(Time));
+        _memoryCanvas.QueueRedraw();
+        _memoryWarningCanvas.QueueRedraw();
+    }
+
+    private void DrawDraftRow(MinaEasyMemoryCue cue)
+    {
+        Rect2 row = cue.Bounds[0];
+        Color ink = cue.Cancelled ? new Color("aee6ed") : new Color("ffadab");
+        float y = row.GetCenter().Y;
+        Vector2 mark = new(row.Position.X + 8, y);
+        bool canReply = Time < cue.FiresAt && !_easyReadRounds.Contains(cue.Round);
+        if (cue.Cancelled)
+        {
+            _memoryWarnings.Rect(row, new Color("358d93", .32f));
+            _memoryWarnings.Outline(row, ink, .9f);
+            _memoryWarnings.Line(mark + new Vector2(-3, 0), mark + Vector2.Down * 2, ink, 1.4f);
+            _memoryWarnings.Line(mark + Vector2.Down * 2, mark + new Vector2(4, -3), ink, 1.4f);
+            if (cue.CancelledAt is double replied && Time - replied < .7)
+            {
+                float spread = Mathf.Clamp((float)((Time - replied) / .7), 0, 1);
+                Vector2 center = new(cue.Card.X, y);
+                _memoryWarnings.Line(center, center.Lerp(new Vector2(row.Position.X, y), spread), ink, 1.2f);
+                _memoryWarnings.Line(center, center.Lerp(new Vector2(row.End.X, y), spread), ink, 1.2f);
+                AttackTelegraph.DrawSymbol(this, cue.Card, AttackTelegraph.Symbol.Received, ink);
+            }
+        }
+        else
+        {
+            if (!UsesDangerForecast) _memoryWarnings.Rect(row, new Color("bd505e", .13f));
+            _memoryWarnings.Line(mark - Vector2.One * 2.5f, mark + Vector2.One * 2.5f, ink, 1);
+            _memoryWarnings.Line(mark + new Vector2(-2.5f, 2.5f), mark + new Vector2(2.5f, -2.5f), ink, 1);
+            if (canReply && cue.AcceptsReply)
+            {
+                DrawWarningMemoryEnvelope(cue.Card, new Vector2(10, 7), new Color("fff0d9"));
+                _memoryWarnings.Line(cue.Card, new Vector2(cue.Card.X, y), new Color(ink, .45f), .6f);
+                _memoryWarnings.Outline(new Rect2(cue.Card - new Vector2(12, 9), new Vector2(24, 18)), new Color("fff0d9", .5f), .6f);
             }
         }
     }
 
-    private void DrawEasyMemoryBox(Rect2 bounds, Color ink, bool live)
+    private void DrawEasyMemoryBox(Rect2 bounds, Color ink, bool live, bool hatched = true)
     {
         bounds = bounds.Intersection(Field.Rect);
         if (bounds.Size.X <= 0 || bounds.Size.Y <= 0) return;
         if (live)
         {
-            DrawRect(bounds, new Color(Variant == 1 ? "31485c" : Variant == 2 ? "51413b" : "52384d", .78f));
+            Color body = new(Variant == 1 ? "263c53" : Variant == 2 ? "3f344d" : "3b294f", .70f);
+            _memoryArt.Rect(bounds, body);
+            float inset = Math.Min(7, Math.Min(bounds.Size.X, bounds.Size.Y) * .16f);
+            // Clipping at the arena edge can collapse the bevel vertices onto the same point.
+            if (inset >= .25f)
+            {
+                Vector2 a = bounds.Position, b = new(bounds.End.X, bounds.Position.Y);
+                Vector2 c = bounds.End, d = new(bounds.Position.X, bounds.End.Y);
+                Vector2 ai = a + Vector2.One * inset, bi = b + new Vector2(-inset, inset);
+                Vector2 ci = c - Vector2.One * inset, di = d + new Vector2(inset, -inset);
+                _memoryArt.Quad(a, b, bi, ai, new Color("c6c5ec", .16f));
+                _memoryArt.Quad(a, ai, di, d, new Color("b9d3e6", .11f));
+                _memoryArt.Quad(b, c, ci, bi, new Color("24172f", .3f));
+                _memoryArt.Quad(d, di, ci, c, new Color("24172f", .35f));
+                _memoryArt.Outline(bounds.Grow(-inset), new Color("ccb2e1", .26f), .4f);
+            }
             DrawMemoryIllustrations(bounds);
-            DrawRect(bounds, new Color("3e183d"), false, 2.5f, true);
-            DrawRect(bounds, ink, false, 1.1f, true);
+            _memoryArt.Outline(bounds, new Color("1a102b"), 1.6f);
+            _memoryArt.Outline(bounds, new Color(ink, .88f), .65f);
+            float corner = Math.Min(5, Math.Min(bounds.Size.X, bounds.Size.Y) * .24f);
+            foreach (Vector2 sign in new[] { new Vector2(-1, -1), new Vector2(1, -1), new Vector2(1, 1), new Vector2(-1, 1) })
+            {
+                Vector2 at = bounds.GetCenter() + sign * (bounds.Size * .5f - Vector2.One * .7f);
+                _memoryArt.Line(at - new Vector2(sign.X * corner, 0), at, new Color("f5dcf1", .9f), .8f);
+                _memoryArt.Line(at, at - new Vector2(0, sign.Y * corner), new Color("f5dcf1", .9f), .8f);
+            }
         }
         else
         {
-            DrawRect(bounds, new Color(ink, .025f));
-            DrawDashedLine(bounds.Position, new Vector2(bounds.End.X, bounds.Position.Y), ink, .7f, 3, true);
-            DrawDashedLine(new Vector2(bounds.End.X, bounds.Position.Y), bounds.End, ink, .7f, 3, true);
-            DrawDashedLine(bounds.End, new Vector2(bounds.Position.X, bounds.End.Y), ink, .7f, 3, true);
-            DrawDashedLine(new Vector2(bounds.Position.X, bounds.End.Y), bounds.Position, ink, .7f, 3, true);
+            AttackTelegraph.Box(this, bounds, ink, hatched);
         }
     }
 
@@ -1479,31 +1948,27 @@ public partial class MinaBossTechnique : BossCharacterTechnique
         if (bounds.Size.X < 5 || bounds.Size.Y < 5) return;
         if (Variant == 0)
         {
-            Vector2 textureSize = _memoryIllustration.GetSize();
+            Vector2 textureSize = Vector2.One * ProjectileTurntable.CellSize;
             float scale = Math.Max(bounds.Size.X / textureSize.X, bounds.Size.Y / textureSize.Y);
             Vector2 crop = bounds.Size / scale;
-            DrawTextureRectRegion(_memoryIllustration, bounds, new Rect2((textureSize - crop) * .5f, crop));
+            _memoryArt.Texture(bounds, new Rect2((textureSize - crop) * .5f / textureSize, crop / textureSize), Colors.White);
             return;
         }
-        int columns = Math.Max(1, Mathf.CeilToInt(bounds.Size.X / 64));
-        int rows = Math.Max(1, Mathf.CeilToInt(bounds.Size.Y / 52));
-        Vector2 cell = bounds.Size / new Vector2(columns, rows);
-        Vector2 size = _memoryIllustration.GetSize();
-        size *= Math.Min(30 / Math.Max(size.X, size.Y), Math.Min((cell.X - 2) / size.X, (cell.Y - 2) / size.Y));
-        for (int row = 0; row < rows; row++)
-        for (int column = 0; column < columns; column++)
-        {
-            Vector2 center = bounds.Position + new Vector2(column + .5f, row + .5f) * cell;
-            DrawTextureRect(_memoryIllustration, new Rect2(center - size * .5f, size), false);
-        }
+        Vector2 size = Vector2.One * ProjectileTurntable.CellSize;
+        size *= Math.Min(34 / Math.Max(size.X, size.Y), Math.Min((bounds.Size.X - 2) / size.X, (bounds.Size.Y - 2) / size.Y));
+        Vector2 center = bounds.GetCenter();
+        _memoryArt.Texture(new Rect2(center - size * .5f, size), new Rect2(0, 0, 1, 1), new Color(Colors.White, .8f));
+        float gap = size.X * .5f + 6;
+        if (bounds.Size.X > gap * 2 + 16)
+            foreach (float side in new[] { -1f, 1f })
+                _memoryArt.Line(center + Vector2.Right * side * gap,
+                    new Vector2(side < 0 ? bounds.Position.X + 4 : bounds.End.X - 4, center.Y),
+                    new Color("d5b9e5", .3f), .55f);
     }
 
-    private void DrawEasyMemoryOrigin(Vector2 at)
+    private void DrawEasyMemoryOrigin(Vector2 at, bool next)
     {
-        Vector2[] shape = { at + new Vector2(0, -3.8f), at + new Vector2(3.8f, 3.2f), at + new Vector2(-3.8f, 3.2f), at + new Vector2(0, -3.8f) };
-        DrawPolyline(shape, new Color("ff8991"), 1, true);
-        DrawLine(at + Vector2.Up * 1.5f, at, new Color("fff0e8"), .9f, true);
-        DrawCircle(at + Vector2.Down * 1.8f, .55f, new Color("fff0e8"));
+        AttackTelegraph.ProjectileOrigin(this, at, MemoryVisual, AttackTelegraph.OrderedInk(MemoryInk, next));
     }
 
     private void DrawEasyMemoryDisc(Vector2 center, float radius, Color fill)
@@ -1514,108 +1979,245 @@ public partial class MinaBossTechnique : BossCharacterTechnique
             if (Math.Abs(dy) > radius) continue;
             float chord = Mathf.Sqrt(radius * radius - dy * dy);
             float left = Math.Max(Field.Left, center.X - chord), right = Math.Min(Field.Right, center.X + chord);
-            if (right > left) DrawRect(new Rect2(left, y, right - left, Math.Min(1, Field.Bottom - y)), fill);
+            float light = Mathf.Clamp(.5f - dy / (radius * 2), 0, 1);
+            Color surface = new Color("2d2445").Lerp(new Color("ba9bc7"), light * .72f);
+            surface.A = fill.A;
+            if (right > left) _memoryArt.Rect(new Rect2(left, y, right - left, Math.Min(1, Field.Bottom - y)), surface);
         }
         for (int i = 0; i < 48; i++)
         {
             Vector2 a = center + Vector2.FromAngle(i * Mathf.Tau / 48) * radius;
             Vector2 b = center + Vector2.FromAngle((i + 1) * Mathf.Tau / 48) * radius;
             if (EasyMemoryVisibleSegment(a, b) is { } visible)
-                DrawLine(visible.A, visible.B, new Color("ffe8d0"), 1.1f, true);
+            {
+                _memoryArt.Line(visible.A, visible.B, new Color("21192e", .9f), 1.5f);
+                float light = Mathf.Clamp(.55f - Vector2.FromAngle(i * Mathf.Tau / 48).Dot(new Vector2(.45f, .8f)), .18f, 1);
+                _memoryArt.Line(visible.A, visible.B, new Color("f6ddec", light), .65f);
+            }
         }
-        DrawMemoryIllustrations(new Rect2(center - Vector2.One * radius * .65f, Vector2.One * radius * 1.3f));
+        DrawMemoryIllustrations(new Rect2(center - Vector2.One * radius * .9f, Vector2.One * radius * 1.8f));
+        for (int step = 0; step < 12; step++)
+        {
+            Vector2 a = center + Vector2.FromAngle(Mathf.Pi * (1.10f + step * .035f)) * radius * .76f;
+            Vector2 b = center + Vector2.FromAngle(Mathf.Pi * (1.10f + (step + 1) * .035f)) * radius * .76f;
+            if (EasyMemoryVisibleSegment(a, b) is { } shine)
+                _memoryArt.Line(shine.A, shine.B, new Color("fff0ed", .55f), .65f);
+        }
     }
 
-    private void DrawEasyMemorySweep(Vector2 from, Vector2 to, float radius, Color fill)
-    {
-        if (from == to) { DrawEasyMemoryDisc(to, radius, fill); return; }
-        Vector2 side = from.DirectionTo(to).Orthogonal() * radius;
-        Vector2[] body = { from + side, to + side, to - side, from - side };
-        for (float y = Math.Max(Field.Top, Mathf.Floor(Math.Min(from.Y, to.Y) - radius));
-            y < Math.Min(Field.Bottom, Math.Max(from.Y, to.Y) + radius); y++)
-        {
-            float scan = y + .5f, left = float.PositiveInfinity, right = float.NegativeInfinity;
-            float dy = scan - from.Y;
-            if (Math.Abs(dy) <= radius)
-            {
-                float chord = Mathf.Sqrt(radius * radius - dy * dy);
-                left = from.X - chord; right = from.X + chord;
-            }
-            for (int edge = 0; edge < body.Length; edge++)
-            {
-                Vector2 a = body[edge], b = body[(edge + 1) % body.Length];
-                if ((a.Y > scan) == (b.Y > scan)) continue;
-                float x = a.X + (b.X - a.X) * (scan - a.Y) / (b.Y - a.Y);
-                left = Math.Min(left, x); right = Math.Max(right, x);
-            }
-            void Span(float a, float b)
-            {
-                a = Math.Max(Field.Left, a); b = Math.Min(Field.Right, b);
-                if (b > a) DrawRect(new Rect2(a, y, b - a, Math.Min(1, Field.Bottom - y)), fill);
-            }
-            dy = scan - to.Y;
-            if (Math.Abs(dy) <= radius)
-            {
-                float chord = Mathf.Sqrt(radius * radius - dy * dy);
-                Span(left, Math.Min(right, to.X - chord));
-                Span(Math.Max(left, to.X + chord), right);
-            }
-            else Span(left, right);
-        }
-        DrawEasyMemoryDisc(to, radius, fill);
-        var edgeInk = new Color("ffe8d0");
-        void Edge(Vector2 a, Vector2 b)
-        {
-            if (EasyMemoryVisibleSegment(a, b) is { } visible) DrawLine(visible.A, visible.B, edgeInk, 1.1f, true);
-        }
-        Edge(from + side, to + side);
-        Edge(from - side, to - side);
-        float angle = (to - from).Angle() + Mathf.Pi / 2;
-        for (int step = 0; step < 24; step++)
-            Edge(from + Vector2.FromAngle(angle + Mathf.Pi * step / 24) * radius,
-                from + Vector2.FromAngle(angle + Mathf.Pi * (step + 1) / 24) * radius);
-    }
 
     private void DrawEasyMemoryPort(Vector2 at, Color ink)
     {
-        DrawRect(new Rect2(at - Vector2.One * 4, Vector2.One * 8), new Color("1d1933", .85f), true);
-        DrawRect(new Rect2(at - Vector2.One * 4, Vector2.One * 8), ink, false, .9f, true);
-        DrawLine(at + new Vector2(-2, -2), at + new Vector2(2, 2), ink, .8f, true);
-        DrawLine(at + new Vector2(-2, 2), at + new Vector2(2, -2), ink, .8f, true);
+        Vector2[] corners = { at + Vector2.Up * 3, at + Vector2.Right * 2.2f,
+            at + Vector2.Down * 3, at + Vector2.Left * 2.2f };
+        _memoryWarnings.Quad(corners[0], corners[1], corners[2], corners[3], new Color("211b31", .9f));
+        for (int i = 0; i < 4; i++) _memoryWarnings.Line(corners[i], corners[(i + 1) % 4], ink, .65f);
     }
 
-    private void DrawEasyMemoryRoute(Vector2[] points, float progress, Color ink, float radius = 0, bool directionMarks = true)
+    private void DrawLiveMemoryPort(Vector2 at, Color ink)
+    {
+        var bounds = new Rect2(at - Vector2.One * 4, Vector2.One * 8);
+        _memoryArt.Rect(bounds, new Color("1d1933", .85f));
+        _memoryArt.Outline(bounds, ink, .9f);
+        _memoryArt.Line(at + new Vector2(-2, -2), at + new Vector2(2, 2), ink, .8f);
+        _memoryArt.Line(at + new Vector2(-2, 2), at + new Vector2(2, -2), ink, .8f);
+    }
+
+    private void DrawLiveMemoryEnvelope(Vector2 at, Vector2 size, Color ink)
+    {
+        var bounds = new Rect2(at - size * .5f, size);
+        _memoryArt.Outline(bounds, ink, .55f);
+        _memoryArt.Line(bounds.Position, at + Vector2.Down * size.Y * .1f, ink, .55f);
+        _memoryArt.Line(new Vector2(bounds.End.X, bounds.Position.Y), at + Vector2.Down * size.Y * .1f, ink, .55f);
+    }
+
+    private void DrawWarningMemoryEnvelope(Vector2 at, Vector2 size, Color ink)
+    {
+        var bounds = new Rect2(at - size * .5f, size);
+        _memoryWarnings.Outline(bounds, ink, .55f);
+        _memoryWarnings.Line(bounds.Position, at + Vector2.Down * size.Y * .1f, ink, .55f);
+        _memoryWarnings.Line(new Vector2(bounds.End.X, bounds.Position.Y), at + Vector2.Down * size.Y * .1f, ink, .55f);
+    }
+
+    private sealed class MemoryArtBatch
+    {
+        private readonly List<Vector2> _points = new(), _uvs = new();
+        private readonly List<Color> _colors = new();
+        private readonly List<int> _indices = new();
+
+        public void Clear()
+        {
+            _points.Clear();
+            _uvs.Clear();
+            _colors.Clear();
+            _indices.Clear();
+        }
+
+        public void Draw(Node2D canvas)
+        {
+            if (_indices.Count == 0) return;
+            RenderingServer.CanvasItemAddTriangleArray(canvas.GetCanvasItem(),
+                CollectionsMarshal.AsSpan(_indices), CollectionsMarshal.AsSpan(_points),
+                CollectionsMarshal.AsSpan(_colors), CollectionsMarshal.AsSpan(_uvs),
+                ReadOnlySpan<int>.Empty, ReadOnlySpan<float>.Empty, default, -1);
+        }
+
+        private void Vertex(Vector2 point, Color color, Vector2 uv)
+        {
+            _points.Add(point);
+            _colors.Add(color);
+            _uvs.Add(uv);
+        }
+
+        public void Triangle(Vector2 a, Vector2 b, Vector2 c, Color color)
+        {
+            int start = _points.Count;
+            Vertex(a, color, -Vector2.One);
+            Vertex(b, color, -Vector2.One);
+            Vertex(c, color, -Vector2.One);
+            _indices.Add(start);
+            _indices.Add(start + 1);
+            _indices.Add(start + 2);
+        }
+
+        public void Quad(Vector2 a, Vector2 b, Vector2 c, Vector2 d, Color color)
+            => Quad(a, b, c, d, color, color, color, color, new Rect2(-Vector2.One, Vector2.Zero));
+
+        private void Quad(Vector2 a, Vector2 b, Vector2 c, Vector2 d,
+            Color ca, Color cb, Color cc, Color cd, Rect2 uv)
+        {
+            int start = _points.Count;
+            Vertex(a, ca, uv.Position);
+            Vertex(b, cb, new Vector2(uv.End.X, uv.Position.Y));
+            Vertex(c, cc, uv.End);
+            Vertex(d, cd, new Vector2(uv.Position.X, uv.End.Y));
+            _indices.Add(start);
+            _indices.Add(start + 1);
+            _indices.Add(start + 2);
+            _indices.Add(start);
+            _indices.Add(start + 2);
+            _indices.Add(start + 3);
+        }
+
+        public void Rect(Rect2 bounds, Color color)
+            => Quad(bounds.Position, new Vector2(bounds.End.X, bounds.Position.Y),
+                bounds.End, new Vector2(bounds.Position.X, bounds.End.Y), color);
+
+        public void Texture(Rect2 bounds, Rect2 uv, Color color)
+            => Quad(bounds.Position, new Vector2(bounds.End.X, bounds.Position.Y),
+                bounds.End, new Vector2(bounds.Position.X, bounds.End.Y), color, color, color, color, uv);
+
+        public void Outline(Rect2 bounds, Color color, float width)
+        {
+            Vector2 a = bounds.Position, b = new(bounds.End.X, bounds.Position.Y);
+            Vector2 c = bounds.End, d = new(bounds.Position.X, bounds.End.Y);
+            Line(a, b, color, width);
+            Line(b, c, color, width);
+            Line(c, d, color, width);
+            Line(d, a, color, width);
+        }
+
+        public void Line(Vector2 a, Vector2 b, Color color, float width)
+        {
+            Vector2 normal = a.DirectionTo(b).Orthogonal();
+            Vector2 inner = normal * width * .5f, outer = normal * (width * .5f + .2f);
+            Quad(a + inner, b + inner, b - inner, a - inner, color);
+            Color transparent = new(color, 0);
+            var uv = new Rect2(-Vector2.One, Vector2.Zero);
+            Quad(a + outer, b + outer, b + inner, a + inner, transparent, transparent, color, color, uv);
+            Quad(a - inner, b - inner, b - outer, a - outer, color, color, transparent, transparent, uv);
+        }
+
+        public void Dashed(Vector2 a, Vector2 b, Color color, float width, float dash, float travelled = 0)
+        {
+            float length = a.DistanceTo(b);
+            Vector2 direction = a.DirectionTo(b);
+            for (float at = -(travelled % (dash * 2)); at < length; at += dash * 2)
+                if (at + dash > 0)
+                    Line(a + direction * Math.Max(0, at), a + direction * Math.Min(at + dash, length), color, width);
+        }
+
+        public void Circle(Vector2 center, float radius, Color color, float width)
+        {
+            Vector2 previous = center + Vector2.Right * radius;
+            for (int i = 1; i < 40; i++)
+            {
+                Vector2 next = center + Vector2.FromAngle(i * Mathf.Tau / 39) * radius;
+                Line(previous, next, color, width);
+                previous = next;
+            }
+        }
+    }
+
+    private void DrawEasyMemoryRoute(Vector2[] points, float progress, Color ink, float radius = 0, Vector2 offset = default, bool directionMarks = true)
     {
         float remaining = 0;
         for (int i = 1; i < points.Length; i++) remaining += points[i - 1].DistanceTo(points[i]);
         remaining *= progress;
+        float travelled = 0, nextArrow = 24;
+        Vector2 shownEnd = points[0] + offset;
         for (int i = 1; i < points.Length && remaining > 0; i++)
         {
             float length = points[i - 1].DistanceTo(points[i]);
-            Vector2 end = points[i - 1].MoveToward(points[i], Math.Min(remaining, length));
-            Vector2 direction = points[i - 1].DirectionTo(end), side = new(-direction.Y, direction.X);
-            void Segment(Vector2 a, Vector2 b)
+            Vector2 start = points[i - 1] + offset;
+            Vector2 end = start.MoveToward(points[i] + offset, Math.Min(remaining, length));
+            shownEnd = end;
+            float shownLength = start.DistanceTo(end);
+            Vector2 direction = start.DirectionTo(end), side = new(-direction.Y, direction.X);
+            void Segment(Vector2 a, Vector2 b, bool boundary = false)
             {
                 if (EasyMemoryVisibleSegment(a, b) is { } visible)
-                    DrawDashedLine(visible.A, visible.B, ink, .7f, 3, true);
+                {
+                    float dash = AttackTelegraph.IsLater(ink) ? 16 : 12;
+                    float phase = travelled + a.DistanceTo(visible.A);
+                    if (boundary)
+                    {
+                        _memoryWarnings.Line(visible.A, visible.B, new Color(AttackTelegraph.Outline, ink.A * .6f), 1.5f);
+                        _memoryWarnings.Line(visible.A, visible.B, ink, .65f);
+                    }
+                    else
+                    {
+                        _memoryWarnings.Dashed(visible.A, visible.B, new Color(AttackTelegraph.Outline, ink.A * .5f), 1.3f, dash, phase);
+                        _memoryWarnings.Dashed(visible.A, visible.B, new Color(ink, ink.A * .65f), .5f, dash, phase);
+                    }
+                }
             }
-            Segment(points[i - 1], end);
+            Segment(start, end);
             if (radius > 0)
             {
-                DrawWarningEdgeCaps(points[i - 1], end, radius, ink);
-                Segment(points[i - 1] + side * radius, end + side * radius);
-                Segment(points[i - 1] - side * radius, end - side * radius);
-                if (Field.Rect.Grow(-radius).HasPoint(end)) DrawArc(end, radius, 0, Mathf.Tau, 28, new Color(ink, .3f), .5f, true);
+                Vector2 from = start;
+                _memoryWarnings.Line(from, end, new Color(ink, ink.A * .08f), radius * 2);
+                for (int edge = 0; edge < 4; edge++)
+                    if (WarningEdgeSpan(from, end, radius, edge) is { } span && span.A.DistanceSquaredTo(span.B) > .01f)
+                    {
+                        _memoryWarnings.Line(span.A, span.B, new Color("251321", .5f), 1.5f);
+                        _memoryWarnings.Line(span.A, span.B, ink, .65f);
+                    }
+                Segment(start + side * radius, end + side * radius, true);
+                Segment(start - side * radius, end - side * radius, true);
             }
-            for (float distance = 18; directionMarks && distance < Math.Min(remaining, length); distance += 58)
+            while (directionMarks && nextArrow < travelled + shownLength)
             {
-                Vector2 at = points[i - 1] + direction * distance;
+                Vector2 at = start + direction * (nextArrow - travelled);
+                nextArrow += 96;
                 if (!Field.Rect.Grow(-4).HasPoint(at)) continue;
-                DrawLine(at - direction * 2.5f + side * 2.2f, at, ink, .8f, true);
-                DrawLine(at - direction * 2.5f - side * 2.2f, at, ink, .8f, true);
+                Vector2 left = at - direction * 2.5f + direction.Orthogonal() * 1.7f;
+                Vector2 right = at - direction * 2.5f - direction.Orthogonal() * 1.7f;
+                _memoryWarnings.Line(left, at, new Color(AttackTelegraph.Outline, ink.A * .6f), 1.5f);
+                _memoryWarnings.Line(at, right, new Color(AttackTelegraph.Outline, ink.A * .6f), 1.5f);
+                _memoryWarnings.Line(left, at, ink, .65f);
+                _memoryWarnings.Line(at, right, ink, .65f);
             }
+            travelled += shownLength;
             remaining -= length;
         }
+        if (radius > 0)
+            foreach (Vector2 ghost in new[] { points[0] + offset, shownEnd })
+                if (Field.Rect.Grow(-radius).HasPoint(ghost))
+                {
+                    _memoryWarnings.Circle(ghost, radius, new Color(AttackTelegraph.Outline, ink.A * .3f), 1.5f);
+                    _memoryWarnings.Circle(ghost, radius, new Color(ink, ink.A * .55f), .6f);
+                }
     }
 
     private static (Vector2 A, Vector2 B)? EasyMemoryVisibleSegment(Vector2 from, Vector2 to)
@@ -1635,22 +2237,74 @@ public partial class MinaBossTechnique : BossCharacterTechnique
         return (from + delta * enter, from + delta * exit);
     }
 
+    protected override bool DrawCustomBox(Node2D canvas, Rect2 rect, bool live, float progress)
+    {
+        if (_id != 15) return false;
+        if (!live)
+        {
+            Color cue = new Color("91dae8", .46f + .28f * progress);
+            canvas.DrawDashedLine(rect.Position, new Vector2(rect.Position.X, rect.End.Y), cue, .8f, 3, true);
+            canvas.DrawDashedLine(new Vector2(rect.End.X, rect.Position.Y), rect.End, cue, .8f, 3, true);
+            Vector2 origin = new(rect.GetCenter().X, Field.Top + 5);
+            canvas.DrawArc(origin, 3, 0, Mathf.Tau, 12, cue, .8f, true);
+            AttackTelegraph.Arrow(canvas, origin + Vector2.Down * 8, Vector2.Down, cue);
+            return true;
+        }
+
+        // The sheets and binding occupy the solid silhouette down to its last visible row.
+        canvas.DrawRect(rect, new Color("f1ddb8"));
+        canvas.DrawRect(rect, new Color("594055"), false, 1);
+        canvas.DrawLine(rect.Position + new Vector2(2, 3), new Vector2(rect.End.X - 2, rect.Position.Y + 3), new Color("ae8494"), 1);
+        canvas.DrawLine(new Vector2(rect.Position.X + 2, rect.End.Y - 3), rect.End - new Vector2(2, 3), new Color("ae8494"), 1);
+        canvas.DrawRect(new Rect2(rect.GetCenter().X - 2, rect.Position.Y, 4, rect.Size.Y), new Color("995675"));
+        return true;
+    }
+
     protected override void DrawTechnique()
     {
+        if (_id == 18)
+        {
+            if (!HazardShapes.Any()) return;
+            bool live = Time >= _warning;
+            Color ink = new("a5e8c5");
+            Vector2 center = Boss.GlobalPosition;
+            if (live || GameManager.ShowAttackTelegraphs)
+            {
+                if (live && UsesDangerForecast) DrawCircle(center, ReturnInner, new Color("416859", .72f));
+                Color fieldInk = new(ink.Darkened(.55f), live ? (UsesDangerForecast ? .65f : .4f) : (UsesDangerForecast ? 0 : .1f));
+                for (float y = Field.Top; y < Field.Bottom; y += 2)
+                {
+                    float dy = y + 1 - center.Y;
+                    float half = Math.Abs(dy) < ReturnOuter ? Mathf.Sqrt(ReturnOuter * ReturnOuter - dy * dy) : 0;
+                    float left = Mathf.Clamp(center.X - half, Field.Left, Field.Right);
+                    float right = Mathf.Clamp(center.X + half, Field.Left, Field.Right);
+                    DrawRect(new Rect2(Field.Left, y, left - Field.Left, 2), fieldInk);
+                    DrawRect(new Rect2(right, y, Field.Right - right, 2), fieldInk);
+                }
+                for (int i = 0; i < 48; i++)
+                {
+                    float angle = i * Mathf.Tau / 48;
+                    float span = live ? Mathf.Tau / 48 : .07f;
+                    DrawArc(center, ReturnOuter, angle, angle + span, 4, AttackTelegraph.Outline, 2, true);
+                    DrawArc(center, ReturnOuter, angle, angle + span, 4, ink, .8f, true);
+                }
+                if (!live)
+                {
+                    Vector2 direction = center.DirectionTo(Player.GlobalPosition);
+                    DrawDashedLine(center + direction * ReturnInner, Player.GlobalPosition, new Color(ink, .4f), .65f, 4, true);
+                    AttackTelegraph.DrawSymbol(this, Player.GlobalPosition, AttackTelegraph.Symbol.Target, ink);
+                }
+            }
+            DrawBodyContact(ReturnInner, ink, live);
+            return;
+        }
         if (Kind == BossTechniqueKind.Area)
         {
             DrawEasyMemory();
             return;
         }
-        if (!GameManager.ShowAttackTelegraphs) return;
+        if (!GameManager.ShowAttackTelegraphs && _id is not (11 or 13)) return;
         DrawMemoryCues();
-        if (_id == 10)
-            for (int side = 0; side < 2; side++)
-            {
-                Vector2 center = new(Field.Left + 72 + side * 174, 108);
-                DrawRect(new Rect2(center - new Vector2(43, 52), new Vector2(86, 104)),
-                    new Color(MemoryInk, .55f), false, .6f);
-            }
         if (_id == 11)
         {
             for (int i = 0; i < 35; i++)
@@ -1661,40 +2315,36 @@ public partial class MinaBossTechnique : BossCharacterTechnique
                 if (_visits[i] == 1) DrawCircle(rect.GetCenter(), 2, new Color("aee6ed"));
             }
         }
-        if (_id == 18)
-            DrawArc(Boss.GlobalPosition, 65, 0, Mathf.Tau, 64, new Color("aee6ed"), 0.8f, true);
         if (_id == 17)
         {
-            DrawLine(Boss.GlobalPosition - Vector2.Right * 34, Boss.GlobalPosition - Vector2.Right * 65, MemoryInk, 1.2f, true);
-            DrawLine(Boss.GlobalPosition + Vector2.Right * 34, Boss.GlobalPosition + Vector2.Right * 65, MemoryInk, 1.2f, true);
+            DrawLine(WingCenter - Vector2.Right * 34, WingCenter - Vector2.Right * 65, MemoryInk, 1.2f, true);
+            DrawLine(WingCenter + Vector2.Right * 34, WingCenter + Vector2.Right * 65, MemoryInk, 1.2f, true);
         }
     }
 
     private void DrawMemoryCues()
     {
-        var ink = new Color(MemoryInk, .5f);
-        var quiet = new Color(MemoryInk, .23f);
-        var received = new Color("aee6ed", .6f);
+        var ink = new Color(MemoryInk, .85f);
+        var quiet = new Color(MemoryInk, .45f);
+        var received = new Color("c4e3ec", .85f);
         float t = (float)(Time - _warning);
         switch (_id)
         {
             case 0:
             {
-                int turn = Math.Max(0, (int)(t / 1.45));
-                int empty = new[] { 4, 3, 0, 1, 2, 5, 8, 7, 6 }[turn % 9];
-                int next = new[] { 3, 0, 1, 2, 5, 8, 7, 6, 3 }[turn % 9];
-                Vector2 origin = _center - new Vector2(57, 57);
-                Vector2 vacancy = origin + new Vector2(empty % 3 * 38 + 12, empty / 3 * 38 + 12);
-                Vector2 donor = origin + new Vector2(next % 3 * 38 + 12, next / 3 * 38 + 12);
-                DrawMemoryLabel(vacancy, "空", received);
-                DrawDashedLine(donor, vacancy, quiet, .6f, 3, true);
-                for (int i = 0; i < 9; i++)
+                var cue = VisibleCacheSlide;
+                for (int cell = 0; cell < 9; cell++)
                 {
-                    if (i == empty) continue;
-                    Vector2 at = origin + new Vector2(i % 3 * 38 + 12, i / 3 * 38 + 12);
-                    float move = t < 0 ? 0 : Mathf.Clamp((float)(t % 1.45 - .65) / .65f, 0, 1);
-                    if (i == next) at = at.Lerp(vacancy, move);
-                    DrawMemoryEnvelope(at, new Vector2(12, 9), quiet);
+                    if (cell == cue.Slide.From || cell == cue.Slide.To) continue;
+                    DrawMemoryEnvelope(CacheCell(cell).GetCenter(), new Vector2(20, 13), quiet);
+                }
+                var moving = MovingCacheBounds(cue.Slide, cue.Age);
+                DrawMemoryEnvelope(moving.GetCenter(), new Vector2(Math.Min(20, moving.Size.X * .4f), Math.Min(13, moving.Size.Y * .4f)), received);
+                if (cue.Age < .6)
+                {
+                    Vector2 from = CacheCell(cue.Slide.To).GetCenter(), to = CacheCell(cue.Slide.From).GetCenter();
+                    DrawDashedLine(from, to, quiet, .7f, 4, true);
+                    AttackTelegraph.Arrow(this, from.Lerp(to, .5f), from.DirectionTo(to), received);
                 }
                 break;
             }
@@ -1729,11 +2379,11 @@ public partial class MinaBossTechnique : BossCharacterTechnique
             case 3:
                 for (int i = 0; i < 2 + Tier; i++)
                 {
-                    float y = 35 + i * 146f / (1 + Tier);
+                    float y = Field.Top + (i + .5f) * Field.Height / (2 + Tier);
                     DrawPort(new Vector2(Field.Left + 4, y), Vector2.Right, received);
                     DrawPort(new Vector2(Field.Right - 4, y), Vector2.Left, ink);
-                    DrawMemoryLabel(new Vector2(Field.Left + 16, y + 17), (i + 1).ToString(), received);
-                    DrawMemoryLabel(new Vector2(Field.Right - 16, y + 17), (i + 1).ToString(), ink);
+                    AttackTelegraph.Pips(this, new Vector2(Field.Left + 16, y + 12), i + 1, received);
+                    AttackTelegraph.Pips(this, new Vector2(Field.Right - 16, y + 12), i + 1, ink);
                 }
                 break;
             case 4:
@@ -1789,7 +2439,7 @@ public partial class MinaBossTechnique : BossCharacterTechnique
                 for (int i = 0; i < 35; i++)
                 {
                     Vector2 at = new(Field.Left + 39 + i % 7 * 38, 29 + i / 7 * 38);
-                    if (_cells[i] && !_nextCells[i]) DrawMemoryLabel(at, "−", received);
+                    if (_cells[i] && !_nextCells[i]) AttackTelegraph.DrawSymbol(this, at, AttackTelegraph.Symbol.Undo, received);
                     else if (_cells[i]) DrawMemoryEnvelope(at, new Vector2(10, 7), quiet);
                     else if (_nextCells[i])
                         DrawRect(new Rect2(at - Vector2.One * 4, Vector2.One * 8), new Color(received, .25f + .2f * Mathf.Sin((float)Time * 5)), false, .6f);
@@ -1814,35 +2464,55 @@ public partial class MinaBossTechnique : BossCharacterTechnique
                 break;
             }
             case 9:
-                for (int i = 1; i < _springX.Length; i++)
+                foreach (var wave in VisibleSpringWaves)
                 {
-                    float left = _springX[i - 1], right = _springX[i];
-                    if (left == 0 || right == 0) continue;
-                    Vector2 a = new(left + 4, _center.Y + 9), b = new(right - 4, _center.Y + 9);
-                    for (int zig = 0; zig < 4; zig++)
+                    var nodes = CompressedSpringNodes(wave.Front);
+                    float y = wave.Top + Field.Height / 4;
+                    for (int i = 1; i < nodes.Length; i++)
                     {
-                        Vector2 p0 = a.Lerp(b, zig / 4f) + Vector2.Down * (zig % 2 == 0 ? -2 : 2);
-                        Vector2 p1 = a.Lerp(b, (zig + 1) / 4f) + Vector2.Down * (zig % 2 == 0 ? 2 : -2);
-                        DrawLine(p0, p1, quiet, .5f, true);
+                        Vector2 a = new(nodes[i - 1], y), b = new(nodes[i], y);
+                        for (int zig = 0; zig < 4; zig++)
+                            DrawLine(a.Lerp(b, zig / 4f) + Vector2.Down * (zig % 2 == 0 ? -3 : 3),
+                                a.Lerp(b, (zig + 1) / 4f) + Vector2.Down * (zig % 2 == 0 ? 3 : -3), quiet, .7f, true);
+                        DrawCircle(b, 2, received);
                     }
                 }
                 break;
             case 10:
-                for (int side = 0; side < 2; side++)
+            {
+                DrawLine(new Vector2(Field.CenterX, Field.Top), new Vector2(Field.CenterX, Field.Bottom), quiet, .7f, true);
+                foreach (var band in _snapshotBands)
                 {
-                    Vector2 center = new(Field.Left + 72 + side * 174, 108);
-                    DrawMemoryEnvelope(center + Vector2.Down * 61, new Vector2(14, 10), quiet);
-                    if (_exchangePending)
-                        foreach (var memory in _memories.Where(m => m.Live && m.Index / (3 + Tier) == side))
-                            DrawRect(new Rect2(memory.Origin - Vector2.One * 3, Vector2.One * 6), quiet, false, .55f);
+                    var bounds = SnapshotBounds(band.Side, band.Y);
+                    DrawMemoryEnvelope(bounds.GetCenter(), new Vector2(16, 10), received);
+                    DrawLine(bounds.GetCenter() + Vector2.Down * Math.Sign(band.Velocity) * 14,
+                        bounds.GetCenter() + Vector2.Down * Math.Sign(band.Velocity) * 18, quiet, 1, true);
                 }
+                AttackTelegraph.DrawSymbol(this, new Vector2(Field.CenterX, 18), _exchangePending ? AttackTelegraph.Symbol.Swap : AttackTelegraph.Symbol.Record, received);
                 break;
+            }
             case 11:
+                if (Tier >= 2)
+                    foreach (var mark in VisibleVisitMarks)
+                    {
+                        DrawRect(mark.Bounds, new Color(MemoryInk, .22f), false, .5f);
+                        if (mark.Visits == 1 && mark.Imprint > 0)
+                            DrawRect(new Rect2(mark.Bounds.GetCenter() + new Vector2(1, 6), new Vector2(4, 7)),
+                                new Color(received, mark.Imprint * .8f));
+                    }
                 for (int i = 0; i < 35; i++)
                 {
                     if (_visits[i] == 0) continue;
                     Vector2 at = new(Field.Left + (i % 7 + .5f) * Field.Width / 7, (i / 7 + .5f) * Field.Height / 5);
                     int stamps = Math.Min(_visits[i], 2);
+                    if (stamps == 1)
+                    {
+                        var size = new Vector2(Field.Width / 7, Field.Height / 5);
+                        var tint = new Color(received, Mathf.Clamp((float)(Time - _firstStepAt[i]) / .45f, 0, .75f));
+                        DrawDashedLine(at + new Vector2(-.42f, -.43f) * size, at + new Vector2(.42f, -.43f) * size, tint, 1, 3);
+                        DrawDashedLine(at + new Vector2(-.42f, .43f) * size, at + new Vector2(.42f, .43f) * size, tint, 1, 3);
+                        AttackTelegraph.DrawSymbol(this, at, AttackTelegraph.Symbol.Footprint, tint);
+                    }
                     for (int stamp = 0; stamp < stamps; stamp++)
                         DrawRect(new Rect2(at + new Vector2(-7 + stamp * 8, 6), new Vector2(4, 7)), stamps == 1 ? received : quiet, false, .6f);
                 }
@@ -1860,15 +2530,23 @@ public partial class MinaBossTechnique : BossCharacterTechnique
                 break;
             case 13:
             {
-                Vector2 at = new(Field.CenterX, 34);
-                DrawMemoryEnvelope(at, new Vector2(17, 11), quiet);
-                if (_waitingReply)
+                foreach (var star in _unansweredStars)
+                    DrawMemoryEnvelope(star.At, new Vector2(8, 5), Time < star.WarnedAt + UnansweredLead ? quiet : received);
+                if (StarReplies.LastOrDefault() is { } reply)
                 {
-                    float response = Mathf.Clamp((float)(1 - (_replyAt - Time) / 1.3), 0, 1);
-                    for (int step = 0; step < 5; step++)
-                        DrawRect(new Rect2(at.X - 17 + step * 7, at.Y + 10, 4, 2), step / 5f <= response ? received : quiet);
+                    Vector2 target = reply.Target;
+                    for (int point = 0; point < 4; point++)
+                    {
+                        Vector2 axis = Vector2.FromAngle(point * Mathf.Pi / 2);
+                        DrawLine(target + axis * 3, target + axis * 8, received, .8f, true);
+                    }
+                    DrawMemoryEnvelope(target + new Vector2(10, -10), new Vector2(7, 5), received);
                 }
-                else DrawMemoryLabel(at + Vector2.Down * 18, "受信待ち", ink);
+                Vector2 letters = new(Field.CenterX, 22);
+                for (int envelope = 0; envelope < 3; envelope++)
+                    DrawMemoryEnvelope(letters + Vector2.Right * (envelope - 1) * 24, new Vector2(8, 6),
+                        envelope < StarReplies.Count ? received : quiet);
+                DrawReplyInvitation(letters + Vector2.Down * 18, received);
                 break;
             }
             case 14:
@@ -1907,10 +2585,15 @@ public partial class MinaBossTechnique : BossCharacterTechnique
             }
             case 15:
             {
-                Vector2 pivot = new(Field.CenterX, 18);
-                float angle = Mathf.Sin(Math.Max(0, t) * 1.65f) * .85f;
-                Vector2 weight = pivot + Vector2.Down.Rotated(angle) * 132;
-                DrawMemoryEnvelope(weight, new Vector2(18 + Tier * 2, 13 + Tier), quiet);
+                for (int mark = 0; mark < _burdenTurnMarks.Count; mark++)
+                    DrawMemoryEnvelope(new Vector2(_burdenTurnMarks[mark], Field.Top + 10 + mark * 8), new Vector2(9, 6), received);
+                if (t >= SwingEnd) break;
+                Vector2 pivot = BurdenPivot;
+                Vector2 weight = VisibleBurdenWeight;
+                if (t < 0)
+                    DrawArc(pivot, BurdenLength, Mathf.Pi / 2 - BurdenSwing, Mathf.Pi / 2 + BurdenSwing, 80, quiet, .7f, true);
+                AttackTelegraph.Stroke(this, new[] { pivot, weight }, ink, .55f);
+                if (Tier == 3) DrawMemoryEnvelope(weight, new Vector2(18 + Tier * 2, 13 + Tier), quiet);
                 DrawRect(new Rect2(pivot - new Vector2(8, 3), new Vector2(16, 6)), ink, false, .7f);
                 for (int knot = 1; knot < 5; knot++)
                     DrawCircle(pivot.Lerp(weight, knot / 5f), 1, quiet);
@@ -1925,7 +2608,7 @@ public partial class MinaBossTechnique : BossCharacterTechnique
                     if (row == safe && Time > _warning - .7)
                     {
                         DrawDashedLine(new Vector2(Field.Left + 58, y), new Vector2(Field.Right - 38, y), received, .6f, 5, true);
-                        DrawMemoryLabel(new Vector2(Field.Right - 22, y + 3), "取消済", received);
+                        AttackTelegraph.DrawSymbol(this, new Vector2(Field.Right - 22, y + 3), AttackTelegraph.Symbol.Undo, received);
                     }
                     else if (t < 1.4)
                         for (int word = 0; word < 4; word++)
@@ -1934,19 +2617,36 @@ public partial class MinaBossTechnique : BossCharacterTechnique
                 break;
             }
             case 17:
-                if (t >= 0)
+            {
+                int weak = WingWeakSide(Time - _warning);
+                for (int side = -1; side <= 1; side += 2)
+                for (int column = 0; column < 6; column++)
+                for (int row = 0; row < 6; row++)
                 {
-                    float beat = t % 3;
-                    float force = beat < 1.2f ? Mathf.Sin(beat / 1.2f * Mathf.Pi) : 0;
+                    float flow = side == weak ? 12 : 38;
+                    float drift = Mathf.PosMod((float)Time * flow + column * 26, Field.Width / 2 - 16);
+                    Vector2 at = new(Field.CenterX + side * (8 + drift), 16 + row * 36);
+                    DrawLine(at - Vector2.Right * side * (4 + flow * .15f), at,
+                        new Color(MemoryInk, side == weak ? .22f : .55f), .8f, true);
+                }
+                if (VisibleWingSwitch is { } change)
+                {
                     for (int side = -1; side <= 1; side += 2)
-                        for (int feather = 0; feather < 3; feather++)
+                    {
+                        bool stronger = side != change.WeakSide;
+                        Vector2 root = new(WingCenter.X + side * 42, Field.Top + 22);
+                        Color cueInk = new(MemoryInk, .9f);
+                        for (int feather = -1; feather <= 1; feather++)
                         {
-                            Vector2 a = Boss.GlobalPosition + new Vector2(side * (42 + feather * 8), -19 + feather * 12);
-                            Vector2 b = a + new Vector2(side * (10 + force * 18), force * 10);
-                            DrawLine(a, b, new Color(MemoryInk, .15f + force * .28f), .65f, true);
+                            Vector2 tip = root + new Vector2(side * (stronger ? 24 : 12), feather * (stronger ? 8 : 4));
+                            DrawDashedLine(root, tip, AttackTelegraph.Outline, 2, 3, true);
+                            DrawDashedLine(root, tip, cueInk, .8f, 3, true);
                         }
+                        AttackTelegraph.DrawSymbol(this, root + Vector2.Down * 21, AttackTelegraph.Symbol.Speed, cueInk, amount: stronger ? 1 : .2f, count: stronger ? 3 : 1, direction: Vector2.Right * side);
+                    }
                 }
                 break;
+            }
             case 18:
             {
                 Vector2 center = Boss.GlobalPosition;
@@ -1964,7 +2664,22 @@ public partial class MinaBossTechnique : BossCharacterTechnique
 
     private void DrawMemoryEnvelope(Vector2 at, Vector2 size, Color ink)
     {
+        if (_id is 0 or 10 or 13 or 15)
+        {
+            var art = WarningVisual;
+            if (Time < _warning)
+                AttackTelegraph.ProjectileOrigin(this, at, art, art.Accent, Math.Max(size.X, size.Y) * .5f);
+            else
+            {
+                float scale = Math.Min(size.X / art.Region.Size.X, size.Y / art.Region.Size.Y);
+                Vector2 extent = art.Region.Size * scale;
+                DrawTextureRect(art.Cropped, new Rect2(at - extent * .5f, extent), false, Colors.White);
+            }
+            return;
+        }
         var rect = new Rect2(at - size * .5f, size);
+        DrawRect(rect, new Color("251e34", .65f));
+        DrawRect(rect, AttackTelegraph.Outline, false, 1.6f);
         DrawRect(rect, ink, false, .55f);
         DrawLine(rect.Position, at + Vector2.Down * size.Y * .1f, ink, .55f, true);
         DrawLine(new Vector2(rect.End.X, rect.Position.Y), at + Vector2.Down * size.Y * .1f, ink, .55f, true);
@@ -1973,16 +2688,18 @@ public partial class MinaBossTechnique : BossCharacterTechnique
     private void DrawPort(Vector2 at, Vector2 direction, Color ink)
     {
         Vector2 normal = direction.Orthogonal();
-        DrawLine(at - normal * 4, at + normal * 4, ink, .7f, true);
-        DrawLine(at - normal * 4, at - normal * 4 + direction * 5, ink, .7f, true);
-        DrawLine(at + normal * 4, at + normal * 4 + direction * 5, ink, .7f, true);
+        AttackTelegraph.Stroke(this, new[] { at - normal * 4 + direction * 5, at - normal * 4,
+            at + normal * 4, at + normal * 4 + direction * 5 }, ink);
     }
 
-    private void DrawMemoryLabel(Vector2 at, string text, Color ink)
+    private void DrawReplyInvitation(Vector2 at, Color ink)
     {
-        float width = UiKit.ZenBold.GetStringSize(text, fontSize: 6).X;
-        at.X = Mathf.Clamp(at.X - width * .5f, Field.Left + 3, Field.Right - width - 3);
-        at.Y = Mathf.Clamp(at.Y, 8, Field.Bottom - 4);
-        DrawString(UiKit.ZenBold, at, text, HorizontalAlignment.Left, -1, 6, ink);
+        bool ready = ReplyReady;
+        AttackTelegraph.DrawSymbol(this, at, ready ? AttackTelegraph.Symbol.Inbox : AttackTelegraph.Symbol.Outbox, ink);
+        if (!ready) return;
+        float phase = Mathf.PosMod((float)Time * .8f, 1);
+        Vector2 mote = at + Vector2.Down * Mathf.Lerp(15, 4, phase);
+        DrawCircle(mote, 1.5f, new Color(ink, .8f));
+        DrawLine(mote + Vector2.Down * 4, mote, new Color(ink, .5f), .8f, true);
     }
 }

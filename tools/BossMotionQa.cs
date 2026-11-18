@@ -41,6 +41,12 @@ public partial class BossMotionQa : Node
             _game.Difficulty = GameManager.Diff.Lunatic;
             _game.MarkIdleDialogSeen("once_midboss_shield");
             Engine.MaxFps = 60;
+            if (OS.GetCmdlineUserArgs().Contains("--stability") || OS.GetCmdlineUserArgs().Contains("--story-only"))
+            {
+                typeof(Settings).GetProperty(nameof(Settings.PauseWhenUnfocused))!.SetValue(null, false);
+                GetNode<PauseMenu>("/root/PauseMenu").SetProcess(false);
+                DisplayServer.WindowSetFlag(DisplayServer.WindowFlags.NoFocus, true);
+            }
             DisplayServer.WindowSetMode(DisplayServer.WindowMode.Windowed);
             DisplayServer.WindowSetSize(new Vector2I(1280, 720));
             await Frames(1);
@@ -54,9 +60,10 @@ public partial class BossMotionQa : Node
             _root.Hud.HideBubble();
             _root.GetNode<StageBackground>("StageBackground").EnterBoss();
             await Frames(3);
-            if (OS.GetCmdlineUserArgs().Contains("--illustrations"))
+            if (OS.GetCmdlineUserArgs().Contains("--illustrations") || OS.GetCmdlineUserArgs().Contains("--stability"))
             {
-                await CheckIllustrations();
+                if (OS.GetCmdlineUserArgs().Contains("--stability")) await CheckStability();
+                else await CheckIllustrations();
                 _root.QueueFree();
                 await Frames(6);
                 GetNode<BulletPool>("/root/Pool").DespawnAll();
@@ -177,11 +184,13 @@ public partial class BossMotionQa : Node
             {
             Read<MinaPhaseAttacks>(mina, "_caster").SetProcess(false);
             var frames = new HashSet<string>();
+            var wingPhases = new HashSet<float>();
             mina.SetPhysicsProcess(true);
             for (int i = 0; i < 180; i++)
             {
                 await Frames(1);
                 var sprite = mina.GetNode<Sprite2D>("Body");
+                wingPhases.Add(mina.WingPhase);
                 if (!Mathf.IsZeroApprox(sprite.Rotation)) throw new Exception("dragon banks during a flap");
                 string path = sprite.Texture.ResourcePath;
                 if (frames.Add(path)) await Shot("dragon_" + System.IO.Path.GetFileNameWithoutExtension(path));
@@ -190,7 +199,8 @@ public partial class BossMotionQa : Node
                 if (!corners.Select(sprite.ToGlobal).All(p => p.X >= Field.Left - 1 && p.X <= Field.Right + 1 && p.Y >= 18 && p.Y <= Field.Bottom))
                     throw new Exception("flapping wing canvas clips the playfield: " + path);
             }
-            Check(frames.Count == 3 && frames.All(p => p.Contains("flap_")), "three symmetric wing positions, without diagonal idle or banking");
+            Check(frames.Count == 1 && frames.All(p => p.Contains("flap_level")) && wingPhases.Count > 120,
+                "continuous wing articulation on one registered drawing, without banking");
             mina.ShowSignaturePose();
             await Frames(6);
             Check(mina.GetNode<Sprite2D>("Body").Texture.ResourcePath == BossMina.BattleCostumePath(2, "attack"), "attack overrides flapping");
@@ -280,7 +290,7 @@ public partial class BossMotionQa : Node
         var drawings = new HashSet<string>();
         for (int i = 0; i < 4; i++)
         {
-            Call(boss, "TickBodyMotion", i == 0 ? 0d : 0.16d);
+            Call(boss, "TickBodyMotion", i == 0 ? 0d : 0.32d);
             drawings.Add(body.Texture.ResourcePath);
             preview.Add(BossTransformation.Frame.Capture(body));
             using var pixels = body.Texture.GetImage();
@@ -363,6 +373,99 @@ public partial class BossMotionQa : Node
         using var image = viewport.GetTexture().GetImage();
         Check(image.SavePng($"res://build/qa_story/boss_motion/{id}_motion_comparison.png") == Error.Ok, $"{id}: animation comparison saved");
         viewport.QueueFree();
+    }
+
+    private async Task CheckStability()
+    {
+        _game.EndFury();
+        _game.Difficulty = GameManager.Diff.Easy;
+        const string directory = "res://build/qa_story/boss_motion_stability_20261021";
+        DirAccess.MakeDirRecursiveAbsolute(ProjectSettings.GlobalizePath(directory));
+        var trace = new System.Text.StringBuilder("boss,form,frame,x,y,scale_x,scale_y,head,gesture,blend\n");
+        foreach (Enemy boss in new Enemy[] { new BossAkari(), new BossKoharu(), new BossRei(), new BossMina() })
+        {
+            boss.TechniquePractice = true;
+            Spawn(boss);
+            _root.Hud.HideBubble();
+            _game.EndFury();
+            var body = boss.GetNode<Sprite2D>("Body");
+            int forms = boss is BossMina ? 3 : 2;
+            for (int form = 0; form < forms; form++)
+            {
+                if (form > 0)
+                {
+                    boss.PrepareTechniquePractice(form);
+                    Call(boss, "TickSwapAnim", 1d);
+                    _root.Hud.HideBubble();
+                }
+                var position = boss.GlobalPosition;
+                float maxScaleError = 0, maxStep = 0, maxHeadStep = 0;
+                Vector2 previous = body.Position;
+                float? previousHead = null;
+                var textures = new HashSet<string>();
+                var blends = new HashSet<float>();
+                var wings = new HashSet<float>();
+                for (int frame = 0; frame < 240; frame++)
+                {
+                    if (frame >= 80 && frame < 160 && frame % 15 == 0)
+                        Call(boss, "TriggerAttackPose");
+                    Call(boss, "TickSwapAnim", 1d / 60);
+                    Call(boss, "TickAttackPose", 1d / 60);
+                    Call(boss, "TickBodyMotion", 1d / 60);
+                    Call(boss, "TickIllustrationMotion", 1d / 60);
+                    float baseScale = Read<float>(boss, "_baseScale");
+                    Vector2 scale = body.Scale / baseScale;
+                    maxScaleError = Math.Max(maxScaleError, (scale - Vector2.One).Length());
+                    maxStep = Math.Max(maxStep, body.Position.DistanceTo(previous));
+                    previous = body.Position;
+                    textures.Add(body.Texture.ResourcePath);
+                    if (body.Material is ShaderMaterial material)
+                    {
+                        float head = (float)material.GetShaderParameter("head_turn");
+                        float gesture = (float)material.GetShaderParameter("gesture");
+                        float blend = (float)material.GetShaderParameter("blend_amount");
+                        blends.Add(blend);
+                        wings.Add((float)material.GetShaderParameter("wing_flap"));
+                        if (previousHead.HasValue) maxHeadStep = Math.Max(maxHeadStep, Math.Abs(head - previousHead.Value));
+                        previousHead = head;
+                        trace.AppendLine(FormattableString.Invariant($"{boss.GetType().Name},{form},{frame},{body.Position.X},{body.Position.Y},{scale.X},{scale.Y},{head},{gesture},{blend}"));
+                    }
+                    await Frames(1);
+                }
+                Check(maxScaleError < .001f, $"{boss.GetType().Name} form {form}: no attack enlargement ({maxScaleError:F4})");
+                Check(maxStep < .5f, $"{boss.GetType().Name} form {form}: local motion step {maxStep:F4}px");
+                Check(maxHeadStep < .012f, $"{boss.GetType().Name} form {form}: gesture continuity {maxHeadStep:F5}rad");
+                Check(boss.GlobalPosition == position, $"{boss.GetType().Name} form {form}: visual animation preserves collision position");
+                Check(!GetTree().Paused, $"{boss.GetType().Name} form {form}: capture stays unobstructed");
+                if ((form > 0 && boss is not BossMina) || boss is BossRei)
+                    Check(textures.Count >= 3 && blends.Count > 8,
+                        $"{boss.GetType().Name} form {form}: registered pose interpolation ({textures.Count} poses, {blends.Count} weights)");
+                if (boss is BossMina && form == 2)
+                    Check(wings.Count > 60 && blends.All(value => value == 0),
+                        "Mina dragon: continuous single-image wing animation without ghosting");
+                if (DisplayServer.GetName() != "headless") await Shot(boss.GetType().Name + "_stable_" + form);
+            }
+            boss.QueueFree();
+            await Frames(2);
+        }
+        foreach (string name in new[] { "akari", "koharu", "rei", "mina" })
+        {
+            var mover = new BossMover();
+            mover.Configure(name, new Vector2(Field.CenterX, Field.CenterY), 80, 50);
+            Vector2 pos = new(250, 108);
+            float lean = 0, offset = 0;
+            for (int frame = 0; frame < 1800; frame++)
+            {
+                mover.SetPlayerPos(new Vector2(frame % 360 < 180 ? 60 : 320, 160));
+                if (frame % 90 == 0) mover.DeclareAttack(BossMover.Attack.Aimed);
+                pos = mover.Step(pos, 1d / 60);
+                lean = Math.Max(lean, Math.Abs(mover.Lean));
+                offset = Math.Max(offset, mover.VisualOffset.Length());
+            }
+            Check(lean <= .05f && offset <= .55f, $"{name}: moving pose limits lean={Mathf.RadToDeg(lean):F2}deg offset={offset:F3}px");
+        }
+        System.IO.File.WriteAllText(ProjectSettings.GlobalizePath(directory + "/motion.csv"), trace.ToString());
+        GD.Print("[BossMotionQA] stability complete; stationary bosses with repeated attack cues, player disabled");
     }
 
     private async Task CheckIllustrations()
@@ -709,17 +812,33 @@ public partial class BossMotionQa : Node
             bool capture = boss is BossMina ? job == Job.Magic : job == Job.Tank;
             string label = boss.GetType().Name + "_story";
             await FinishTransformationDialogue(fx, capture ? label + "_before" : null);
-            fx._Process(.8);
+            var movie = Read<VideoStreamPlayer>(fx, "_movie");
+            Check(movie.Stream.ResourcePath == BossTransformation.VideoPath(boss.UnfolderStyle), "matching Resolve cut-in is loaded");
+            await AdvanceMovie(fx, .8);
             if (capture) await Shot(label + "_gather");
-            fx._Process(.6);
+            if (job == Job.Tank)
+            {
+                GetTree().Paused = true;
+                double pausedAt = movie.StreamPosition;
+                await Frames(10);
+                Check(Math.Abs(movie.StreamPosition - pausedAt) < .02, "pause freezes movie playback");
+                GetTree().Paused = false;
+            }
+            await AdvanceMovie(fx, 1.4);
+            Check(Read<bool>(fx, "_revealed"), "movie impact advances the form and music cue");
             if (capture) await Shot(label + "_impact");
-            fx._Process(1.61);
+            if (capture)
+            {
+                await AdvanceMovie(fx, 2.1);
+                await Shot(label + "_reveal");
+            }
+            await AdvanceMovie(fx, BossTransformation.Duration);
             Check(Read<CharacterStoryTalk>(fx, "_dialogue").Active && boss.Transforming && !boss.Visible,
                 "new form stays in the scene until its response is read");
             await FinishTransformationDialogue(fx, capture ? label + "_after" : null, after: true);
             await Frames(2);
             Check(boss.Visible && !boss.Transforming && !_root.Hud.CinematicMode && !Hud.BubblePaused
-                && !_root.Hud.HoldBubble && !_root.Hud.BattleMemoryTempo && _root.Player.IsPhysicsProcessing()
+                && !_root.Hud.HoldBubble && _root.Player.IsPhysicsProcessing()
                 && _root.World.ProcessMode == ProcessModeEnum.Inherit && _game.ProcessMode != ProcessModeEnum.Disabled,
                 $"{boss.GetType().Name}/{job}: conversation restores battle");
             if (boss is BossMina mina) Check(!mina.Transitioning, "dragon callback arms the next phase");
@@ -736,11 +855,11 @@ public partial class BossMotionQa : Node
             fx.SetProcess(false);
             await Frames(2);
             if (step > 0) await FinishTransformationDialogue(fx);
-            if (step == 2) fx._Process(BossTransformation.Duration);
+            if (step == 2) await AdvanceMovie(fx, .8);
             fx.QueueFree();
             await Frames(2);
             Check(completed == 0 && probe.Visible && !_root.Hud.CinematicMode && !Hud.BubblePaused
-                && !_root.Hud.HoldBubble && !_root.Hud.BattleMemoryTempo
+                && !_root.Hud.HoldBubble
                 && _root.World.ProcessMode == ProcessModeEnum.Inherit && _root.Player.IsPhysicsProcessing(),
                 $"interruption at step {step} restores state without completing the transition");
         }
@@ -751,12 +870,13 @@ public partial class BossMotionQa : Node
             var fx = BossTransformation.Play(probe, BossTransformation.Frame.Capture(probe.GetNode<Sprite2D>("Body")), () => completed++);
             fx.SetProcess(false);
             await Frames(2);
-            for (int i = 0; i < 100 && !fx.IsQueuedForDeletion(); i++)
+            for (int i = 0; i < 900 && IsInstanceValid(fx) && !fx.IsQueuedForDeletion(); i++)
             {
                 _root.Hud._Process(2);
                 fx._Process(2);
+                await Frames(1);
             }
-            Check(fx.IsQueuedForDeletion(), auto ? "AUTO finishes the entire scene" : "SKIP finishes the entire scene");
+            Check(!IsInstanceValid(fx) || fx.IsQueuedForDeletion(), auto ? "AUTO finishes the entire scene" : "SKIP finishes the entire scene");
             await Frames(2);
         }
         Check(completed == 2, "completion callback runs once per completed scene");
@@ -772,6 +892,15 @@ public partial class BossMotionQa : Node
     private async Task Frames(int count)
     {
         for (int i = 0; i < count; i++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+    }
+    private async Task AdvanceMovie(BossTransformation effect, double target)
+    {
+        for (int frame = 0; frame < 600 && Read<double>(effect, "_time") < target; frame++)
+        {
+            await Frames(1);
+            effect._Process(0);
+        }
+        Check(Read<double>(effect, "_time") >= target, $"movie reaches {target:0.00}s");
     }
     private async Task CompareAnimalSizes()
     {
@@ -803,7 +932,9 @@ public partial class BossMotionQa : Node
     }
     private async Task Shot(string name)
     {
-        const string dir = "res://build/qa_story/boss_motion";
+        if (DisplayServer.GetName() == "headless") return;
+        string dir = OS.GetCmdlineUserArgs().Contains("--cutin-video")
+            ? "res://build/qa_story/boss_cutins_revision3/game_shots" : "res://build/qa_story/boss_motion";
         DirAccess.MakeDirRecursiveAbsolute(ProjectSettings.GlobalizePath(dir));
         await ToSignal(RenderingServer.Singleton, RenderingServer.SignalName.FramePostDraw);
         using var pixels = GetViewport().GetTexture().GetImage();

@@ -8,10 +8,13 @@ using System.Threading.Tasks;
 public partial class BossTechniqueVideo : Node
 {
     private const BindingFlags Private = BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public;
+    private static readonly Dictionary<(Type, string), FieldInfo> Fields = new();
     private static FieldInfo FieldOf(object obj, string name)
     {
+        var key = (obj.GetType(), name);
+        if (Fields.TryGetValue(key, out var cached)) return cached;
         for (var type = obj.GetType(); type != null; type = type.BaseType)
-            if (type.GetField(name, Private | BindingFlags.DeclaredOnly) is { } field) return field;
+            if (type.GetField(name, Private | BindingFlags.DeclaredOnly) is { } field) return Fields[key] = field;
         throw new MissingFieldException(name);
     }
     private static T Read<T>(object obj, string name) => (T)FieldOf(obj, name).GetValue(obj)!;
@@ -36,6 +39,7 @@ public partial class BossTechniqueVideo : Node
 
     public override async void _Ready()
     {
+        if (OS.GetCmdlineUserArgs().Contains("--clear-run")) { await RunClearBattle(); return; }
         if (OS.GetCmdlineUserArgs().Contains("--easy") || OS.GetCmdlineUserArgs().Any(arg => arg.StartsWith("--difficulty="))) { await RunEasy(); return; }
         try
         {
@@ -192,6 +196,7 @@ public partial class BossTechniqueVideo : Node
 
     public override void _PhysicsProcess(double delta)
     {
+        if (_clearBattle) { TickClearBattle(delta); return; }
         if (_easyMode) { TickEasyPilot(delta); return; }
         if (!_running) return;
         _pilot.Update(delta, shoot: false, bombs: false, dodge: false);

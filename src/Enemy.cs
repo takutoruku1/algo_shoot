@@ -121,15 +121,28 @@ public partial class Enemy : Area2D
     private Texture2D[]? _reiAvatarFrames;
     private double _reiMotionTime;
     private ShaderMaterial? _reiMotionMaterial;
+    private ShaderMaterial? _frameMotionMaterial;
     private int _reiMotionFrame, _reiNextFrame;
     private double _reiBlendTime, _reiBlendDuration;
     private BossIllustrationMotion? _illustrationMotion;
     protected Sprite2D BodySprite => _bodySprite;
+    internal Sprite2D? FadingBody => _fadeSprite;
     protected bool BodyMotionReady => !_bodyDown && !_purified && !_crying && !_entering && !_swapAnim;
     protected bool BodyAttacking => _attackPoseT > 0;
     private BossTransformation? _transformation;
     public bool Transforming => IsInstanceValid(_transformation) && !_transformation!.IsQueuedForDeletion();
     internal bool HasEvolved => _form2 || this is BossMina { EncounterPhase: > 0 };
+    // Boss body attacks use their visible technique hazards; this shape still receives player shots.
+    internal bool BodyContactDamaging => BodyShotJob is null && !_purified;
+    internal bool BossInArena { get; private set; }
+    internal bool BossFrameEntering => _bossEntryTime < _bossEntryDuration;
+    private float _bossEntryTime, _bossEntryDuration;
+    private Vector2 _bossTravelFrom, _bossTravelTo, _bossTravelControl;
+    private float _bossFrameReveal = 1;
+    internal bool BossFrameReturning => !BossInArena && !_purified && _bossFrameReveal < 1;
+    internal float BossArenaRight => _purified ? Field.WorldRight : Field.WorldRight - Field.BossFrameWidth * _bossFrameReveal;
+    internal Vector2 TechniqueCenter => BodyShotJob.HasValue && !BossInArena
+        ? new Vector2(Field.Right - 12, Mathf.Clamp(GlobalPosition.Y, 24, Field.Bottom - 24)) : GlobalPosition;
     internal Job? BodyShotJob => this switch
     {
         BossAkari => Job.Melee,
@@ -156,7 +169,7 @@ public partial class Enemy : Area2D
 
     // ─── ボス用：言葉のシールド＋無防備窓サイクル（HPバー方式リワーク）───
     // SHIELDED（周回パネル・通常弾幕。弾はパネルのInkを削るだけ。本体HPは減らない）
-    //  → 全パネル破壊で BREAK（タメ＋合図演出）
+    //  → 全パネル破壊後は弾幕中も本体HPへ通り、技の自然終了で BREAK（タメ＋合図演出）
     //  → EXPOSED 無防備窓（プレイヤー弾の威力が本体HPへ直通。パネル復活なし）
     //  → 窓終了で RECLOSE（キャラ別セリフ→パネル一括再生成）→ SHIELDED
     //  → HP<=0 で Redeem()
@@ -164,11 +177,14 @@ public partial class Enemy : Area2D
     private BossPhase _phase = BossPhase.Shielded;
     private double _phaseT; // 現フェーズ経過秒
     private BossCharacterTechnique? _shieldTechnique;
-    internal bool UsesTechniqueCycle => this is CameoBoss || GameManager.Instance?.Difficulty >= GameManager.Diff.Normal
+    internal bool TechniquePractice { get; set; }
+    internal bool RallyGuarded { get; set; }
+    internal BossAttackCycle.Slot[]? PracticeSlots { get; set; }
+    internal bool UsesTechniqueCycle => TechniquePractice || this is CameoBoss || GameManager.Instance?.Difficulty >= GameManager.Diff.Normal
         && this is BossAkari or BossKoharu or BossRei or BossMina;
     internal bool UsesEasyTechniqueSlots => GameManager.Instance?.Difficulty == GameManager.Diff.Easy
         && this is BossAkari or BossKoharu or BossRei or BossMina;
-    public int BarHp { get; private set; } = 100;
+    public int BarHp { get; protected set; } = 100;
     protected int BarCount = 0;                    // >0でHPバー方式に。総HP=BarHp×BarCount（派生が設定）。
     private const double VulnDur = 8.0;            // 無防備窓（全難易度共通）
     private const double BreakCueDur = 0.45;       // BREAK タメ＋合図
@@ -179,20 +195,10 @@ public partial class Enemy : Area2D
     // 当たり判定(_bodyShape/本体GlobalPosition/自機ヒット半径)は一切変えない＝ダメージ計算のみ。
     //   ★2026-09-13 ジョブ導入：距離ボーナスの値はジョブ表（Jobs / JobTuning）へ移した。
     //     しきい値は Jobs.CloseRange(48px) ＝ここの旧 PointBlankRange と同値（判定の見え方は不変）。
-    //     倍率と上限は JobDef.CritMult / CritCap（他ジョブ ×1.25・上限5 ／ 灯し手 ×2.0・上限8 ／ 語り手は無効）。
+    //     倍率と上限は JobDef.CritMult / CritCap を参照する。
     //     鏡像として Jobs.FarRange(120px) より遠い命中に JobDef.FarMult（語り手のみ ×1.3）を掛ける。
     private const float PointBlankRange = Jobs.CloseRange;
-    // ── 1つの無防備窓で本体へ通せる被ダメ上限（窓キャップ）──
-    //   1窓で削れる量を頭打ちにし、密着クリティカル＋高連射での「1窓即殺」を抑える。
-    //   到達後はその窓では本体HPが減らない（弾の Despawn は継続＝撃ち心地は残す）。EnterExposed で 0 にリセット。
-    //   密着クリティカルは上限を超えず「到達を早める」だけ＝近づく価値は残しつつ過剰削りを抑える。
-    //   #25 のHP増（Normal以上+1本）に合わせ 90→100＝ちょうど1本ぶん。未強化でも窓数が伸びすぎない。
-    //   #b案：到達した瞬間に窓（VulnDur=4.0s）の残り時間を待たず TickBossPhase が即 EnterReclose へ進める
-    //   （火力に投資するほど窓が早く閉じ、次のBREAKへ速く進む＝テンポでリターンを返す。詳細は TickBossPhase 参照）。
-    protected virtual int WindowCap => GameManager.Instance?.ExposedDamageCap ?? 180;
     private int _windowDamage;                      // 現在の無防備窓で本体へ通した累計ダメージ
-    private int _windowHpFloor;
-    private bool _windowCapNotified;               // 本体ヒットのクールダウン（同一フレームの多重弾で過剰に削れるのを軽く抑える補助）。
     private double _bodyHitCd;
     protected const double BodyHitCd = 0.05;
     private int _maxHp;                             // 総HP（=BarHp×BarCount）
@@ -215,7 +221,7 @@ public partial class Enemy : Area2D
 
     private readonly List<Panel> _panels = new List<Panel>();
     private bool _purified;
-    private bool _bombPurify; // この浄化がボム由来か。報酬側のボムキャップ判定にだけ使う（演出・消滅処理は一切不変）
+    private bool _bombPurify;
     private bool _crying;     // 大泣き中（3段階浄化の中間）
     private double _cryT;
     // ── 改心（cry）の保険タイムアウト（softlock 防止）──
@@ -317,7 +323,8 @@ public partial class Enemy : Area2D
 
     public bool IsPurified => _purified;
     private BossDanmaku? _danmaku;
-    protected bool BarrageHolding => _danmaku?.Holding ?? false;
+    internal BossAttackCycle.History TechniqueHistory { get; } = new();
+    protected bool BarrageHolding => BossFrameEntering || BossFrameReturning || (_danmaku?.Holding ?? false);
     internal bool CrossfireActive => _danmaku?.CrossfireActive ?? false;
     internal bool DodgeWaveActive => _danmaku?.DodgeWaveActive ?? false;
     protected BossShotStyle BodyShotStyle = BossShotStyle.Aimed;
@@ -358,6 +365,14 @@ public partial class Enemy : Area2D
 
         BarHp = Mathf.RoundToInt(100f * (GameManager.Instance?.BossHpMul ?? 1f));
         OnEnemyReady();
+        if (BodyShotJob.HasValue)
+        {
+            Field.EnterBossArena(this);
+            TreeExited += () => Field.LeaveBossArena(this);
+            ZIndex = 7;
+            BossBattleFrame.Attach(this);
+            ShowLunaticEncounterLine();
+        }
         _totalPanelInk = Mathf.CeilToInt(PanelCount * PanelInk * PanelHpMul);
         // ★当たり判定は OnEnemyReady の後で作る：BodyRadius / BodyHalfH は派生（MidEnemy / 各ボスの
         //   boss_stats.ini）が OnEnemyReady で上書きするので、その前に作ると全敵が基底の既定値 9px の
@@ -372,6 +387,7 @@ public partial class Enemy : Area2D
                 : new CircleShape2D { Radius = BodyRadius },
         };
         AddChild(_bodyShape);
+        FitBodyTargetToFrame();
         _maxHp = BarCount * BarHp;
         _hp = _maxHp;
         if (_maxHp > 0) _danmaku = new BossDanmaku(this);
@@ -412,7 +428,7 @@ public partial class Enemy : Area2D
         {
             // ステージは AddChild の後に GlobalPosition を入れるので、軌道確定は初回tickまで遅延する。
             _entInit = true;
-            _entTarget = new Vector2(Mathf.Min(GlobalPosition.X, EntLandXMax), GlobalPosition.Y);
+            _entTarget = new Vector2(BodyShotJob.HasValue ? Field.BossFrameCenterX : Mathf.Min(GlobalPosition.X, EntLandXMax), GlobalPosition.Y);
             _entPeek = new Vector2(392f, _entTarget.Y); // 右端に体の端がわずかに覗く位置
             _entPull = new Vector2(438f, _entTarget.Y); // 完全に画面外（タメ）
             GlobalPosition = _entPeek;
@@ -518,20 +534,29 @@ public partial class Enemy : Area2D
     // 当たり判定（Area2D の GlobalPosition・_bodyShape）と弾の発射は一切触らない。
     private void SetFacingLeft(bool faceLeft)
     {
-        bool flip = faceLeft == (BossAnimalArt.Contains(_bodySprite.Texture) ? false : _artFacesRight);
-        if (_bodySprite.FlipH == flip) return;
-        _bodySprite.FlipH = flip;
-        ApplyBodyOffset();   // 反転は Offset.x の効きも反転する＝入れ直して足元と中心を動かさない
-        // 差し替えクロスフェード中の旧絵も一緒に向ける（片方だけ残ると二枚の顔が逆向きに重なる）。
+        bool flip = faceLeft == BodyArtFacesRight(_bodySprite.Texture);
+        if (_bodySprite.FlipH != flip)
+        {
+            _bodySprite.FlipH = flip;
+            ApplyBodyOffset();
+        }
         if (_fadeSprite != null)
         {
-            _fadeSprite.FlipH = flip;
-            _fadeSprite.Offset = new Vector2(-_fadeSprite.Offset.X, _fadeSprite.Offset.Y);
+            bool fadeFlip = faceLeft == BodyArtFacesRight(_fadeSprite.Texture);
+            if (_fadeSprite.FlipH != fadeFlip)
+            {
+                _fadeSprite.FlipH = fadeFlip;
+                _fadeSprite.Offset = new Vector2(-_fadeSprite.Offset.X, _fadeSprite.Offset.Y);
+            }
         }
         _parts?.SetFlip(flip);
     }
 
+    private bool BodyArtFacesRight(Texture2D texture)
+        => !BossAnimalArt.Contains(texture) && !texture.ResourcePath.Contains("/mina_dragon/") && _artFacesRight;
+
     protected virtual void OnEnemyReady() { }
+    protected virtual void OnBodyTextureSwapped(Sprite2D? fadingBody) { }
 
     // ─── スペルカードの弾形・色（RefrainHTML Danmaku v3）───
     // 派生ボスがパターン切替時に SetSpellVisual で更新し、FireBullet が反映する。
@@ -554,9 +579,8 @@ public partial class Enemy : Area2D
     //   道中ザコの生命感モーション）を足した点。＝弾はいつでも絵の真ん中から出る。
     // ★BossParts の姿勢オフセット（_bodySprite.Offset）は足さない：あれは「姿勢ごとに絵の枠が変わるぶん
     //   足元を揃える」補正で、体そのものは動いていない（足すと攻撃姿勢の一瞬だけ出どころがずれる）。
-    public Vector2 ShotCenter => _hasBodyTex && _bodySprite != null
-        ? GlobalPosition + _bodySprite.Position
-        : GlobalPosition;
+    public Vector2 ShotCenter => BodyShotJob.HasValue && !BossInArena ? TechniqueCenter
+        : _hasBodyTex && _bodySprite != null ? GlobalPosition + _bodySprite.Position : GlobalPosition;
 
     // 置き弾・落下弾はキャラクターの本体射撃へ変換せず、元のスペル素材と軌道を保つ。
     protected virtual Bullet FireBullet(BulletPool pool, Vector2 pos, Vector2 vel, float radius = 3.4f, int dmg = 1,
@@ -571,7 +595,8 @@ public partial class Enemy : Area2D
         if (characterShot && GetTree().GetFirstNodeInGroup("player") is Node2D player
             && vel.Normalized().Dot(pos.DirectionTo(player.GlobalPosition)) > 0.99999f)
             b.BossAimTarget = player.GlobalPosition;
-        if (!characterShot && CurSprite != null) b.SetSprite(CurSprite, CurSpriteRot);
+        if (!characterShot && CurSprite != null) b.SetEnemySprite(CurSprite, CurSpriteRot, (this as MidEnemy)?.RoadAnimation);
+        else if (!characterShot && BodyShotJob is Job job) b.UseCharacterProjectile(job);
         // 改心後の遅延発射は表示・衝突させずに返す（撃破の瞬間に消した弾が後追いで湧かない）。
         //   BulletPool.Spawn の BubblePaused と同じ作法＝呼び元が b を触っても落ちない。
         if (_purified || GaugeVulnerable || GaugeReforming) pool.Despawn(b);
@@ -621,6 +646,7 @@ public partial class Enemy : Area2D
                 _ => UnfolderKind.Rei,
             } : UnfolderStyle;
             _illustrationMotion = new BossIllustrationMotion(character);
+            BossIllustrationMotion.AttachReadability(_bodySprite);
         }
     }
 
@@ -643,7 +669,8 @@ public partial class Enemy : Area2D
 
     protected virtual (float Scale, Vector2 Offset) ResolveBodyFrame(Texture2D texture)
         => BossAnimalArt.Contains(texture) ? BossAnimalArt.Frame(texture)
-            : BossDownArt.IsBreathing(texture) || texture.ResourcePath == DownTexPath || texture.ResourcePath == Form2DownTexPath
+            : BossDownArt.IsBreathing(texture) || !string.IsNullOrEmpty(texture.ResourcePath)
+                && (texture.ResourcePath == DownTexPath || texture.ResourcePath == Form2DownTexPath)
             ? BossDownArt.Frame(texture) : GetBodyFrame(texture);
 
     private void SetDownBody(bool down)
@@ -691,11 +718,10 @@ public partial class Enemy : Area2D
         _bodySprite.Offset = _bodySprite.FlipH ? new Vector2(-o.X, o.Y) : o;
     }
 
-    // 姿勢を切り替える（絵の差し替えとは別＝オフセットだけ。差し替えは SwapBody が担う）。
+    // Register the new pose only after installing its texture, so the outgoing pose keeps its anchor.
     protected void SetBodyPose(BossParts.Pose pose)
     {
         _bodyPose = pose;
-        ApplyBodyOffset();
     }
 
     // 攻撃の一拍：本体を攻撃絵へ差し替え、AttackPoseDur 秒後に待機へ戻す（TickAttackPose）。
@@ -744,11 +770,17 @@ public partial class Enemy : Area2D
 
     protected void SetMotionFrame(Texture2D texture)
     {
+        if (_frameMotionMaterial != null && _bodySprite.Material == _frameMotionMaterial)
+            _bodySprite.Material = null;
         if (_reiMotionMaterial != null && _bodySprite.Material == _reiMotionMaterial
             && System.Array.IndexOf(_reiAvatarFrames!, texture) < 0)
             _bodySprite.Material = null;
-        if (_bodySprite.Texture == texture) return;
-        if (BossAnimalArt.Contains(_bodySprite.Texture) != BossAnimalArt.Contains(texture))
+        if (_bodySprite.Texture == texture)
+        {
+            ApplyBodyOffset();
+            return;
+        }
+        if (BodyArtFacesRight(_bodySprite.Texture) != BodyArtFacesRight(texture))
             _bodySprite.FlipH = !_bodySprite.FlipH;
         _bodySprite.Texture = texture;
         _baseScale = BodyDisplayH / texture.GetHeight() * _bodyScaleMul * ResolveBodyFrame(texture).Scale;
@@ -765,6 +797,32 @@ public partial class Enemy : Area2D
             _reiAvatarFrames[frame + 8] = GD.Load<Texture2D>($"res://char/v3/boss_motion/rei_cast_v3/frame_{frame:00}.png");
         }
         _reiMotionMaterial = new ShaderMaterial { Shader = new Shader { Code = BossIllustrationMotion.ShaderCode } };
+    }
+
+    protected void BlendMotionFrames(Texture2D first, Texture2D next, float blend)
+    {
+        _frameMotionMaterial ??= new ShaderMaterial { Shader = new Shader { Code = BossIllustrationMotion.ShaderCode } };
+        SetMotionFrame(first);
+        SetFrameBlend(_frameMotionMaterial, first, next, blend);
+    }
+
+    private void SetFrameBlend(ShaderMaterial material, Texture2D first, Texture2D next, float blend)
+    {
+        var a = ResolveBodyFrame(first);
+        var b = ResolveBodyFrame(next);
+        Vector2 firstSize = first.GetSize() * a.Scale / first.GetHeight();
+        Vector2 nextSize = next.GetSize() * b.Scale / next.GetHeight();
+        Vector2 ratio = firstSize / nextSize;
+        Vector2 shift = Vector2.One * .5f - ratio * .5f
+            + (a.Offset * a.Scale / first.GetHeight() - b.Offset * b.Scale / next.GetHeight()) / nextSize;
+        // Express both poses in the same registered space, including pixels beyond the first canvas.
+        Vector2 start = (-shift / ratio).Min(Vector2.Zero) - Vector2.One * .06f;
+        Vector2 end = ((Vector2.One - shift) / ratio).Max(Vector2.One) + Vector2.One * .06f;
+        _bodySprite.Material = material;
+        material.SetShaderParameter("next_frame", next);
+        material.SetShaderParameter("next_frame_uv", new Vector4(ratio.X, ratio.Y, shift.X, shift.Y));
+        material.SetShaderParameter("frame_rect", new Vector4(start.X, start.Y, end.X - start.X, end.Y - start.Y));
+        material.SetShaderParameter("blend_amount", Mathf.SmoothStep(0, 1, blend));
     }
 
     private void TickReiAvatarFrame(int target, double delta)
@@ -787,10 +845,8 @@ public partial class Enemy : Area2D
         Vector2 squash = _bodySprite.Scale / _baseScale;
         SetMotionFrame(_reiAvatarFrames![_reiMotionFrame]);
         _bodySprite.Scale = squash * _baseScale;
-        _bodySprite.Material = _reiMotionMaterial;
-        _reiMotionMaterial!.SetShaderParameter("next_frame", _reiAvatarFrames[_reiNextFrame]);
         float blend = _reiMotionFrame == _reiNextFrame ? 0 : (float)(_reiBlendTime / _reiBlendDuration);
-        _reiMotionMaterial.SetShaderParameter("blend_amount", Mathf.SmoothStep(0, 1, blend));
+        SetFrameBlend(_reiMotionMaterial!, _reiAvatarFrames[_reiMotionFrame], _reiAvatarFrames[_reiNextFrame], blend);
     }
 
     protected virtual void TickBodyMotion(double delta)
@@ -807,14 +863,20 @@ public partial class Enemy : Area2D
         }
         if (!_form2 || BodyAttacking) return;
         _animalMotionT += delta;
-        SetMotionFrame(_animalFrames[_animalWindup ? 4 : (int)(_animalMotionT / 0.16) % 4]);
+        if (_animalWindup) SetMotionFrame(_animalFrames[4]);
+        else
+        {
+            double beat = _animalMotionT / .32;
+            int frame = (int)beat % 4;
+            BlendMotionFrames(_animalFrames[frame], _animalFrames[(frame + 1) % 4], (float)(beat % 1));
+        }
     }
 
     private void TickIllustrationMotion(double delta)
     {
-        if (!BodyMotionReady) return;
+        if (_bodyDown || _purified || _crying || _entering) return;
         _illustrationMotion?.Tick(_bodySprite, delta, BossAnimalArt.Contains(_bodySprite.Texture),
-            this is BossMina { IsDragonForm: true }, _shieldTechnique);
+            this is BossMina { IsDragonForm: true }, _shieldTechnique, this is BossMina mina ? mina.WingPhase : 0);
     }
 
     protected bool TickForm2Technique(double delta, BossMover mover, AreaSpellCaster caster)
@@ -872,6 +934,13 @@ public partial class Enemy : Area2D
     //   両方がここを通るので、4体ぶんの切り分けがこの1点に集まる。
     protected void RevealForm(BossTransformation.Frame previous, System.Action? completed = null)
     {
+        if (TechniquePractice)
+        {
+            GetNodeOrNull<BossPostSequence>("PostSequence")?.ResumeMusic(0.2f);
+            FinishFormReveal();
+            completed?.Invoke();
+            return;
+        }
         if (GameManager.LunaticActive)
         {
             BossTransformation.FlashForm(this);
@@ -882,6 +951,15 @@ public partial class Enemy : Area2D
     }
 
     internal void FinishFormReveal() => TickSwapAnim(1d);
+
+    protected virtual string LunaticEncounterLine => "";
+
+    protected void ShowLunaticEncounterLine()
+    {
+        if (!GameManager.LunaticActive || TechniquePractice || BodyShotJob is not Job speaker) return;
+        if (LunaticEncounterLine is { Length: > 0 } line)
+            (GetTree().GetFirstNodeInGroup("hud") as Hud)?.ShowEncounterLine(this, speaker, line);
+    }
 
     private void SpawnPanels()
     {
@@ -911,6 +989,15 @@ public partial class Enemy : Area2D
             if (distance < nearest) { best = panel; nearest = distance; }
         }
         return best;
+    }
+
+    internal bool TryStripPanelFromAttack(Vector2 source)
+    {
+        if (TechniquePractice || Transforming) return false;
+        var panel = SelectUnfolder(source, null);
+        if (panel == null) return false;
+        panel.Shatter();
+        return !_panels.Contains(panel);
     }
 
     private void SpawnOnePanel(float baseAngle, int index)
@@ -945,10 +1032,17 @@ public partial class Enemy : Area2D
     // ─── 無防備窓サイクルのフェーズ遷移 ───
     private void ResolveShieldBreak()
     {
+        // Even an opening bomb must leave time for this bar's volley to start.
+        if (this is CameoBoss { SealsEachBar: true } && _shieldTechnique == null) return;
         if (TechniqueInProgress)
         {
             _phase = BossPhase.Resolving;
             _phaseT = 0;
+            _bodyHitCd = 0;
+            SetDeferred(Area2D.PropertyName.Monitoring, true);
+            CallDeferred(MethodName.SetCollisionMaskValue, 2, true);
+            _bodyShape?.SetDeferred(CollisionShape2D.PropertyName.Disabled, false);
+            FxLayer.Instance?.BossExpose(GlobalPosition, BodyDisplayH);
             _shieldLayer?.QueueRedraw();
             QueueRedraw();
             return;
@@ -957,16 +1051,85 @@ public partial class Enemy : Area2D
     }
 
     private bool TechniqueInProgress => IsInstanceValid(_shieldTechnique) && !_shieldTechnique!.Finished;
+    internal bool FinishingSealedBarAttack => this is CameoBoss { SealsEachBar: true } && GaugeReforming && TechniqueInProgress;
 
     internal void OnTechniqueStarted(BossCharacterTechnique technique)
     {
+        TechniqueHistory.Start(new(technique.TechniqueKind, technique.TechniqueVariant));
         _shieldTechnique = technique;
+        if (this is CameoBoss { SealsEachBar: true } && _phase == BossPhase.Shielded && _panels.Count == 0)
+            ResolveShieldBreak();
         _shieldLayer?.QueueRedraw();
     }
 
     internal void OnTechniqueFinished(BossCharacterTechnique technique)
     {
+        if (_shieldTechnique == technique || BossInArena)
+        {
+            if (BossInArena) _bossTravelFrom = GlobalPosition;
+            _bossEntryTime = _bossEntryDuration;
+            BossInArena = false;
+            ZIndex = 7;
+            FitBodyTargetToFrame();
+            if (BodyShotJob.HasValue)
+            {
+                if (!BossFrameReturning && !_purified) GlobalPosition = new Vector2(Field.BossFrameCenterX, GlobalPosition.Y);
+                SetFacingLeft(true);
+            }
+        }
         _shieldLayer?.QueueRedraw();
+    }
+
+    internal void PrepareTechniquePosition(BossCharacterTechnique technique)
+    {
+        _bossTravelFrom = GlobalPosition;
+        BossInArena = technique.UsesArenaBody;
+        if (BossInArena) _bossFrameReveal = 0;
+        ZIndex = BossInArena ? 0 : 7;
+        FitBodyTargetToFrame();
+        if (BossInArena)
+        {
+            (_bossTravelTo, _bossTravelControl, _bossEntryDuration) = BodyShotJob switch
+            {
+                Job.Melee => (new Vector2(278, 76), new Vector2(332, 44), .85f),
+                Job.Heal => (new Vector2(286, 132), new Vector2(296, 60), 1.05f),
+                Job.Magic => (new Vector2(292, 64), new Vector2(354, 32), .95f),
+                _ => (new Vector2(294, 112), new Vector2(326, 144), 1.2f),
+            };
+            if (this is BossMina mina) _bossTravelTo = mina.KeepDragonInField(_bossTravelTo);
+            _bossEntryDuration = Mathf.Max(_bossEntryDuration, _bossTravelFrom.DistanceTo(_bossTravelControl) / 90);
+            _bossEntryTime = 0;
+        }
+        else
+        {
+            GlobalPosition = new Vector2(Field.BossFrameCenterX, Mathf.Clamp(GlobalPosition.Y, 48, Field.Bottom - 48));
+            SetFacingLeft(true);
+        }
+    }
+
+    internal void TickBossEntry(double delta)
+    {
+        if (!BossFrameEntering) return;
+        _bossEntryTime = Mathf.Min(_bossEntryDuration, _bossEntryTime + (float)delta);
+        float t = Mathf.SmoothStep(0, 1, _bossEntryTime / _bossEntryDuration);
+        GlobalPosition = _bossTravelFrom.Lerp(_bossTravelControl, t).Lerp(_bossTravelControl.Lerp(_bossTravelTo, t), t);
+    }
+
+    internal void TickBossFrame(double delta)
+    {
+        if (!BodyShotJob.HasValue || !BossFrameReturning) return;
+        // The boundary closes more slowly than normal movement, with the next attack held until it settles.
+        _bossFrameReveal = Mathf.MoveToward(_bossFrameReveal, 1, (float)delta / 1.2f);
+        float t = Mathf.SmoothStep(0, 1, _bossFrameReveal);
+        GlobalPosition = _bossTravelFrom.Lerp(new Vector2(Field.BossFrameLeft + Field.BossFrameWidth / 2,
+            Mathf.Clamp(_bossTravelFrom.Y, 48, Field.Bottom - 48)), t);
+    }
+
+    private void FitBodyTargetToFrame()
+    {
+        float scale = BodyShotJob.HasValue && !BossInArena
+            ? Mathf.Min(1, (Field.BossFrameWidth - 12) / _bodyShape.Shape.GetRect().Size.X) : 1;
+        _bodyShape.Scale = Vector2.One * scale;
     }
 
 
@@ -978,8 +1141,8 @@ public partial class Enemy : Area2D
         GameCamera.Instance?.Shake(1.6f, 0.14f);
         Audio.Instance?.PlaySpell();
         GetNodeOrNull<GameManager>("/root/Game")?.NotifyBossBreak();
-        FxLayer.Instance?.BossBreakCue(GlobalPosition, BodyDisplayH);
         SetDownBody(true);
+        AddChild(new BossBreakFx());
         _shieldLayer?.QueueRedraw();
         (GetTree().GetFirstNodeInGroup("hud") as Hud)?.Bubbles?.ShieldBreak.Show(this,
             GameManager.Instance?.SelectedJob ?? Job.Tank);
@@ -992,9 +1155,7 @@ public partial class Enemy : Area2D
     {
         _phase = BossPhase.Exposed; _phaseT = 0;
         _shieldLayer?.QueueRedraw();
-        _windowDamage = 0;            // 窓キャップを新しい窓ぶんリセット
-        _windowHpFloor = UsesTechniqueCycle ? Mathf.RoundToInt(_maxHp * TechniqueCycleFloor()) : 0;
-        _windowCapNotified = false;
+        _windowDamage = 0;
         _bodyHitCd = 0;
         FxLayer.Instance?.BossExpose(GlobalPosition, BodyDisplayH);
         GameCamera.Instance?.Shake(0.9f, 0.10f);
@@ -1015,7 +1176,7 @@ public partial class Enemy : Area2D
         GameCamera.Instance?.Shake(0.7f, 0.08f);
         // 本体を再び無敵化（自機弾を拾わない）。
         SetDeferred(Area2D.PropertyName.Monitoring, false);
-        SetCollisionMaskValue(2, false);
+        CallDeferred(MethodName.SetCollisionMaskValue, 2, false);
         OnRecloseLine(); // 派生：キャラ別の弱気セリフを最短表示
         QueueRedraw();
     }
@@ -1035,17 +1196,29 @@ public partial class Enemy : Area2D
 
     protected void RallyShield()
     {
-        // A new story beat must not inherit the previous beat's damage window.
-        if (!_purified && _maxHp > 0 && _phase is BossPhase.Break or BossPhase.Exposed)
+        // A story transition may cancel an unfinished attack, but cannot consume an earned break window.
+        if (!_purified && _maxHp > 0 && _phase == BossPhase.Resolving)
             EnterReclose();
     }
 
     internal void RestartShieldCycle() => RallyShield();
 
+    protected void RestartAfterFormChange()
+    {
+        SetDownBody(false);
+        _bodyHitCd = 0;
+        _windowDamage = 0;
+        SetDeferred(Area2D.PropertyName.Monitoring, false);
+        CallDeferred(MethodName.SetCollisionMaskValue, 2, false);
+        EnterShielded();
+        _danmaku?.ReadyAfterFormChange();
+    }
+
     private int LimitTechniqueCycleDamage(int damage)
     {
         if (!UsesTechniqueCycle) return damage;
-        int floor = Mathf.Max(_windowHpFloor, Mathf.RoundToInt(_maxHp * TechniqueCycleFloor()));
+        // Rounding up can leave HP above the phase threshold and permanently block damage.
+        int floor = Mathf.FloorToInt(_maxHp * TechniqueCycleFloor());
         return Mathf.Min(damage, Mathf.Max(0, _hp - floor));
     }
 
@@ -1060,11 +1233,11 @@ public partial class Enemy : Area2D
 
     protected int BodyShotDamage(Bullet b, Player? player, out bool crit)
     {
-        // Charge bypasses the rapid-fire cap, but still respects the window and story HP floors.
+        // Charge bypasses the rapid-fire cap, but still respects story HP floors.
         int dmg = Mathf.Clamp(b.Damage, 1, b.Charged ? 48 : 8);
 
         // 距離ボーナス（設計書 §2・ジョブ差の本体）。自機が取れない場合は base のまま（null安全）。
-        //   近: Jobs.CloseRange(48px) 以内 → JobDef.CritMult / CritCap（灯し手 ×2.0・上限8／他 ×1.25・上限5）。
+        //   近: Jobs.CloseRange(48px) 以内 → JobDef.CritMult / CritCap。
         //       語り手は CritEnabled=false＝密着しても何も起きない。
         //   遠: Jobs.FarRange(120px) より遠い → JobDef.FarMult（語り手のみ ×1.3）。近接の鏡像。
         //   両者は排他（48以内 or 120超のどちらか。48〜120 は素の威力）。
@@ -1095,7 +1268,7 @@ public partial class Enemy : Area2D
 
     private void OnBodyHitByPlayerBullet(Area2D area)
     {
-        if (_phase != BossPhase.Exposed || _purified || Transforming) return;
+        if (!GaugeBodyExposed || Hud.BubblePaused) return;
         if (area is Bullet b && !b.IsEnemy && b.Active)
         {
             if (!b.RegisterChargeHit(this)) return;
@@ -1107,31 +1280,19 @@ public partial class Enemy : Area2D
             // 集中の光（focus_fire）：同一敵への連続ヒットを自機側で計上（対象が変わるとリセット）。
             var player = GetTree().GetFirstNodeInGroup("player") as Player;
             player?.NotifyShotHit(this);
-            OnPlayerDealtDamage(); // 「攻めている」の通知（キャップ/CD で削れないヒットも攻めは攻め）
-
-            // 窓キャップ到達後は、この窓では本体HPを削らない（弾の消滅は上で済ませ撃ち心地は残す）。
-            // 到達の瞬間だけ "MAX" を1回出して「これ以上は次の窓で」を伝える。
-            if (_windowDamage >= WindowCap)
-            {
-                if (!_windowCapNotified)
-                {
-                    _windowCapNotified = true;
-                    FxLayer.Instance?.DamageNumber(GlobalPosition + new Vector2(0, -12), "MAX", FxLayer.Gold, 13);
-                }
-                return;
-            }
+            OnPlayerDealtDamage();
             // 本体ヒットのクールダウン中は削らない（同一フレーム多重弾の過剰削りを軽く抑える補助）。
             if (_bodyHitCd > 0 && !b.Charged) return;
 
             int dmg = BodyShotDamage(b, player, out bool crit);
 
-            // 窓キャップ：残り許容ぶんへクランプ（密着クリティカルは上限を超えず到達を早めるだけ）。
-            dmg = LimitBodyDamage(LimitTechniqueCycleDamage(Mathf.Min(dmg, WindowCap - _windowDamage)));
+            dmg = LimitBodyDamage(LimitTechniqueCycleDamage(dmg));
             if (dmg <= 0) return;
             b.ChargeImpact(b.GlobalPosition);
-            _windowDamage += dmg;
+            if (_phase == BossPhase.Exposed) _windowDamage += dmg;
             _bodyHitCd = BodyHitCd;
             int prevBarsLeft = (_hp + BarHp - 1) / BarHp; // 減算前の残バー数（切り上げ）
+            GameManager.Instance?.AddBossHit(Mathf.Min(dmg, _hp));
             _hp = Mathf.Max(0, _hp - dmg);
             // HPバー1本割れ（#26 フェーズ移行の可視化）：バー境界を跨いだ一拍を
             // 白フラッシュ＋バー発光＋スペル音＋squash→pop で「モードが進んだ」と読ませる。
@@ -1179,6 +1340,7 @@ public partial class Enemy : Area2D
     //（_swapAnim。ApplyBossMotion と喧嘩しない差し替えアニメ機構）を流用して体を一度だけ弾ませる。
     private void OnBarBroken()
     {
+        if (this is CameoBoss { SealsEachBar: true } && GaugeBodyExposed) EnterReclose();
         var hud = GetTree().GetFirstNodeInGroup("hud") as Hud;
         hud?.Flash();             // 画面白フラッシュ（BREAK と同語彙＝「節目」の合図）
         hud?.FlashBossBarBreak(); // HPバー自体も白く光らせ「1本割れた」を視線先で読ませる
@@ -1188,6 +1350,7 @@ public partial class Enemy : Area2D
 
     private bool _form2;
     protected bool IsForm2 => _form2;
+    public virtual bool UsesTransformedMusic => _form2;
     protected bool AdvanceForm2()
     {
         if (_form2) return false;
@@ -1196,7 +1359,6 @@ public partial class Enemy : Area2D
         if (!ResourceLoader.Exists(Form2TexPath)) return false; // 絵が無ければ黙って起きない
         var previous = BossTransformation.Frame.Capture(_bodySprite);
         _form2 = true;
-        if (UsesTechniqueCycle) RallyShield();
         _attackPoseT = 0;
         string[] poses = { "move_0", "move_1", "move_2", "move_3", "windup", "recover" };
         _animalFrames = new Texture2D[poses.Length];
@@ -1206,20 +1368,13 @@ public partial class Enemy : Area2D
         PreTexPath = Form2TexPath;
         if (Form2AttackTexPath.Length > 0) AttackTexPath = Form2AttackTexPath;
         if (!string.IsNullOrEmpty(Form2DownTexPath)) DownTexPath = Form2DownTexPath;
-        if (_bodyDown)
-        {
-            SetDownBody(true);
-        }
-        else
-        {
-            SetBodyPose(BossParts.Pose.Form2);
-            SwapBody(PreTexPath);
-        }
+        RestartAfterFormChange();
 
         _parts?.EnterForm2();
         if (_parts != null && BossAnimalArt.Contains(_bodySprite.Texture)) _parts.Visible = false;
 
         RevealForm(previous);
+        ShowLunaticEncounterLine();
         // 第二形態への切り替わり＝盤面の仕切り直し。BossTransformation が World を3秒止めて弾を全消しし、
         //   明けると敵は新しいガワで徘徊を始める。自機だけ前の形態の位置に残るのが非対称なので、ここで
         //   初期位置へ戻す（あかり／こはる／レイの3ボスが Form2TexPath を持つ＝3面ぶんをこの1点でまとめる）。
@@ -1232,19 +1387,23 @@ public partial class Enemy : Area2D
         return true;
     }
 
-    // 外部（ボム等）から強制浄化。
-    // ボス(HPバー方式)はボムで即浄化しない：SHIELDED 中は今あるパネルを全砕き→ BREAK を誘発するだけ。
-    // EXPOSED（無防備窓）中は「ボム直撃」＝ BombStrikeBase×BombPowerMul を窓キャップ内で本体HPへ通す
-    //（ボム威力強化の作用先。合図/RECLOSE 中は従来どおり何も起きない）。
-    //   virtual：トレーニングのダミー(TrainingDummy)がボム直撃を自前HPへ通すために上書きする（本編挙動は不変）。
+    internal virtual void PrepareTechniquePractice(int phase)
+    {
+        TickEntrance(0);
+        TickEntrance(EntranceDur);
+        if (phase > 0) AdvanceForm2();
+        FinishFormReveal();
+    }
+
     public virtual void Purify()
     {
+        if (TechniquePractice || RallyGuarded) return;
         if (_purified || Transforming) return;
         if (_maxHp > 0)
         {
-            if (_phase == BossPhase.Exposed) { BombStrike(); return; }
+            if (GaugeBodyExposed) { BombStrike(); return; }
             foreach (var p in new List<Panel>(_panels))
-                p.Shatter();
+                p.WeakenByBomb();
             return;
         }
         // 雑魚：ボム由来の印を先に立ててから剥がす。最後の1枚の Shatter が
@@ -1255,30 +1414,19 @@ public partial class Enemy : Area2D
         if (!_purified) Redeem();
     }
 
-    // ボム直撃（EXPOSED 限定）：基礎 BombStrikeBase × BombPowerMul(1+0.25×Lv)。
-    // 弾ヒットと同じ帳簿（窓キャップ・バー割れ・OnHpChanged・Redeem）を通す＝「1窓即殺」抑止の設計を壊さない。
+    // ボム直撃（シールド破壊後）：基礎 BombStrikeBase × BombPowerMul(1+0.25×Lv)。
     // Shop の効果表示（Eff）はこの定数から算出するので、変えるときは片方だけにしない。
     public const int BombStrikeBase = 20;
     private void BombStrike()
     {
-        if (Transforming) return;
+        if (!GaugeBodyExposed || Hud.BubblePaused) return;
         var game = GetNodeOrNull<GameManager>("/root/Game");
         int dmg = Mathf.RoundToInt(BombStrikeBase * (game?.BombPowerMul ?? 1f));
-        dmg = LimitTechniqueCycleDamage(Mathf.Min(dmg, WindowCap - _windowDamage));
-        if (dmg <= 0)
-        {
-            // キャップ到達済み：弾ヒットと同じ「MAX」ワンショットで「次の窓で」を伝える。
-            if (!_windowCapNotified)
-            {
-                _windowCapNotified = true;
-                FxLayer.Instance?.DamageNumber(GlobalPosition + new Vector2(0, -12), "MAX", FxLayer.Gold, 13);
-            }
-            return;
-        }
-        dmg = LimitBodyDamage(dmg);
+        dmg = LimitBodyDamage(LimitTechniqueCycleDamage(dmg));
         if (dmg <= 0) return;
-        _windowDamage += dmg;
+        if (_phase == BossPhase.Exposed) _windowDamage += dmg;
         int prevBarsLeft = (_hp + BarHp - 1) / BarHp;
+        game?.AddBossHit(Mathf.Min(dmg, _hp));
         _hp = Mathf.Max(0, _hp - dmg);
         if (_hp > 0 && (_hp + BarHp - 1) / BarHp < prevBarsLeft)
             OnBarBroken();
@@ -1298,14 +1446,16 @@ public partial class Enemy : Area2D
     }
 
     // 外部ギミックからHPバー方式ボスの本体HPを直接削る固定ダメージ経路
-    //（あかり戦「言葉の残滓」の撃破報酬＝総HPの4%直撃）。無防備窓・窓キャップとは独立＝SHIELDED中でも通る。
+    //（あかり戦「言葉の残滓」の撃破報酬＝総HPの4%直撃）。SHIELDED中でも通る。
     // バー割れ演出・OnHpChanged・Redeem は弾ヒット/ボム直撃と同じ帳簿を通す（設計を二重化しない）。
     public void DealDirectDamage(int dmg)
     {
+        if (TechniquePractice) return;
         if (_purified || Transforming || _maxHp <= 0 || dmg <= 0) return;
         dmg = LimitBodyDamage(dmg);
         if (dmg <= 0) return;
         int prevBarsLeft = (_hp + BarHp - 1) / BarHp;
+        GameManager.Instance?.AddBossHit(Mathf.Min(dmg, _hp));
         _hp = Mathf.Max(0, _hp - dmg);
         if (_hp > 0 && (_hp + BarHp - 1) / BarHp < prevBarsLeft)
             OnBarBroken();
@@ -1317,6 +1467,42 @@ public partial class Enemy : Area2D
             return;
         }
         QueueRedraw();
+    }
+
+    internal float SpecialHitRadius => BodyRadius * _bodyShape.GlobalScale.X;
+    internal float SpecialHitHalfHeight => Mathf.Max(BodyRadius, BodyHalfH) * _bodyShape.GlobalScale.Y;
+
+    internal virtual bool TakeSpecialHit(int damage, Vector2 source)
+    {
+        if (damage <= 0 || TechniquePractice || Hud.BubblePaused || _purified || _entering
+            || Transforming || RallyGuarded || !IsVisibleInTree() || IsQueuedForDeletion()) return false;
+        if (_maxHp <= 0) return SelectUnfolder(source, null)?.TakeSpecialHit(damage) ?? false;
+        if (!GaugeBodyExposed) return false;
+        damage = LimitBodyDamage(LimitTechniqueCycleDamage(damage));
+        if (damage <= 0) return false;
+        OnPlayerDealtDamage();
+        if (_phase == BossPhase.Exposed) _windowDamage += damage;
+        int previousBars = (_hp + BarHp - 1) / BarHp;
+        GameManager.Instance?.AddBossHit(Mathf.Min(damage, _hp));
+        _hp = Mathf.Max(0, _hp - damage);
+        if (_hp > 0 && (_hp + BarHp - 1) / BarHp < previousBars) OnBarBroken();
+        OnHpChanged();
+        _hitFlashT = HitFlashDur;
+        _hitFlashMag = damage;
+        if (_hp > 0)
+        {
+            _parts?.OnHit();
+            OnBodyDamaged(source.DirectionTo(GlobalPosition));
+        }
+        Audio.Instance?.PlayBossHit(damage);
+        GameCamera.Instance?.Shake(1.6f, .10f);
+        if (_hp <= 0)
+        {
+            CallDeferred(MethodName.SetCollisionMaskValue, 2, false);
+            Redeem();
+        }
+        QueueRedraw();
+        return true;
     }
 
     // パネル（言葉の盾）を一時的に不可侵にする（あかり戦「雨の帰り道」：ボスが画面外へ退場している間、
@@ -1344,11 +1530,11 @@ public partial class Enemy : Area2D
     }
 
     // ボス徘徊の“見た目だけ”の演出を立ち絵(_bodySprite)へ適用する（BossMover 経由）。
-    // visualOffset=呼吸/浮遊の微小オフセット、lean=進行方向への傾き(rad)、faceLeft=向き、
+    // visualOffset=呼吸/浮遊の微小オフセット、lean=進行方向への傾き(rad)、flipH=現在素材の反転、
     // squash=反転の瞬間の縮み倍率（BossMover.SquashScale。既定＝(1,1)＝縮まない）。
     // ★当たり判定（本体 Area2D の GlobalPosition と _bodyShape）は一切動かさない＝弾避けの公平性を保つ。
     // 立ち絵が無い（プレースホルダ図形の）ボスでは何もしない。
-    protected void ApplyBossMotion(Vector2 visualOffset, float lean, bool faceLeft, Vector2? squash = null)
+    protected void ApplyBossMotion(Vector2 visualOffset, float lean, bool flipH, Vector2? squash = null)
     {
         AutoBank = false; // 姿勢はこちら(BossMover.Lean)が握る＝基底の自動バンクと競合させない
         FacePlayer = false; // 向きも同じくこちら（BossMover.TickFacing＝40px/0.6秒の保持つき）が握る
@@ -1370,8 +1556,7 @@ public partial class Enemy : Area2D
             _bodySprite.Scale = new Vector2(_baseScale * sq.X, _baseScale * sq.Y);
         }
         _bodySprite.Rotation = lean;
-        if (_bodySprite.FlipH != faceLeft) { _bodySprite.FlipH = faceLeft; ApplyBodyOffset(); }
-        _parts?.SetFlip(faceLeft);
+        SetFacingLeft(BodyShotJob.HasValue && !BossInArena || flipH == BodyArtFacesRight(_bodySprite.Texture));
     }
 
     // ─── 部品の演出層（BossParts）───
@@ -1452,15 +1637,11 @@ public partial class Enemy : Area2D
         bool rewarded = game?.AddPurify(Points, _bombPurify) == true;
         PowerKind? power = rewarded && PurifyGrade == FxLayer.PurifyTier.Zako
             ? (GetTree().GetFirstNodeInGroup("player") as Player)?.CountPowerupKill() : null;
-        // ★2026-09-17：インプレ（ショップ通貨）は撃破の瞬間ではなく「散った欠片を拾ったとき」に入る。
-        //   基礎額は旧実装と同じ 2+Combo（AddPurify でコンボ加算済みの値を読む）。
-        //   報酬なし（ボムキャップ超過）の浄化は 0＝欠片も通貨も付かない、という既存の線引きをそのまま守る。
-        int impBase = rewarded ? (game?.PurifyImpressionBase ?? 0) : 0;
 
         // 浄化バースト演出＋やさしい言葉（バリエーション）＋浄化音（届いた余韻）
         // 改心が確定する一拍：止め(Hitstop)＋光(PurifyBurst)＋フラッシュ を同フレームで揃える。
         GameCamera.Instance?.Hitstop(HitstopDur);
-        FxLayer.Instance?.PurifyBurst(GlobalPosition, rewarded ? Points : 0, PurifyGrade, impBase, ShardMul, power);
+        FxLayer.Instance?.PurifyBurst(GlobalPosition, rewarded || _bombPurify ? Points : 0, PurifyGrade, ShardMul, power, autoCollect: _bombPurify);
         Audio.Instance?.PlayPurify();
 
         // やさしさの波紋（連鎖浄化のトリガー）。
@@ -1473,6 +1654,12 @@ public partial class Enemy : Area2D
         {
             var ripple = new Ripple { Position = Position }; // 親が同じ＝同じ座標系のローカル位置をそのまま使う
             parent.CallDeferred(Node.MethodName.AddChild, ripple);
+        }
+
+        if (PurifyGrade != FxLayer.PurifyTier.Zako)
+        {
+            GlobalPosition = new Vector2(Field.Right - (Field.PlayerStartX - Field.Left), Field.CenterY);
+            (GetTree().GetFirstNodeInGroup("player") as Player)?.SnapToStart();
         }
 
         // 改心の着地は直立で（移動バンクの傾きを残さない）。差し替え前に戻す＝旧絵(fade)ごと素直に立つ。
@@ -1522,12 +1709,13 @@ public partial class Enemy : Area2D
         var old = _bodySprite.Texture;
         if (old != null)
         {
+            if (BodyShotJob.HasValue) _bodySprite.GetNode<BossReadabilitySprite>("BossReadability").Sync();
             _fadeSprite?.QueueFree();
             _fadeBaseScale = _baseScale;
             _fadeSprite = new Sprite2D
             {
                 Texture = old,
-                Material = _bodySprite.Material,
+                Material = _bodySprite.Material?.Duplicate() as Material,
                 Centered = true,
                 TextureFilter = CanvasItem.TextureFilterEnum.Linear,
                 ZIndex = _bodySprite.ZIndex,
@@ -1538,13 +1726,17 @@ public partial class Enemy : Area2D
                 Offset = _bodySprite.Offset, // 旧姿勢のオフセットのまま消える＝入れ替わりで絵が跳ねない
             };
             AddChild(_fadeSprite);
+            if (BodyShotJob.HasValue && _fadeSprite.Material is ShaderMaterial)
+                BossIllustrationMotion.FitToFrame(_fadeSprite, this);
         }
 
         // 本体を新テクスチャへ。基準スケールを更新し、α0 から上げ始める。
-        if (old != null && BossAnimalArt.Contains(old) != BossAnimalArt.Contains(t))
+        if (old != null && BodyArtFacesRight(old) != BodyArtFacesRight(t))
             _bodySprite.FlipH = !_bodySprite.FlipH;
         _bodySprite.Texture = t;
-        if (_reiMotionMaterial != null && _bodySprite.Material == _reiMotionMaterial)
+        if ((_purified && _illustrationMotion != null)
+            || (_reiMotionMaterial != null && _bodySprite.Material == _reiMotionMaterial)
+            || (_frameMotionMaterial != null && _bodySprite.Material == _frameMotionMaterial))
             _bodySprite.Material = null;
         _illustrationMotion?.Clear(_bodySprite);
         _baseScale = BodyDisplayH / t.GetHeight() * _bodyScaleMul * ResolveBodyFrame(t).Scale;
@@ -1552,6 +1744,7 @@ public partial class Enemy : Area2D
         ApplyBodyOffset(); // 新しい姿勢の足元が待機と同じ画面位置に来るよう入れ直す
         _bodySprite.SelfModulate = new Color(1f, 1f, 1f, _fadeSprite != null ? 0f : 1f);
         ApplyTintLift();   // 退避スプライトは Modulate を引き継がないので、ここで新旧そろえて明るさを入れる
+        OnBodyTextureSwapped(_fadeSprite);
 
         // squash→pop を起動（_PhysicsProcess で進める）。
         _swapAnim = true;
@@ -1569,21 +1762,24 @@ public partial class Enemy : Area2D
 
         // Back/Out 風：行き過ぎてから戻す。t=0 で +(SquashScale-1)、t=1 で ±0 に収束。
         float over = BackOut(u);                 // 0→1（途中で >1 にオーバーシュート）
-        float scaleMul = _bodyDown ? 1f : Mathf.Lerp(SquashScale, 1f, over);
+        float scaleMul = _bodyDown || _illustrationMotion != null ? 1f : Mathf.Lerp(SquashScale, 1f, over);
         _bodySprite.Scale = new Vector2(_baseScale * scaleMul, _baseScale * scaleMul);
 
         // pop の持ち上げ：序盤に最大、終盤で 0（sin の山）。呼吸オフセットへ加算。
-        float lift = _bodyDown ? -2f * (1f - u) : -PopLiftPx * Mathf.Sin(u * Mathf.Pi);
+        float lift = _illustrationMotion != null ? 0f
+            : _bodyDown ? -2f * (1f - u) : -PopLiftPx * Mathf.Sin(u * Mathf.Pi);
         _bodySprite.Position = _motionOffset + new Vector2(0f, lift);
 
         // クロスフェード：旧(_fadeSprite)をα落とし、新(_bodySprite)をα上げ。
         if (_fadeSprite != null)
         {
-            float fa = (float)Mathf.Clamp(_swapAnimT / SwapFadeDur, 0, 1); // フェード進行
+            float fa = Mathf.SmoothStep(0, 1, (float)(_swapAnimT / SwapFadeDur));
             _bodySprite.SelfModulate = new Color(1f, 1f, 1f, fa);
             _fadeSprite.SelfModulate = new Color(1f, 1f, 1f, 1f - fa);
             _fadeSprite.Scale = Vector2.One * (_fadeBaseScale * scaleMul);
             _fadeSprite.Position = _bodySprite.Position;
+            if (BodyShotJob.HasValue && _fadeSprite.Material is ShaderMaterial)
+                BossIllustrationMotion.FitToFrame(_fadeSprite, this);
             if (fa >= 1f) { _fadeSprite.QueueFree(); _fadeSprite = null; }
         }
 
@@ -1742,6 +1938,7 @@ public partial class Enemy : Area2D
 
     public override void _PhysicsProcess(double delta)
     {
+        TickBossFrame(delta);
         _shieldLayer?.QueueRedraw();
         // 世界の Tint の打ち消しは状態に関わらず毎フレーム引き直す（Tint は Warmth で動き、ボスの realm 暴露では
         // 白へ抜ける）。登場演出・改心・退場・会話中の early-return より前に置く＝どの状態でも暗く沈ませない。
@@ -1791,15 +1988,15 @@ public partial class Enemy : Area2D
             return;
         }
 
-        // ★集中モード（#10）：ここから下は「敵の時間」＝係数を掛けた delta で進める。
-        //   自機・HUD・音・演出は素の delta のまま＝向かってくるものだけが遅くなる（Engine.TimeScale は使わない）。
-        //   登場演出・改心・退場（上の early-return 群）は物語の尺なので掛けない。
+        // 練習の攻撃速度は、登場・改心・退場の演出へ掛けない。
         double edelta = GameManager.EnemyDelta(delta);
 
         // 会話・変身で操作できない時間は、攻撃可能な残り時間を消費しない。
-        if (_maxHp > 0)
+        if (_maxHp > 0 && !Hud.BubblePaused && !Transforming && this is not BossMina { Transitioning: true })
         {
-            if (!Hud.BubblePaused && !Transforming)
+            // 枠への帰還中も本体には当たる。無防備窓だけを止め、連続ヒットの間隔は進める。
+            if (_bodyHitCd > 0) _bodyHitCd -= edelta;
+            if (!BossFrameReturning)
             {
                 _shieldTime += (float)edelta;
                 TickBossPhase(edelta);
@@ -1825,7 +2022,9 @@ public partial class Enemy : Area2D
             return;
         }
         if (GaugeReforming) return;
-        UpdateMovement(edelta);
+        if (!BossFrameReturning && !BossFrameEntering) UpdateMovement(edelta);
+        if (BodyShotJob.HasValue && !BossInArena && !BossFrameReturning)
+            GlobalPosition = new Vector2(Field.BossFrameCenterX, Mathf.Clamp(GlobalPosition.Y, 48, Field.Bottom - 48));
         TickBodyMotion(edelta);
         TickIllustrationMotion(edelta);
         TickAutoBank(edelta); // ザコの移動バンク（ボス/生命感モーション持ちは AutoBank=false で素通り）
@@ -1836,11 +2035,13 @@ public partial class Enemy : Area2D
     // BREAK→EXPOSED→RECLOSE→SHIELDED の尺管理。SHIELDED 中は何もしない（パネル待ち）。
     private void TickBossPhase(double delta)
     {
-        if (_phase == BossPhase.Shielded) return;
+        if (_phase == BossPhase.Shielded || FinishingSealedBarAttack) return;
         _phaseT += delta;
         switch (_phase)
         {
             case BossPhase.Resolving:
+                if (_hitFlashT > 0) _hitFlashT -= delta;
+                QueueRedraw();
                 if (!TechniqueInProgress) EnterBreak();
                 break;
             case BossPhase.Break:
@@ -1849,12 +2050,8 @@ public partial class Enemy : Area2D
                 break;
             case BossPhase.Exposed:
                 if (_hitFlashT > 0) _hitFlashT -= delta; // 被弾発光の減衰
-                if (_bodyHitCd > 0) _bodyHitCd -= delta; // 本体ヒットCDの消化
                 QueueRedraw(); // 発光/明滅（_Draw）を更新し「今は殴れる」を可視化
-                // 窓キャップ到達済みなら残り時間（最大4.0s）を待たせず次サイクルへ即移行。
-                // 火力に投資するほど「窓を早く閉じて次のBREAKへ進める」形でリターンを返す（#b案）。
-                if (_windowDamage >= WindowCap || _phaseT >= VulnDur
-                    || _windowHpFloor > 0 && _hp <= _windowHpFloor) EnterReclose();
+                if (_phaseT >= VulnDur) EnterReclose();
                 break;
             case BossPhase.Reclose:
                 // 弱気セリフ(RecloseLineDur)を見せ、RespawnGap 置いてパネルを一括再生成＝SHIELDED へ。
@@ -1874,13 +2071,14 @@ public partial class Enemy : Area2D
         if (_maxHp <= 0 || _purified || _entering) return;
         bool breaking = _phase == BossPhase.Break;
         bool reforming = _phase == BossPhase.Reclose;
-        bool shielded = _phase is BossPhase.Shielded or BossPhase.Resolving;
+        bool shielded = _phase == BossPhase.Shielded;
         if (!breaking && !reforming && !shielded) return;
         if (shielded && GameManager.Instance!.Difficulty == GameManager.Diff.Easy && this is BossAkari
             && IsInstanceValid(_shieldTechnique)
             && _shieldTechnique is AkariBossTechnique { Finished: false, UsesEasyReadabilityRules: true })
         {
             var guardSize = new Vector2(BodyRadius + 5f, BodyDisplayH * 0.32f);
+            if (!BossInArena) guardSize.X = Mathf.Min(guardSize.X, Field.BossFrameWidth * .5f - 6);
             var guardColor = new Color("c2c6cb") * TintLift.Of(_worldTint, TintLift.EnemyBody);
             for (int side = -1; side <= 1; side += 2)
             {
@@ -1914,6 +2112,7 @@ public partial class Enemy : Area2D
         float pulse = 0.5f + 0.5f * Mathf.Sin(_shieldTime * 2.8f);
         float build = reforming ? Mathf.Clamp((float)(_phaseT / (RecloseLineDur + RespawnGap)), 0, 1) : 1f;
         var size = new Vector2(h * (major ? 1f : 1.15f), h) * (0.9f + 0.1f * build);
+        size = BossIllustrationMotion.FitShieldToFrame(this, size);
         var lift = TintLift.Of(_worldTint, TintLift.EnemyBody);
         var tint = (major ? Colors.White : new Color("91dfff")) * lift;
         float alpha = (major ? 0.82f + pulse * 0.08f : 0.64f + pulse * 0.08f) * (0.3f + 0.7f * build);
@@ -2030,7 +2229,8 @@ public partial class Enemy : Area2D
     public float GaugeBottom => Mathf.Max(BodyHalfH + 3f, BodyDisplayH * 0.55f) + 7f;
     public bool GaugeBreaking => !_purified && !_entering && !Transforming && _phase == BossPhase.Break;
     public bool GaugeAttackResolving => !_purified && !_entering && _phase == BossPhase.Resolving;
-    public bool GaugeBodyExposed => !_purified && !_entering && !Transforming && _phase == BossPhase.Exposed;
+    public bool GaugeBodyExposed => !_purified && !_entering && !Transforming && !RallyGuarded
+        && _phase is BossPhase.Resolving or BossPhase.Exposed;
     public bool GaugeReforming => !_purified && !_entering && _phase == BossPhase.Reclose;
     public float GaugeReformProgress => GaugeReforming
         ? Mathf.Clamp((float)(_phaseT / (RecloseLineDur + RespawnGap)), 0f, 1f) : 0f;

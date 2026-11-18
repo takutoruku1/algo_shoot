@@ -1,0 +1,482 @@
+[
+  {
+    "file": "akari_A.mp3",
+    "phrase_beats": 16,
+    "tempo_estimate": 150.0,
+    "duration": 179.48,
+    "rms_dynamic_range_db": 4.668591499328613,
+    "spectral_centroid_hz": 1825.5111033923226,
+    "percussive_energy_fraction": 0.1415065973997116,
+    "loudness": {
+      "input_i": "-14.75",
+      "input_tp": "-3.33",
+      "input_lra": "5.00",
+      "input_thresh": "-24.92",
+      "output_i": "-18.01",
+      "output_tp": "-4.26",
+      "output_lra": "3.40",
+      "output_thresh": "-28.08",
+      "normalization_type": "dynamic",
+      "target_offset": "-0.99"
+    },
+    "loop_candidates": [
+      {
+        "start": 20.432,
+        "end": 143.472,
+        "crossfade": 0.815999999999999,
+        "beats": 304,
+        "chroma_similarity": 0.7775170803070068,
+        "level_gap_db": 1.6594504366779628,
+        "score": 0.7554038985933368
+      },
+      {
+        "start": 20.016,
+        "end": 143.056,
+        "crossfade": 0.815999999999999,
+        "beats": 304,
+        "chroma_similarity": 0.7669825553894043,
+        "level_gap_db": 1.1411399104570692,
+        "score": 0.7507482095974518
+      },
+      {
+        "start": 22.848,
+        "end": 145.904,
+        "crossfade": 0.8000000000000007,
+        "beats": 304,
+        "chroma_similarity": 0.7617919445037842,
+        "level_gap_db": 0.9666245942903678,
+        "score": 0.7491920114106927
+      },
+      {
+        "start": 32.576,
+        "end": 142.656,
+        "crossfade": 0.8000000000000007,
+        "beats": 272,
+        "chroma_similarity": 0.7615214586257935,
+        "level_gap_db": 1.372492144484371,
+        "score": 0.743473799373216
+      },
+      {
+        "start": 20.832,
+        "end": 143.872,
+        "crossfade": 0.8160000000000025,
+        "beats": 304,
+        "chroma_similarity": 0.767607569694519,
+        "level_gap_db": 1.9694772937751968,
+        "score": 0.7429423326120084
+      },
+      {
+        "start": 19.616,
+        "end": 142.656,
+        "crossfade": 0.815999999999999,
+        "beats": 304,
+        "chroma_similarity": 0.7543233633041382,
+        "level_gap_db": 0.8688744122406835,
+        "score": 0.7412328758553617
+      },
+      {
+        "start": 31.776,
+        "end": 141.84,
+        "crossfade": 0.815999999999999,
+        "beats": 272,
+        "chroma_similarity": 0.7419682145118713,
+        "level_gap_db": 0.4206383679216586,
+        "score": 0.7367650254423141
+      },
+      {
+        "start": 23.264,
+        "end": 146.304,
+        "crossfade": 0.815999999999999,
+        "beats": 304,
+        "chroma_similarity": 0.7399999499320984,
+        "level_gap_db": 0.3342241304142687,
+        "score": 0.7359377028300641
+      }
+    ],
+    "auditory_review": "not_performed"
+  },
+  {
+    "file": "koharu_A.mp3",
+    "phrase_beats": 16,
+    "tempo_estimate": 156.25,
+    "duration": 180.0,
+    "rms_dynamic_range_db": 5.261120319366455,
+    "spectral_centroid_hz": 1740.4555440008735,
+    "percussive_energy_fraction": 0.13073045015335083,
+    "loudness": {
+      "input_i": "-15.47",
+      "input_tp": "-3.84",
+      "input_lra": "4.20",
+      "input_thresh": "-25.57",
+      "output_i": "-18.36",
+      "output_tp": "-6.30",
+      "output_lra": "3.40",
+      "output_thresh": "-28.41",
+      "normalization_type": "dynamic",
+      "target_offset": "-0.64"
+    },
+    "loop_candidates": [
+      {
+        "start": 8.704,
+        "end": 120.72,
+        "crossfade": 0.7840000000000007,
+        "beats": 288,
+        "chroma_similarity": 0.8204221725463867,
+        "level_gap_db": 1.0395893490735935,
+        "score": 0.805259960918054
+      },
+      {
+        "start": 8.32,
+        "end": 120.336,
+        "crossfade": 0.8000000000000007,
+        "beats": 288,
+        "chroma_similarity": 0.8179577589035034,
+        "level_gap_db": 1.3402575380087374,
+        "score": 0.7983705621169748
+      },
+      {
+        "start": 9.088,
+        "end": 108.672,
+        "crossfade": 0.7679999999999989,
+        "beats": 256,
+        "chroma_similarity": 0.809787929058075,
+        "level_gap_db": 0.9322539503074957,
+        "score": 0.798192818852747
+      },
+      {
+        "start": 8.32,
+        "end": 107.984,
+        "crossfade": 0.8000000000000007,
+        "beats": 256,
+        "chroma_similarity": 0.8104712963104248,
+        "level_gap_db": 0.9939355207562633,
+        "score": 0.797326836865876
+      },
+      {
+        "start": 8.704,
+        "end": 108.272,
+        "crossfade": 0.7840000000000007,
+        "beats": 256,
+        "chroma_similarity": 0.8083178997039795,
+        "level_gap_db": 0.9826335308279143,
+        "score": 0.7957339614748995
+      },
+      {
+        "start": 27.344,
+        "end": 120.72,
+        "crossfade": 0.7840000000000025,
+        "beats": 240,
+        "chroma_similarity": 0.8045430779457092,
+        "level_gap_db": 0.9993635343482422,
+        "score": 0.7893530419317821
+      },
+      {
+        "start": 26.176,
+        "end": 119.552,
+        "crossfade": 0.7839999999999989,
+        "beats": 240,
+        "chroma_similarity": 0.8053287267684937,
+        "level_gap_db": 1.6396889147245484,
+        "score": 0.7817691363450348
+      },
+      {
+        "start": 26.96,
+        "end": 120.336,
+        "crossfade": 0.7840000000000025,
+        "beats": 240,
+        "chroma_similarity": 0.7971513271331787,
+        "level_gap_db": 1.0196332000894768,
+        "score": 0.781136302879528
+      }
+    ],
+    "auditory_review": "not_performed"
+  },
+  {
+    "file": "mina_A.mp3",
+    "phrase_beats": 16,
+    "tempo_estimate": 144.23076923076923,
+    "duration": 180.0,
+    "rms_dynamic_range_db": 4.077853202819824,
+    "spectral_centroid_hz": 1588.051017301666,
+    "percussive_energy_fraction": 0.05661815404891968,
+    "loudness": {
+      "input_i": "-15.50",
+      "input_tp": "-4.36",
+      "input_lra": "3.70",
+      "input_thresh": "-25.60",
+      "output_i": "-17.86",
+      "output_tp": "-3.53",
+      "output_lra": "2.80",
+      "output_thresh": "-27.90",
+      "normalization_type": "dynamic",
+      "target_offset": "-1.14"
+    },
+    "loop_candidates": [
+      {
+        "start": 39.984,
+        "end": 133.024,
+        "crossfade": 0.8320000000000007,
+        "beats": 224,
+        "chroma_similarity": 0.6266287565231323,
+        "level_gap_db": 0.8765885382795574,
+        "score": 0.6132664922475098
+      },
+      {
+        "start": 39.568,
+        "end": 132.608,
+        "crossfade": 0.8320000000000007,
+        "beats": 224,
+        "chroma_similarity": 0.6251457929611206,
+        "level_gap_db": 0.9795170618647582,
+        "score": 0.6102493053077473
+      },
+      {
+        "start": 40.4,
+        "end": 133.44,
+        "crossfade": 0.8320000000000007,
+        "beats": 224,
+        "chroma_similarity": 0.6125399470329285,
+        "level_gap_db": 0.7824492417033733,
+        "score": 0.6026113593148208
+      },
+      {
+        "start": 39.152,
+        "end": 132.192,
+        "crossfade": 0.8320000000000007,
+        "beats": 224,
+        "chroma_similarity": 0.6129204034805298,
+        "level_gap_db": 1.0855917404841815,
+        "score": 0.5961835625929969
+      },
+      {
+        "start": 40.832,
+        "end": 133.856,
+        "crossfade": 0.847999999999999,
+        "beats": 224,
+        "chroma_similarity": 0.6029025316238403,
+        "level_gap_db": 1.0019494760871548,
+        "score": 0.5907296229724224
+      },
+      {
+        "start": 38.736,
+        "end": 131.776,
+        "crossfade": 0.8319999999999936,
+        "beats": 224,
+        "chroma_similarity": 0.6078649163246155,
+        "level_gap_db": 1.5487486682458662,
+        "score": 0.5851497122354209
+      },
+      {
+        "start": 37.904,
+        "end": 130.944,
+        "crossfade": 0.8480000000000061,
+        "beats": 224,
+        "chroma_similarity": 0.5974829196929932,
+        "level_gap_db": 1.3981715943647326,
+        "score": 0.5794988557059526
+      },
+      {
+        "start": 38.32,
+        "end": 131.36,
+        "crossfade": 0.8320000000000007,
+        "beats": 224,
+        "chroma_similarity": 0.6001816987991333,
+        "level_gap_db": 1.6320345894277688,
+        "score": 0.5778711238167572
+      }
+    ],
+    "auditory_review": "not_performed"
+  },
+  {
+    "file": "rei_A.mp3",
+    "phrase_beats": 16,
+    "tempo_estimate": 156.25,
+    "duration": 179.2,
+    "rms_dynamic_range_db": 4.875882148742676,
+    "spectral_centroid_hz": 1982.1436602800873,
+    "percussive_energy_fraction": 0.21335314214229584,
+    "loudness": {
+      "input_i": "-16.00",
+      "input_tp": "-3.87",
+      "input_lra": "3.00",
+      "input_thresh": "-26.09",
+      "output_i": "-18.71",
+      "output_tp": "-5.69",
+      "output_lra": "2.70",
+      "output_thresh": "-28.75",
+      "normalization_type": "dynamic",
+      "target_offset": "-0.29"
+    },
+    "loop_candidates": [
+      {
+        "start": 18.24,
+        "end": 110.544,
+        "crossfade": 0.7679999999999971,
+        "beats": 240,
+        "chroma_similarity": 0.816826581954956,
+        "level_gap_db": 0.5937298820907576,
+        "score": 0.7994469784461185
+      },
+      {
+        "start": 19.008,
+        "end": 123.616,
+        "crossfade": 0.7680000000000007,
+        "beats": 272,
+        "chroma_similarity": 0.8174591064453125,
+        "level_gap_db": 1.4233487678052739,
+        "score": 0.799017408970867
+      },
+      {
+        "start": 19.392,
+        "end": 124.0,
+        "crossfade": 0.7680000000000007,
+        "beats": 272,
+        "chroma_similarity": 0.8177273273468018,
+        "level_gap_db": 1.5317374418418241,
+        "score": 0.7984410056052702
+      },
+      {
+        "start": 18.624,
+        "end": 110.928,
+        "crossfade": 0.7679999999999971,
+        "beats": 240,
+        "chroma_similarity": 0.8120471835136414,
+        "level_gap_db": 0.3212393981221234,
+        "score": 0.7982098562674478
+      },
+      {
+        "start": 40.544,
+        "end": 145.136,
+        "crossfade": 0.7679999999999936,
+        "beats": 272,
+        "chroma_similarity": 0.8205341100692749,
+        "level_gap_db": 1.1340137499173357,
+        "score": 0.7964122041375966
+      },
+      {
+        "start": 40.928,
+        "end": 145.536,
+        "crossfade": 0.7680000000000007,
+        "beats": 272,
+        "chroma_similarity": 0.8178542852401733,
+        "level_gap_db": 1.0488594751807498,
+        "score": 0.796173761683721
+      },
+      {
+        "start": 44.768,
+        "end": 143.216,
+        "crossfade": 0.7680000000000007,
+        "beats": 256,
+        "chroma_similarity": 0.807083249092102,
+        "level_gap_db": 0.039800714570902285,
+        "score": 0.7950744463388546
+      },
+      {
+        "start": 19.008,
+        "end": 111.312,
+        "crossfade": 0.7680000000000007,
+        "beats": 240,
+        "chroma_similarity": 0.8019447922706604,
+        "level_gap_db": 0.2325565514488908,
+        "score": 0.7891319732425401
+      }
+    ],
+    "auditory_review": "not_performed"
+  },
+  {
+    "file": "tutorial_A.mp3",
+    "phrase_beats": 16,
+    "tempo_estimate": 129.31034482758622,
+    "duration": 179.96,
+    "rms_dynamic_range_db": 4.987690448760986,
+    "spectral_centroid_hz": 1365.0941245886283,
+    "percussive_energy_fraction": 0.1260586529970169,
+    "loudness": {
+      "input_i": "-15.34",
+      "input_tp": "-3.58",
+      "input_lra": "3.90",
+      "input_thresh": "-25.45",
+      "output_i": "-18.27",
+      "output_tp": "-3.25",
+      "output_lra": "2.80",
+      "output_thresh": "-28.33",
+      "normalization_type": "dynamic",
+      "target_offset": "-0.73"
+    },
+    "loop_candidates": [
+      {
+        "start": 18.512,
+        "end": 152.432,
+        "crossfade": 0.9280000000000008,
+        "beats": 288,
+        "chroma_similarity": 0.7715311050415039,
+        "level_gap_db": 0.7423962849412001,
+        "score": 0.7621868625048628
+      },
+      {
+        "start": 18.976,
+        "end": 152.896,
+        "crossfade": 0.9280000000000008,
+        "beats": 288,
+        "chroma_similarity": 0.767241358757019,
+        "level_gap_db": 0.8282272712098249,
+        "score": 0.7560031151694178
+      },
+      {
+        "start": 19.456,
+        "end": 153.36,
+        "crossfade": 0.9439999999999991,
+        "beats": 288,
+        "chroma_similarity": 0.7636951208114624,
+        "level_gap_db": 0.893662848828257,
+        "score": 0.7515931979015166
+      },
+      {
+        "start": 19.92,
+        "end": 153.84,
+        "crossfade": 0.9440000000000026,
+        "beats": 288,
+        "chroma_similarity": 0.7538213729858398,
+        "level_gap_db": 0.9522583658078937,
+        "score": 0.741490024700418
+      },
+      {
+        "start": 41.76,
+        "end": 160.8,
+        "crossfade": 0.9279999999999973,
+        "beats": 256,
+        "chroma_similarity": 0.7622336149215698,
+        "level_gap_db": 0.16346209606532047,
+        "score": 0.7410504152841328
+      },
+      {
+        "start": 24.56,
+        "end": 128.72,
+        "crossfade": 0.9279999999999973,
+        "beats": 224,
+        "chroma_similarity": 0.7625997066497803,
+        "level_gap_db": 1.048352476100311,
+        "score": 0.739495401390251
+      },
+      {
+        "start": 18.048,
+        "end": 151.968,
+        "crossfade": 0.9279999999999973,
+        "beats": 288,
+        "chroma_similarity": 0.7458925247192383,
+        "level_gap_db": 0.652584260647517,
+        "score": 0.7372901178671821
+      },
+      {
+        "start": 23.168,
+        "end": 127.328,
+        "crossfade": 0.9280000000000008,
+        "beats": 224,
+        "chroma_similarity": 0.7556737661361694,
+        "level_gap_db": 0.48707113626582427,
+        "score": 0.7365668636082022
+      }
+    ],
+    "auditory_review": "not_performed"
+  }
+]

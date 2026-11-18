@@ -1,0 +1,97 @@
+{
+  "tool": "built-in image_gen",
+  "output": "assets/sns/story_posts_v4.png",
+  "columns": 3,
+  "rows": 3,
+  "cell_size": [
+    864,
+    432
+  ],
+  "reference_atlas": "assets/sns/story_posts_v3.png",
+  "photographic_reference": {
+    "atlas": "assets/sns/story_posts_v3.png",
+    "slot": 6
+  },
+  "shared_prompt": "Produce ONE candid, convincing LIVE-ACTION STYLE smartphone photograph for an in-game SNS attachment. Reference 1 locks the subject and narrative details; re-photograph the physical scene, not the drawing or its printed surface. Reference 2 is the approved cat phone photo: use it ONLY to match everyday photographic realism, never add a cat to this scene. Natural unfiltered colors, minor ordinary imperfections, believable optics and exposure, avoid anime outlines, painterly shading, staged cinematic compositions, logos, watermarks, decorative captions, UI overlays, borders or a photo collage. Use a wide 2:1 landscape frame that reads at 432×216, keep important details inside the wide central area.",
+  "slots": [
+    {
+      "slot": 0,
+      "id": "last_train",
+      "reference_slot": 0,
+      "prompt": "Actual rainy empty suburban Japanese commuter railway platform. From a safe spot under the station roof, a departing commuter train in the middle distance, its small red tail lamps reflected in the puddles. Slightly uneven framing, rainy evening, real wet concrete, yellow tactile strip, unbranded fixtures, nobody visible and no umbrellas or readable signage. Not a dramatic railway poster."
+    },
+    {
+      "slot": 1,
+      "id": "draft_reply",
+      "reference_slot": 1,
+      "prompt": "Actual candid photo aimed deliberately at only the TIDY RIGHT SIDE of a young worker's desk, the cluttered left half remains off camera. A scuffed small spiral pad with two scribbled-out lines (no decipherable words) and ONE capped pen, a patch of clear light wood, ordinary lamplight. Offhand angled framing. The photographer's phone, hands and their reflections are outside the photo. A desk that the commenter could plausibly compliment as tidy."
+    },
+    {
+      "slot": 2,
+      "id": "archive_night",
+      "reference_slot": 2,
+      "prompt": "Late-night home desk snapped during a livestream break, ordinary Japanese student's messy-but-readable place, a purple wordless holding screen on a real laptop, headphones set down, exercise notebook with one simple printed triangle exercise and plenty of blank space. Leave no pen in sight: the poster is looking for one. Real fluorescent or small desk lamp lighting, unsolved problem, natural paper and casual computer positioning, no recognizable streamer, product names, UI writing or theatrical lighting."
+    },
+    {
+      "slot": 3,
+      "id": "penlight_drawer",
+      "reference_slot": 3,
+      "prompt": "One silver-gripped small PURPLE concert glow stick is actually switched on over a wrinkled duvet, casting a subtle violet patch on the fabric. A second mint plastic stick is OFF. A used ticket stub in its sleeve is INSIDE a little open keepsake box to one side, not on the bed. Ordinary fan's bedroom snap, slightly tilted, no brand, no concert crowd, no legible ticket text; both light sticks fully distinct, realistic scale and plastic."
+    },
+    {
+      "slot": 4,
+      "id": "unfinished_color",
+      "reference_slot": 4,
+      "prompt": "A REAL physical pen-display drawing tablet on a REAL artist's desk, photographed on a phone at a slightly oblique angle. Retain the actual unfinished digital artwork ON its screen: pale blue loose lines drawing the same long-haired profile from the reference with one clearly visible vivid cobalt blue trial swath on the shoulder/fabric. Desk, stylus, screen glare and bezel must be photographed, ONLY the picture on the screen is an illustration. No photographed person, no readable UI text, no logo. Natural personal snapshot of a drawing in progress rather than a flat screenshot."
+    },
+    {
+      "slot": 5,
+      "id": "two_cups",
+      "reference_slot": 5,
+      "prompt": "Two ordinary mugs on opposite sides of a small kitchen table after two friends have sat down: one plain white, one dark blue, still steaming faintly and untouched. A single quick indoor phone snapshot with minor asymmetry, thin irregular steam wisps visible against a dim patch beyond, unpolished tabletop. Mild window light, not strongly backlit or staged, no faces, hands, people or logos."
+    },
+    {
+      "slot": 6,
+      "id": "old_blanket",
+      "copy_from_slot": 6
+    },
+    {
+      "slot": 7,
+      "id": "muted_notifications",
+      "reference_slot": 7,
+      "prompt": "A cook has flipped a whole batch of Japanese gyoza out of the pan. Accurately reproduce TWELVE countable dumplings, three loose offset rows of FOUR, on a simple blue-rimmed plate, ALL twelve in shot. Keep them connected by a thin irregular crispy wing. Real individual dumplings folded by hand, nonidentical sizes, toasted marks of different depths, flat browned sides up, one piece near the center visibly appetizing, slightly ragged crispy edges. Empty frying pan at the edge. Modest stove, ordinary indoor exposure, casual angled phone shot before eating, no brand, no garnish, no numerals. Do not turn the depicted arrangement into clones, photoreal textures matter."
+    },
+    {
+      "slot": 8,
+      "id": "waiting_reply",
+      "reference_slot": 8,
+      "prompt": "An ordinary Japanese school-lunch-style AGE-PAN, a single kinako-dusted fried koppe bread partway out of its creased paper bag on a break-room table. There is ONE small bite already taken from the exposed end with a little soft crumb showing, a little powder in the fold. Off-center understated phone snap taken at lunch, mixed neutral overhead light, no studio food lighting, bake-sale decor, fancy table, second bread, words or brand. Not a doughnut, baguette or filled sandwich."
+    }
+  ],
+  "personal": [
+    {
+      "id": "akari_warm_meal",
+      "reference": "assets/sns/akari_warm_meal_v1.png",
+      "output": "assets/sns/akari_warm_meal_v2.png",
+      "prompt": "Re-create Akari's own phone shot at the SAME small Japanese eatery. A just-served warm oyakodon of lightly set egg and chicken over rice in the familiar blue-striped bowl, red spoon, water glass, a few pickles and a modest yellow umbrella by the chair in the background. Actual edible food and real tabletop; unposed cozy everyday dinner. Framing from where she sits, faint steam, understated mixed restaurant lighting. No other phone, hands, people or lettering."
+    },
+    {
+      "id": "koharu_worked_notes",
+      "reference": "assets/sns/koharu_worked_notes_v1.png",
+      "output": "assets/sns/koharu_worked_notes_v2.png",
+      "prompt": "Rephotograph Koharu's open exercise notebook on the classroom desk with its blue-sleeved eraser, eraser crumbs, pencils and the edge of a coral pouch. Keep exactly these five pencil-written maths lines, legible separately and in this exact order on the right page, like slightly uneven student handwriting: 'x² − 5x + 6 = 0' / 'x² − 2x − 3x + 6 = 0' / 'x(x − 2) − 3(x − 2) = 0' / '(x − 2)(x − 3) = 0' / 'x = 2, 3'. No other legible writing; a faint erased patch above is okay. All five complete lines must stay within central crop-safe area. Actually photographed graphite, paper, morning classroom light, regular mobile phone exposure, no person in shot."
+    },
+    {
+      "id": "rei_book_night",
+      "reference": "assets/sns/rei_book_night_v1.png",
+      "output": "assets/sns/rei_book_night_v2.png",
+      "prompt": "A real smartphone photograph of Rei's desk with the same worn open paperback and single mint page tab, pen, checked notepad, and unbranded keyboard from the reference. Step BACK to see the whole paperback on a lived-in grey desk after her stream, and angle the book diagonally in frame. This is an ordinary Japanese novel: pages have many narrow VERTICAL COLUMNS of actual-looking tiny varied Japanese printed characters, running down each page, right-to-left across the novel. They are naturally too small or oblique to read at phone-feed scale; absolutely no solid square placeholder blocks, repeated identical bars, grey dashes or artificially blurred rectangles substituting for text. Do not use any identifiable writing, title, or recognizable author. Foremost detail is the worn page edge and small pale mint bookmark, with the type down near the limit of focus. A modest desk lamp simply lets one read; no golden-hour grading, flashy bokeh, props arranged for sale or tabletop microphone. Make it visually plausible to leaf through this photographed book."
+    },
+    {
+      "id": "mina_shared_sky",
+      "reference": "assets/sns/mina_shared_sky_v1.png",
+      "output": "assets/sns/mina_shared_sky_v2.png",
+      "prompt": "A believable unfiltered phone night-mode photograph of the moon and thin clouds in the virtual sky Mina chose. Preserve only the reference's spatial idea: a SMALL full moon on the left, deep night sky and a few passing wisps of cloud. At realistic phone field of view the moon is a small softly clipped bright round disc (about 2% of image width), softly spilling light onto the wispy high cloud near it. Behind is mostly empty dark navy sky with just a handful of stars. Sparse, uneven TRANSLUCENT wisps, like real high cirrus with thin strands, not illustrated billows, painterly patches, or mirrored clouds. Capture the sky from a phone at moderate zoom in the middle of an ordinary night with plausible coarse low-light noise and reduced saturation. This is Mina's image of a virtual sky that looks real in-game, so no part of a phone, window, scenery, horizon or people. No gigantic detailed moon, Milky Way, night-sky wallpaper or telescope photograph."
+    }
+  ]
+}

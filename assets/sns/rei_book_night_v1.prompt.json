@@ -1,0 +1,39 @@
+{
+  "schema": 1,
+  "asset": "assets/sns/rei_book_night_v1.png",
+  "created_date": "2026-10-30",
+  "mode": "built-in image_gen",
+  "tool": "image_gen.imagegen",
+  "intent": "generate with existing-project scene and style reference, then remove mismatching background object",
+  "reference_region": "char/v3/rei_story_atlas_v2.png, bottom-right panel (column 2, row 4) only",
+  "story_basis": "ReiStoryFilm Aftermath: Rei finishes talking about a childhood favorite book, marks one idea in her notebook, and opens the bookmarked page again after ending her stream.",
+  "intended_caption": "好きなところ、最後まで話せた。",
+  "generation": {
+    "prompt": "Use case: illustration-story. Create ONE original finished landscape 2:1 softly shaded anime illustration for an in-game SNS photo attachment, not a collage. The post's feeling is \"I managed to talk about my favorite parts, all the way to the end.\" Do not write that caption or any caption in the image.\n\nREFERENCE ROLE: Use ONLY the bottom-right panel (column 2, row 4) of the provided 2-column 4-row game story atlas as the scene and style reference. That panel takes place in Rei's modest room after her livestream. Preserve the reference's ordinary light-gray computer desk, warm muted room lighting balanced by cool blue nighttime tones, navy curtains, restrained everyday anime linework and gentle material shading. No people or character art in the new image. Do not depict the other panels or new locations.\n\nMAIN SUBJECT: A single well-read, plain cream/tan bound storybook lying open on the light-gray desk. Make it clearly a printed paperback storybook with a curved spine and many softly worn cream pages, NOT a school exercise notebook or a textbook. A single pale mint-green rectangular sticky bookmark/tab marks the page she just finished talking about. Slightly dog-eared outer edges and natural page curvature imply it has been reread for years. The open book dominates the central composition and remains completely recognizable at a small 432 by 216 pixel game display.\n\nSUPPORTING OBJECTS: To the left, a much smaller ordinary idea notebook may be partly visible with just one small discreet handwritten check mark beside a short indistinct note, marking one completed idea; keep all note marks very faint and deliberately unreadable. One simple black pen lies beside that notebook. At the back edge, only a cropped strip of her plain black keyboard and part of the ordinary black desk microphone from the reference can appear, softly out of focus, showing this is the same streaming desk after speaking. No visible monitor image, notifications or avatars. Do not make the keyboard/microphone more prominent than the book. The dark navy curtain may form a soft narrow background edge.\n\nCOMPOSITION: Candid slightly overhead oblique close-up photographed from the student's side of the desk after the stream, informal and intimate, not advertising or a decorative stationery flat-lay. Open storybook near center-right, small notebook left, keyboard soft at back. Keep the entire main book and pale mint tab within the central 85 percent of width and height, suitable for a centered 2:1 crop. Warm room light across ivory pages; cool quiet blue shadows. No colored effects, sparkles or magical light.\n\nBOOK CONTENT: Only tiny soft indistinct printed-text textures with generous margins, intentionally not readable. Do not reproduce any real publication, title, author, quotation, logo, image or recognizable page design. No illustrated castles, characters or scenes within the book; no pseudo-Japanese headings or large fake kanji. No prominent page numbers. No math equations or school work. No readable text anywhere in the artwork.\n\nAVOID: people, faces, hands, silhouettes, character screenshots, phones, plants, coffee, food, mugs, flowers, candles, trophies, hearts, stickers other than the single functional mint bookmark, extra decorative objects, logos, watermarks, borders, text overlays, fantasy staging, photorealistic rendering. The finished image should look like a close view of the reference's last scene and express the small relief of having finally shared a favorite book.",
+    "referenced_image_paths": [
+      "D:/dev/algo_shoot/char/v3/rei_story_atlas_v2.png"
+    ],
+    "transparent_background": false,
+    "output": "C:/Users/takut/.codex/generated_images/01a188a1-cabc-7db3-936c-a5122a5a1f61/exec-c9292423-fd1c-4b2c-af73-e2940595e23d.png"
+  },
+  "edit": {
+    "prompt": "Edit only the background microphone area of this image. Remove the entire round desktop microphone stand, its vertical support and the visible pop filter at the upper left, including the dark cable connected to that stand. Fill the removed object's footprint naturally with the same light-gray desk surface, its warm/cool reflected light and the existing softly blurred navy curtain behind it. Leave the keyboard untouched. This image should have no visible microphone at all. Preserve absolutely everything else: exact open book, pages, text texture, worn edges, mint bookmark, small left notebook with one check mark, black pen, composition, 2:1 crop, anime linework, colors and lighting. No new objects or text.",
+    "referenced_image_paths": [
+      "C:/Users/takut/.codex/generated_images/01a188a1-cabc-7db3-936c-a5122a5a1f61/exec-c9292423-fd1c-4b2c-af73-e2940595e23d.png"
+    ],
+    "transparent_background": false,
+    "output": "C:/Users/takut/.codex/generated_images/01a188a1-cabc-7db3-936c-a5122a5a1f61/exec-863e0f65-3999-4828-b42f-8d9391c960d8.png"
+  },
+  "review": {
+    "dimensions": [
+      1774,
+      887
+    ],
+    "aspect_ratio": "2:1",
+    "content": "A worn open storybook with one pale mint tab, small idea notebook with one check, black pen and keyboard on the reference's modest gray desk. The incorrect tabletop microphone from the first generation was removed using imagegen.",
+    "style": "Compared with the reference's final panel: gray desk, navy curtain and warm/cool anime shading retained. No character redesign.",
+    "text": "Only deliberately unreadable text texture; no real publication, title, quotation, author, artwork or logo.",
+    "crop": "Book and mint tab remain clear within a centered 2:1 composition.",
+    "assets": "Existing project reference and built-in generated output only; no external assets or purchases."
+  }
+}

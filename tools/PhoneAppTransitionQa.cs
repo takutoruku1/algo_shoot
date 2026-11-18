@@ -21,23 +21,6 @@ public partial class PhoneAppTransitionQa : Node
         try
         {
             Check(OS.GetUserDataDir().Replace('\\', '/').Contains("/build/qa_story/"), "isolated save data");
-            var poseMethod = typeof(PhoneAppTransition).GetMethod("PhonePose", BindingFlags.Static | BindingFlags.NonPublic)!;
-            var rectMethod = typeof(PhoneAppTransition).GetMethod("AppRect", BindingFlags.Static | BindingFlags.NonPublic)!;
-            bool inside = true;
-            for (float t = 0; t < PhoneAppTransition.TurnDuration; t += 0.01f)
-            {
-                var (angle, scale) = ((float, float))poseMethod.Invoke(null, new object[] { t })!;
-                foreach (var corner in new[] { new Vector2(-240, -360), new(240, -360), new(240, 360), new(-240, 360) })
-                {
-                    Vector2 screen = new Vector2(640, 360) + corner.Rotated(angle) * scale;
-                    inside &= screen.X >= -0.1f && screen.X <= 1280.1f && screen.Y >= -0.1f && screen.Y <= 720.1f;
-                }
-            }
-            Check(inside, "turning phone stays inside the viewport throughout its motion");
-            var finalPose = ((float Angle, float Scale))poseMethod.Invoke(null, new object[] { PhoneAppTransition.TurnDuration })!;
-            Check(Mathf.IsEqualApprox(finalPose.Angle, Mathf.Pi / 2), "phone turns exactly ninety degrees");
-            Check((Rect2)rectMethod.Invoke(null, new object[] { PhoneAppTransition.Duration })! == new Rect2(0, 0, 1280, 720),
-                "expansion ends at full landscape size");
             var game = GetNode<GameManager>("/root/Game");
             game.ResetPersistent();
             game.AutoSaveEnabled = false;
@@ -63,15 +46,25 @@ public partial class PhoneAppTransitionQa : Node
                     Call(hub, "OpenHomeApp", index);
                     Check(GetTree().CurrentScene == hub && GetNodeOrNull<PhoneAppTransition>("/root/PhoneAppTransition") != null,
                         $"{type.Name} begins with the portrait phone instead of an instant scene change");
-                    SetKeys(true);
-                    await Frames(20);
-                    Check(GetTree().CurrentScene == hub, "rotation finishes before changing scenes");
-                    await Shot($"{type.Name}_turn_{size.X}x{size.Y}");
-                    await Frames(24);
                     var phone = GetNode<PhoneAppTransition>("/root/PhoneAppTransition");
+                    var portrait = (Rect2)Call(phone, "AppRect", PhoneAppTransition.FocusDuration)!;
+                    Check(portrait.Size.Y > portrait.Size.X && portrait.GetCenter().IsEqualApprox(new Vector2(640, 360)),
+                        "phone stays centered and upright before expansion");
+                    Check((Rect2)Call(phone, "AppRect", PhoneAppTransition.Duration)! == new Rect2(0, 0, 1280, 720),
+                        "expansion ends at full landscape size");
+                    if (!movie) phone.SetProcess(false);
+                    SetKeys(true);
+                    // GPU load changes frame duration; sample QA poses by elapsed time.
+                    if (!movie) phone._Process(PhoneAppTransition.FocusDuration * 0.5 * Engine.TimeScale);
+                    await Frames(movie ? 20 : 2);
+                    Check(GetTree().CurrentScene == hub, "phone focuses before changing scenes");
+                    await Shot($"{type.Name}_turn_{size.X}x{size.Y}");
+                    if (!movie) phone._Process((PhoneAppTransition.FocusDuration * 0.5 + PhoneAppTransition.ExpandDuration * 0.25) * Engine.TimeScale);
+                    await Frames(movie ? 24 : 2);
                     Check(LoadingScreen.IsActive && GetTree().CurrentScene == hub && phone.LoadingVisible
                         && phone.LoadingBounds.Size.X < 1280, $"{type.Name} loads inside the expanding landscape phone");
                     await Shot($"{type.Name}_expand_{size.X}x{size.Y}");
+                    phone.SetProcess(true);
                     for (int frame = 0; frame < 1800 && LoadingScreen.IsActive; frame++) await Frames(1);
                     await Frames(20);
                     var app = GetTree().CurrentScene as Node2D;

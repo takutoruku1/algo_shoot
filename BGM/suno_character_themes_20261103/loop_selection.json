@@ -1,0 +1,50 @@
+[
+  {
+    "file": "mina_B.mp3",
+    "title": "まだ見ぬ空へ — ミナのテーマ",
+    "start": 22.736,
+    "end": 131.024,
+    "crossfade": 1.2319999999999993,
+    "beats": 176,
+    "chroma_similarity": 0.7617822289466858,
+    "level_gap_db": 0.8020047807343305,
+    "selection_basis": "指定96 BPMに最も近く、Aより音量変動が小さい。透明感と規則性を狙うミナのテーマとして選定。",
+    "auditory_review": "not_performed"
+  },
+  {
+    "file": "akari_B.mp3",
+    "title": "消さなかった言葉 — あかりのテーマ",
+    "start": 38.704,
+    "end": 132.048,
+    "crossfade": 1.024000000000001,
+    "beats": 177,
+    "chroma_similarity": 0.7288618683815002,
+    "level_gap_db": 1.0557243338794715,
+    "selection_basis": "6/8の指定に対応する四分音符108 BPMに近い約110 BPM。Aより落ち着いた拍の流れを優先。",
+    "auditory_review": "not_performed"
+  },
+  {
+    "file": "koharu_A.mp3",
+    "title": "ひと息ぶんの光 — こはるのテーマ",
+    "start": 40.576,
+    "end": 142.176,
+    "crossfade": 1.0559999999999974,
+    "beats": 192,
+    "chroma_similarity": 0.8652893304824829,
+    "level_gap_db": 2.98237513117875,
+    "selection_basis": "A/Bとも約114 BPM。Aの打楽器成分と反復区間の和音一致度が高く、こはるの明るい表情と躍動を狙って選定。",
+    "auditory_review": "not_performed"
+  },
+  {
+    "file": "rei_B.mp3",
+    "title": "わたしの声で — レイのテーマ",
+    "start": 15.104,
+    "end": 134.72,
+    "crossfade": 0.9439999999999991,
+    "beats": 256,
+    "chroma_similarity": 0.8580906391143799,
+    "level_gap_db": 0.7334962123186022,
+    "selection_basis": "A/Bとも約129 BPM。Bは打楽器成分と高域の比率が控えめで、レイの内心を描く会話シーン向けに選定。",
+    "auditory_review": "not_performed"
+  }
+]

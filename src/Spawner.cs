@@ -40,7 +40,7 @@ public partial class Spawner : Node
     public float Intensity => Mathf.Clamp(StartIntensity + (float)_t / RampDur * 0.3f, 0f, 1f);
     private double _attackCooldown;
 
-    private const float SpawnX = Field.Right + 14f;   // 盤面の右外
+    private static float SpawnX => Field.Right + 14f;
     private const float RampDur = 60f;
     private const float IntervalStart = 2.0f;
     private const float IntervalEnd = 1.2f;
@@ -58,7 +58,7 @@ public partial class Spawner : Node
     //   0.40 なら着座Xは 225.6 で、自機は左へ 105px ぶん回り込んで正面から撃ち返せる。
     //   上下の走行・着座Yと攻撃間隔はそのまま＝「背後から圧をかける」役割は変えていない。
     private const float FlankCampXK = 0.40f;
-    private const float FlankCampX = Field.Left + Field.Width * FlankCampXK;
+    private static float FlankCampX => Field.Left + Field.Width * FlankCampXK;
     private const float FlankRunTopY = 16f;      // 上端走行レーンY
     private const float FlankRunBottomY = 200f;  // 下端走行レーンY
     private const float FlankCampTopY = 64f;     // 上から回った個体の着座Y
@@ -102,7 +102,7 @@ public partial class Spawner : Node
         _attackCooldown -= GameManager.EnemyDelta(delta);
 
         var game = GetNodeOrNull<GameManager>("/root/Game");
-        if (game != null && game.StageCleared && !IgnoreStageCleared) { Stop(); return; }
+        if (game != null && game.SpawnTargetReached && !IgnoreStageCleared) { Stop(); return; }
         // Reaching the reservation limit stops new waves, not their already-visible warnings.
         TickPending(delta);
         if (!Active) return;
@@ -120,7 +120,8 @@ public partial class Spawner : Node
         if (pair) SpawnPair();
         else SpawnOne(game);
         _formationIndex++;
-        _cd = Mathf.Lerp(IntervalStart, IntervalEnd, Intensity) * (pair ? 1.25 : 1);
+        _cd = Mathf.Lerp(IntervalStart, IntervalEnd, Intensity) * (pair ? 1.25 : 1)
+            / (game?.Difficulty == GameManager.Diff.Hard ? 1.2 : 1);
     }
 
     private bool WantsPair(GameManager? game) => Theme != StageTheme.Default && (game?.Difficulty switch
@@ -144,8 +145,10 @@ public partial class Spawner : Node
             float y = center + (i == 0 ? -36f : 36f);
             var enemy = new MidEnemy { RoadDirector = this };
             enemy.Configure(spec);
-            enemy.SetEntry(new Vector2(campX, y));
-            QueueSpawn(enemy, new Vector2(SpawnX, y), Edge.Right);
+            var (pos, camp) = enemy.RequiresFrontEntry
+                ? SpawnFrontEdge(y) : (new Vector2(SpawnX, y), new Vector2(campX, y));
+            enemy.SetEntry(camp);
+            QueueSpawn(enemy, pos, Edge.Right);
         }
     }
 
@@ -236,13 +239,13 @@ public partial class Spawner : Node
                 me.Configure(character ? characters[_characterIndex++ % characters.Count] : drifter ? drift : shooter);
                 // 出現エッジを散らす（難易度別。PickEdge / 各 Spawn*Edge を参照）。
                 Vector2 camp;
-                edge = PickEdge(game);
+                edge = me.RequiresFrontEntry ? Edge.Right : PickEdge(game);
                 switch (edge)
                 {
                     case Edge.Top:    (pos, camp) = SpawnTopEdge(WideVertical(game));    break;
                     case Edge.Bottom: (pos, camp) = SpawnBottomEdge(WideVertical(game)); break;
                     case Edge.Left:   (pos, camp) = SpawnLeftEdge();   break;
-                    default:          (pos, camp) = SpawnRightEdge(y); break;
+                    default:          (pos, camp) = me.RequiresFrontEntry ? SpawnFrontEdge(y) : SpawnRightEdge(y); break;
                 }
                 if (edge == Edge.Left)
                     me.SetSilentEntry(camp);
@@ -303,6 +306,10 @@ public partial class Spawner : Node
         (new Vector2(SpawnX, y),
          new Vector2(_rng.RandfRange(Field.Left + 60f, Field.Left + 180f), y));
 
+    private (Vector2 pos, Vector2 camp) SpawnFrontEdge(float y) =>
+        (new Vector2(SpawnX, y),
+         new Vector2(_rng.RandfRange(Field.Right - 64f, Field.Right - 40f), y));
+
     // 上下エッジの進入位置を「盤面の全幅」に広げるか。
     //   Easy だけ false＝旧仕様（x は Field.Right 寄りに限定＝実質“右上/右下から”）のまま。
     //   入口の難易度はユーザー指示で現状維持（体験を一切変えない）。
@@ -312,7 +319,7 @@ public partial class Spawner : Node
     //   「右上から」ではなく「真上から」も降ってくる。ただし自機が張り付きがちな最左(Field.Left)より
     //   少し右から入れて、頭上に湧いて避ける間もなく接触する事故を避ける。
     private const float VertSpawnMinX = Field.Left + 28f;   // = 148
-    private const float VertSpawnMaxX = Field.Right - 16f;  // = 368
+    private static float VertSpawnMaxX => Field.Right - 16f;
     private (Vector2 pos, Vector2 camp) SpawnTopEdge(bool wide)
     {
         if (!wide) // 旧仕様（Easy）: 右上から下りて、着座も従来レンジ

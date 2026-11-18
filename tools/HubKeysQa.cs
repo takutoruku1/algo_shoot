@@ -56,6 +56,7 @@ public partial class HubKeysQa : Node
             game.MarkIdleDialogSeen("once_sns_intro");
             game.MarkIdleDialogSeen("once_phone_home");
             game.MarkIdleDialogSeen("once_account_intro");
+            foreach (var post in SnsVoices.ReturnPosts) game.MarkIdleDialogSeen(SnsVoices.ReturnPostReadKey(post));
             // あかりをクリア済みにする＝あかりのカードで [返信] が使える（CanReplySel）。
             Read<HashSet<string>>(game, "_cleared").Add(GameManager.FirstStageId);
             // 強化ショップの初回説明は既読にする。あかりをクリア済みにした瞬間 ShopUnlocked が立ち、
@@ -85,6 +86,32 @@ public partial class HubKeysQa : Node
             Check(Mode(hub) == "Home", "hub starts on the phone home");
             await CheckHint(hub, "home", "↑↓←→", "ひらく");
             await Shot("home");
+            await Keypress(Key.Down);
+            Check(Read<int>(hub, "_homeSel") == 2, "home down moves one row in the two-column app grid");
+            await Keypress(Key.Down);
+            Check(Read<int>(hub, "_homeSel") == 4, "home down continues to the other apps page");
+            await Shot("home_other_apps");
+            for (int app = 5; app < 9; app++)
+            {
+                await Keypress(Key.Right);
+                Check(Read<int>(hub, "_homeSel") == app, $"secondary app {app} is reachable with the keyboard");
+            }
+            await Keypress(Key.Right);
+            Check(Read<int>(hub, "_homeSel") == 0, "home navigation wraps back to SNS");
+            Vector2 previousPointer = Pad.MousePos();
+            foreach (int page in new[] { 2, 1, 0 })
+            {
+                var tab = (Rect2)CallStatic("HomePageRect", page)!;
+                var pose = (Transform2D)Call(hub, "HomePhoneTransform")!;
+                typeof(Pad).GetField("_mousePos", BindingFlags.Static | BindingFlags.NonPublic)!.SetValue(null, pose * tab.GetCenter());
+                typeof(Pad).GetField("_mL", BindingFlags.Static | BindingFlags.NonPublic)!.SetValue(null, true);
+                typeof(Pad).GetField("_mLPrev", BindingFlags.Static | BindingFlags.NonPublic)!.SetValue(null, false);
+                Call(hub, "ProcessHome");
+                Check(Read<int>(hub, "_homeSel") == page * 4, $"tilted phone page {page} responds at its visible mouse position");
+            }
+            typeof(Pad).GetField("_mousePos", BindingFlags.Static | BindingFlags.NonPublic)!.SetValue(null, previousPointer);
+            typeof(Pad).GetField("_mL", BindingFlags.Static | BindingFlags.NonPublic)!.SetValue(null, false);
+            SetPad(false);
             foreach (var k in new[] { Key.J, Key.C, Key.T, Key.R })
             {
                 await Keypress(k);
@@ -99,7 +126,7 @@ public partial class HubKeysQa : Node
             for (int i = 0; i < 600 && Mode(hub) == "SnsOpening"; i++) await Frames(1);
             await Seconds(0.4);
             Check(Mode(hub) == "Cards", "(a) Z on home opens the SNS timeline");
-            await CheckHint(hub, "sns", "↑↓", "ボタン");
+            await CheckHint(hub, "sns", "↑↓", "けってい");
 
             // あかりのカードへ ↑↓ だけで移る。
             int akari = IndexOf(hub, GameManager.FirstStageId);

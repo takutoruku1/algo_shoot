@@ -68,8 +68,8 @@ public sealed class BossMover
     private float _hoverFreq = 0.9f;
 
     // ── 視覚専用（当たり判定に入れない）。
-    private float _breatheAmp = 1.6f;
-    private float _swayAmp = 1.4f;
+    private float _breatheAmp = .45f;
+    private float _swayAmp = .3f;
     private float _leanMax = 0.16f;
 
     // ── 反転抑制。自機が反対側へ FlipDx px 以上・FlipHold 秒続いたときだけ向きを変える。
@@ -111,7 +111,7 @@ public sealed class BossMover
             if (_flipSquashT <= 0.0) return Vector2.One;
             float k = (float)(_flipSquashT / FlipSquashDur);   // 1→0
             float s = Mathf.Sin(k * Mathf.Pi);                  // 0→1→0（山）
-            return new Vector2(1f - 0.12f * s, 1f + 0.08f * s);
+            return new Vector2(1f - 0.015f * s, 1f + 0.01f * s);
         }
     }
 
@@ -248,7 +248,7 @@ public sealed class BossMover
         _accelTime = Mathf.Max(0.05f, BossTuning.F(section, "accel_time", accel));
         _hoverAmp = BossTuning.F(section, "hover_amp", hoverA);
         _hoverFreq = BossTuning.F(section, "hover_freq", hoverF);
-        _leanMax = BossTuning.F(section, "lean_max", leanM);
+        _leanMax = Mathf.Min(.035f, BossTuning.F(section, "lean_max", leanM));
         _stanceCenterX = BossTuning.F(section, "stance_center_x", zoneCenter.X);
         _stanceY = BossTuning.F(section, "stance_y", zoneCenter.Y);
         _stanceEdgeX = BossTuning.F(section, "stance_edge_x", edgeX);
@@ -337,31 +337,32 @@ public sealed class BossMover
     }
 
     // 次フレームの本体位置（= 当たり判定の中心 GlobalPosition に入れる値）を返す。
-    public Vector2 Step(Vector2 currentPos, double delta, float speedMultiplier = 1f)
+    public Vector2 Step(Vector2 currentPos, double delta, float speedMultiplier = 1f, bool framed = false)
     {
         float dt = (float)delta;
         if (dt <= 0f) return currentPos;
+        if (framed) currentPos.X = Field.BossFrameCenterX;
 
         _stT += delta;
         if (_hitCd > 0.0) _hitCd -= delta;
-        TickState(currentPos);
+        TickState(currentPos, framed);
 
         // ── 立ち位置へ向かう推進。Travel 以外はその場（Idle/Settle/構え〜余韻は位置を保つ）。
         //    Aimed の横滑りだけは例外で、待機中も自機の x をゆっくり追う（＝狙っている感）。
         Vector2 desiredVel = Vector2.Zero;
         if (_route != null)
         {
-            Vector2 target = _zoneCenter + _route[_routeIndex] * new Vector2(_zoneHalfW, _zoneHalfH);
+            Vector2 target = MovementTarget(_zoneCenter + _route[_routeIndex] * new Vector2(_zoneHalfW, _zoneHalfH), framed);
             if (currentPos.DistanceTo(target) < 8)
             {
                 _routeIndex = (_routeIndex + 1) % _route.Length;
-                target = _zoneCenter + _route[_routeIndex] * new Vector2(_zoneHalfW, _zoneHalfH);
+                target = MovementTarget(_zoneCenter + _route[_routeIndex] * new Vector2(_zoneHalfW, _zoneHalfH), framed);
             }
             desiredVel = currentPos.DirectionTo(target) * _cruiseSpeed * speedMultiplier;
         }
         else if (_st == St.Travel)
         {
-            Vector2 to = _target - currentPos;
+            Vector2 to = MovementTarget(_target, framed) - currentPos;
             float dist = to.Length();
             if (dist > _arriveDist)
             {
@@ -375,7 +376,7 @@ public sealed class BossMover
             // 左右するだけ」の主因だったので、y も同じ式で追う（下りる量は gain_y で加減）。
             // 縦は横の 0.7 倍の速さに落とす＝真下へ突っ込んで自機と重なる事故を避けつつ、
             // 「じりじり高さを合わせてくる」圧が出る。ゾーンの外へは出ない（TrackedY 側で切る）。
-            Vector2 want = new Vector2(TrackedX(), TrackedY());
+            Vector2 want = MovementTarget(new Vector2(TrackedX(), TrackedY()), framed);
             float dx = want.X - currentPos.X;
             float dy = want.Y - currentPos.Y;
             float vx = Mathf.Abs(dx) > _arriveDist
@@ -388,6 +389,7 @@ public sealed class BossMover
         // 速度の指数追従（SmoothDamp相当）。accel_time が大きいほど重い＝あかり。
         float k = 1f - Mathf.Exp(-dt / _accelTime);
         _velocity = _velocity.Lerp(desiredVel, k);
+        if (framed) _velocity.X = 0;
 
         Vector2 nextPos = currentPos + _velocity * dt;
 
@@ -416,11 +418,14 @@ public sealed class BossMover
 
         TickFacing(currentPos, delta);
 
-        return nextPos;
+        return MovementTarget(nextPos, framed);
     }
 
+    private static Vector2 MovementTarget(Vector2 position, bool framed) => framed
+        ? new Vector2(Field.BossFrameCenterX, Mathf.Clamp(position.Y, 48, Field.Bottom - 48)) : position;
+
     // ── 状態機械の進行。位置そのものは Step 側が動かし、ここは状態遷移と _poseWant を決める。
-    private void TickState(Vector2 currentPos)
+    private void TickState(Vector2 currentPos, bool framed)
     {
         switch (_st)
         {
@@ -431,7 +436,7 @@ public sealed class BossMover
             case St.Travel:
                 _poseWant = Vector2.Zero;
                 // 着いたら一拍（Settle）。「向かう→着く→一拍」の三段目。
-                if ((_target - currentPos).Length() <= _arriveDist) { _st = St.Settle; _stT = 0.0; }
+                if ((MovementTarget(_target, framed) - currentPos).Length() <= _arriveDist) { _st = St.Settle; _stT = 0.0; }
                 break;
 
             case St.Settle:
@@ -471,13 +476,13 @@ public sealed class BossMover
                 //   Aimed の横滑りで立ち位置から流されていることもある。ここで確かめないと、
                 //   同じ種類の攻撃が続く間ずっと同じ場所に留まる（＝旧実装の「その場から動かない」）。
                 _poseWant = Vector2.Zero;
-                if (_stT >= _recoverDur) { RetargetIfDrifted(currentPos); }
+                if (_stT >= _recoverDur) { RetargetIfDrifted(currentPos, framed); }
                 break;
 
             case St.Hit:
                 // のけぞり→戻る。半分過ぎたら戻し始める。
                 if (_stT >= 0.09) _poseWant = Vector2.Zero;
-                if (_stT >= 0.26) { RetargetIfDrifted(currentPos); }
+                if (_stT >= 0.26) { RetargetIfDrifted(currentPos, framed); }
                 break;
         }
     }
@@ -493,12 +498,12 @@ public sealed class BossMover
     // 離れていなければ素直に待機（Idle）＝その場で呼吸する。
     // DeclareAttack が「同じ種類の連投」で予約した持ち場送り（_perchPending）はここで消化する
     // ＝撃ち終えてから次の持ち場へ歩き出す（撃っている最中に本体が滑らない）。
-    private void RetargetIfDrifted(Vector2 currentPos)
+    private void RetargetIfDrifted(Vector2 currentPos, bool framed)
     {
         if (_perchPending) { _perchPending = false; _perchStep++; }
         RetargetStance();
         _stT = 0.0;
-        _st = (_target - currentPos).Length() > _arriveDist ? St.Travel : St.Idle;
+        _st = (MovementTarget(_target, framed) - currentPos).Length() > _arriveDist ? St.Travel : St.Idle;
     }
 
     // ── スペルごとの立ち位置。
@@ -607,7 +612,7 @@ public sealed class BossMover
 
     // ── 向き。自機が反対側へ FlipDx px 以上・FlipHold 秒続いたときだけ変える。
     //    変える瞬間に FlipSquashDur 秒の縮み（SquashScale）を立てる。
-    private void TickFacing(Vector2 currentPos, double delta)
+    internal void TickFacing(Vector2 currentPos, double delta)
     {
         if (_flipSquashT > 0.0) _flipSquashT -= delta;
 

@@ -9,14 +9,14 @@ public partial class Audio
     private float _postDepth;
     public int PostMusicDepth => _postDepthTarget;
 
-    public void StartPostMusic(string id, int depth, float fade = 1f)
+    public void StartPostMusic(string id, int depth, float fade = 1f, bool transformed = false)
     {
         if (Muted) return;
         AudioStream theme = id switch
         {
-            "koharu" => BgmBossKoharu,
-            "rei" => BgmBossRei,
-            "mina" => BgmBossMina,
+            "koharu" => transformed ? BgmBossKoharuRemix : BgmBossKoharu,
+            "rei" => transformed ? BgmBossReiRemix : BgmBossRei,
+            "mina" => transformed ? BgmBossMinaRemix : BgmBossMina,
             _ => throw new ArgumentOutOfRangeException(nameof(id)),
         };
         if (_postFilter == null)

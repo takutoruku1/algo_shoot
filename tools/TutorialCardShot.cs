@@ -40,8 +40,11 @@ public partial class TutorialCardShot : Node
             _game.ResetPersistent();
             _game.SelectedJob = Job.Tank;
             typeof(Settings).GetProperty(nameof(Settings.PauseWhenUnfocused))!.SetValue(null, false);
-            DisplayServer.WindowSetMode(DisplayServer.WindowMode.Windowed);
+            if (DisplayServer.GetName() != "headless") DisplayServer.WindowSetMode(DisplayServer.WindowMode.Windowed);
             await Frames(2);
+            await CheckTutorialChoice();
+            if (args.Contains("--choice-only")) return;
+            _game.MarkIdleDialogSeen(StageTutorial.ChoiceSeenKey);
             await CheckCards();
             await CheckHowTo();
             await LeaveScene();
@@ -56,7 +59,7 @@ public partial class TutorialCardShot : Node
         }
         finally
         {
-            foreach (var key in new[] { Godot.Key.W, Godot.Key.A, Godot.Key.S, Godot.Key.D, Godot.Key.X }) SetKey(key, false);
+            foreach (var key in new[] { Godot.Key.W, Godot.Key.A, Godot.Key.S, Godot.Key.D, Godot.Key.X, Godot.Key.Z, Godot.Key.Down }) SetKey(key, false);
             Input.ActionRelease("ui_left");
             Input.ActionRelease("ui_right");
             Device(0);
@@ -67,9 +70,110 @@ public partial class TutorialCardShot : Node
         }
     }
 
+    private async Task CheckTutorialChoice()
+    {
+        foreach (bool skip in new[] { true, false })
+        {
+            _game.ResetPersistent();
+            _game.AutoSaveEnabled = true;
+            _game.AutoAdvanceDialog = false;
+            _game.SelectedJob = Job.Tank;
+            _game.SelectedEntry = GameManager.StageEntry.Start;
+            _game.Difficulty = GameManager.Diff.Normal;
+            Device(0);
+            _scene = GD.Load<PackedScene>("res://Akari.tscn").Instantiate();
+            GetTree().Root.AddChild(_scene);
+            GetTree().CurrentScene = _scene;
+            var stage = _scene.GetNode<StageAkari>("StageAkari");
+            await Frames(60);
+            var choice = Read<ChoiceOverlay>(stage, "_tutorialChoice");
+            Check(choice != null && Hud.BubblePaused && stage.Elapsed == 0
+                && !_game.IsIdleDialogSeen(StageTutorial.RouteSeenKey), "first dive waits for the choice before consuming any tutorial");
+            Check(stage.Hud.DialogRevealed && stage.Hud.DialogPageIndex == 0,
+                "the choice prompt is fully visible on one page before selecting");
+            await Capture("tutorial_choice");
+            if (skip) await PressKey(Godot.Key.Down);
+            await PressKey(Godot.Key.Z);
+            await Frames(40);
+            Check(Read<ChoiceOverlay?>(stage, "_tutorialChoice") == null && !StageTutorial.NeedsChoice(_game)
+                && StageTutorial.Skipped(_game) == skip, "choice is applied without advancing the first story line");
+            var intro = Read<(int who, string text, string face)[]>(stage, "_playerIntro");
+            Check(intro.Length == (skip ? 5 : 9) && Read<int>(stage, "_introLine") == 0
+                && _game.IsIdleDialogSeen(StageTutorial.RouteSeenKey) == !skip, "only listening appends the movement and shooting explanations");
+            for (int i = 0; i < 50 && Read<int>(stage, "_step") == 1; i++) await PressKey(Godot.Key.Z);
+            Check(Read<int>(stage, "_step") == 2 && !Hud.BubblePaused && Read<Spawner>(stage, "_spawner").Active,
+                "the chosen path reaches the normal first combat wave");
+            stage.SetProcess(false);
+            stage.Player.SetPhysicsProcess(false);
+            Read<Spawner>(stage, "_spawner").SetProcess(false);
+            if (skip)
+            {
+                _game.TrainingSetUpgrade("n_dodge", true);
+                _game.TrainingSetUpgrade("n_charge_shot", true);
+                _game.TrainingSetUpgrade("n_charge", true);
+                foreach (var method in typeof(StageTutorial).GetMethods(BindingFlags.Static | BindingFlags.Public).Where(m => m.Name.StartsWith("Take")))
+                {
+                    var parameters = method.GetParameters();
+                    var arguments = parameters.Select(p => p.Name == "game" ? (object)_game : p.DefaultValue).ToArray();
+                    Check(((Array)method.Invoke(null, arguments)!).Length == 0, method.Name + " skips its explanation after opting out");
+                }
+                stage.Player.ApplyPowerup(PowerKind.Line);
+                Write(stage, "_stageElapsed", 20.0);
+                var target = new GlyphMote { Position = new Vector2(285, 75) };
+                stage.World.AddChild(target);
+                target.SetPhysicsProcess(false);
+                Check(!(bool)Call(stage, "TickFieldTutorial")! && !Hud.BubblePaused,
+                    "a power-up and visible enemy do not interrupt combat with field guidance");
+                Write(stage, "_stepStarted", false);
+                Write(stage, "_cameoIntroDone", true);
+                Call(stage, "Step_BossCameo", 0d);
+                var cameo = Read<CameoBoss>(stage, "_cameo");
+                Call(cameo, "OnShieldFormed");
+                Check(Read<CharacterStoryTalk?>(cameo, "_shieldTalk") == null && !Hud.BubblePaused,
+                    "the midboss shield does not start its separate tutorial or dialogue wait");
+            }
+            await LeaveScene();
+            _game.ResetPersistent();
+            Check(_game.LoadFromSlot(0) && StageTutorial.Skipped(_game) == skip && !StageTutorial.NeedsChoice(_game),
+                "the initial choice survives an autosave reload");
+            _scene = GD.Load<PackedScene>("res://Akari.tscn").Instantiate();
+            GetTree().Root.AddChild(_scene);
+            GetTree().CurrentScene = _scene;
+            Check(Read<ChoiceOverlay?>(_scene.GetNode<StageAkari>("StageAkari"), "_tutorialChoice") == null,
+                "re-entering the stage does not ask again");
+            await LeaveScene();
+            _game.CompleteStage(GameManager.FirstStageId);
+            var hub = GD.Load<PackedScene>("res://Hub.tscn").Instantiate<Hub>();
+            _scene = hub;
+            GetTree().Root.AddChild(hub);
+            GetTree().CurrentScene = hub;
+            hub.SetProcess(false);
+            var accountIntro = ((string, string)[])typeof(Hub).GetField("AccountIntroAkari", Static)!.GetValue(null)!;
+            var returnLines = Read<(string, string)[]>(hub, "_dlg");
+            Check(returnLines.Contains(accountIntro[0]) == !skip, "the first return follows the account-explanation preference");
+            Check((bool)Call(hub, "TryOpenShopTutorial")! == !skip, "the shop explanation follows the same preference");
+            await LeaveScene();
+        }
+        _game.ResetPersistent();
+        Check(StageTutorial.NeedsChoice(_game) && !StageTutorial.Skipped(_game), "a new save asks independently");
+        _game.MarkIdleDialogSeen(StageTutorial.RouteSeenKey);
+        Check(!StageTutorial.NeedsChoice(_game) && !StageTutorial.Skipped(_game), "older saves that already heard the introduction keep their tutorial progress");
+        _game.ResetPersistent();
+        _game.AutoSaveEnabled = false;
+    }
+
+    private async Task PressKey(Godot.Key key)
+    {
+        SetKey(key, true);
+        await Frames(3);
+        SetKey(key, false);
+        await Frames(3);
+    }
+
     private async Task CheckCards()
     {
         _game.TrainingSetUpgrade("n_dodge", true);
+        _game.TrainingSetUpgrade("n_charge_shot", true);
         _game.TrainingSetUpgrade("n_charge", true);
         _scene = GD.Load<PackedScene>("res://Akari.tscn").Instantiate();
         GetTree().Root.AddChild(_scene);
@@ -143,6 +247,7 @@ public partial class TutorialCardShot : Node
         foreach (bool upgraded in new[] { false, true })
         {
             _game.TrainingSetUpgrade("n_dodge", upgraded);
+            _game.TrainingSetUpgrade("n_charge_shot", upgraded);
             _game.TrainingSetUpgrade("n_charge", upgraded);
             _game.TrainingSetUpgrade("n_slow", upgraded);
             foreach (int device in new[] { 0, 1, 2 })
@@ -157,6 +262,7 @@ public partial class TutorialCardShot : Node
         }
         GetTree().Paused = false;
         _game.TrainingSetUpgrade("n_dodge", false);
+        _game.TrainingSetUpgrade("n_charge_shot", false);
         _game.TrainingSetUpgrade("n_charge", false);
         _game.TrainingSetUpgrade("n_slow", false);
         Device(0);
@@ -168,6 +274,7 @@ public partial class TutorialCardShot : Node
         foreach (Job job in new[] { Job.Tank, Job.Magic })
         {
             _game.ResetPersistent();
+            _game.MarkIdleDialogSeen(StageTutorial.ChoiceSeenKey);
             _game.SelectedJob = job;
             _scene = GD.Load<PackedScene>("res://Akari.tscn").Instantiate();
             GetTree().Root.AddChild(_scene);
@@ -238,6 +345,8 @@ public partial class TutorialCardShot : Node
             FinishGuide("lock");
             Purified(3);
             AllowNext();
+            Check(!Tick() && !_game.IsIdleDialogSeen(StageTutorial.SkillChargeSeenKey), "charge guidance waits for purchase");
+            _game.TrainingSetUpgrade("n_charge_shot", true);
             Check(Tick() && _game.IsIdleDialogSeen(StageTutorial.SkillChargeSeenKey), "panel combat after practice starts charge guidance");
             FinishGuide("charge");
             Target(new Vector2(305, 155));
@@ -430,6 +539,7 @@ public partial class TutorialCardShot : Node
 
     private async Task Capture(string name)
     {
+        if (DisplayServer.GetName() == "headless") return;
         await ToSignal(RenderingServer.Singleton, RenderingServer.SignalName.FramePostDraw);
         using var image = GetViewport().GetTexture().GetImage();
         string path = $"{_outDir.TrimEnd('/', '\\')}/{name}.png";

@@ -36,6 +36,7 @@ public partial class TrainingQa : Node
             _game = GetNode<GameManager>("/root/Game");
             _pool = GetNode<BulletPool>("/root/Pool");
             _game.ResetPersistent();
+            _game.TrainingSetUpgrade("n_charge_shot", true);
             _game.SelectedJob = Job.Melee;
             _game.TrainingSetImpression(2345);
             _game.AddFollowers(432);
@@ -59,18 +60,19 @@ public partial class TrainingQa : Node
             Check(Read<long>(_root, "_shotDamage") == pausedDamage && Shots.Length == 0, "settings pause shooting and measurement");
             await Shot("settings");
 
-            for (int depth = 0; depth <= GameManager.Upgrades.Length; depth++)
+            Call(_root, "ApplyPreset", 1);
+            foreach (var def in GameManager.Upgrades.Reverse())
             {
-                Call(_root, "SetUpgradeDepth", depth);
+                Call(_root, "ToggleUpgrade", def.Id);
                 Player.SetPhysicsProcess(false);
-                Check(GameManager.Upgrades.Select((def, index) => _game.Has(def.Id) == (index < depth)).All(x => x), $"shop progression {depth} respects prerequisites");
-                Check(Read<int>(Player, "_optionCount") == _game.OptionSubCount && Player.Lives == _game.StartLives
+                Check(_game.Has(def.Id), $"individual preview enables {def.Id}");
+                Check(Player.Lives == _game.StartLives
                     && Mathf.IsEqualApprox(Read<float>(Player, "_hitR"), Player.HitRadius * _game.HitRadiusMul), "fixed player properties update immediately");
             }
             Write(_root, "_scroll", (float)Call(_root, "MaxScroll")!);
             await Shot("settings_last_upgrades");
             Call(_root, "ApplyPreset", 0);
-            Check(before.Upgrades.OrderBy(x => x.Key).SequenceEqual(_game.SnapshotMeta().Upgrades.OrderBy(x => x.Key)), "owned preset restores the entry loadout");
+            Check(SameMeta(before, _game.SnapshotMeta()), "owned preset restores the entry loadout");
             Call(_root, "ApplyPreset", 1);
             Check(GameManager.Upgrades.All(def => !_game.Has(def.Id)), "unupgraded preset");
             Call(_root, "ApplyPreset", 2);
@@ -218,7 +220,7 @@ public partial class TrainingQa : Node
 
     private static bool SameMeta(GameManager.MetaSnapshot a, GameManager.MetaSnapshot b)
         => a.Impression == b.Impression && a.Followers == b.Followers && a.SelectedJob == b.SelectedJob
-        && a.SelectedShotMode == b.SelectedShotMode && a.Upgrades.OrderBy(x => x.Key).SequenceEqual(b.Upgrades.OrderBy(x => x.Key));
+        && a.SelectedShotMode == b.SelectedShotMode && a.Upgrades.All(kv => kv.Value.SetEquals(b.Upgrades[kv.Key]));
 
     private async Task CheckControls()
     {
@@ -230,7 +232,7 @@ public partial class TrainingQa : Node
         await Press(Key.Bracketright);
         Check(GameManager.Upgrades.All(def => _game.Has(def.Id)), "keyboard maximum preset");
         await Press(Key.Backslash);
-        Check(GameManager.Upgrades.Count(def => _game.Has(def.Id)) == 3, "keyboard owned preset");
+        Check(_game.OwnedUpgradeCount == 1 && _game.HasChargeShot, "keyboard owned preset restores the trial character’s purchases");
         await Press(Key.Tab);
         Check(Read<bool>(_root, "_panelOpen"), "Tab opens settings");
         await Press(Key.Pageup);

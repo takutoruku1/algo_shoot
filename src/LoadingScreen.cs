@@ -1,9 +1,11 @@
 using Godot;
+using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
 
 public partial class LoadingScreen : CanvasLayer
 {
-    private enum Phase { Cover, Loading, Diving, Switching, Reveal, Failed }
+    private enum Phase { Cover, Loading, Preparing, Diving, Switching, Reveal, Failed }
     private static LoadingScreen? _active;
     public static bool IsActive => IsInstanceValid(_active);
     private static readonly Rect2 FullScreen = new(0, 0, 1280, 720);
@@ -24,6 +26,9 @@ public partial class LoadingScreen : CanvasLayer
     private float _alpha, _loaded, _displayProgress;
     private bool _wasPaused, _finished, _acceptHeld, _backHeld, _navHeld;
     private int _errorSelection;
+    private IEnumerator<float>? _preparation;
+    private readonly List<string> _resourcePaths = new();
+    private readonly Dictionary<string, Resource> _resources = new();
 
     public static void Open(Node from, string destination, PhoneAppTransition? phone = null)
     {
@@ -73,16 +78,45 @@ public partial class LoadingScreen : CanvasLayer
                 if (_alpha >= 1) StartLoading();
                 break;
             case Phase.Loading:
-                var status = ResourceLoader.LoadThreadedGetStatus(_destination, _progress);
-                if (_progress.Count > 0) _loaded = Mathf.Clamp((float)_progress[0], 0, 1);
-                if (status is ResourceLoader.ThreadLoadStatus.Failed or ResourceLoader.ThreadLoadStatus.InvalidResource)
-                    Fail($"Resource loading failed: {_destination}");
-                else if (status == ResourceLoader.ThreadLoadStatus.Loaded && _visibleTime >= (IsDive ? 0.9 : 1.15)
+                float progress = 0;
+                foreach (string path in _resourcePaths)
+                {
+                    if (_resources.ContainsKey(path)) { progress++; continue; }
+                    var status = ResourceLoader.LoadThreadedGetStatus(path, _progress);
+                    if (status is ResourceLoader.ThreadLoadStatus.Failed or ResourceLoader.ThreadLoadStatus.InvalidResource)
+                    { Fail($"Resource loading failed: {path}"); break; }
+                    if (status == ResourceLoader.ThreadLoadStatus.Loaded)
+                    {
+                        _resources[path] = ResourceLoader.LoadThreadedGet(path);
+                        progress++;
+                    }
+                    else if (_progress.Count > 0) progress += Mathf.Clamp((float)_progress[0], 0, 1);
+                }
+                _loaded = progress / _resourcePaths.Count * .4f;
+                if (_phase == Phase.Loading && _resources.Count == _resourcePaths.Count && _visibleTime >= (IsDive ? 0.9 : 1.15)
                     && (!IsInstanceValid(_phone) || _phone!.Expanded))
                 {
-                    if (IsDive) { _phase = Phase.Diving; _diveTime = 0; }
-                    else ChangeScene();
+                    // Threaded texture uploads must finish before content bounds read their pixels.
+                    RenderingServer.ForceSync();
+                    _preparation = PrepareDestination().GetEnumerator();
+                    _phase = Phase.Preparing;
                 }
+                break;
+            case Phase.Preparing:
+                ulong started = Time.GetTicksUsec();
+                do
+                {
+                    if (!_preparation!.MoveNext())
+                    {
+                        _preparation.Dispose();
+                        _preparation = null;
+                        _loaded = 1;
+                        if (IsDive) { _phase = Phase.Diving; _diveTime = 0; }
+                        else ChangeScene();
+                        break;
+                    }
+                    _loaded = .4f + _preparation.Current * .6f;
+                } while (Time.GetTicksUsec() - started < 6000);
                 break;
             case Phase.Diving:
                 _diveTime += dt;
@@ -110,9 +144,59 @@ public partial class LoadingScreen : CanvasLayer
         _phase = Phase.Switching;
         // The opaque screen must reach the renderer before any resource or scene initialization.
         await RenderedFrame();
-        Error error = ResourceLoader.LoadThreadedRequest(_destination, "PackedScene");
-        if (error != Error.Ok) { Fail($"Cannot request {_destination}: {error}"); return; }
+        _resources.Clear();
+        _resourcePaths.Clear();
+        _resourcePaths.Add(_destination);
+        _resourcePaths.AddRange(StageBackground.ResourcePaths(_destination.GetFile().GetBaseName()));
+        _resourcePaths.AddRange(RoadProjectileArt.ResourcePaths(_destination.GetFile().GetBaseName()));
+        _resourcePaths.AddRange(BossProjectileArt.ResourcePaths(_destination.GetFile().GetBaseName()));
+        if (IsDive)
+        {
+            _resourcePaths.AddRange(PlayerProjectileArt.ResourcePaths(_job));
+            var costume = GameManager.Instance!.CostumeFor(_job);
+            foreach (string direction in new[] { "u", "ur", "r", "dr", "d" })
+                _resourcePaths.Add(costume.PosePath("aim_" + direction));
+        }
+        foreach (string path in _resourcePaths)
+        {
+            Error error = ResourceLoader.LoadThreadedRequest(path);
+            if (error != Error.Ok) { Fail($"Cannot request {path}: {error}"); return; }
+        }
         _phase = Phase.Loading;
+    }
+
+    private IEnumerable<float> PrepareDestination()
+    {
+        foreach (float progress in PrepareSceneAssets()) yield return progress * .65f;
+        foreach (float progress in RoadProjectileArt.PrepareAssetSteps(_destination.GetFile().GetBaseName()))
+            yield return .65f + progress * .15f;
+        foreach (float progress in BossProjectileArt.PrepareAssetSteps(_destination.GetFile().GetBaseName()))
+            yield return .8f + progress * .2f;
+    }
+
+    private IEnumerable<float> PrepareSceneAssets()
+    {
+        string scene = _destination.GetFile().GetBaseName();
+        if (IsDive)
+        {
+            var poses = _resources.Where(pair => pair.Key.Contains("aim_")).Select(pair => (Texture2D)pair.Value)
+                .Concat(_spin).Append(_character).ToArray();
+            for (int i = 0; i < poses.Length; i++)
+            {
+                UiKit.ContentRect(poses[i]);
+                yield return .1f * (i + 1) / poses.Length;
+            }
+        }
+        if (scene is "Rei" or "BossRush" || scene == "BossSolo" && GameManager.Instance!.PendingBossIndex == 2)
+            foreach (float progress in ReiBossTechnique.PrepareAssetSteps()) yield return .1f + progress * .7f;
+        if (scene == "Rei")
+        {
+            foreach (float progress in QuoteStorm.PrepareAssetSteps()) yield return .8f + progress * .1f;
+            foreach (float progress in StageImagery.PrepareAssetSteps(StageImagery.StageKind.Rei)) yield return .9f + progress * .1f;
+        }
+        else if (scene is "Akari" or "Koharu")
+            foreach (float progress in StageImagery.PrepareAssetSteps(scene == "Akari" ? StageImagery.StageKind.Akari : StageImagery.StageKind.Koharu))
+                yield return .1f + progress * .9f;
     }
 
     private async void ChangeScene()
@@ -120,7 +204,7 @@ public partial class LoadingScreen : CanvasLayer
         _phase = Phase.Switching;
         _loaded = 1;
         await RenderedFrame();
-        var scene = (PackedScene)ResourceLoader.LoadThreadedGet(_destination);
+        var scene = (PackedScene)_resources[_destination];
         Error error = _tree.ChangeSceneToPacked(scene);
         if (error != Error.Ok) { Fail($"Cannot open {_destination}: {error}"); return; }
         await ToSignal(_tree, SceneTree.SignalName.SceneChanged);
@@ -170,6 +254,7 @@ public partial class LoadingScreen : CanvasLayer
 
     public override void _ExitTree()
     {
+        _preparation?.Dispose();
         if (!_finished) _tree.Paused = _wasPaused;
         if (IsInstanceValid(_phone)) _phone!.QueueFree();
         if (_active == this) _active = null;
@@ -178,7 +263,7 @@ public partial class LoadingScreen : CanvasLayer
 
     private Rect2 Bounds => IsInstanceValid(_phone) ? _phone!.LoadingBounds : FullScreen;
     private bool IsDive => _destination.GetFile().GetBaseName() is "Akari" or "Koharu" or "Rei" or "MinaBattle"
-        or "Stage0" or "Training" or "Main" or "BossRush";
+        or "Stage0" or "Training" or "Main" or "BossRush" or "BossSolo";
 
     private string DestinationName => _destination.GetFile().GetBaseName() switch
     {
@@ -186,8 +271,9 @@ public partial class LoadingScreen : CanvasLayer
         "Shop" => "強化ショップ", "Customize" => "カスタマイズ", "Records" => "記録",
         "Settings" => "設定", "Credits" => "クレジット", "Training" => "トレーニング",
         "DiffSelect" => "難易度選択", "Stage0" => "チュートリアル", "BossRush" => "BOSSラッシュ",
+        "BossSelect" => "BOSS選択", "BossSolo" => "BOSS単体",
         "Akari" => "あかりのタイムライン", "Koharu" => "こはるのタイムライン",
-        "Rei" => "レイのタイムライン", "MinaBattle" => "ミナのタイムライン", "Main" => "タイムライン",
+        "Rei" => "レイのタイムライン", "MinaBattle" => "最後のタイムライン", "Main" => "タイムライン",
         "Final" => "最後の対話", "Epilogue" => "エピローグ", _ => "次の画面",
     };
 

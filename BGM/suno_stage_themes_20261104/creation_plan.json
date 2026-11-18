@@ -1,0 +1,74 @@
+{
+  "provider": "Suno",
+  "model": "v6",
+  "date": "2026-11-04",
+  "instrumental": true,
+  "reference_audio": [],
+  "tracks": [
+    {
+      "key": "akari",
+      "title": "雨粒の先へ — あかり道中",
+      "provider": "Suno",
+      "source": "https://suno.com/song/dc2eb93b-1f89-4d02-877c-635be8692f0d",
+      "file": "akari_A.mp3",
+      "game_audio": "audio/bgm_stage_akari.ogg",
+      "original_source": "Machinery — PeriTune",
+      "scenes": "あかり道中、練習",
+      "reference_audio": [],
+      "duration": 179.48,
+      "status": "downloaded"
+    },
+    {
+      "key": "koharu",
+      "title": "予定表のすきま — こはる道中",
+      "provider": "Suno",
+      "source": "https://suno.com/song/6c11cd4a-e12d-4493-b5da-fae496939c04",
+      "file": "koharu_A.mp3",
+      "game_audio": "audio/bgm_stage_koharu.ogg",
+      "original_source": "Crisis — PeriTune",
+      "scenes": "こはる道中",
+      "reference_audio": [],
+      "duration": 180.0,
+      "status": "downloaded"
+    },
+    {
+      "key": "rei",
+      "title": "スポットライトの向こう — レイ道中",
+      "provider": "Suno",
+      "source": "https://suno.com/song/4d962698-4bfb-4b6d-976c-2c4c7e017dca",
+      "file": "rei_A.mp3",
+      "game_audio": "audio/bgm_stage_rei.ogg",
+      "original_source": "Irregular — PeriTune",
+      "scenes": "レイ道中",
+      "reference_audio": [],
+      "duration": 179.2,
+      "status": "downloaded"
+    },
+    {
+      "key": "mina",
+      "title": "記憶の灯をたどって — ミナ道中",
+      "provider": "Suno",
+      "source": "https://suno.com/song/fb47a42a-0dab-4a32-ba13-74327a623bee",
+      "file": "mina_A.mp3",
+      "game_audio": "audio/bgm_final_route.ogg",
+      "original_source": "Rapid5 — PeriTune",
+      "scenes": "最終道中",
+      "reference_audio": [],
+      "duration": 180.0,
+      "status": "downloaded"
+    },
+    {
+      "key": "tutorial",
+      "title": "はじめてのダイブ — 導入道中",
+      "provider": "Suno",
+      "source": "https://suno.com/song/1abe38ba-9d49-4f47-ab9c-fdd3697e1ae2",
+      "file": "tutorial_A.mp3",
+      "game_audio": "audio/bgm_stage_w0.ogg",
+      "original_source": "Roll Roll Roll — もっぴーさうんど / DOVA-SYNDROME",
+      "scenes": "導入ステージ",
+      "reference_audio": [],
+      "duration": 179.96,
+      "status": "downloaded"
+    }
+  ]
+}

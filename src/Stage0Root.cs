@@ -81,7 +81,7 @@ public partial class Stage0Root : Node2D
         if (_retry.Update(delta, Input.IsKeyPressed(Key.R), instant: gameOver))
         {
             if (gameOver && !Input.IsKeyPressed(Key.Shift))
-                GetNode<GameManager>("/root/Game").PrepareBossRetry(bossCheckpoint: false);
+                GetNode<GameManager>("/root/Game").PrepareBossRetry(0, bossCheckpoint: false);
             GetNodeOrNull<BulletPool>("/root/Pool")?.DespawnAll();
             GameManager.FadeToScene(this, GetTree().CurrentScene.SceneFilePath);
             return;

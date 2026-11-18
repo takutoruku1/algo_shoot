@@ -14,20 +14,7 @@ public partial class ChargeShotFx : Node2D
     private Beat Base => Kind == Beat.Ready2 ? Beat.Ready : Kind == Beat.Release2 ? Beat.Release : Kind;
     private float Duration => (Base == Beat.Ready ? 0.22f : Base == Beat.Release ? 0.32f : 0.42f) * (Tier2 ? 1.5f : 1f);
     private static readonly Vector2[] Star = new Vector2[10];
-    private static readonly Vector2[] Plane = new Vector2[4];
 
-    // 2段目の弾＝紙飛行機（送信）。1段目の「光」とは別の絵にする（2026-09-25 ユーザー「最大溜めは別の演出に」）。
-    //   この作品で「届ける」は送信＝紙飛行機。溜めた言葉が飛んでいく、の形をそのまま弾にする。
-    //   +x が進行方向。r は Bullet.Radius。tilt は滑空の傾き。折り目は塗りの中の一本（尾の線ではない）。
-    private static void DrawPlane(Node2D canvas, Vector2 at, float r, Color fill, Color crease, float tilt)
-    {
-        Plane[0] = at + new Vector2(r * 2.4f, 0).Rotated(tilt);
-        Plane[1] = at + new Vector2(-r * 1.5f, -r * 1.35f).Rotated(tilt);
-        Plane[2] = at + new Vector2(-r * 0.8f, 0).Rotated(tilt);
-        Plane[3] = at + new Vector2(-r * 1.5f, r * 1.35f).Rotated(tilt);
-        canvas.DrawColoredPolygon(Plane, fill);
-        canvas.DrawLine(Plane[0], Plane[2], crease, 0.9f, true);
-    }
     // 2段目の色。キャラ色（BulletArt.PlayerColor）と必ず別の色にする＝どのジョブでも「2段目だ」と読める。
     //   2026-09-25 ユーザー「溜めの弾の見た目がダサい」：濃い金＋棘＋巻きつく弧をやめ、淡い暖白の
     //   細い輪だけにした。2段目の印は「輪が一本増える」で足りる＝飾りで盛らない。
@@ -120,7 +107,7 @@ public partial class ChargeShotFx : Node2D
             bool full2 = ratio2 >= 1;
             float pr = (2.6f + ratio * 0.8f) * Mathf.SmoothStep(0f, 1f, ratio2);
             float pa = full2 ? 0.8f + Mathf.Sin(time * 9) * 0.2f : 0.35f + ratio2 * 0.5f;
-            DrawPlane(canvas, Vector2.Zero, pr, new Color(Tier2Gold, pa), new Color(color, pa * 0.7f), Mathf.Sin(time * 4) * 0.06f);
+            DrawCore(canvas, PlayerProjectileArt.Get(job, true).Front, Vector2.Zero, pr * 3.9f, pa);
         }
         canvas.DrawSetTransform(Vector2.Zero);
     }
@@ -138,16 +125,14 @@ public partial class ChargeShotFx : Node2D
         {
             // 2段目＝紙飛行機。残像も飛行機で後ろへ薄く残り、下にキャラ色の淡い光を敷く。
             //   大きさは1段目の核と同じくらいに留める（radius は当たり判定＝絵はその 1/3 程度で足りる）。
-            float tilt = Mathf.Sin(age * 5f) * 0.07f;
+            var plane = PlayerProjectileArt.Get(job, true).Front;
             float pr = radius * 0.34f;
             for (int k = 4; k >= 1; k--)
             {
                 float t = k / 4f;
-                DrawPlane(canvas, new Vector2(-length * 0.5f * t, 0), pr * (1 - t * 0.35f),
-                    new Color(Tier2Gold, 0.22f * (1 - t)), new Color(color, 0.1f * (1 - t)), tilt);
+                DrawCore(canvas, plane, new Vector2(-length * 0.5f * t, 0), pr * 3.9f * (1 - t * 0.35f), 0.22f * (1 - t));
             }
             canvas.DrawCircle(Vector2.Zero, pr * 2.6f, new Color(color, 0.16f));
-            DrawPlane(canvas, Vector2.Zero, pr, new Color(Tier2Gold, 0.96f), new Color(color, 0.7f), tilt);
         }
         else
             for (int k = 1; k <= 6; k++)
@@ -166,7 +151,6 @@ public partial class ChargeShotFx : Node2D
         if (!tier2)
         {
             DrawCore(canvas, art, new Vector2(-5, 0), radius * 5.4f, 0.18f);
-            DrawCore(canvas, art, Vector2.Zero, radius * 4.4f, 1);
         }
     }
 

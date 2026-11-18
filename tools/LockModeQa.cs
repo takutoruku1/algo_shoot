@@ -9,7 +9,7 @@ using System.Threading.Tasks;
 //      次に現れた最寄りの敵へ自動で付く。落ちるのは解除入力だけ。
 //   ② 会話停止中の自機の奥回し — 作者指摘「吹き出しの上に乗っていたら、動かせないのに読めなくなる」。
 //      Hud.BubblePaused のあいだだけ Player.ZIndex が吹き出し（BubbleLayer -7）の下（-8）へ落ち、明けたら 10 に戻る。
-//   ③ 左手の構え（2026-09-27 作者指示「左手は Shift／Z／X／C／Space」）— 回避は Space、集中モードは C。
+//   ③ 左手の構え（2026-09-27 作者指示「左手は Shift／Z／X／C／Space」）— 回避は Space、必殺技は C。
 //      Ctrl／V は戦闘操作から外れた。Space は会話送りと共用なので、会話中に押された Space は離すまで回避にならない
 //      （会話を閉じたのと同じフレームの押下も含む）。離して押し直せば回避が出る。
 //   使い方：
@@ -192,7 +192,7 @@ public partial class LockModeQa : Node
         await Tap(Key.Shift);
         Check("S のロック中に Shift を押し離し → 解除（従来どおり）", !player.LockedOn && !player.LockArmed);
 
-        // ── ③ 回避＝Space（会話送りの押下は離すまで読まない）／集中モード＝C ──
+        // ── ③ 回避＝Space（会話送りの押下は離すまで読まない）／必殺技＝C ──
         game.TrainingSetUpgrade("n_dodge", true);
         game.TrainingSetUpgrade("n_slow", true);
         await Frames(60);   // 直前の操作で回避のクールダウンが残っていないように待つ
@@ -231,13 +231,14 @@ public partial class LockModeQa : Node
         await Frames(4);
         await Tap(Key.Space);
         Check("離して押し直すと Space で回避する", player.DodgeCount == d0 + 1);
-        //   集中モードは C（V は外れた）。
-        bool focusBefore = game.FocusModeActive;
+        await Frames(40);
+        //   必殺技は C（V は外れた）。
+        bool specialBefore = game.SpecialActive;
         await Tap(Key.V);
-        Check("V では集中モードにならない", !focusBefore && !game.FocusModeActive);
+        Check("V では必殺技にならない", !specialBefore && !game.SpecialActive);
         await Tap(Key.C);
-        Check("C で集中モード", game.FocusModeActive);
-        await Frames(120);   // 集中モード（1.5秒）を明けさせてから次へ
+        Check("C で必殺技", game.SpecialActive);
+        await Frames(180);
 
         // ── ② 会話停止中は自機を吹き出しの奥へ ──
         Check("平常時の Z は 10", player.ZIndex == 10);

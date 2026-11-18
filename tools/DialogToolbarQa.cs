@@ -1,30 +1,9 @@
 using Godot;
 using System;
+using System.Linq;
 using System.Reflection;
 using System.Threading.Tasks;
 
-// DialogToolbarQa : 会話ボックス上辺のボタン列（AUTO / SKIP / LOG / MENU・src/DialogToolbar.cs）の回帰確認。
-//   Akari シーンを立ち上げ、戦闘を止めたまま hud.HoldBubble=true で会話ボックスを出して、キー割り当てを検証する。
-//     (e) ボックス非表示のとき A／S は何もしない
-//     (a) A で GameManager.AutoAdvanceDialog が反転（user://settings.json の "auto" にも保存）
-//     (b) S で SkipLatched：未読行では即 OFF／既読行では ON のまま FastForwarding が真／次の未読行（iii）・
-//         選択肢（iv）で自動 OFF
-//     (i) ラッチ ON のままボックスを閉じて 2 秒待っても ON（2026-09-27：画面が替わっても保つ）。
-//         その間は盤面の右上に「▶▶」の印（v）＝SkipLatchMarkVisible と描いた矩形（Field.DRight-16, 14 が右上）
-//     (ii) ラッチ ON のまま別シーン（Akari→Rei。Hud も作り直し）へ移っても ON で、既読の会話を出すと
-//         入力なしで FastForwarding が真・印は消える
-//     (c) L で Backlog.IsOpen ／ (d) M で PauseMenu.IsOpen、MENU クリック経路（PauseMenu.Open の Call）も開く
-//     (g) ボタン列にマウスが乗っている間は左クリックが会話送り（Pad.AdvanceHeld）に数えられない
-//     (vi) ボタン矩形：36×30・間隔 4・ボックス上辺に 3 食い込み・右端から 12 内側。
-//     (h) Hud を通らない画面（Prologue／Epilogue／Hub の会話）にもボタン列が出て、枠の上辺右寄せに並び、
-//         A で AUTO（全文表示後に自動で送る）、S で SKIP（未読行で即 OFF／既読行で早送り／選択肢・未読行で OFF。
-//         ハブは会話を閉じても ON のまま右上に印）
-//   起動: --headless --path . res://tools/qa_dialog_toolbar.tscn
-//         窓あり＋撮影: res://tools/qa_dialog_toolbar.tscn -- --dt-shot [--dt-out <dir>]
-//           戦闘会話（AUTO 点灯）・ボタン列の3倍切り抜き（toolbar_zoom／ホバーの吹き出し付き toolbar_zoom_hover）・
-//           ナレーション（SKIP 点灯）・カットシーン（StoryFilm 回想）・ボックス無し＋ラッチ ON の右上の印（toolbar_latch_mark）・
-//           プロローグ（AUTO 点灯）・ハブの返信会話（AUTO 点灯）を保存する。
-//   APPDATA は build/qa_story/ 配下へ隔離して走らせる（settings.json／既読を本番に書かない）。
 public partial class DialogToolbarQa : Node
 {
     private const BindingFlags Private = BindingFlags.Instance | BindingFlags.NonPublic;
@@ -104,7 +83,6 @@ public partial class DialogToolbarQa : Node
             hud.HoldBubble = true;
             var backlog = GetNode<Backlog>("/root/Backlog");
             var pause = GetNode<PauseMenu>("/root/PauseMenu");
-            var readField = typeof(Hud).GetField("_dlgReadBefore", Private)!;
             string stamp = Time.GetTicksMsec().ToString();
 
             // (e) ボックス非表示では何もしない
@@ -126,34 +104,39 @@ public partial class DialogToolbarQa : Node
             Check(!game.AutoAdvanceDialog, "(a) A again turns AUTO off");
             Check(ReadSettingsAuto() == false, "(a) settings.json \"auto\" saved as false");
 
-            // (b) SKIP
-            Check(!Read<bool>(Read<DialogToolbar>(hud, "_toolbar"), "_skipAvailable"),
-                "unread dialogue presents the skip icon as unavailable");
-            await Tap(Key.S);
-            Check(!Hud.SkipLatched, "(b) S on an unread line: latch drops immediately");
-            readField.SetValue(hud, true);   // この行を「表示時点で既読だった」ことにする
-            await Tap(Key.S);
-            Check(Hud.SkipLatched, "(b) S on a read line: latch stays ON");
-            Check(Hud.SkipHeld, "(b) SkipHeld is true while latched");
-            Check(hud.FastForwarding, "(b) FastForwarding is true on the read line");
             Check(Read<bool>(Read<DialogToolbar>(hud, "_toolbar"), "_skipAvailable"),
-                "read dialogue enables the illustrated skip icon");
-            await Frames(10);
-            Check(Hud.SkipLatched, "(b) latch holds across frames on a read line");
-            hud.ShowDialog(Hud.LineKind.Mina, $"ツールバー検証の未読の二行目です。{stamp}");
-            await Frames(3);
-            Check(!Hud.SkipLatched, "(b) next unread line turns the latch off");
-            readField.SetValue(hud, true);
+                "unread dialogue enables the skip icon");
+            await Click(hud, hud.ToolbarRect(DialogToolbar.Skip).GetCenter());
+            Check(Hud.SkipLatched && hud.FastForwarding, "clicking skip fast-forwards an unread line");
+            await Click(hud, hud.ToolbarRect(DialogToolbar.Skip).GetCenter());
+            Check(!Hud.SkipLatched && !hud.FastForwarding, "clicking skip again stops fast-forward");
             await Tap(Key.S);
-            Check(Hud.SkipLatched, "(b) latch re-armed");
+            Check(Hud.SkipLatched && Hud.SkipHeld && hud.FastForwarding, "S starts skip on an unread line");
+            string nextLine = $"ツールバー検証の未読の二行目です。{stamp}";
+            Check(!game.IsLineRead(nextLine), "the next line has never been read");
+            hud.ShowDialog(Hud.LineKind.Mina, nextLine);
+            await Frames(3);
+            Check(Hud.SkipLatched && hud.FastForwarding, "skip continues across unread lines");
+            Check(game.IsLineRead(nextLine) && Hud.Backlog.Any(entry => entry.Text == nextLine),
+                "skipped dialogue is recorded as read and kept in the backlog");
+            await Tap(Key.S);
+            Check(!Hud.SkipLatched && !hud.FastForwarding, "S again stops skip");
+            Input.ParseInputEvent(new InputEventKey { Keycode = Key.Ctrl, Pressed = true });
+            await Frames(3);
+            Check(hud.FastForwarding && !Hud.SkipLatched, "holding Ctrl skips unread dialogue without latching");
+            Input.ParseInputEvent(new InputEventKey { Keycode = Key.Ctrl, Pressed = false });
+            await Frames(3);
+            Check(!hud.FastForwarding, "releasing Ctrl stops skip");
+            await Tap(Key.S);
             var choice = ChoiceOverlay.Show(root, new[] { "はい", "いいえ" }, 0, onBoard: true);
             await Frames(3);
-            Check(!Hud.SkipLatched, "(b) a choice appearing turns the latch off");
+            Check(!Hud.SkipLatched, "a choice appearing turns the latch off");
+            await Tap(Key.S);
+            Check(!Hud.SkipLatched && !choice.Decided, "skip cannot choose an option or restart during a choice");
             choice.QueueFree();
             await Frames(3);
-            readField.SetValue(hud, true);
             await Tap(Key.S);
-            Check(Hud.SkipLatched, "(b) latch re-armed again");
+            Check(Hud.SkipLatched, "skip can be restarted after the choice");
 
             // (i) ボックスを閉じてもラッチは残る ／ (v) その間は盤面の右上に印
             hud.HideBubble();
@@ -164,11 +147,10 @@ public partial class DialogToolbarQa : Node
             Check(hud.SkipLatchMarkDrawnRect == markExpect && markExpect.Size.Y == 18f,
                 $"(v) latch mark drawn at the board's top-right {hud.SkipLatchMarkDrawnRect}");
 
-            // (iii) 未読行に当たると切れる（ここでは (c) 用の三行目＝未読）
             hud.ShowDialog(Hud.LineKind.Mina, $"ツールバー検証の三行目です。{stamp}");
             await Frames(3);
-            Check(!Hud.SkipLatched, "(iii) an unread line turns the latch off");
-            Check(!hud.SkipLatchMarkVisible, "(v) no latch mark while the box is up / latch is off");
+            Check(Hud.SkipLatched && hud.FastForwarding, "skip resumes on unread dialogue after the box reopens");
+            Check(!hud.SkipLatchMarkVisible, "(v) no latch mark while the box is up");
 
             // (c) LOG ＝ L
             await Seconds(0.45);
@@ -225,7 +207,7 @@ public partial class DialogToolbarQa : Node
             boardChoices.QueueFree();
             await Frames(3);
 
-            if (shot) await Shots(game, hud, world, readField, stamp);
+            if (shot) await Shots(game, hud, world);
 
             hud.HoldBubble = false;
             hud.HideBubble();
@@ -244,7 +226,7 @@ public partial class DialogToolbarQa : Node
             rei.SetProcess(false);
             rei.GetNode<Node>("StageRei").SetProcess(false);
             rei.GetNode<Node2D>("World").GetNode<Player>("Player").SetPhysicsProcess(false);
-            hud2.HideBubble();   // 面の入りの行（未読なら正しくラッチを切る）を検証から外す
+            hud2.HideBubble();
             await Frames(5);
             Check(hud2 != hud && Hud.SkipLatched, "(ii) latch is still ON in the next scene's new Hud");
             Check(hud2.SkipLatchMarkVisible, "(ii) new Hud shows the latch mark while no box is up");
@@ -258,7 +240,7 @@ public partial class DialogToolbarQa : Node
             Check(!hud2.SkipLatchMarkVisible, "(ii) latch mark hides once the box is up");
             hud2.ShowDialog(Hud.LineKind.Mina, $"シーンを跨いだ未読の一行です。{stamp}");
             await Frames(3);
-            Check(!Hud.SkipLatched, "(iii) the first unread line in the new scene turns the latch off");
+            Check(Hud.SkipLatched && hud2.FastForwarding, "unread dialogue in the new scene also fast-forwards");
             hud2.HoldBubble = false;
             hud2.HideBubble();
             await Frames(3);
@@ -266,8 +248,10 @@ public partial class DialogToolbarQa : Node
             await Frames(5);
 
             // (h) Hud を通らない画面
+            Hud.SkipLatched = false;
             game.MsgCharsPerSec = 300;
             await PrologueChecks(game, shot);
+            await FinalChecks(game);
             await EpilogueChecks(game);
             await HubChecks(game, shot, stamp);
             Audio.Instance?.StopMusic(0);
@@ -287,9 +271,9 @@ public partial class DialogToolbarQa : Node
         }
     }
 
-    private async Task Shots(GameManager game, Hud hud, Node2D world, FieldInfo readField, string stamp)
+    private async Task Shots(GameManager game, Hud hud, Node2D world)
     {
-        await SelectedStateShots(game, hud, readField);
+        await SelectedStateShots(game, hud);
         // 1) 戦闘会話（AUTO 点灯）
         game.AutoAdvanceDialog = true;
         hud.ShowDialog(Hud.LineKind.Mina, "……この投稿、下書きのほうが本音だね。消されたほうの言葉、ちゃんと読んだよ。");
@@ -304,11 +288,10 @@ public partial class DialogToolbarQa : Node
         DisplayServer.WindowSetSize(new Vector2I(1280, 720));
         await Frames(5);
         // 1b) ボタン列の3倍切り抜き（AUTO・SKIP 点灯＝ON と OFF を1枚で見比べる）／マウスを乗せて吹き出し付き
-        readField.SetValue(hud, true);
         await Tap(Key.S);
         await Seconds(0.4);
         await SaveZoom("toolbar_zoom", hud.ToolbarRect(DialogToolbar.Auto), hud.ToolbarRect(DialogToolbar.Menu));
-        GetViewport().WarpMouse(hud.ToolbarRect(DialogToolbar.Log).GetCenter() * UiKit.Scale);
+        GetViewport().WarpMouse(hud.ToolbarRect(DialogToolbar.Skip).GetCenter() * UiKit.Scale);
         await Seconds(0.3);
         GD.Print($"[Toolbar] hover after warp = {hud.DialogToolbarHover}");
         await SaveZoom("toolbar_zoom_hover", hud.ToolbarRect(DialogToolbar.Auto), hud.ToolbarRect(DialogToolbar.Menu));
@@ -317,7 +300,6 @@ public partial class DialogToolbarQa : Node
         // 2) ナレーション（SKIP 点灯）
         game.AutoAdvanceDialog = false;
         hud.ShowMessage("タイムラインの底で、誰にも届かなかった下書きが、まだ光っている。");
-        readField.SetValue(hud, true);
         await Seconds(0.45);
         await Tap(Key.S);
         await Seconds(0.6);
@@ -335,12 +317,11 @@ public partial class DialogToolbarQa : Node
         GD.Print($"[Toolbar] shots saved to {_out} (film done={done})");
     }
 
-    private async Task SelectedStateShots(GameManager game, Hud hud, FieldInfo readField)
+    private async Task SelectedStateShots(GameManager game, Hud hud)
     {
         game.AutoAdvanceDialog = false;
         Hud.SkipLatched = false;
         hud.ShowDialog(Hud.LineKind.Mina, "……ご主人様。聞こえています。");
-        readField.SetValue(hud, true);
         GetViewport().WarpMouse(new Vector2(200, 100));
         await Seconds(0.45);
         await SaveZoom("toolbar_off", hud.ToolbarRect(0), hud.ToolbarRect(3));
@@ -389,7 +370,6 @@ public partial class DialogToolbarQa : Node
         await Frames(3);
     }
 
-    // (h-1) プロローグ：会話フェーズ（_phase 3）でボタン列が出る。A＝AUTO で送られる、S＝既読で早送り→選択肢で OFF。
     private async Task PrologueChecks(GameManager game, bool shot)
     {
         game.AutoAdvanceDialog = false;
@@ -409,21 +389,13 @@ public partial class DialogToolbarQa : Node
             "(h) prologue controls stay inside the panel");
         await Seconds(0.4);
 
-        // SKIP：未読行では即 OFF（台本の1行目＝起動ログ。その次が P2 の3択）
-        Write(pro, "_lineWasRead", false);
-        await Tap(Key.S);
-        Check(!Hud.SkipLatched, "(h) prologue: S on an unread line drops the latch at once");
-        // 既読行では ON のまま早送りし、選択肢（P2）が出たところで切れる
-        foreach (var d in Read<System.Collections.IList>(pro, "_talk"))
-            game.MarkLineRead((string)d!.GetType().GetField("Text")!.GetValue(d)!);
-        Write(pro, "_lineWasRead", true);
-        Write(pro, "_lineT", -30.0);   // 送りの最短間隔で止めておく＝まずラッチの状態だけを見る
+        Write(pro, "_lineT", -30.0);
         int line1 = Read<int>(pro, "_line");
         await Tap(Key.S);
-        Check(Hud.SkipLatched, "(h) prologue: S on a read line keeps the latch ON");
+        Check(Hud.SkipLatched && Read<bool>(pro, "_ffNow"), "prologue: S starts skip on the first viewing");
         Write(pro, "_lineT", 1.0);     // 早送りを通す
         await Until(() => pro.GetNodeOrNull("ChoiceOverlay") != null, 10.0);
-        Check(Read<int>(pro, "_line") > line1, $"(h) prologue: SKIP fast-forwards the read line ({line1} -> {Read<int>(pro, "_line")})");
+        Check(Read<int>(pro, "_line") > line1, $"(h) prologue: SKIP fast-forwards unread dialogue ({line1} -> {Read<int>(pro, "_line")})");
         Check(pro.GetNodeOrNull("ChoiceOverlay") != null, "(h) prologue: fast-forward stops at the P2 choice");
         await Frames(3);
         Check(!Hud.SkipLatched, "(h) prologue: the choice turns the latch off");
@@ -442,16 +414,34 @@ public partial class DialogToolbarQa : Node
         Check(game.AutoAdvanceDialog, "(h) prologue: A turns AUTO on");
         await Until(() => Read<int>(pro, "_line") != line0, 5.0);
         Check(Read<int>(pro, "_line") > line0, $"(h) prologue: AUTO advances the line by itself ({line0} -> {Read<int>(pro, "_line")})");
-        if (shot) { await Seconds(0.5); await Save("toolbar_prologue"); }
-        await Until(() => Shown(pro, "TalkBoxShown"), 5.0);
-        await Seconds(0.35);
+        Write(pro, "_lineT", -30.0);
+        if (shot) await Save("toolbar_prologue");
         await Tap(Key.A);
         Check(!game.AutoAdvanceDialog, "(h) prologue: A again turns AUTO off");
         pro.QueueFree();
         await Frames(5);
     }
 
-    // (h-2) エピローグ：見上げ（PhGaze）の語りでボタン列が出る。A＝AUTO、S＝既読で ON／未読で OFF。
+    private async Task FinalChecks(GameManager game)
+    {
+        game.AutoAdvanceDialog = false;
+        var scene = GD.Load<PackedScene>("res://Final.tscn").Instantiate<Final>();
+        GetTree().Root.AddChild(scene);
+        GetTree().CurrentScene = scene;
+        await Until(() => Shown(scene, "TalkBoxShown"), 5.0);
+        Check(Shown(scene, "TalkBoxShown"), "final: dialogue is visible");
+        await Seconds(0.4);
+        await Tap(Key.S);
+        Check(Hud.SkipLatched && Read<bool>(scene, "_ffNow"), "final: S skips unread dialogue");
+        await Until(() => scene.GetNodeOrNull<ChoiceOverlay>("ChoiceOverlay") != null, 15.0);
+        var choice = scene.GetNodeOrNull<ChoiceOverlay>("ChoiceOverlay");
+        Check(choice != null, "final: skip reaches the player's reply choice");
+        await Seconds(1.0);
+        Check(!Hud.SkipLatched && !choice!.Decided, "final: skip stops without sending a reply");
+        scene.QueueFree();
+        await Frames(5);
+    }
+
     private async Task EpilogueChecks(GameManager game)
     {
         game.AutoAdvanceDialog = false;
@@ -469,21 +459,17 @@ public partial class DialogToolbarQa : Node
         await Tap(Key.A);
         Check(!game.AutoAdvanceDialog, "(h) epilogue: A again turns AUTO off");
         await Seconds(0.4);
-        Write(ep, "_lineWasRead", false);
+        int beforeSkip = Read<int>(ep, "_line");
         await Tap(Key.S);
-        Check(!Hud.SkipLatched, "(h) epilogue: S on an unread line drops the latch at once");
-        Write(ep, "_lineWasRead", true);
-        Write(ep, "_lineT", -30.0);   // 送りの最短間隔で止めておく＝ラッチの状態だけを見る
+        Check(Hud.SkipLatched && Read<bool>(ep, "_ffNow"), "epilogue: S skips unread dialogue");
+        await Until(() => Read<int>(ep, "_line") > beforeSkip, 5.0);
+        Check(Read<int>(ep, "_line") > beforeSkip && Hud.SkipLatched, "epilogue: skip continues onto the next unread line");
         await Tap(Key.S);
-        Check(Hud.SkipLatched, "(h) epilogue: S on a read line keeps the latch ON");
-        Write(ep, "_lineWasRead", false);
-        await Frames(3);
-        Check(!Hud.SkipLatched, "(h) epilogue: reaching an unread line turns the latch off");
+        Check(!Hud.SkipLatched, "epilogue: S again stops skip");
         ep.QueueFree();
         await Frames(5);
     }
 
-    // (h-3) ハブの返信会話：ボタン列が出る。A＝AUTO、S＝既読で ON→次の未読行で OFF→会話が閉じても OFF。
     private async Task HubChecks(GameManager game, bool shot, string stamp)
     {
         game.AutoAdvanceDialog = false;
@@ -519,23 +505,15 @@ public partial class DialogToolbarQa : Node
         await Tap(Key.A);
         Check(!game.AutoAdvanceDialog, "(h) hub: A again turns AUTO off");
         await Seconds(0.2);
-        Write(hub, "_dlgReadBefore", false);
-        await Tap(Key.S);
-        Check(!Hud.SkipLatched, "(h) hub: S on an unread line drops the latch at once");
         int idx1 = Read<int>(hub, "_dlgIdx");
-        Write(hub, "_dlgReadBefore", true);
-        Write(hub, "_dlgLineT", -30.0);   // 早送りの一歩（0.15s）を止めておく＝ラッチの状態だけを見る
+        Write(hub, "_dlgLineT", -30.0);
         await Tap(Key.S);
-        Check(Hud.SkipLatched, "(h) hub: S on a read line keeps the latch ON");
-        Write(hub, "_dlgLineT", 1.0);    // 早送りを通す＝次の（未読の）行へ
-        for (int i = 0; i < 60 && Read<int>(hub, "_dlgIdx") == idx1; i++) await Frames(1);
-        await Frames(3);
-        Check(Read<int>(hub, "_dlgIdx") > idx1, "(h) hub: SKIP fast-forwards the read line");
-        Check(!Hud.SkipLatched, "(h) hub: the next unread line turns the latch off");
+        Check(Hud.SkipLatched && Read<bool>(hub, "_ffNow"), "hub: S skips unread dialogue");
+        Write(hub, "_dlgLineT", 1.0);
+        await Until(() => !Shown(hub, "DialogShown"), 5.0);
+        Check(Read<int>(hub, "_dlgIdx") > idx1 && Hud.SkipLatched, "hub: skip continues through the remaining unread lines");
         // 会話を閉じてもラッチは残り（画面を跨いで保つ）、会話の外では画面右上に印を出す
-        for (int i = 0; i < 60 && Shown(hub, "DialogShown"); i++) await Tap(Key.Z);
         Check(!Shown(hub, "DialogShown"), "(h) hub: dialogue closed");
-        Hud.SkipLatched = true;   // 会話の外で立っていたら
         await Seconds(0.5);
         var tb = Read<DialogToolbar>(hub, "_toolbar");
         Check(Hud.SkipLatched, "(h) hub: the latch stays ON outside the dialogue");

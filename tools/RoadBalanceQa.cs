@@ -41,6 +41,8 @@ public partial class RoadBalanceQa : Node
     private bool Stationary => OS.GetCmdlineUserArgs().Contains("--stationary");
     private bool RouteLength => OS.GetCmdlineUserArgs().Contains("--route-length");
     private bool PressureComparison => OS.GetCmdlineUserArgs().Contains("--pressure-compare");
+    private Job? ChargeComparisonJob => OS.GetCmdlineUserArgs().FirstOrDefault(arg => arg.StartsWith("--charge-job=")) is { } arg
+        ? Jobs.Parse(arg[13..]) ?? throw new ArgumentException("Unknown charge comparison character") : null;
     private readonly List<object> _pressureResults = new();
 
     public override async void _Ready()
@@ -62,7 +64,8 @@ public partial class RoadBalanceQa : Node
             foreach (var theme in new[] { StageTheme.Akari, StageTheme.Koharu, StageTheme.Rei, StageTheme.Mina })
                 foreach (var diff in Enum.GetValues<GameManager.Diff>())
                 {
-                    if (PressureComparison && theme is not (StageTheme.Koharu or StageTheme.Mina)) continue;
+                    if (PressureComparison && (ChargeComparisonJob.HasValue ? theme != StageTheme.Akari
+                        : theme is not (StageTheme.Koharu or StageTheme.Mina))) continue;
                     if (PressureComparison && OS.GetCmdlineUserArgs().FirstOrDefault(arg => arg.StartsWith("--theme=")) is { } selectedTheme
                         && theme.ToString() != selectedTheme[8..]) continue;
                     if (OS.GetCmdlineUserArgs().Contains("--easy-only") && diff != GameManager.Diff.Easy) continue;
@@ -260,7 +263,10 @@ public partial class RoadBalanceQa : Node
     private async Task Encounter(GameManager game, StageTheme theme, GameManager.Diff diff)
     {
         game.ResetPersistent();
-        game.SelectedJob = PressureComparison ? Job.Magic : Job.Tank;
+        game.SelectedJob = PressureComparison ? ChargeComparisonJob ?? Job.Magic : Job.Tank;
+        if (PressureComparison && ChargeComparisonJob.HasValue)
+            foreach (string upgrade in new[] { "n_life_1", "n_dodge", "n_dodge_cd", "n_bomb_1", "n_life_2", "n_charge" })
+                game.TrainingSetUpgrade(upgrade, true);
         GD.Seed(7123);
         game.Difficulty = diff;
         string scene = theme == StageTheme.Mina ? "MinaBattle" : theme.ToString();
@@ -294,7 +300,7 @@ public partial class RoadBalanceQa : Node
         {
             Check(UiKit.TextW(UiKit.Mono, game.DiffName, 14) < 104, game.DiffName + " fits before the activity status");
             hud.HoldBubble = true;
-            hud.ShowDialog(Hud.LineKind.Mina, "難易度表示の確認", "res://char/mina_face.png");
+            hud.ShowDialog(Hud.LineKind.Mina, "難易度表示の確認", "res://char/v3/mina_conversation_v1.png");
             DisplayServer.WindowSetMode(DisplayServer.WindowMode.Windowed);
             foreach (var size in new[] { new Vector2I(1280, 720), new Vector2I(960, 540) })
             {
@@ -450,7 +456,7 @@ public partial class RoadBalanceQa : Node
         {
             Write(stage, "_spawner", null!);
             string field = new[] { "MidWaveA", "MidWaveB", "MidWaveC" }[wave];
-            int count = (int)typeof(StageKoharu).GetField(field, BindingFlags.Static | BindingFlags.NonPublic)!.GetRawConstantValue()!;
+            int count = (int)stage.GetType().GetField(field, BindingFlags.Static | BindingFlags.NonPublic)!.GetRawConstantValue()!;
             Call(stage, "StartMidwaveSpawner", count, new[] { 0f, .35f, .7f }[wave]);
             spawner = Read<Spawner>(stage, "_spawner");
         }
@@ -510,15 +516,19 @@ public partial class RoadBalanceQa : Node
         finally { input.Release(); GameCamera.Instance = camera; }
         var result = new { theme = theme.ToString(), difficulty = diff.ToString(), wave, seed, planned_count = plannedCount,
             opening_intensity = openingIntensity, attack_density = spawner.AttackDensity, job = game.SelectedJob.ToString(),
+            charge_pierce = game.JobDef.ChargePierce, road_hp_multiplier = game.RoadHpMul,
             mean_live_projectiles = liveSum / samples, peak_live_projectiles = peak, created = seen.Count,
             mean_frame_density = density / densitySamples, peak_frame_density = peakDensity,
             empty_fraction = empty / samples, longest_empty_seconds = longestGap, contact_frames = contacts,
             kills = game.PurifiedCount - kills, elapsed, sampled_seconds = samples,
             capture_start_frame = startFrame, capture_end_frame = Engine.GetProcessFrames(),
-            conditions = "Same Magic job, no shop or pickup upgrades, invincible automatic movement and shooting, no bomb/dodge. Hitstop disabled in this fixture to remove real-time scheduling differences. Production wave configuration with unlimited spawn quota for a fixed-length pressure sample; first eight seconds excluded." };
+            conditions = (ChargeComparisonJob.HasValue ? $"{game.JobDef.CharacterName} with six shop upgrades through charge tier 2; no pickup upgrades. "
+                : "Magic without shop or pickup upgrades. ")
+                + "Invincible automatic movement and shooting, no bomb/dodge. Hitstop disabled in this fixture to remove real-time scheduling differences. Production wave configuration with unlimited spawn quota for a fixed-length pressure sample; first eight seconds excluded." };
         _pressureResults.Add(result);
         GD.Print("[RoadQA] PRESSURE " + System.Text.Json.JsonSerializer.Serialize(result));
-        Check(game.SelectedJob == Job.Magic && player.LinePower == 0, "comparison keeps the same job and unpowered shot");
+        Check(game.SelectedJob == (ChargeComparisonJob ?? Job.Magic) && player.LinePower == 0,
+            "comparison keeps the selected job and no pickup power");
         player.SetPhysicsProcess(false);
         spawner.Stop();
         spawner.QueueFree();
@@ -591,17 +601,17 @@ public partial class RoadBalanceQa : Node
             enemy.Configure(spec);
             int[] health = spec.Pattern switch
             {
-                AttackPattern.AkariVacant or AttackPattern.KoharuParcel or AttackPattern.ReiMetrics => new[] { 18, 23, 27, 32 },
-                AttackPattern.BuzzWall => new[] { 25, 32, 38, 44 },
-                AttackPattern.KoharuPrayerCarry => new[] { 6, 8, 9, 11 },
-                _ => new[] { 15, 19, 23, 27 },
+                AttackPattern.AkariVacant or AttackPattern.KoharuParcel or AttackPattern.ReiMetrics => new[] { 18, 23, 39, 32 },
+                AttackPattern.BuzzWall => new[] { 25, 32, 55, 44 },
+                AttackPattern.KoharuPrayerCarry => new[] { 6, 8, 13, 11 },
+                _ => new[] { 15, 19, 33, 27 },
             };
             yield return (spec.Pattern.ToString(), enemy, health);
         }
         if (theme == StageTheme.Akari)
         {
-            yield return (nameof(GlyphMote), new GlyphMote(), new[] { 6, 8, 9, 11 });
-            yield return (nameof(PageShard), new PageShard(), new[] { 6, 8, 9, 11 });
+            yield return (nameof(GlyphMote), new GlyphMote(), new[] { 6, 8, 13, 11 });
+            yield return (nameof(PageShard), new PageShard(), new[] { 6, 8, 13, 11 });
         }
     }
 
@@ -795,7 +805,7 @@ public partial class RoadBalanceQa : Node
         Check(spawner.SpawnedCount == 0 && Warnings().Length == 4, "every edge warns before the enemy appears");
         float progress = Read<float>(Warnings()[0], "_progress");
         hud.HoldBubble = true;
-        hud.ShowDialog(Hud.LineKind.Mina, "Pause QA", "res://char/mina_face.png");
+        hud.ShowDialog(Hud.LineKind.Mina, "Pause QA", "res://char/v3/mina_conversation_v1.png");
         await Frames(3);
         spawner._Process(2);
         Check(spawner.SpawnedCount == 0 && Read<float>(Warnings()[0], "_progress") == progress,

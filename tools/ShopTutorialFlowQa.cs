@@ -11,7 +11,7 @@ using System.Threading.Tasks;
 //     (1) 初回のあかりクリアでハブへ帰ると、帰還会話 → ホーム解禁演出 → そのまま説明9行が同じ画面で流れる
 //     (2) 説明の前後を通して画面遷移が一度も起きない（LoadingScreen／PhoneAppTransition が立たない・
 //         CurrentScene が変わらない・ハブが _dived を立てない）
-//     (3) 本文は ShopTutorialLines のまま・立ち絵も行ごと（8行目だけ mina_worried）・9行とも会話ログに残る
+//     (3) ShopTutorialLines の話者・本文・立ち絵が一致し、会話ログに全行が残る
 //     (4) 読み切るとホームに戻り、強化アイコンが誘導表示（_shopNudge）＋カーソルがアイコンに乗る。
 //         最終行を送った Z がそのまま「ひらく」に漏れない
 //     (5) ShopTutorialSeen が save_0.json に保存される
@@ -24,7 +24,7 @@ using System.Threading.Tasks;
 //   ★--headless では動かさない。止まりはしないが (1)(2) の2件が必ず NG になる＝偽陽性。
 //     解禁演出（Hub._homeSnapshot）がビューポートを1枚取る作りで、描画の無いヘッドレスでは演出が成立せず、
 //     「帰還会話 → 解禁演出 → 説明」の受け渡しを踏まないまま Home に着いてしまうため。窓ありで動かすこと。
-//     （スクショ自体は撮らない。--st-shot を付けたときだけ2枚保存する＝これも窓あり限定。）
+//     （--st-shot を付けたときだけ、初回・再クリアの会話、ショップ説明と誘導を撮影する。）
 public partial class ShopTutorialFlowQa : Node
 {
     private const BindingFlags Private = BindingFlags.Instance | BindingFlags.NonPublic;
@@ -48,9 +48,8 @@ public partial class ShopTutorialFlowQa : Node
     public override async void _Ready()
     {
         ProcessMode = ProcessModeEnum.Always;   // 遷移が立った場合でもツリーポーズに巻き込まれず検査を続ける
-        // 窓ありで `-- --st-shot` を付けると build/qa_story/shop_tutorial/shots/ に見え方を2枚保存する
-        //   （説明がホームの上に出ている図と、読み切ったあとの誘導）。ヘッダレスでは付けない（FramePostDraw を待つ）。
-        _shots = Array.IndexOf(OS.GetCmdlineUserArgs(), "--st-shot") >= 0;
+        _shots = DisplayServer.GetName() != "headless" && Array.IndexOf(OS.GetCmdlineUserArgs(), "--st-shot") >= 0;
+        typeof(Settings).GetProperty(nameof(Settings.PauseWhenUnfocused))!.SetValue(null, false);
         await Frames(2);
         Check(OS.GetUserDataDir().Replace('\\', '/').Contains("/build/qa_story/"), "isolated save data", OS.GetUserDataDir());
         var game = GetNode<GameManager>("/root/Game");
@@ -68,6 +67,8 @@ public partial class ShopTutorialFlowQa : Node
         var hub = await Spawn();
         Check(Mode(hub) == "Dialogue", "the first clear opens the return dialogue", Mode(hub));
         Check(!game.ShopTutorialSeen, "the shop tutorial is still unseen on arrival");
+        await Shot("first_clear_dialogue");
+        await CheckDialogueLayout(hub, tilted: false);
 
         // 帰還会話（＋アカウント追加の説明）を Z で読み切る → ホーム解禁演出へ
         for (int i = 0; i < 400 && Mode(hub) == "Dialogue"; i++) { await Keypress(Key.Z); Guard(hub, "return dialogue"); }
@@ -95,7 +96,7 @@ public partial class ShopTutorialFlowQa : Node
         for (int i = 0; i < dlg.Length; i++)
         {
             var portrait = (Texture2D?)Call(hub, "LineFace", i);
-            Check(dlg[i].sp == "あなた" ? portrait == null : portrait?.ResourcePath == "res://char/mina_face.png",
+            Check(dlg[i].sp == "あなた" ? portrait == null : portrait?.ResourcePath == "res://char/v3/mina_conversation_v1.png",
                 $"(3) line {i + 1} uses its speaker's portrait", portrait?.ResourcePath ?? "(null)");
         }
         Check(Field(hub, "_dlgReturnMode") == "Home", "the tutorial returns to the phone home", Field(hub, "_dlgReturnMode"));
@@ -127,6 +128,8 @@ public partial class ShopTutorialFlowQa : Node
         Hud.ClearBacklog();
         game.CompleteStage(GameManager.FirstStageId);
         hub = await Spawn();
+        await Shot("repeat_clear_dialogue");
+        await CheckDialogueLayout(hub, tilted: true);
         for (int i = 0; i < 400 && Mode(hub) != "Home"; i++) { await Keypress(Key.Z); Guard(hub, "second visit"); }
         Check(Mode(hub) == "Home", "the second visit also ends up on the phone home", Mode(hub));
         Check(!Read<bool>(hub, "_shopTutorialDlg") && !Read<bool>(hub, "_shopNudge"),
@@ -165,6 +168,43 @@ public partial class ShopTutorialFlowQa : Node
 
         GD.Print(_fail == 0 ? "[shoptutqa] ALL OK" : $"[shoptutqa] FAILED: {_fail}");
         GetTree().Quit(_fail == 0 ? 0 : 1);
+    }
+
+    private async Task CheckDialogueLayout(Hub hub, bool tilted)
+    {
+        var pose = tilted ? (Transform2D)Call(hub, "HomePhoneTransform")! : Transform2D.Identity;
+        var anchor = new Vector2(880, DialogueBox.FullScreen.Position.Y);
+        if (DisplayServer.GetName() != "headless")
+        {
+            await ToSignal(RenderingServer.Singleton, RenderingServer.SignalName.FramePostDraw);
+            using var image = GetViewport().GetTexture().GetImage();
+            foreach (float x in new[] { 448f, 640f, 832f })
+            {
+                Vector2 p = pose * new Vector2(x, anchor.Y + DialogueBox.HeaderHeight) * image.GetWidth() / UiKit.DesignW;
+                int px = Mathf.RoundToInt(p.X), py = Mathf.RoundToInt(p.Y);
+                float peak = 0;
+                for (int dy = -2; dy <= 2; dy++) peak = Mathf.Max(peak, image.GetPixel(px, py + dy).G);
+                float adjacent = Mathf.Max(image.GetPixel(px, py - 6).G, image.GetPixel(px, py + 6).G);
+                Check(peak - adjacent > 0.025f, $"dialogue header follows the glass at x={x}, tilted={tilted}");
+            }
+        }
+
+        var game = GetNode<GameManager>("/root/Game");
+        var point = pose * DialogToolbar.ButtonRect(anchor, DialogToolbar.Auto).GetCenter();
+        var mouse = typeof(Pad).GetField("_mousePos", BindingFlags.NonPublic | BindingFlags.Static)!;
+        var left = typeof(Pad).GetField("_mL", BindingFlags.NonPublic | BindingFlags.Static)!;
+        Vector2 previous = Pad.MousePos();
+        bool auto = game.AutoAdvanceDialog;
+        int line = Read<int>(hub, "_dlgIdx"), page = Read<int>(hub, "_dlgPage");
+        mouse.SetValue(null, point);
+        left.SetValue(null, true);
+        hub._Process(0);
+        Check(game.AutoAdvanceDialog != auto && Pad.MouseCaptured
+            && line == Read<int>(hub, "_dlgIdx") && page == Read<int>(hub, "_dlgPage"),
+            $"clicking the visible AUTO button toggles it without advancing ({(tilted ? "tilted" : "front-facing")})");
+        left.SetValue(null, false);
+        mouse.SetValue(null, previous);
+        if (game.AutoAdvanceDialog != auto) DialogToolbar.ToggleAutoAdvance(game);
     }
 
     private bool SavedShopTutorialSeen()

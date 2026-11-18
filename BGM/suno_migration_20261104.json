@@ -1,0 +1,182 @@
+{
+  "date": "2026-11-04",
+  "reference_audio_policy": "No downloaded third-party tracks, melodies, stems or artist names used as generation references.",
+  "active_or_retained_slots": [
+    {
+      "key": "akari",
+      "audio": "audio/bgm_stage_akari.ogg",
+      "old_source": "Machinery — PeriTune",
+      "scenes": "あかり道中、練習",
+      "replacement": "雨粒の先へ — あかり道中",
+      "source": "https://suno.com/song/dc2eb93b-1f89-4d02-877c-635be8692f0d",
+      "status": "integrated; gameplay loops verified; full-length originals added to music library"
+    },
+    {
+      "key": "koharu",
+      "audio": "audio/bgm_stage_koharu.ogg",
+      "old_source": "Crisis — PeriTune",
+      "scenes": "こはる道中",
+      "replacement": "予定表のすきま — こはる道中",
+      "source": "https://suno.com/song/6c11cd4a-e12d-4493-b5da-fae496939c04",
+      "status": "integrated; gameplay loops verified; full-length originals added to music library"
+    },
+    {
+      "key": "rei",
+      "audio": "audio/bgm_stage_rei.ogg",
+      "old_source": "Irregular — PeriTune",
+      "scenes": "レイ道中",
+      "replacement": "スポットライトの向こう — レイ道中",
+      "source": "https://suno.com/song/4d962698-4bfb-4b6d-976c-2c4c7e017dca",
+      "status": "integrated; gameplay loops verified; full-length originals added to music library"
+    },
+    {
+      "key": "mina",
+      "audio": "audio/bgm_final_route.ogg",
+      "old_source": "Rapid5 — PeriTune",
+      "scenes": "最終道中",
+      "replacement": "記憶の灯をたどって — ミナ道中",
+      "source": "https://suno.com/song/fb47a42a-0dab-4a32-ba13-74327a623bee",
+      "status": "integrated; gameplay loops verified; full-length originals added to music library"
+    },
+    {
+      "key": "tutorial",
+      "audio": "audio/bgm_stage_w0.ogg",
+      "old_source": "Roll Roll Roll — もっぴーさうんど / DOVA-SYNDROME",
+      "scenes": "導入ステージ",
+      "replacement": "はじめてのダイブ — 導入道中",
+      "source": "https://suno.com/song/1abe38ba-9d49-4f47-ab9c-fdd3697e1ae2",
+      "status": "integrated; gameplay loops verified; full-length originals added to music library"
+    },
+    {
+      "key": "title",
+      "audio": "audio/bgm_title.ogg",
+      "old_source": "見上げた空 — 甘茶の音楽工房",
+      "scenes": "タイトル、単独で開いた設定",
+      "replacement": "ひらく前の約束",
+      "status": "generated; waiting for download allowance",
+      "original_sha256": "e5fbe86b12cf153b63b1426262935107f00bd9c410bb4e7cc3ec624a9b797884",
+      "candidates": [
+        "https://suno.com/song/7a9e5855-b1fd-4da8-b401-f6d209a2201e",
+        "https://suno.com/song/219a8ec3-76cb-4557-ac91-82169fc1c3fe"
+      ]
+    },
+    {
+      "key": "menu",
+      "audio": "audio/bgm_menu_mina.ogg",
+      "old_source": "巡る思い出 — 蒲鉾さちこ / DOVA-SYNDROME",
+      "scenes": "ホーム、ショップ、難易度・記録・ボス選択",
+      "replacement": "窓辺で待ち合わせ",
+      "status": "generated; waiting for download allowance",
+      "original_sha256": "fbb01203e77d391ef8ce73e5cf3e2dfd6527dccdd2d0d6e6371437a10d22bde9",
+      "candidates": [
+        "https://suno.com/song/cd1f1241-5aba-4150-abc4-3d94faef8684",
+        "https://suno.com/song/b850c076-5b02-4b65-bf06-50c4dae853fb"
+      ]
+    },
+    {
+      "key": "prologue",
+      "audio": "audio/bgm_prologue.ogg",
+      "old_source": "Memories — PeriTune",
+      "scenes": "プロローグ",
+      "replacement": "名前のない朝のチャット",
+      "status": "generated; waiting for download allowance",
+      "original_sha256": "f7053918b8e5ab21df2378599096dff29457d5ca20a46b4bc778206374ef4806",
+      "candidates": [
+        "https://suno.com/song/160f78dd-0ddd-404c-ab62-645dfe6ddfe4",
+        "https://suno.com/song/dbdb32af-0d5c-4189-a203-be6349478a25"
+      ]
+    },
+    {
+      "key": "credits",
+      "audio": "audio/bgm_credits.ogg",
+      "old_source": "帰り道 — 甘茶の音楽工房",
+      "scenes": "タイトルから開くクレジット",
+      "replacement": "閉じた本に残る光",
+      "status": "generated; waiting for download allowance",
+      "original_sha256": "87f6d459cf8cd88cffb1c3327917a7c11e3a9fbd850e0a4c76a47de7a0d51d7c",
+      "candidates": [
+        "https://suno.com/song/35c2f4ad-82e6-4c92-8bc4-d9fbf477aa4e",
+        "https://suno.com/song/fe9d6258-7993-422a-a8ec-91a5407e5684"
+      ]
+    },
+    {
+      "key": "gameover",
+      "audio": "audio/bgm_gameover.ogg",
+      "old_source": "Dark_Moon — PeriTune",
+      "scenes": "ゲームオーバー・再挑戦メニュー",
+      "replacement": "もう一度、息をして",
+      "status": "generated; waiting for download allowance",
+      "original_sha256": "d843254e5e300ea28e915ff081383c5c3cb2466609a3603462bd305d6c5f7ba3",
+      "candidates": [
+        "https://suno.com/song/0e4fec1a-e496-4dc9-94d7-8dbc583ac0c8",
+        "https://suno.com/song/fea7f567-4a75-414a-af80-ce242fbcfebb"
+      ]
+    },
+    {
+      "key": "resolve",
+      "audio": "audio/bgm_final_resolve.ogg",
+      "old_source": "Piano_Refreshing — PeriTune",
+      "scenes": "最終場面の解決、帰還後の会話",
+      "replacement": "返事のかわりに隣へ",
+      "status": "generated; waiting for download allowance",
+      "original_sha256": "fa05e8a53f3e7bd3beb376c99d00fa413f59397fc366ac1e56c41b135103651f",
+      "candidates": [
+        "https://suno.com/song/69ea20f5-59b5-4bf0-b593-61f20babce67",
+        "https://suno.com/song/cb36ce3b-6468-4cba-bd75-b3a3e750b7af"
+      ]
+    },
+    {
+      "key": "hikage",
+      "audio": "audio/bgm_boss_hikage.ogg",
+      "old_source": "Frozen Forest — PeriTune",
+      "scenes": "旧チュートリアルのヒカゲ戦（通常メニューでは無効）",
+      "replacement": "輪の外から踏み出して",
+      "status": "generated; waiting for download allowance",
+      "original_sha256": "54b365ea5f0b8568952794343773577467a9b18a9c2aa72e88fe1dba24eae313",
+      "candidates": [
+        "https://suno.com/song/f37caa05-048c-445c-8a07-f266a33fafff",
+        "https://suno.com/song/aa8bce4b-61f2-431e-9feb-2f193afad792"
+      ]
+    },
+    {
+      "key": "ending",
+      "audio": "audio/bgm_ending_film.ogg",
+      "old_source": "PV_Emotional — PeriTune",
+      "scenes": "エンディング映像からスタッフロール",
+      "replacement": "あしたへ灯りを残して",
+      "status": "generated; waiting for download allowance",
+      "original_sha256": "83640db1e3e88a1b238cf9426348ff79dd7625149410c3b9f1824098a1d99498",
+      "candidates": [
+        "https://suno.com/song/75e7ab31-7405-4351-86c0-9738a9d13f75",
+        "https://suno.com/song/1e1630c1-93f8-4193-9c12-835cb5efd94e"
+      ]
+    }
+  ],
+  "unreferenced_legacy_audio": [
+    "bgm_shop.ogg",
+    "bgm_training.ogg",
+    "bgm_epilogue_walk.ogg",
+    "bgm_boss_akari.ogg",
+    "bgm_boss_koharu.ogg",
+    "bgm_boss_rei.ogg",
+    "bgm_boss_mina.ogg",
+    "bgm_story_akari.ogg",
+    "bgm_story_akari_after.ogg",
+    "bgm_story_koharu.ogg",
+    "bgm_story_koharu_after.ogg",
+    "bgm_story_rei.ogg",
+    "bgm_story_rei_after.ogg",
+    "bgm_story_mina.ogg"
+  ],
+  "legacy_archive": "BGM/retired_free_bgm_20261104 (excluded from Godot imports and exports)",
+  "blocked_on": [
+    "Additional Suno download allowance for the remaining eight compositions"
+  ],
+  "verification": {
+    "dialogue_and_stage_playback": "build/qa_story/stage_music_20261104/encounters_visual/result.json",
+    "scene_playback": "build/qa_story/stage_music_20261104/scenes_diagnostic/result.json",
+    "full_original_sources": "build/qa_story/stage_music_20261104/library_audio_verification.json",
+    "auditory_review": "not_performed",
+    "music_app_playback": "build/qa_story/stage_music_20261104/music_seek/result.json (headless; 22 original tracks, end, pause, seek, repeat, filters)"
+  }
+}

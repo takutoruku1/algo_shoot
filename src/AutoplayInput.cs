@@ -9,16 +9,19 @@ internal sealed class AutoplayInput
     private const float ComfortGap = 8f;
     private readonly SceneTree _tree;
     private readonly GameManager _game;
+    private readonly double _dialogInterval;
     private readonly List<(Vector2 pos, Vector2 vel, float radius)> _threats = new();
+    private readonly List<BossCharacterTechnique> _techniques = new();
     private Player? _player;
     private bool _combat, _zDown, _shiftDown, _xDown, _dodgeDown;
     private double _dialogTime, _chargeDelay, _bombDelay;
     private int _previousDirection;
 
-    public AutoplayInput(SceneTree tree, GameManager game)
+    public AutoplayInput(SceneTree tree, GameManager game, double dialogInterval = 0.12)
     {
         _tree = tree;
         _game = game;
+        _dialogInterval = dialogInterval;
     }
 
     public void Update(double delta, bool shoot = true, bool bombs = true, bool dodge = true)
@@ -49,7 +52,7 @@ internal sealed class AutoplayInput
             SetKey(Key.Shift, false, ref _shiftDown);
             _combat = false;
             _chargeDelay = 0;
-            _dialogTime = (_dialogTime + delta) % 0.12;
+            _dialogTime = (_dialogTime + delta) % _dialogInterval;
             SetKey(Key.Z, talking && _dialogTime < 0.06, ref _zDown);
             return;
         }
@@ -79,7 +82,7 @@ internal sealed class AutoplayInput
         }
         _chargeDelay -= delta;
         bool ready = _game.HasChargeTier2 ? player!.ChargeFull2 : player!.ChargeFull;
-        if (!shoot || !player!.LockedOn || (ready || player.ChargeFull && gap < ComfortGap))
+        if (!shoot || !_game.HasChargeShot || !player!.LockedOn || (ready || player.ChargeFull && gap < ComfortGap))
         {
             if (_zDown) _chargeDelay = 0.35;
             SetKey(Key.Z, false, ref _zDown);
@@ -118,8 +121,12 @@ internal sealed class AutoplayInput
             return float.MaxValue;
         }
         _threats.Clear();
+        _techniques.Clear();
+        foreach (Node node in _tree.GetNodesInGroup("boss_character_techniques"))
+            if (node is BossCharacterTechnique technique && !technique.Finished) _techniques.Add(technique);
         foreach (Node node in _tree.GetNodesInGroup("enemy_bullets"))
-            if (node is Bullet bullet && bullet.Active && position.DistanceSquaredTo(bullet.GlobalPosition) < 150f * 150f)
+            if (node is Bullet bullet && bullet.Active && !bullet.LeadIn
+                && position.DistanceSquaredTo(bullet.GlobalPosition) < 150f * 150f)
                 _threats.Add((bullet.GlobalPosition, bullet.Velocity * GameManager.EnemyTimeScale,
                     bullet.CollisionRadius * Mathf.Max(bullet.GlobalTransform.X.Length(), bullet.GlobalTransform.Y.Length())));
 
@@ -129,7 +136,7 @@ internal sealed class AutoplayInput
         {
             if (node is not Enemy enemy || enemy.IsPurified) continue;
             float distance = position.DistanceSquaredTo(enemy.GlobalPosition);
-            if (distance < 150f * 150f) _threats.Add((enemy.GlobalPosition, Vector2.Zero, 14f));
+            if (enemy.BodyContactDamaging && distance < 150f * 150f) _threats.Add((enemy.GlobalPosition, Vector2.Zero, 14f));
             if (distance < nearestDistance) { nearest = enemy; nearestDistance = distance; }
         }
 
@@ -143,8 +150,17 @@ internal sealed class AutoplayInput
         void Consider(Vector2 velocity, int direction, float stopTime = Horizon)
         {
             float gap = Clearance(position, velocity, stopTime);
-            bestGap = Mathf.Max(bestGap, gap);
             float score = Mathf.Min(gap, 24f);
+            foreach (var technique in _techniques)
+            {
+                foreach (float ahead in new[] { 0.15f, 0.3f, Horizon })
+                {
+                    Vector2 future = Clamp(position + velocity * Mathf.Min(ahead, stopTime));
+                    score -= Mathf.Max(0, 6f - technique.DangerDistance(future, false)) * 4;
+                }
+                Vector2 end = Clamp(position + velocity * Mathf.Min(Horizon, stopTime));
+                score -= Mathf.Max(0, 10f - technique.DangerDistance(end, true)) * 2;
+            }
             if (gap >= ComfortGap)
             {
                 Vector2 end = Clamp(position + velocity * Mathf.Min(Horizon, stopTime));
@@ -155,6 +171,7 @@ internal sealed class AutoplayInput
             if (score > bestScore)
             {
                 bestScore = score;
+                bestGap = gap;
                 bestVelocity = velocity;
                 bestDirection = direction;
             }
@@ -178,6 +195,8 @@ internal sealed class AutoplayInput
         {
             float time = Horizon * step / Steps;
             Vector2 playerPosition = Clamp(position + velocity * Mathf.Min(time, stopTime));
+            foreach (var technique in _techniques)
+                gap = Mathf.Min(gap, technique.DangerDistance(playerPosition, false));
             foreach (var threat in _threats)
             {
                 float distance = playerPosition.DistanceTo(threat.pos + threat.vel * time) - threat.radius - 2f;
@@ -200,6 +219,8 @@ internal sealed class AutoplayInput
             foreach (var threat in _threats)
                 for (int step = 0; step < 6; step++)
                     gap = Mathf.Min(gap, end.DistanceTo(threat.pos + threat.vel * (0.45f + step * 0.05f)) - threat.radius - 2f);
+            foreach (var technique in _techniques)
+                gap = Mathf.Min(gap, technique.DangerDistance(end, true));
             float score = Mathf.Min(gap, 48f) - end.DistanceTo(Field.PlayerStart) * 0.02f;
             if (score > bestScore) { bestScore = score; best = direction; }
         }

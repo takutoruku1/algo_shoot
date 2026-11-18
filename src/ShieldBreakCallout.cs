@@ -9,6 +9,7 @@ public partial class ShieldBreakCallout : Node2D
     private Color _accent;
     private float _age;
     public bool Active => IsInstanceValid(_owner) && (_owner.GaugeBreaking || _owner.GaugeBodyExposed)
+        && !_owner.GaugeAttackResolving
         && !Hud.BubblePaused && !Hud.CinematicMode && !Hud.SuppressCallouts;
 
     public override void _Ready()

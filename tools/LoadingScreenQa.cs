@@ -22,6 +22,7 @@ public partial class LoadingScreenQa : Node
         try
         {
             Check(OS.GetUserDataDir().Replace('\\', '/').Contains("/build/qa_story/"), "isolated save data");
+            typeof(Settings).GetProperty(nameof(Settings.PauseWhenUnfocused))!.SetValue(null, false);
             _movie = Array.Exists(OS.GetCmdlineUserArgs(), a => a == "--movie");
             var game = GetNode<GameManager>("/root/Game");
             game.ResetPersistent();

@@ -1,4 +1,4 @@
-using Godot;
+﻿using Godot;
 using System;
 using System.Collections;
 using System.Collections.Generic;
@@ -26,7 +26,7 @@ public partial class BossTechniqueVideo
             internal Vector2[]? Forecast;
             internal Vector2 EyeA, EyeB;
             internal double? Full, FirstLive;
-            internal int Warnings, Live, HorizontalOnly, VerticalOnly, Dark, InField;
+            internal int Warnings, EyeCues, Live, HorizontalOnly, VerticalOnly, Dark, InField;
             internal int[] PulseSamples = Array.Empty<int>();
             internal double?[] PulseFirst = Array.Empty<double?>(), PulseLast = Array.Empty<double?>();
             internal float ShapeError, EyeError, BodyError;
@@ -34,6 +34,7 @@ public partial class BossTechniqueVideo
 
         private readonly record struct KoharuShape(Vector2 A, Vector2 B, float Radius, bool Live, int Kind);
         private readonly Dictionary<string, KoharuSweepEntry> _koharuSweeps = new();
+        private readonly Dictionary<string, Vector2[]> _koharuBloomForecasts = new();
         private readonly List<string> _koharuSweepErrors = new();
         private bool _koharuSweepChecked, _koharuSweepEnded;
         private int _koharuSweepMode, _koharuSweepFrames, _koharuSweepMatches, _koharuIgnoredPathWarnings;
@@ -69,6 +70,17 @@ public partial class BossTechniqueVideo
         private static KoharuShape KoharuBox(Rect2 rect, bool live) => new(rect.Position, rect.End, 0, live, 2);
         private static Rect2 KoharuFocusBox(KoharuSweepSample sample)
             => new(sample.Points[0] - new Vector2(sample.Width, sample.Height), new Vector2(sample.Width, sample.Height) * 2);
+        private static Rect2 KoharuEyeIntersection(KoharuSweepSample sample)
+        {
+            Vector2 center = new(sample.EyeB.X, sample.EyeA.Y);
+            float horizontalFar = center.X - Math.Sign(sample.EyeA.X - center.X) * sample.Width;
+            float verticalFar = center.Y - Math.Sign(sample.EyeB.Y - center.Y) * sample.Height;
+            var horizontal = new Rect2(Math.Min(horizontalFar, sample.EyeA.X), center.Y - sample.Height,
+                Math.Abs(horizontalFar - sample.EyeA.X), sample.Height * 2);
+            var vertical = new Rect2(center.X - sample.Width, Math.Min(verticalFar, sample.EyeB.Y),
+                sample.Width * 2, Math.Abs(verticalFar - sample.EyeB.Y));
+            return horizontal.Intersection(vertical);
+        }
         private static object KoharuPointResult(Vector2 point) => new { x = point.X, y = point.Y };
         private static float KoharuShapeError(KoharuShape expected, KoharuShape actual)
             => expected.Kind != actual.Kind || expected.Live != actual.Live ? float.PositiveInfinity
@@ -106,8 +118,8 @@ public partial class BossTechniqueVideo
 
         private static IEnumerable<KoharuShape> KoharuSweepWarning(KoharuSweepSample sample, float progress)
         {
-            if (sample.Mode == 4) yield return KoharuBox(KoharuFocusBox(sample), false);
-            else if (sample.Mode == 2) yield return new(sample.Points[0], sample.Points[0], sample.Width, false, 1);
+            if (sample.Mode == 4) yield break;
+            if (sample.Mode == 2) yield return new(sample.Points[0], sample.Points[0], sample.Width, false, 1);
             else if (sample.Mode == 3) yield return new(sample.Points[0], sample.Points[^1], sample.Width, false, 0);
             else
                 for (int index = 1; index < sample.Points.Length; index++)
@@ -120,24 +132,18 @@ public partial class BossTechniqueVideo
 
         private void CheckKoharuEyeIntersection(KoharuSweepEntry entry, KoharuSweepSample sample)
         {
-            Vector2 center = sample.Points[0];
-            float horizontalFar = center.X - Math.Sign(sample.EyeA.X - center.X) * sample.Width;
-            float verticalFar = center.Y - Math.Sign(sample.EyeB.Y - center.Y) * sample.Height;
-            var horizontal = new Rect2(Math.Min(horizontalFar, sample.EyeA.X), center.Y - sample.Height,
-                Math.Abs(horizontalFar - sample.EyeA.X), sample.Height * 2);
-            var vertical = new Rect2(center.X - sample.Width, Math.Min(verticalFar, sample.EyeB.Y),
-                sample.Width * 2, Math.Abs(verticalFar - sample.EyeB.Y));
-            Rect2 intersection = horizontal.Intersection(vertical), box = KoharuFocusBox(sample);
+            Vector2 center = new(sample.EyeB.X, sample.EyeA.Y);
+            Rect2 intersection = KoharuEyeIntersection(sample), box = KoharuFocusBox(sample);
             float error = Math.Max(Math.Max(intersection.Position.DistanceTo(box.Position), intersection.End.DistanceTo(box.End)),
-                Math.Max(Math.Abs(sample.EyeA.Y - center.Y), Math.Abs(sample.EyeB.X - center.X)));
+                center.DistanceTo(sample.Points[0]));
             entry.EyeError = Math.Max(entry.EyeError, error);
-            if (error > .015f || horizontal.Size.X <= 0 || vertical.Size.Y <= 0)
-                KoharuSweepFail("two actual eye bands do not intersect in precisely the promised damage box: " + sample.Key);
+            if (error > .015f || !intersection.HasArea())
+                KoharuSweepFail("visible eye positions and widths do not infer precisely the actual damage box: " + sample.Key);
         }
 
         private void ObserveKoharuSweeps(BossCharacterTechnique attack)
         {
-            if (attack is not KoharuBossTechnique) return;
+            if (attack is not KoharuBossTechnique || Read<int>(attack, "_easyMode") == 0) return;
             _koharuSweepChecked = true;
             _koharuSweepMode = Read<int>(attack, "_easyMode");
             _koharuSweepFrames++;
@@ -148,6 +154,8 @@ public partial class BossTechniqueVideo
             var cues = attack.EasyCues.ToDictionary(cue => cue.Key);
             var hazards = Read<List<(Vector2 A, Vector2 B, float Radius, bool Live, float Progress, int Shape)>>(attack, "_hazards");
             var actual = hazards.Select(hazard => new KoharuShape(hazard.A, hazard.B, hazard.Radius, hazard.Live, hazard.Shape)).ToArray();
+            if (_koharuSweepMode == 4 && actual.Any(shape => !shape.Live))
+                KoharuSweepFail("gaze reading exposes an answer hazard before the two eyes activate");
             var used = new bool[actual.Length];
             foreach (var sample in samples)
             {
@@ -160,7 +168,7 @@ public partial class BossTechniqueVideo
                 }
                 else if (entry.Last.Start != sample.Start || entry.Last.Fire != sample.Fire || entry.Last.End != sample.End
                     || entry.Last.Duration != sample.Duration || entry.Last.Mode != sample.Mode || entry.Last.Wave != sample.Wave
-                    || entry.Last.Pair != sample.Pair || entry.Last.Width != sample.Width || entry.Last.Height != sample.Height
+                    || entry.Last.Pair != sample.Pair || entry.Forecast != null && (entry.Last.Width != sample.Width || entry.Last.Height != sample.Height)
                     || !entry.Last.Pulses.SequenceEqual(sample.Pulses))
                     KoharuSweepFail("promised timing or dimensions changed: " + sample.Key);
                 entry.Last = sample;
@@ -192,16 +200,24 @@ public partial class BossTechniqueVideo
                 float progress = cues[sample.Key].Progress;
                 if (at < sample.Fire)
                 {
-                    var warning = KoharuSweepWarning(sample, progress).ToArray();
-                    bool matched = warning.Length > 0;
-                    foreach (var shape in warning) matched &= MatchKoharuSweep(entry, shape, actual, used, at);
-                    if (matched && progress >= 1) entry.Full ??= at;
+                    if (sample.Mode == 4)
+                    {
+                        if (progress > 0) entry.EyeCues++;
+                        if (progress >= 1) entry.Full ??= at;
+                    }
+                    else
+                    {
+                        var warning = KoharuSweepWarning(sample, progress).ToArray();
+                        bool matched = warning.Length > 0;
+                        foreach (var shape in warning) matched &= MatchKoharuSweep(entry, shape, actual, used, at);
+                        if (matched && progress >= 1) entry.Full ??= at;
+                    }
                 }
                 int pulse = sample.Pulses.Length == 0 ? at >= sample.Fire && at < sample.End ? 0 : -1
                     : Array.FindIndex(sample.Pulses, offset => at >= sample.Fire + offset && at < sample.Fire + offset + sample.Duration);
                 if (pulse < 0) continue;
                 KoharuShape expected;
-                if (sample.Mode == 4) expected = KoharuBox(KoharuFocusBox(sample), true);
+                if (sample.Mode == 4) expected = KoharuBox(KoharuEyeIntersection(sample), true);
                 else if (sample.Mode == 3) expected = new(sample.Points[0], sample.Points[^1], sample.Width, true, 0);
                 else
                 {
@@ -221,8 +237,9 @@ public partial class BossTechniqueVideo
                 entry.PulseSamples[pulse]++;
                 entry.PulseFirst[pulse] ??= at;
                 entry.PulseLast[pulse] = at;
-                if (entry.Full == null || at - entry.Full.Value + 1d / 60 + .00001 < 2)
-                    KoharuSweepFail("complete drawn footprint was held less than two seconds: " + sample.Key);
+                double requiredHold = Read<int>(attack, "Tier") == 0 ? 2 : .75;
+                if (entry.Full == null || at - entry.Full.Value + 1d / 60 + .00001 < requiredHold)
+                    KoharuSweepFail($"complete drawn footprint was held less than {requiredHold} seconds: " + sample.Key);
             }
             for (int index = 0; index < actual.Length; index++)
                 if (!used[index])
@@ -230,18 +247,37 @@ public partial class BossTechniqueVideo
                     if (actual[index].Live) KoharuSweepFail($"unpromised live geometry (including any single-eye damage) at {at:F4}: {actual[index]}");
                     else _koharuIgnoredPathWarnings++;
                 }
-            if (_koharuSweepMode == 5 && samples.FirstOrDefault(sample => sample.Mode == 1) is { } leap
-                && at >= leap.End)
+            if (_koharuSweepMode == 5 && samples.Where(sample => sample.Mode == 1 && at >= sample.Start)
+                .OrderByDescending(sample => sample.Start).FirstOrDefault() is { } leap)
             {
-                float error = _boss.GlobalPosition.DistanceTo(leap.Points[^1]);
-                _koharuSweeps[leap.Key].BodyError = Math.Max(_koharuSweeps[leap.Key].BodyError, error);
-                if (error > .025f) KoharuSweepFail("deer moved away from its promised landing before the technique ended");
+                if (at < leap.Fire && _boss.GlobalPosition.DistanceTo(leap.Points[0]) > .025f)
+                    KoharuSweepFail("deer moved before both forecasts finished");
+                foreach (var path in Read<IEnumerable>(attack, "_easyPaths").Cast<object>()
+                    .Where(path => Read<int>(path, "Pulse") == 0 && Read<int>(path, "Wave") == leap.Wave))
+                {
+                    string key = Read<string>(path, "Key");
+                    if (at < Read<double>(path, "StartsAt")) continue;
+                    var points = Read<Vector2[]>(path, "Points");
+                    if (!_koharuBloomForecasts.TryGetValue(key, out var forecast))
+                        _koharuBloomForecasts.Add(key, points.ToArray());
+                    else if (!forecast.SequenceEqual(points))
+                        KoharuSweepFail("bloom trajectory changed after its pre-jump forecast: " + key);
+                    double requiredHold = Read<int>(attack, "Tier") == 0 ? 2 : .75;
+                    if (at >= leap.Fire && (_cues[key].Full is not { } full || leap.Fire - full + 1d / 60 < requiredHold))
+                        KoharuSweepFail("deer jumped before the complete bloom forecast hold");
+                }
+                if (at >= leap.End)
+                {
+                    float error = _boss.GlobalPosition.DistanceTo(leap.Points[^1]);
+                    _koharuSweeps[leap.Key].BodyError = Math.Max(_koharuSweeps[leap.Key].BodyError, error);
+                    if (error > .025f) KoharuSweepFail("deer moved away from its promised landing before the technique ended");
+                }
             }
         }
 
         private void EndKoharuSweeps(BossCharacterTechnique attack)
         {
-            if (attack is not KoharuBossTechnique) return;
+            if (attack is not KoharuBossTechnique || Read<int>(attack, "_easyMode") == 0) return;
             _koharuSweepChecked = _koharuSweepEnded = true;
             _koharuSweepMode = Read<int>(attack, "_easyMode");
             _koharuSweepEndTime = attack.Elapsed;
@@ -249,13 +285,15 @@ public partial class BossTechniqueVideo
             _koharuNaturalShots = attack.NaturalEndRemainingShots;
             var samples = KoharuSweepSnapshots(attack);
             int tier = Read<int>(attack, "Tier");
+            bool hardKoharu = tier == 2 && _boss is BossKoharu;
             int gaze = 3 + tier * 2 + (attack.IsEnhanced ? 1 : 0);
             int flashes = 3 + tier + (attack.IsEnhanced ? 1 : 0);
             foreach (var sample in samples)
             {
                 if (!_koharuSweeps.TryGetValue(sample.Key, out var entry))
                 { KoharuSweepFail("entire planned sweep was omitted: " + sample.Key); continue; }
-                if (!sample.Fired || entry.Full == null || entry.FirstLive == null || entry.Warnings == 0 || entry.InField == 0)
+                if (!sample.Fired || entry.Full == null || entry.FirstLive == null
+                    || (sample.Mode == 4 ? entry.EyeCues == 0 : entry.Warnings == 0) || entry.InField == 0)
                     KoharuSweepFail("missing full warning or physical emission: " + sample.Key);
                 for (int pulse = 0; pulse < entry.PulseSamples.Length; pulse++)
                 {
@@ -275,28 +313,48 @@ public partial class BossTechniqueVideo
                 || !samples.Select(sample => sample.Wave).Distinct().OrderBy(wave => wave).SequenceEqual(new[] { 0, 1, 2 })
                 || !samples.GroupBy(sample => sample.Wave).All(wave => wave.Select(sample => sample.Pair).OrderBy(pair => pair).SequenceEqual(Enumerable.Range(0, 5 + tier * 4)))))
                 KoharuSweepFail("expected all difficulty-scaled eye pairs and every difficulty-scaled paired beat");
-            if (_koharuSweepMode == 6 && (samples.Length != 3 * (4 + tier * 2) || samples.Any(sample => sample.Mode != 3)
+            int axes = hardKoharu ? 12 : 4 + tier * 2;
+            int blackoutWaves = hardKoharu ? 4 : 3;
+            if (_koharuSweepMode == 6 && (samples.Length != blackoutWaves * axes || samples.Any(sample => sample.Mode != 3)
                 || samples.Any(sample => !sample.Pulses.SequenceEqual(Enumerable.Range(0, flashes).Select(pulse => pulse * Math.Max(.4, 1.68 / (flashes - 1)))))
-                || !samples.Select(sample => sample.Wave).Distinct().OrderBy(wave => wave).SequenceEqual(new[] { 0, 1, 2 })
-                || !samples.GroupBy(sample => sample.Wave).All(wave => wave.Select(sample => sample.Height).OrderBy(axis => axis).SequenceEqual(Enumerable.Range(0, 4 + tier * 2).Select(axis => (float)axis)))))
+                || !samples.Select(sample => sample.Wave).Distinct().OrderBy(wave => wave).SequenceEqual(Enumerable.Range(0, blackoutWaves))
+                || !samples.GroupBy(sample => sample.Wave).All(wave => wave.Select(sample => sample.Height).OrderBy(axis => axis).SequenceEqual(Enumerable.Range(0, axes).Select(axis => (float)axis)))))
                 KoharuSweepFail("expected all difficulty-scaled finale axes and every difficulty-scaled physical flash");
             if (_koharuSweepMode == 5)
             {
                 var jumps = samples.Where(sample => sample.Mode == 1).ToArray();
                 var landings = samples.Where(sample => sample.Mode == 2).ToArray();
-                if (samples.Length != 2 || jumps.Length != 1 || landings.Length != 1)
-                { KoharuSweepFail("expected one deer jump and its one landing"); return; }
-                var leap = jumps[0];
-                var landing = landings[0];
-                if (Math.Abs(leap.End - landing.Fire) > .00001
-                    || leap.Points[^1].DistanceTo(landing.Points[0]) > .015f
-                    || Math.Abs(leap.Width - (((BossKoharu)_boss).BodyExtent + 3)) > .015f
-                    || Math.Abs(landing.Width - (((BossKoharu)_boss).BodyExtent + 8)) > .015f)
-                    KoharuSweepFail("jump footprint and landing do not form one physical cause and consequence");
-                var paths = Read<IEnumerable>(attack, "_easyPaths").Cast<object>().ToArray();
-                int lights = (tier switch { 0 => 3, 1 => 5, 2 => 7, _ => 10 }) + (attack.IsEnhanced ? 2 : 0);
-                if (paths.Length != (12 + tier * 10) * lights || Math.Abs(paths.Min(path => Read<double>(path, "FiresAt")) - landing.Fire - .2) > .00001)
-                    KoharuSweepFail("landing omitted or prematurely released its difficulty-scaled physical bloom lights");
+                int expected = tier >= 2 ? tier + 1 : 1;
+                if (samples.Length != expected * 2 || jumps.Length != expected || landings.Length != expected)
+                { KoharuSweepFail("a planned deer jump or landing was omitted"); return; }
+                foreach (var leap in jumps)
+                {
+                    var landing = landings.Single(sample => sample.Wave == leap.Wave);
+                    if (Math.Abs(leap.End - landing.Fire) > .00001
+                        || leap.Points[^1].DistanceTo(landing.Points[0]) > .015f
+                        || Math.Abs(leap.Width - (((BossKoharu)_boss).BodyExtent + 3)) > .015f
+                        || landing.Width < ((BossKoharu)_boss).BodyExtent + 8 - .015f)
+                        KoharuSweepFail("jump footprint and landing do not form one physical cause and consequence");
+                    var paths = Read<IEnumerable>(attack, "_easyPaths").Cast<object>()
+                        .Where(path => Read<int>(path, "Wave") == leap.Wave).ToArray();
+                    int lights = (tier switch { 0 => 3, 1 => 5, 2 => 7, _ => 10 }) + (attack.IsEnhanced ? 2 : 0);
+                    int strands = 8 + tier * 6;
+                    if (hardKoharu) { lights = (lights * 4 + 2) / 3; strands = (strands * 3 + 1) / 2; }
+                    if (paths.Length != strands * lights || Math.Abs(paths.Min(path => Read<double>(path, "FiresAt")) - landing.Fire - .2) > .00001)
+                        KoharuSweepFail("landing omitted or prematurely released its difficulty-scaled physical bloom lights");
+                    foreach (var path in paths.Where(path => Read<int>(path, "Pulse") == 0))
+                    {
+                        var points = Read<Vector2[]>(path, "Points");
+                        var turns = Read<Vector2[]>(path, "Turns");
+                        if (turns.Length != 1 || points.Length < 3
+                            || Math.Abs(points[0].DistanceTo(turns[0]) - 24) > .02f
+                            || Math.Abs(points[0].DirectionTo(turns[0]).AngleTo(turns[0].DirectionTo(points[^1]))) < .2f)
+                            KoharuSweepFail("landing light lost its forecast stem-to-antler branch");
+                    }
+                    if (paths.Any(path => Read<double>(path, "StartsAt") <= _koharuSweeps[leap.Key].Full
+                        || Read<double>(path, "StartsAt") >= leap.Fire))
+                        KoharuSweepFail("bloom forecast must follow the movement forecast and precede the jump");
+                }
             }
             else if (_koharuSweepMode is 1 or 2 or 3 && samples.Length != 0)
                 KoharuSweepFail("projectile-only technique unexpectedly created a second attack mechanism");
@@ -308,13 +366,13 @@ public partial class BossTechniqueVideo
             ended_at = _koharuSweepEndTime, matched_shapes = _koharuSweepMatches,
             natural_end_live_hazards = _koharuNaturalHazards, natural_end_owned_bullets = _koharuNaturalShots,
             ignored_nonlive_projectile_forecast_segments = _koharuIgnoredPathWarnings, errors = _koharuSweepErrors,
-            scope = "Every physics frame: sweep warning/live shape multiset, actual paired-eye intersection and harmless single-eye/dark phases, every flash, deer body position and landing; projectile trajectories are audited separately. Rendered pixels and human difficulty require separate review.",
+            scope = "Every physics frame: sweep warning/live shape multiset, gaze damage inferred from displayed eye positions and widths without an answer hazard, complete source-cue hold and harmless single-eye/dark phases, every flash, deer body position and landing; projectile trajectories are audited separately. Rendered pixels and human difficulty require separate review.",
             sweeps = _koharuSweeps.Select(pair => new {
                 key = pair.Key, mode = pair.Value.Last.Mode, wave = pair.Value.Last.Wave, pair = pair.Value.Last.Pair,
                 starts_at = pair.Value.Last.Start, planned_fire_at = pair.Value.Last.Fire, planned_end_at = pair.Value.Last.End,
                 complete_geometry_observed_at = pair.Value.Full, physical_geometry_observed_at = pair.Value.FirstLive,
                 complete_geometry_hold_seconds = pair.Value.FirstLive - pair.Value.Full,
-                warning_shapes_matched = pair.Value.Warnings, live_shapes_matched = pair.Value.Live,
+                warning_shapes_matched = pair.Value.Warnings, eye_source_cue_frames = pair.Value.EyeCues, live_shapes_matched = pair.Value.Live,
                 live_shapes_intersecting_field = pair.Value.InField, horizontal_only_harmless_frames = pair.Value.HorizontalOnly,
                 vertical_only_harmless_frames = pair.Value.VerticalOnly, dark_rejoin_frames = pair.Value.Dark,
                 maximum_shape_error = pair.Value.ShapeError, maximum_eye_intersection_error = pair.Value.EyeError,

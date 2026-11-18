@@ -2,7 +2,7 @@ using Godot;
 
 // Pad : 接続中のゲームパッドのボタン押下を、デバイス番号を気にせず判定する小ヘルパ。
 // 移動と決定(ui_*/ui_accept)は既定のInputMapがジョイパッドを含むため、ここでは
-// 追加で割り当てたいボタン（ボム/集中モード/ロックオン/溜め打ち/リスタート/送り）の判定に使う。
+// 追加で割り当てたいボタン（ボム/必殺技/ロックオン/溜め打ち/リスタート/送り）の判定に使う。
 public static class Pad
 {
     public static bool Pressed(JoyButton b)
@@ -30,18 +30,6 @@ public static class Pad
     // パッドで開始→途中でキーボードへ持ち替え（逆も）ても、PollDevice が毎フレーム追跡して
     // 表記は「最後に触ったデバイス」へ自動で切り替わる（週次プレイテスト指摘の修正）。
     private static bool _autoUsingPad;
-
-    // ───────── 操作表示モード（ボタン表記の初期値とパッド表記スタイル）─────────
-    // タイトル「はじめから」で必ず1度選び、設定でも変更可。入力自体は KB/パッド常に有効。
-    // KB/パッドどちらの表記を出すかは常に「直近に使ったデバイス」へ自動追従し（PollDevice）、
-    // Display は「パッド使用時にどの表記(PS/Xbox)で見せるか」と起動直後の初期表示を決める。
-    //   Keyboard       … 初期表示＝キーボード表記（Z / Shift / …）
-    //   PadPlayStation … 初期表示＝パッド・PS 表記（〇 × □ △ / L1 R1）
-    //   PadXbox        … 初期表示＝パッド・Xbox 表記（A B X Y / LB RB）
-    //   Auto           … 未選択（旧セーブ互換）。パッド表記は旧 padstyle に従う
-    public enum DisplayMode { Auto, Keyboard, PadPlayStation, PadXbox }
-
-    public static DisplayMode Display { get; set; } = DisplayMode.Auto;
 
     // 表記がキーボードか＝直近に使ったデバイスがキーボードか。常に自動追従する
     // （固定はしない＝ゲームパッドで開始→途中でKBに持ち替えても表記が付いてくる）。
@@ -82,45 +70,11 @@ public static class Pad
     public static string PauseToken => ShowKeyboard ? "M" : Face(JoyButton.Start);
 
     // ───────── 共通の操作子表記（UI 横断の単一の真実）─────────
-    // 各画面（Shop / Settings / Hud …）はボタン名を直書きせず、ここを通すことで Pad.Display(KB/PS/Xbox)
-    // 切替に必ず追従する。物理マッピング（JoyButton）と KB キーの対応は Player.cs / *.cs の入力判定と一致させる。
+    // 直近の入力デバイスと同じ操作表示を全画面で使う。
     //   Cancel  … X(KB) / B(パッド＝×・もどる/キャンセル)
     //   Equip   … C(KB) / Y(パッド＝△・装備/サブ操作)
     //   Bomb    … X(KB) / X(パッド＝□)
     public static string CancelToken => ShowKeyboard ? "X" : Face(JoyButton.B);
-
-    // ───────── 永続化 ─────────
-    // 旧キー padstyle(0=Xbox/1=PS) と新キー inputdisplay(0=KB/1=PS/2=Xbox)。
-    // ★表記の Xbox 一本化（2026-09-13）で、どちらも「表記スタイル」としては意味を失った。
-    //   読み込みで落ちないよう受け付けるだけにして、値は無視する（＝壊れない・書き戻しもしない）。
-    public const string DisplayKey = "inputdisplay";    // 新：操作表示モード(0=KB/1=PS/2=Xbox)
-    public static DisplayMode IntToDisplay(int i) => i switch
-    {
-        0 => DisplayMode.Keyboard,
-        1 => DisplayMode.PadPlayStation,
-        2 => DisplayMode.PadXbox,
-        _ => DisplayMode.Auto,
-    };
-
-    // 保存済みの設定を復元（起動時に1回、Audio._Ready から呼ぶ）。
-    public static void ApplySaved()
-    {
-        const string path = "user://settings.json";
-        if (!FileAccess.FileExists(path)) return;
-        using var f = FileAccess.Open(path, FileAccess.ModeFlags.Read);
-        if (f == null) return;
-        var json = new Json();
-        if (json.Parse(f.GetAsText()) != Error.Ok || json.Data.VariantType != Variant.Type.Dictionary) return;
-        var data = json.Data.AsGodotDictionary();
-        // 旧 padstyle（パッド表記スタイル）は Xbox 一本化により読み捨てる（キーが在っても何もしない）。
-        // 新 inputdisplay（操作表示モード）。あれば初期表示の種に、無ければ Auto のまま。
-        if (data.ContainsKey(DisplayKey))
-        {
-            Display = IntToDisplay(data[DisplayKey].AsInt32());
-            // 起動直後の表記は選択済みモードに合わせる（初回入力からは直近デバイスに自動追従）。
-            _autoUsingPad = Display == DisplayMode.PadPlayStation || Display == DisplayMode.PadXbox;
-        }
-    }
 
     private static readonly JoyButton[] HintButtons =
     {
@@ -134,7 +88,7 @@ public static class Pad
     {
         Key.W, Key.A, Key.S, Key.D, Key.Up, Key.Down, Key.Left, Key.Right,
         Key.Z, Key.X, Key.C, Key.V, Key.F, Key.G, Key.Shift, Key.Ctrl, Key.Alt,
-        Key.Space, Key.Enter, Key.Escape, Key.R, Key.Q, Key.T, Key.L, Key.J, Key.Tab, Key.M,
+        Key.Space, Key.Enter, Key.Escape, Key.R, Key.Q, Key.E, Key.H, Key.T, Key.L, Key.J, Key.Tab, Key.M,
     };
 
     // 毎フレーム呼ぶ：パッド操作があれば _autoUsingPad=true、キー操作があれば false（無操作なら直前を維持）。
@@ -166,14 +120,14 @@ public static class Pad
 
     // マウス左/右/中ボタンの状態と前フレーム値（エッジ検出用）。PollMouse が毎フレーム更新する。
     private static bool _mL, _mLPrev, _mR, _mRPrev, _mM;
-    // サイドボタン（親指側の戻る/進む＝XButton1/XButton2）。弾幕パートの集中モードに割り当てる。
+    // サイドボタン（親指側の戻る/進む＝XButton1/XButton2）。弾幕パートの必殺技に割り当てる。
     // どちらか一方でも押されていれば押下扱い（機種で番号が入れ替わるので両方拾う）。
     private static bool _mX;
     // ホイールの当該フレーム蓄積量（上=+ / 下=-）。_UnhandledInput で貯め、フレーム末に消費してリセット。
     private static float _wheelAccum;
     private static float _wheelFrame;   // このフレームで確定したホイール量（PollMouse で accum→frame へ移す）
     // 弾幕パート専用のホイール「回した」ラッチ。_wheelFrame は PollMouse を呼んだフレームでだけ立つが、
-    // 集中モードを読む Player は _PhysicsProcess（PauseMenu._Process とフレームが一致しない）なので、
+    // 必殺技を読む Player は _PhysicsProcess（PauseMenu._Process とフレームが一致しない）なので、
     // そのままだと取りこぼす／同じ回転を二度読む。イベント受信時に立てて、読み手が明示的に消費する。
     private static bool _wheelTurned;
     // 最後に検知したマウス設計座標。移動しきい値でデバイス追従に使う。
@@ -196,7 +150,7 @@ public static class Pad
     public static void ReleaseMouseFollow() => _usingMouse = false;
 
     // 弾幕パートが使う「ホイールを回した」の消費読み。読んだ瞬間にラッチを落とす＝1回転につき1回だけ true。
-    // 上下どちらの回転でも立つ（集中モードの発動はどちらでもよい、というユーザー決定）。
+    // 上下どちらの回転でも立つ（必殺技の発動はどちらでもよい、というユーザー決定）。
     public static bool ConsumeWheelTurn()
     {
         if (!_wheelTurned) return false;
@@ -237,7 +191,7 @@ public static class Pad
     public static bool MouseRightDown() => _mR;                   // 右ボタン押下中
     public static bool MouseRightClick() => _mR && !_mRPrev;      // 右ボタン押下エッジ
     public static bool MouseMiddleDown() => _mM;                  // 中ボタン押下中（弾幕パートのボム）
-    public static bool MouseSideDown() => _mX;                    // サイドボタン押下中（弾幕パートの集中モード）
+    public static bool MouseSideDown() => _mX;                    // サイドボタン押下中（弾幕パートの必殺技）
     public static float WheelDelta() => _wheelFrame;             // このフレームのホイール量（上=+ / 下=-、無=0）
     public static Vector2 MousePos() => _mousePos;                // 設計座標(1280×720)でのマウス位置
 

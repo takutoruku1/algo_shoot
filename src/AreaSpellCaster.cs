@@ -11,11 +11,12 @@ public partial class AreaSpellCaster : Node2D
     private BossCharacterTechnique? _attack;
     public bool EdgeAttackActive => (_pending && _nextEdge) || Active && _attack!.TechniqueKind == BossTechniqueKind.Edge;
     public bool AoeActive => _finalePending || Active && _attack!.TechniqueKind == BossTechniqueKind.Finale;
-    internal bool AttackPending => _pending || _finalePending || Active || Suppressed;
+    internal bool AttackPending => _pending || Active || (_finalePending || Suppressed) && !DeferringFinale;
     private bool Active => _attack != null && IsInstanceValid(_attack) && !_attack.Finished;
     public Vector2 LastChainSafe { get; private set; }
     public bool FinaleCompleted { get; private set; }
     internal bool CycleFinalePending => _finalePending;
+    internal bool DeferringFinale => _finalePending && _owner.TechniqueHistory.Last?.Kind == BossTechniqueKind.Finale;
     public bool Suppressed
     {
         get => _suppressed;
@@ -81,7 +82,8 @@ public partial class AreaSpellCaster : Node2D
             _clock = 0;
             return;
         }
-        if (_owner.GaugeAttackResolving || Suppressed && !_finalePending || _owner.AnimalTechniqueActive || _owner.AnimalTechniquePending) return;
+        if (_owner.GaugeAttackResolving || DeferringFinale || Suppressed && !_finalePending
+            || _owner.AnimalTechniqueActive || _owner.AnimalTechniquePending) return;
         if (_owner.UsesEasyTechniqueSlots && !_finalePending) return;
         if (!_pending && !_finalePending) _clock += GameManager.EnemyDelta(delta);
         if (_clock >= _interval) _pending = true;

@@ -35,10 +35,18 @@ public partial class RouteBackgroundQa : Node
             var game = GetNode<GameManager>("/root/Game");
             game.ResetPersistent();
             game.AutoSaveEnabled = false;
-            DisplayServer.WindowSetMode(DisplayServer.WindowMode.Windowed);
-            DisplayServer.WindowSetSize(new Vector2I(1280, 720));
+            bool blenderValidate = OS.GetCmdlineUserArgs().Contains("--blender-validate");
+            if (!blenderValidate)
+            {
+                DisplayServer.WindowSetMode(DisplayServer.WindowMode.Windowed);
+                DisplayServer.WindowSetSize(new Vector2I(1280, 720));
+            }
             await Frames(1);
-            if (OS.GetCmdlineUserArgs().Contains("--journey"))
+            if (blenderValidate)
+                CheckBlenderBackgrounds();
+            else if (OS.GetCmdlineUserArgs().Contains("--blender-preview"))
+                await CaptureBlenderBackgrounds(game);
+            else if (OS.GetCmdlineUserArgs().Contains("--journey"))
                 await CheckJourney(game);
             else if (OS.GetCmdlineUserArgs().Contains("--worlds-motion"))
                 await CaptureWorldMotion(game);
@@ -75,6 +83,204 @@ public partial class RouteBackgroundQa : Node
         }
     }
 
+    private void CheckBlenderBackgrounds()
+    {
+        var results = new System.Collections.Generic.List<object>();
+        var seen = new System.Collections.Generic.HashSet<string>();
+        Type[] roots = { typeof(AkariRoot), typeof(KoharuRoot), typeof(ReiRoot), typeof(MinaRoot) };
+        string[] ids = { "akari", "koharu", "rei", "mina" };
+        string[] fields = { "RouteLayers", "PassageLayers", "LateRouteLayers", "ClimaxLayers" };
+        string[] suffixes = { "", "_passage", "_late", "_climax" };
+        string[] depths = { "far", "mid", "near" };
+        for (int stage = 0; stage < roots.Length; stage++)
+        {
+            string id = ids[stage];
+            string scene = id == "mina" ? "MinaBattle" : roots[stage].Name[..^4];
+            var preloads = StageBackground.ResourcePaths(scene).ToHashSet();
+            for (int chapter = 0; chapter < fields.Length; chapter++)
+            {
+                var defs = (BgLayers.Layer[])roots[stage].GetField(fields[chapter])!.GetValue(null)!;
+                Check(defs.Length == 3 && defs.All(d => d.Travel && !d.Loop && d.FitToField)
+                    && defs[0].Z < defs[1].Z && defs[1].Z < defs[2].Z,
+                    $"{id}/{fields[chapter]}: three registered route layers retain their depth order and scrolling");
+                for (int depth = 0; depth < defs.Length; depth++)
+                {
+                    string path = defs[depth].Path;
+                    string original = $"res://char/bg2/route/{id}{suffixes[chapter]}_{depths[depth]}.png";
+                    string expected = $"res://char/bg2/route/blender/{id}{suffixes[chapter]}_{depths[depth]}.png";
+                    Check(path == expected && path != original && seen.Add(path) && preloads.Contains(path)
+                        && Godot.FileAccess.FileExists(original) && Godot.FileAccess.FileExists(path),
+                        $"{id}/{fields[chapter]}/{depths[depth]}: the new asset is wired and preloaded while its original is retained");
+                    using var pixels = Image.LoadFromFile(ProjectSettings.GlobalizePath(path));
+                    Check(pixels.GetWidth() == 2172 && pixels.GetHeight() == 724,
+                        path + ": registered 2172x724 panorama");
+                    pixels.Convert(Image.Format.Rgba8);
+                    byte[] data = pixels.GetData();
+                    int clear = 0, opaque = 0, minimumAlpha = 255;
+                    for (int pixel = 3; pixel < data.Length; pixel += 4)
+                    {
+                        byte alpha = data[pixel];
+                        minimumAlpha = Math.Min(minimumAlpha, alpha);
+                        if (alpha <= 2) clear++;
+                        if (alpha >= 230) opaque++;
+                    }
+                    int count = pixels.GetWidth() * pixels.GetHeight();
+                    Check(depth == 0 ? minimumAlpha == 255 : clear > count / 5 && opaque > 0,
+                        path + (depth == 0 ? ": far layer is fully opaque" : ": overlay contains visible art and more than 20% transparent space"));
+                    var luminance = new System.Collections.Generic.List<float>();
+                    for (int y = 145; y < 579; y += 8)
+                    for (int x = 217; x < 1955; x += 8)
+                    {
+                        int offset = (y * pixels.GetWidth() + x) * 4;
+                        if (data[offset + 3] < 230) continue;
+                        luminance.Add((.2126f * data[offset] + .7152f * data[offset + 1] + .0722f * data[offset + 2]) / 255f);
+                    }
+                    luminance.Sort();
+                    float? mean = luminance.Count > 0 ? luminance.Average() : null;
+                    float? p95 = luminance.Count > 0 ? luminance[(int)((luminance.Count - 1) * .95)] : null;
+                    float? maximum = luminance.Count > 0 ? luminance[^1] : null;
+                    float? brightFraction = luminance.Count > 0 ? luminance.Count(v => v >= .9f) / (float)luminance.Count : null;
+                    results.Add(new { path, width = pixels.GetWidth(), height = pixels.GetHeight(),
+                        transparent_fraction = clear / (float)count, opaque_fraction = opaque / (float)count,
+                        center_opaque_samples = luminance.Count, center_luma_srgb_mean = mean,
+                        center_luma_srgb_p95 = p95, center_luma_srgb_max = maximum,
+                        center_luma_srgb_over_090_fraction = brightFraction });
+                    GD.Print($"[BlenderRouteQA] LUMA {path}: samples={luminance.Count}, mean={mean:0.000}, p95={p95:0.000}, max={maximum:0.000}; descriptive statistics, not a readability threshold");
+                }
+            }
+            foreach (string field in new[] { "MidbossLayers", "BossLayers" })
+            {
+                if (id == "mina" && field == "MidbossLayers") continue;
+                var defs = (BgLayers.Layer[])roots[stage].GetField(field)!.GetValue(null)!;
+                string folder = field == "BossLayers" ? "boss" : "midboss";
+                Check(defs.Length == 3 && defs.Select(d => d.Path).SequenceEqual(depths.Select(depth =>
+                    $"res://char/bg2/{folder}/{id}_{depth}_v2.png")) && defs.All(d => !d.Travel && !d.Loop),
+                    $"{id}/{field}: original battle-room paths remain unchanged");
+            }
+        }
+        Check(seen.Count == 48, "exactly 48 new route assets are connected across four stages and four chapters");
+        string output = ProjectSettings.GlobalizePath("res://build/qa_story/route_blender_20261029");
+        System.IO.Directory.CreateDirectory(output);
+        System.IO.File.WriteAllText(output + "/background_validation.json", System.Text.Json.JsonSerializer.Serialize(
+            new { note = "Luminance statistics describe opaque pixels in the central 80% width and 60% height; no readability or difficulty guarantee.", assets = results },
+            new System.Text.Json.JsonSerializerOptions { WriteIndented = true }));
+    }
+
+    private async Task CaptureBlenderBackgrounds(GameManager game)
+    {
+        Check(DisplayServer.GetName() != "headless", "Blender route preview requires a graphical renderer");
+        typeof(Settings).GetProperty(nameof(Settings.PauseWhenUnfocused))!.SetValue(null, false);
+        GetNode<Node>("/root/QaPilot").ProcessMode = ProcessModeEnum.Disabled;
+        GetNode<Node>("/root/DemoPilot").ProcessMode = ProcessModeEnum.Disabled;
+        string output = ProjectSettings.GlobalizePath("res://build/qa_story/route_blender_20261029");
+        System.IO.Directory.CreateDirectory(output + "/shots");
+        var captures = new System.Collections.Generic.List<object>();
+        string[] scenes = { "Akari", "Koharu", "Rei", "MinaBattle" };
+        string[] names = { "あかり", "こはる", "レイ", "ミナ" };
+        string[] chapters = { "入口", "通路", "後半", "最終区間" };
+        string[] chapterIds = { "early", "passage", "late", "climax" };
+        StageTheme[] themes = { StageTheme.Akari, StageTheme.Koharu, StageTheme.Rei, StageTheme.Mina };
+        for (int stageIndex = 0; stageIndex < scenes.Length; stageIndex++)
+        {
+            string scene = scenes[stageIndex], id = scene == "MinaBattle" ? "mina" : scene.ToLowerInvariant();
+            GD.Seed(20261029);
+            game.SelectedEntry = GameManager.StageEntry.Start;
+            game.SelectedJob = id == "mina" ? Job.Magic : Job.Tank;
+            game.Difficulty = GameManager.Diff.Normal;
+            var root = GD.Load<PackedScene>($"res://{scene}.tscn").Instantiate<Node2D>();
+            GetTree().Root.AddChild(root);
+            GetTree().CurrentScene = root;
+            root.SetProcess(false);
+            ((Node)root.GetType().GetProperty("Stage")!.GetValue(root)!).SetProcess(false);
+            var world = root.GetNode<Node2D>("World");
+            world.ProcessMode = ProcessModeEnum.Inherit;
+            var player = world.GetNode<Player>("Player");
+            player.SetPhysicsProcess(false);
+            player.GlobalPosition = new Vector2(Field.Left + 55, 142);
+            Write(player, "_invincible", true);
+            Write(player, "_invincibleTimer", 999f);
+            game.TickProgress(player.Position.X, 0);
+            var hud = root.GetNode<Hud>("Hud");
+            hud.HoldBubble = false;
+            hud.HideBubble();
+            hud.SetCinematicMode(false);
+            Write(hud, "_bannerTimer", 0d);
+            Hud.BubblePaused = false;
+            var specs = EnemyTable.CharactersFor(themes[stageIndex]);
+            var enemies = new System.Collections.Generic.List<MidEnemy>();
+            for (int i = 0; i < specs.Count; i++)
+            {
+                var position = new Vector2(282 + i % 2 * 48, 52 + i * 55);
+                var enemy = new MidEnemy { Position = position };
+                enemy.Configure(specs[i]);
+                enemy.SetEntry(position);
+                world.AddChild(enemy);
+                Write(enemy, "_approachFired", true);
+                Write(enemy, "_fireT", 1000d + i * .15);
+                enemies.Add(enemy);
+            }
+            var captionCanvas = new CanvasLayer { Layer = 30 };
+            root.AddChild(captionCanvas);
+            var caption = new Label { Position = new Vector2(Field.Left + 6, 4), Size = new Vector2(300, 9), MouseFilter = Control.MouseFilterEnum.Ignore };
+            caption.AddThemeFontOverride("font", UiKit.Zen);
+            caption.AddThemeFontSizeOverride("font_size", 6);
+            caption.AddThemeColorOverride("font_outline_color", new Color("101520"));
+            caption.AddThemeConstantOverride("outline_size", 3);
+            captionCanvas.AddChild(caption);
+            var bg = root.GetNode<StageBackground>("StageBackground");
+            var layers = bg.GetNode<BgLayers>("BgLayers");
+            int VisibleProjectiles() => GetTree().GetNodesInGroup("enemy_bullets").OfType<Bullet>().Count(b =>
+                b.Active && !b.LeadIn && !b.RoadPending && Field.Rect.HasPoint(b.GlobalPosition));
+            Check(world.CanProcess() && !GetTree().Paused && !Hud.BubblePaused
+                && enemies.All(e => e.CanProcess() && e.IsPhysicsProcessing()),
+                $"{id}: the preview resumes world physics after skipping the stage introduction");
+            for (int chapter = 0; chapter < chapters.Length; chapter++)
+            {
+                if (chapter > 0) Call(bg, "SetJourney", (float)chapter);
+                layers._Process(2.5);
+                string captionText = $"{names[stageIndex]} / {chapters[chapter]}　撮影：無敵・自機固定";
+                caption.Text = captionText + "（予兆待ち）";
+                double warmup = 0;
+                while (VisibleProjectiles() == 0 && warmup < 6)
+                {
+                    await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+                    warmup += GetProcessDeltaTime();
+                }
+                Check(VisibleProjectiles() > 0,
+                    $"{id}/{chapterIds[chapter]}: actual warned attacks reach live projectiles within bounded warmup ({warmup:0.00}s; world={world.ProcessMode}, dialogue={Hud.BubblePaused})");
+                caption.Text = captionText;
+                bool captured = false;
+                double elapsed = 0;
+                while (elapsed < 2)
+                {
+                    await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+                    elapsed += GetProcessDeltaTime();
+                    if (captured || elapsed < .5) continue;
+                    int activeBullets = VisibleProjectiles();
+                    if (activeBullets == 0) continue;
+                    Check(enemies.All(e => IsInstanceValid(e) && e.IsVisibleInTree() && e.CanProcess()),
+                        $"{id}/{chapterIds[chapter]}: actual enemies and {activeBullets} live projectiles are visible");
+                    await ToSignal(RenderingServer.Singleton, RenderingServer.SignalName.FramePostDraw);
+                    using var image = GetViewport().GetTexture().GetImage();
+                    string name = $"{id}_{chapterIds[chapter]}";
+                    Check(image.SavePng($"{output}/shots/{name}.png") == Error.Ok, "Blender route screenshot " + name);
+                    captures.Add(new { stage = id, chapter = chapterIds[chapter], warmup_seconds = warmup, seconds = elapsed, active_projectiles = activeBullets,
+                        enemy_count = enemies.Count, screenshot = $"shots/{name}.png" });
+                    captured = true;
+                }
+                Check(captured, $"{id}/{chapterIds[chapter]}: two-second route preview completed");
+            }
+            Pool.DespawnAll();
+            root.QueueFree();
+            await Frames(4);
+            Hud.BubblePaused = false;
+        }
+        System.IO.File.WriteAllText(output + "/preview_conditions.json", System.Text.Json.JsonSerializer.Serialize(
+            new { difficulty = "Normal", player = "stationary and invincible", enemies = "three original stage-specific MidEnemy instances using their actual attacks",
+                note = "Each chapter waits up to six seconds for real attacks to complete their warnings, then records two seconds. No player shooting or dodging; not evidence of difficulty or no-hit play.", captures },
+            new System.Text.Json.JsonSerializerOptions { WriteIndented = true }));
+    }
+
     private async Task CheckJourney(GameManager game)
     {
         typeof(Settings).GetProperty(nameof(Settings.PauseWhenUnfocused))!.GetSetMethod(true)!.Invoke(null, new object[] { false });
@@ -102,10 +308,18 @@ public partial class RouteBackgroundQa : Node
             bg.SetProcess(false);
             layers.SetProcess(false);
             await Frames(3);
+            Check(layers.ContinuousTravel, id + " uses continuous background timing");
+            var imagery = root.GetNodeOrNull<StageImagery>("Imagery");
+            if (imagery != null)
+            {
+                imagery.SetProcess(false);
+                Write(imagery, "_t", 2d);
+                imagery.QueueRedraw();
+            }
             foreach (string field in new[] { "RouteLayers", "PassageLayers", "LateRouteLayers", "ClimaxLayers" })
             {
                 var defs = (BgLayers.Layer[])root.GetType().GetField(field)!.GetValue(null)!;
-                Check(defs.Length == 3 && defs.All(d => d.Travel && !d.Loop), $"{id}/{field}: finite three-layer travel");
+                Check(defs.Length == 3 && defs.All(d => d.Travel && !d.Loop), $"{id}/{field}: three-layer panorama");
                 foreach (var def in defs.Skip(1))
                 {
                     using var pixels = GD.Load<Texture2D>(def.Path).GetImage();
@@ -146,6 +360,18 @@ public partial class RouteBackgroundQa : Node
                 }
                 spawner.SetProcess(false);
                 Check(Read<Spawner>(bg, "_routeSpawner") == spawner, id + " actual wave binds its journey");
+                layers._Process(2.5);
+                var beforeHold = Sprites(layers).Select(Phase).ToArray();
+                int spawned = spawner.SpawnedCount;
+                int purified = game.PurifiedCount;
+                for (int tick = 0; tick < 50; tick++) { bg._Process(.1); layers._Process(.1); }
+                var movement = Sprites(layers).Select((s, i) => Mathf.PosMod(Phase(s) - beforeHold[i], .88f)).ToArray();
+                var near = Sprites(layers)[2];
+                float nearPixels = movement[2] * near.Texture.GetWidth() * near.Scale.X;
+                Check(spawner.SpawnedCount == spawned && game.PurifiedCount == purified
+                    && movement[0] > 0 && movement[1] > movement[0] * 2 && movement[2] > movement[1] * 1.5
+                    && nearPixels > 100,
+                    $"{id} wave {wave}: all depths keep moving with no spawns or defeats; near travels {nearPixels:F1}px in 5s");
                 for (int part = 0; part <= 24; part++)
                 {
                     typeof(Spawner).GetProperty("SpawnedCount")!.SetValue(spawner, spawner.SpawnLimit * part / 24);
@@ -163,6 +389,12 @@ public partial class RouteBackgroundQa : Node
                         layers._Process(2.5);
                         await Frames(2);
                         await Shot($"journey_{id}_{bg.RouteChapter}");
+                        if (bg.RouteChapter == 0)
+                        {
+                            DisplayServer.WindowSetSize(new Vector2I(960, 540));
+                            await Shot($"journey_{id}_compact");
+                            DisplayServer.WindowSetSize(new Vector2I(1280, 720));
+                        }
                     }
                 }
                 float distance = Read<float>(bg, "_journey");
@@ -177,10 +409,17 @@ public partial class RouteBackgroundQa : Node
                 await Frames(2);
             }
             Check(chapters.SetEquals(new[] { 0, 1, 2, 3 }), id + " actual waves visit all four locations in order");
-            var destination = Sprites(layers).Select(Phase).ToArray();
             bg.BeginRoute();
-            for (int tick = 0; tick < 300; tick++) { bg._Process(1); layers._Process(1); }
-            Check(bg.RouteChapter == 3 && destination.SequenceEqual(Sprites(layers).Select(Phase)), id + " five-minute hold never wraps or returns to entrance");
+            for (int tick = 0; tick < 300; tick++)
+            {
+                var beforeTick = Sprites(layers).Select(Phase).ToArray();
+                bg._Process(1);
+                layers._Process(1);
+                if (Sprites(layers).Where((s, i) => Phase(s) == beforeTick[i]).Any())
+                    throw new Exception(id + " background stopped during the five-minute hold");
+            }
+            Check(bg.RouteChapter == 3,
+                id + " five-minute hold preserves the last location and its scroll mode");
             await Shot($"journey_{id}_destination");
             bg.EnterBoss();
             layers._Process(1);
@@ -314,7 +553,7 @@ public partial class RouteBackgroundQa : Node
             var bg = root.GetNode<StageBackground>("StageBackground");
             var layers = bg.GetNode<BgLayers>("BgLayers");
             await Frames(3);
-            CheckLayers(layers, $"/route/{id}_");
+            CheckLayers(layers, $"/route/blender/{id}_");
             var phase = Sprites(layers).Select(Phase).ToArray();
             layers.TravelProgress = .3f;
             await Frames(60);
@@ -336,7 +575,7 @@ public partial class RouteBackgroundQa : Node
             }
             bg.BeginRoute(intense: true);
             await Frames(150);
-            CheckLayers(layers, $"/route/{id}_late_");
+            CheckLayers(layers, $"/route/blender/{id}_late_");
             Check(layers.ScrollSpeed > bg.MidScrollSpeed * 1.35f, id + " late route accelerates smoothly");
             var before = Sprites(layers);
             bg.BeginRoute(intense: true);
@@ -404,7 +643,7 @@ public partial class RouteBackgroundQa : Node
             var resumed = GD.Load<PackedScene>($"res://{scene}.tscn").Instantiate<Node2D>();
             GetTree().Root.AddChild(resumed);
             resumed.ProcessMode = ProcessModeEnum.Disabled;
-            CheckLayers(resumed.GetNode<BgLayers>("StageBackground/BgLayers"), $"/route/{id}_late_");
+            CheckLayers(resumed.GetNode<BgLayers>("StageBackground/BgLayers"), $"/route/blender/{id}_late_");
             resumed.QueueFree();
             await Frames(8);
         }
@@ -1245,7 +1484,7 @@ public partial class RouteBackgroundQa : Node
                 && Mathf.IsEqualApprox(s.Scale.X, s.Scale.Y)), $"{id}: all layers cover field without stretching");
         }
         hud.HoldBubble = true;
-        hud.ShowDialog(Hud.LineKind.Mina, "Pause QA", "res://char/mina_face.png");
+        hud.ShowDialog(Hud.LineKind.Mina, "Pause QA", "res://char/v3/mina_conversation_v1.png");
         await Frames(3);
         var stopped = art.Select(Phase).ToArray();
         layers.TravelProgress += .12f;
@@ -1396,29 +1635,35 @@ public partial class RouteBackgroundQa : Node
         var viewport = new SubViewport { Size = new Vector2I(384, 216), World2D = new World2D(),
             TransparentBg = true, Disable3D = true, RenderTargetUpdateMode = SubViewport.UpdateMode.Always };
         AddChild(viewport);
-        var bg = new BgLayers { Layers = defs };
+        var bg = new BgLayers { Layers = defs, ContinuousTravel = true };
         viewport.AddChild(bg);
         bg.SetProcess(false);
         var art = Sprites(bg);
         foreach (var sprite in art)
         {
             foreach (var other in art) other.Visible = other == sprite;
-            ((ShaderMaterial)sprite.Material).SetShaderParameter("scroll_offset", 0.2f);
-            using var before = await Render(viewport);
-            ((ShaderMaterial)sprite.Material).SetShaderParameter("scroll_offset", 0.2f + 3f / (sprite.Texture.GetWidth() * sprite.Scale.X));
-            using var after = await Render(viewport);
-            float error = 0;
-            int count = 0, visible = 0;
-            for (int y = 4; y < 212; y += 4)
-                for (int x = 124; x < 376; x += 4)
-                {
-                    var a = before.GetPixel(x + 3, y);
-                    var b = after.GetPixel(x, y);
-                    error += ColorDistance(a, b);
-                    count++;
-                    if (a.A > 0.8f) visible++;
-                }
-            Check(visible > 40 && error / count < 0.025f, $"{sprite.Texture.ResourcePath}: pixels move left without blanking ({error / count:F4})");
+            float tileWidth = sprite.Texture.GetWidth() * sprite.Scale.X;
+            float loopPeriod = ((ShaderMaterial)sprite.Material).GetShaderParameter("loop_period").AsSingle();
+            foreach (float offset in loopPeriod > 0f ? new[] { 0.2f, loopPeriod - 1.5f / tileWidth } : new[] { 0.2f })
+            {
+                ((ShaderMaterial)sprite.Material).SetShaderParameter("scroll_offset", offset);
+                using var before = await Render(viewport);
+                float nextOffset = offset + 3f / tileWidth;
+                ((ShaderMaterial)sprite.Material).SetShaderParameter("scroll_offset", loopPeriod > 0f ? Mathf.PosMod(nextOffset, loopPeriod) : nextOffset);
+                using var after = await Render(viewport);
+                float error = 0;
+                int count = 0, visible = 0;
+                for (int y = 4; y < 212; y += 4)
+                    for (int x = 124; x < 376; x += 4)
+                    {
+                        var a = before.GetPixel(x + 3, y);
+                        var b = after.GetPixel(x, y);
+                        error += ColorDistance(a, b);
+                        count++;
+                        if (a.A > 0.8f) visible++;
+                    }
+                Check(visible > 40 && error / count < 0.025f, $"{sprite.Texture.ResourcePath}: pixels move left without blanking at {offset:F3} ({error / count:F4})");
+            }
             ((ShaderMaterial)sprite.Material).SetShaderParameter("scroll_offset", 0.50f);
             using var end = await Render(viewport);
             ((ShaderMaterial)sprite.Material).SetShaderParameter("scroll_offset", 0.00001f);

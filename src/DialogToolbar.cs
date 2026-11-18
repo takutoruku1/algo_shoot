@@ -9,7 +9,7 @@ using Godot;
 //
 //   ボタン    | 動作                                                        | KB | パッド                  | マウス
 //   AUTO ▶    | 自動送りの切替（GameManager.AutoAdvanceDialog＝設定の「オート会話送り」と同じ値・同じ保存先） | A | Y | クリック
-//   SKIP ▶▶   | 既読スキップのラッチ（ON の間 SkipHeld が真）                   | S  | RB 押し離し（長押しは従来の押しっぱなし） | クリック
+//   SKIP ▶▶   | スキップのラッチ（ON の間 SkipHeld が真）                       | S  | RB 押し離し（長押しは従来の押しっぱなし） | クリック
 //   LOG 横線  | 会話ログ（Backlog）                                          | L  | View                    | クリック
 //   MENU 歯車 | ポーズメニュー（PauseMenu）                                   | M  | Menu(≡)                 | クリック
 //
@@ -25,20 +25,19 @@ using Godot;
 //     ので衝突しない。ボタンは**ボックス表示中だけ**反応する。さらに出た直後 Grace 秒は無視する
 //     ＝避けながら A/S を叩いている最中に会話が割り込んでも、その押下でトグルしない。
 //   ・SKIP ラッチは画面が切り替わっても保つ（2026-09-27 作者指示「画面が切り替わる度にスキップモードが外れる」）。
-//     ステージ→回想→戦闘→ハブ→次のステージと移っても、既読の会話が出るたびに入力なしで早送りされる。
-//     切れるのは次の3つだけ：未読行に当たった（呼び出し側が unreadLine で渡す。戦闘内回想＝BattleMemoryTempo は
-//     Hud 側で未読に数えない）／選択肢（ChoiceOverlay）が出た／SKIP をもう一度押した。
+//     ステージ→回想→戦闘→ハブ→次のステージと移っても、会話が出るたびに入力なしで早送りされる。
+//     選択肢（ChoiceOverlay）が出たとき、または SKIP をもう一度押したときに切れる。
 //     会話ボックスが出ていない間もラッチが立っていれば、画面右上に小さな「▶▶」の印（DrawLatchMark）を出す。
 //     AUTO は設定値なので会話が終わっても保持する。
 //   ・ボタン列にカーソルが乗っている間の左クリックは会話送りに数えない（Pad.CaptureMouse → Pad.AdvanceHeld）。
 //     各画面は Tick を _Process の先頭（Pad.AdvanceHeld を読む前）で呼ぶ。
-//   ・当たり判定は Pad.MousePos()（設計座標 1280×720）と描画と同じ矩形（ButtonRect）を直接突き合わせる。
+//   ・当たり判定はボタンと同じ座標系のマウス位置と描画矩形（ButtonRect）を突き合わせる。
 //     UiKit のホットスポット登録は使わない（ChoiceOverlay 等と同フレームで潰し合う。PauseMenu.HintClickable 参照）。
 //   ・座標はすべて設計座標。Draw は UiKit.BeginDesign の下で呼ぶ。
 public sealed class DialogToolbar
 {
     // マウスを乗せたときの吹き出し（見た目はアイコンだけなので、名前はここで言葉にする）。
-    private static readonly string[] Tips = { "自動送り", "既読スキップ", "ログ", "メニュー" };
+    private static readonly string[] Tips = { "自動送り", "スキップ", "ログ", "メニュー" };
     public const int Auto = 0, Skip = 1, Log = 2, Menu = 3;
     private const int Count = 4;
     public const float W = 36f, H = 30f;       // ボタンの寸法（設計座標）
@@ -103,13 +102,13 @@ public sealed class DialogToolbar
     //   owner       … 呼び出し元のノード（Pad.UiBlocked の主体・ツリー参照）
     //   shown       … いま会話ボックスが画面に出ているか（＝ボタン列を出す／受け付ける条件）
     //   anchor      … ボックスの右上（設計座標）
-    //   unreadLine  … 表示中の行が「表示時点で未読」か（真なら SKIP ラッチを即切る）
     //   startTapOpensMenu … パッド Start の短押しで MENU を開く（カットシーン専用。上の注記）
-    public void Tick(Node owner, double delta, bool shown, Vector2 anchor, bool unreadLine, bool startTapOpensMenu = false)
+    public void Tick(Node owner, double delta, bool shown, Vector2 anchor, bool startTapOpensMenu = false,
+        Vector2? pointer = null)
     {
         bool blocked = Pad.UiBlocked(owner);
         bool choice = owner.GetTree().GetFirstNodeInGroup("choice_overlay") != null;
-        _skipAvailable = !unreadLine && !choice;
+        _skipAvailable = !choice;
 
         // キーの押下は表示の有無に関係なく毎フレーム追う＝ボックスが出る前からの押しっぱなしをエッジにしない。
         bool a = Input.IsKeyPressed(Key.A) || Pad.Pressed(JoyButton.Y);
@@ -125,7 +124,7 @@ public sealed class DialogToolbar
         Hover = -1;
         if (shown && !blocked)
         {
-            var m = Pad.MousePos();
+            var m = pointer ?? Pad.MousePos();
             for (int i = 0; i < Count; i++)
                 if (ButtonRect(anchor, i).HasPoint(m)) { Hover = i; break; }
             if (Hover >= 0) Pad.CaptureMouse();
@@ -149,13 +148,7 @@ public sealed class DialogToolbar
             if (click == Menu || (startTapOpensMenu && startTap)) OpenPauseFromToolbar(owner);
         }
 
-        // SKIP ラッチの自動解除（進めなくなったら切る）。会話ボックスが消えた・画面が替わった、では切らない
-        //   （ラッチは static＝シーンを跨いで残り、次の画面の既読の会話もそのまま早送りする）。
-        if (Hud.SkipLatched)
-        {
-            bool unread = shown && unreadLine;
-            if (unread || choice) Hud.SkipLatched = false;
-        }
+        if (choice) Hud.SkipLatched = false;
         LatchMarkVisible = Hud.SkipLatched && !shown && !blocked && !OverlayOpen(owner);
     }
 
@@ -185,7 +178,7 @@ public sealed class DialogToolbar
         if (game == null) return;
         game.AutoAdvanceDialog = !game.AutoAdvanceDialog;
         Audio.Instance?.PlayUiMove();
-        const string path = "user://settings.json";
+        string path = Startup.DataPath("settings.json");
         var data = new Godot.Collections.Dictionary();
         if (FileAccess.FileExists(path))
         {
@@ -230,7 +223,7 @@ public sealed class DialogToolbar
             DrawButton(ci, ButtonRect(anchor, i), i, on, Hover == i, breath, i != Skip || _skipAvailable);
         }
         if (Hover >= 0) DrawTip(ci, ButtonRect(anchor, Hover),
-            Hover == Skip && !_skipAvailable ? "未読のためスキップできません" : Tips[Hover]);
+            Hover == Skip && !_skipAvailable ? "選択肢を選んでください" : Tips[Hover]);
     }
 
     // ラッチ中の印「▶▶」（設計座標・呼び出し側が BeginDesign 済み）。毎フレーム呼んでよい（出す条件はここで見る）。
@@ -335,10 +328,8 @@ public partial class Hud
     // ラッチ中の印の右上：戦闘は盤面の右上（ボスの体力カードが無くなって空いた所）、カットシーンは画面の右上。
     public Vector2 LatchMarkAnchor => CinematicMode ? new Vector2(UiKit.DesignW - 16f, 14f) : new Vector2(Field.DRight - 16f, 14f);
 
-    // 未読行＝_dlgReadBefore が偽で BattleMemoryTempo（戦闘内回想の早送り許可）でもない。
     private void TickDialogToolbar(double delta) =>
-        _toolbar.Tick(this, delta, DialogToolbarVisible, ToolbarAnchor(),
-            unreadLine: !_dlgReadBefore && !BattleMemoryTempo);
+        _toolbar.Tick(this, delta, DialogToolbarVisible, ToolbarAnchor());
 
     // ボタン列の描画（HudCanvas＝最前面。設計座標）。ボックスが出ている間はボタン列、出ていない間はラッチの印。
     private void DrawDialogToolbar(CanvasItem ci)

@@ -2,12 +2,12 @@ using Godot;
 
 // BossKoharu : STAGE2「こはる」のボス＝『我に返るわたし』（@koharu_light）。
 // 消えた配信画面の前の部屋。止まったら我に返る人。明るさと蒼白を往復する。
-// 浄化後は、ミナが消されたコメントを返し（S2-8 一段目）、来ていた回数を数えた証人として
-// 自分の言葉で決定打を打つ（二段目「八十七回」「一秒も」）。推しの側の話も、親の話もしない。
-// 台詞の正典: docs/20260928/wiki_仮台本_退避/07_粗い台本_案C_2_こはるとレイ.md（ユーザー承認済み・2026-09-05）の S2-7・S2-8。
 public partial class BossKoharu : Enemy
 {
     public override UnfolderKind UnfolderStyle => UnfolderKind.Koharu;
+    protected override string LunaticEncounterLine => IsForm2
+        ? "あ、角まで光ってる。これなら後ろの列でも届くね。"
+        : "あたしのライト、まだ見えてるよね、レイちゃん。";
     public bool EdgeAttackActive => _caster != null && _caster.EdgeAttackActive;
     internal float BodyExtent => Mathf.Max(BodyRadius, BodyHalfH);
     public bool Finished { get; private set; }
@@ -84,18 +84,18 @@ public partial class BossKoharu : Enemy
         (2, "楽しいの。ほんとに。見てる間だけは、ぜんぶ、忘れてられるの。", "res://char/v3/koharu_face_pale.png"),
         (2, "でも、電気つけたら——机の上に、模試。机の下に、箱。……あたし、なにしてんだろ。", "res://char/v3/koharu_face_pale.png"),
         (2, "……忘れてた時間、ぜんぶ、むだで——", "res://char/v3/koharu_face_pale.png"),
-        (1, "消されたコメントを、拾っておりました。「レイちゃんがいたから、今日も学校行けた」。", "res://char/mina_face.png"),
+        (1, "消されたコメントを読みました。「レイちゃんがいたから、今日も学校行けた」って。", CompanionDialogue.MinaPortrait),
         (2, "……っ。……それ、消したもん。……重いって、思われそうで、やだったから……", "res://char/v3/koharu_face_pale.png"),
-        (1, "“むだだ”という声なら、ここへ来るまでに、ぜんぶ祓いました。", "res://char/mina_face.png"),
-        (1, "来ていた回数を、数えました。八十七回。", "res://char/mina_face.png"),
-        (1, "——むだな時間は、一秒も、ありませんでしたよ。", "res://char/mina_face.png"),
-        (2, "……ほんとに？", "res://char/v3/koharu_face_pale.png"),
-        (1, "明日も来る約束は、なくてよいと思います。今日は、眠りたいとおっしゃっていましたから。", "res://char/mina_face.png"),
-        (2, "……また、見に行って、いいのかな。", "res://char/v3/koharu_face_pale.png"),
-        (1, "もちろん。見たい日に、見たいぶんだけ。……ペンライトの振り方も、まだ教わりたいです。", "res://char/mina_face.png"),
+        (2, "……学校に行っても、分かんない問題は残ってる。中学では、あたしが教えるほうだったのに。", "res://char/v3/koharu_face_pale.png"),
+        (1, "今は、どこで止まったか、分かりますか。", CompanionDialogue.MinaPortrait),
+        (2, "うん。明日起きられたら、隣の子にそこから教えてもらいたい。", "res://char/v3/koharu_face_pale.png"),
+        (2, "今夜は、途中で寝る。……レイちゃんに、もう来ないって思われないかな。", "res://char/v3/koharu_face_pale.png"),
+        (1, "数えてみたら、配信にいらしたのは八十七回でした。", CompanionDialogue.MinaPortrait),
+        (1, "ここで助けられた時間は、今夜、途中で閉じても、なくなりません。", CompanionDialogue.MinaPortrait),
+        (2, "……じゃあ、お礼だけ送って、閉じる。続きは、見たい日に。", "res://char/v3/koharu_face.png"),
     };
     // 決定打の手前で音を落とす行（本文一致で拾う）。ここから BGM 無しで決定打を置く。
-    private const string BgmStopLine = "来ていた回数を、数えました。八十七回。";
+    private const string BgmStopLine = "数えてみたら、配信にいらしたのは八十七回でした。";
 
     // 改心の台詞の実体。他ジョブ潜行中はミナ前提の Lines の代わりに改心相当シーン
     //   （CharacterStory.Redemption＝キャラ×面の9通り）を流す（2026-09-15。_Ready で差し替える）。
@@ -105,13 +105,13 @@ public partial class BossKoharu : Enemy
     private int _storySilenceAt = -1;
     // 他ジョブ潜行の回想（CharacterStory.Memory）を会話枠だけで送るドライバ。null＝ミナ潜行（＝フィルム）。
     private static readonly (int who, string text, string face)[] MemoryLeadIn = {
-        (1, "こはるさん。初めて配信を見た日も、このペンライトを？", "res://char/mina_face.png"),
+        (1, "こはるさん。初めて配信を見た日も、このペンライトを？", CompanionDialogue.MinaPortrait),
         (2, "ううん。最初は、何も持ってなかった。コメントも、書けなくて。", "res://char/v3/koharu_face.png"),
-        (1, "それでも、また見たくなったのですね。", "res://char/mina_face.png"),
+        (1, "それでも、また見たくなったのですね。", CompanionDialogue.MinaPortrait),
         (2, "……見てるだけのあたしにも、ありがとうって言ってくれたの。", "res://char/v3/koharu_face.png"),
-        (1, "その言葉が、うれしかった。", "res://char/mina_face.png"),
+        (1, "その言葉が、うれしかった。", CompanionDialogue.MinaPortrait),
         (2, "うん。模試が返ってきた夜で、眠れなかったから。あたし、誰とも話したくなくて……。", "res://char/v3/koharu_face.png"),
-        (1, "はい。……その夜のお話、もう少し聞かせてください。", "res://char/mina_face.png"),
+        (1, "はい。……その夜のお話、もう少し聞かせてください。", CompanionDialogue.MinaPortrait),
     };
 
     private CharacterStoryTalk? _memoryTalk;
@@ -130,6 +130,9 @@ public partial class BossKoharu : Enemy
 
         int bars = BossTuning.I("koharu", "hp_bars", 0);
         BarCount = bars > 0 ? bars : DiffBars(finalBoss: false);
+        if (GameManager.Instance?.Difficulty == GameManager.Diff.Hard
+            && GetTree().GetFirstNodeInGroup("boss_rush") is BossRushRoot { SingleBoss: true })
+            BarHp = BossTuning.I("koharu", "solo_hard_bar_hp", 900);
 
         // 弾幕・ギミックの外出し値（INIに無ければフィールド初期値＝現行値のまま）。
         _memoryHp = BossTuning.F("koharu", "meal_hp", 0.52f);
@@ -210,7 +213,8 @@ public partial class BossKoharu : Enemy
     {
         // 自機の位置を渡す＝自機狙いの追従（x と y の両方に寄る）と、反転の判定（40px 以上・0.6秒）に使う。
         if (GetTree().GetFirstNodeInGroup("player") is Node2D pl) _mover.SetPlayerPos(pl.GlobalPosition);
-        if (!BarrageHolding) GlobalPosition = _mover.Step(GlobalPosition, delta, IsForm2 ? 1.65f : 1f);
+        if (!BarrageHolding) GlobalPosition = _mover.Step(GlobalPosition, delta, IsForm2 ? 1.65f : 1f, framed: !BossInArena);
+        else _mover.TickFacing(GlobalPosition, delta);
         ApplyBossMotion(_mover.VisualOffset, _mover.Lean, IsForm2 ? !_mover.FacingLeft : _mover.FacingLeft);
         FxLayer.Instance?.EmitBossAura(FxLayer.BossAura.Koharu, GlobalPosition, (float)delta, 32f);
         TickGoto();
@@ -258,13 +262,14 @@ public partial class BossKoharu : Enemy
             _beatsFired++;
             ApplySpell();
             // 第二形態は既存の閾値の中盤（PatternThresholds[1]=0.50）に乗せる＝新しい閾値を足さない。
-            if (_beatsFired == 2) AdvanceForm2();
+            // 形態変化で盾の当たり判定を作り直すので、命中通知が終わってから切り替える。
+            if (_beatsFired == 2) CallDeferred(MethodName.AdvanceForm2);
         }
-        if (!holds && !_finale && HpRatio <= Mathf.Min(0.20f, _finaleCap)
+        if (!_finale && HpRatio <= Mathf.Min(0.20f, _finaleCap)
             && (GameManager.SkipBossStory || _posts.Count >= 4))
         {
             _finale = true;
-            RallyShield();
+            if (!holds) RallyShield();
             GetHud()?.SetBossBarTint(Spells[0].tint); // フィナーレ色（#26）
             GetHud()?.AnnounceSpell("こはる", BossHandles.KoharuMain, Spells[0].name + "＋" + Spells[1].name, Spells[0].tint);
         }
@@ -306,7 +311,7 @@ public partial class BossKoharu : Enemy
         GetNodeOrNull<GameManager>("/root/Game")?.EndFury();           // 【激情】メーターを止めて畳む
         GetNodeOrNull<GameManager>("/root/Game")?.NotifyRedemptionStart(); // 残機0の抜けプロンプトを演出に重ねない
         // 改心が始まる確実な瞬間に「解決音（完）」へ移す＝冷えていた旋律に温かい残響が戻る。
-        Audio.Instance?.PlayRedeem(2);
+        Audio.Instance?.Music(Audio.Instance.BgmStoryKoharu, 0.8f);
         // 会話を出せない状況（Hud が取れない／台詞が無い）なら会話に入らず即着地させる
         //   ＝送るものが無いのに EndCryNow を待ち続けて Finished が立たない詰まりを断つ。
         //   ルナティックも同じ経路＝改心のかけあい（弾を止める会話）を出さず、その場で着地して Finished へ。
@@ -342,6 +347,7 @@ public partial class BossKoharu : Enemy
             //   ＝弾幕も曲も途切れない。
             if (GameManager.SkipBossStory) { OnHpChanged(); return; }
             _caster.CancelPendingAttacks();
+            Audio.Instance?.Music(Audio.Instance.BgmStoryKoharu, 0.7f);
             void ResumeBattle()
             {
                 _zHeld = Pad.AdvanceHeld();
@@ -362,7 +368,7 @@ public partial class BossKoharu : Enemy
                 () => KoharuStoryFilm.Play(GetHud()!, GetParent(), aftermath: false, completed: ResumeBattle));
             return;
         }
-        if (!_seq && !_memoryPending && _gotoPhase == 0) _posts.UpdateDamage();
+        if (!_seq && !_memoryPending) _posts.UpdateDamage();
         // 改心の会話送り：Z/Enter/ui_accept/Pad A に加えマウス左クリックでも送れる共通ヘルパ（マウス対応 P2）。
         bool z = Pad.AdvanceHeld();
         bool zEdge = z && !_zHeld && !Pad.UiBlocked(this);
@@ -412,7 +418,7 @@ public partial class BossKoharu : Enemy
             Hud.LineKind.Companion => face,   // 潜行キャラ本人＝表情差分（空欄は Hud がジョブ立ち絵へ）
             // こはるは通常 koharu_face。絶望行だけ face に蒼白(KPale)を指定して差し替える。
             Hud.LineKind.Other => string.IsNullOrEmpty(face) ? KFace : face,
-            _ => string.IsNullOrEmpty(face) ? "res://char/mina_face.png" : face,   // ミナも行ごと表情
+            _ => string.IsNullOrEmpty(face) ? CompanionDialogue.MinaPortrait : face,   // ミナも行ごと表情
         };
         hud.ShowDialog(kind, text, portrait, otherName: "こはる");
     }

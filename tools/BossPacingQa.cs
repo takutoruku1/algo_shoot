@@ -165,6 +165,7 @@ public partial class BossPacingQa : Node
                     Call(cameo, "TickEntrance", typeof(Enemy), 0d);
                     Call(cameo, "TickEntrance", typeof(Enemy), 2d);
                     int midHp = new[] { 200, 250, 300, 350 }[(int)difficulty];
+                    if (id == "Akari" && difficulty == GameManager.Diff.Normal) midHp = 300;
                     Check(Read<int>(cameo, "_maxHp", typeof(Enemy)) == midHp && Read<int>(cameo, "_hp", typeof(Enemy)) == midHp,
                         $"{difficulty}/{id} midboss: stage-spawned HP {midHp}");
                     Check(Read<List<Panel>>(cameo, "_panels", typeof(Enemy)).Sum(panel => panel.Ink)
@@ -189,6 +190,7 @@ public partial class BossPacingQa : Node
         game.SelectedJob = job;
         bool charged = powered && !args.Contains("--rapid");
         game.TrainingSetAllUpgrades(powered);
+        game.MarkIdleDialogSeen(PlayerSpecialTutorial.SeenKey(job));
         typeof(GameManager).GetProperty("Followers")!.SetValue(game, powered ? 2000 : 0);
         var root = GD.Load<PackedScene>($"res://{id}.tscn").Instantiate<Node2D>();
         GetTree().Root.AddChild(root);
@@ -242,6 +244,7 @@ public partial class BossPacingQa : Node
             return;
         }
         double combat = 0, shield = 0, finale = 0, fire = 0;
+        double waitingForKoharuDraft = 0;
         var phaseLengths = new List<string>();
         double phaseLength = 0;
         float phaseHp = boss.HpRatio;
@@ -275,6 +278,12 @@ public partial class BossPacingQa : Node
                 && !Read<bool>(boss, "_entering", typeof(Enemy));
             if (playing)
             {
+                if (id == "Koharu" && game.Difficulty == GameManager.Diff.Easy && boss.HpRatio <= .01f)
+                {
+                    waitingForKoharuDraft += 1d / 60;
+                    if (waitingForKoharuDraft > 5 * (BossPost.BreakDuration + .1))
+                        throw new Exception($"Koharu/Easy: HP stayed at {boss.HpRatio:P1} while waiting for the final draft; posts={posts}, finale gate={Read<int>(boss, "_gotoPhase")}");
+                }
                 combat += 1d / 60;
                 string phase = Read<object>(boss, "_phase", typeof(Enemy)).ToString()!;
                 if (phase != previousPhase)
@@ -287,7 +296,7 @@ public partial class BossPacingQa : Node
                 phaseLength += 1d / 60;
                 if (phase == "Shielded") shield += 1d / 60;
                 bool inFinale = InFinale(boss);
-                if (phase == "Break" && previousPhase != phase)
+                if (phase is "Resolving" or "Break" && previousPhase is not "Resolving" and not "Break")
                 {
                     breaks++;
                 }

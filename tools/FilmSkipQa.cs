@@ -32,7 +32,8 @@ public partial class FilmSkipQa : Node
         ProcessMode = ProcessModeEnum.Always;
         try
         {
-            Check(OS.GetUserDataDir().Replace('\\', '/').Contains("/build/qa_film_skip/"), "isolated save data");
+            Check(OS.GetUserDataDir().Replace('\\', '/').Contains("/build/qa_story/"), "isolated save data");
+            typeof(Settings).GetProperty(nameof(Settings.PauseWhenUnfocused))!.SetValue(null, false);
             DisplayServer.WindowSetMode(DisplayServer.WindowMode.Windowed);
             DisplayServer.WindowSetSize(new Vector2I(1280, 720));
             var game = GetNode<GameManager>("/root/Game");
@@ -40,7 +41,10 @@ public partial class FilmSkipQa : Node
             game.AutoSaveEnabled = false;
             game.MsgCharsPerSec = 300;
             game.AutoAdvanceDialog = false;
+            game.SelectedJob = Job.Tank;
             game.SelectedEntry = GameManager.StageEntry.Boss;
+            CheckMouseInput(game);
+            await Frames(3);
 
             var root = GD.Load<PackedScene>("res://Akari.tscn").Instantiate<Node2D>();
             await Frames(1);
@@ -58,6 +62,8 @@ public partial class FilmSkipQa : Node
             await CheckStoryFilm(game, hud, world);
             await CheckPersistence(game);
             await CheckMinaPhase(game, hud, world);
+            await CheckMouseScenes(game, hud, world);
+            await CheckPolledMouseScene(game, hud, world);
 
             root.QueueFree();
             await Frames(8);
@@ -73,6 +79,134 @@ public partial class FilmSkipQa : Node
             GetTree().Paused = false;
             GetTree().Quit(1);
         }
+    }
+
+    private static void Mouse(Vector2 position, bool down)
+    {
+        const BindingFlags flags = BindingFlags.Static | BindingFlags.NonPublic;
+        typeof(Pad).GetField("_mousePos", flags)!.SetValue(null, position);
+        typeof(Pad).GetField("_mLPrev", flags)!.SetValue(null, Pad.MouseDown());
+        typeof(Pad).GetField("_mL", flags)!.SetValue(null, down);
+    }
+
+    private static void CheckMouseInput(GameManager game)
+    {
+        Vector2 inside = FilmSkip.ButtonRect.GetCenter(), outside = new(200, 300);
+        FilmSkip.MarkSeen(game, "mouse_qa");
+        var skip = new FilmSkip();
+        Mouse(inside, true);
+        skip.Begin(game, "mouse_qa");
+        Check(!skip.Update(1), "a held mouse button cannot skip a newly opened scene");
+        Mouse(inside, false); skip.Update(0.01);
+        Mouse(inside, true);
+        Check(!skip.Update(0.2) && skip.Progress > 0 && !Pad.AdvanceHeld(),
+            "holding the button fills progress without advancing dialogue");
+        Mouse(inside, false);
+        Check(!skip.Update(0.01) && skip.Progress == 0, "releasing early cancels mouse skip");
+        Mouse(outside, true); skip.Update(0.1);
+        Mouse(inside, true);
+        Check(!skip.Update(1) && skip.Progress == 0, "dragging a dialogue press onto skip cannot activate it");
+        Mouse(inside, false); skip.Update(0.01);
+        Mouse(inside, true); skip.Update(0.2);
+        Mouse(outside, true);
+        Check(!skip.Update(1) && skip.Progress == 0 && !Pad.AdvanceHeld(),
+            "dragging out cancels skip without leaking the held click into dialogue");
+        Mouse(inside, true);
+        Check(!skip.Update(1), "returning while held requires a fresh press");
+        Mouse(inside, false); skip.Update(0.01);
+        Mouse(inside, true);
+        Check(skip.Update(0.5), "a fresh mouse hold completes skip");
+        Mouse(inside, false); skip.Update(0.01);
+        skip.Begin(game, "unseen_mouse_qa");
+        Mouse(inside, true);
+        Check(!skip.Update(1), "mouse input respects the film's availability");
+        Mouse(outside, false);
+    }
+
+    private async Task CheckMouseScenes(GameManager game, Hud hud, Node2D world)
+    {
+        int completed = 0;
+        AkariStoryFilm.Play(hud, world, false, () => completed++);
+        var story = (StoryFilm)GetTree().GetFirstNodeInGroup("storyfilm");
+        await CheckMouseScene(story, typeof(StoryFilm), hud, world, () => completed);
+
+        completed = 0;
+        MinaPhaseScene.Play(hud, world, 1, () => completed++);
+        var phase = (MinaPhaseScene)GetTree().GetFirstNodeInGroup("mina_phase_scene");
+        await CheckMouseScene(phase, typeof(MinaPhaseScene), hud, world, () => completed);
+
+        completed = 0;
+        int arrived = 0;
+        const string line = "マウスでスキップを確認します。";
+        game.MarkLineRead(line);
+        FilmSkip.MarkSeen(game, "boss_intro_akari_mina");
+        CameoIntroScene.PlayBoss(hud, world, "akari", new[] { (1, line, "") }, () => completed++, () => arrived++);
+        var boss = (CameoIntroScene)GetTree().GetFirstNodeInGroup("boss_intro");
+        await CheckMouseScene(boss, typeof(CameoIntroScene), hud, world, () => completed);
+        Check(arrived == 1, "mouse skip still prepares the boss exactly once");
+    }
+
+    private async Task CheckMouseScene(Node2D scene, Type type, Hud hud, Node2D world, Func<int> completed)
+    {
+        scene.SetProcess(false);
+        await Frames(3);
+        var skip = Read<FilmSkip>(scene, "_skip", type);
+        Check(skip.Available, $"{type.Name}: mouse skip is available");
+        Vector2 center = FilmSkip.ButtonRect.GetCenter();
+        Mouse(center, false); scene._Process(0.01);
+        Mouse(center, true); scene._Process(0.1);
+        Check(!Read<bool>(scene, "_held", type) && skip.Progress > 0,
+            $"{type.Name}: the skip press is captured before dialogue reads it");
+        scene._Process(0.4);
+        Check(Read<bool>(scene, "_leaving", type), $"{type.Name}: mouse hold starts the normal exit");
+        scene._Process(1);
+        Check(completed() == 0 && world.ProcessMode == ProcessModeEnum.Disabled,
+            $"{type.Name}: combat stays paused until the mouse is released");
+        Mouse(center, false); scene._Process(0.01);
+        await Frames(3);
+        Check(completed() == 1 && !IsInstanceValid(scene) && !hud.CinematicMode
+            && world.ProcessMode == ProcessModeEnum.Inherit,
+            $"{type.Name}: releasing the mouse completes once and restores combat");
+    }
+
+    private async Task CheckPolledMouseScene(GameManager game, Hud hud, Node2D world)
+    {
+        int completed = 0;
+        const string line = "わたくしはミナです。あなたが待っている方ではありません。\nでも、ここでお話を聞かせてほしいのです。";
+        game.MarkLineRead(line);
+        FilmSkip.MarkSeen(game, "boss_intro_akari_mina");
+        CameoIntroScene.PlayBoss(hud, world, "akari", new[] { (1, line, "") }, () => completed++, () => { });
+        var scene = (CameoIntroScene)GetTree().GetFirstNodeInGroup("boss_intro");
+        await WaitUntil(() => Read<bool>(scene, "_talking"), 900);
+        var skip = Read<FilmSkip>(scene, "_skip");
+        Vector2 center = FilmSkip.ButtonRect.GetCenter();
+        SendMouse(center, false);
+        await Frames(3);
+        Check(Pad.MousePos().DistanceTo(center) < 1, $"polled pointer matches the displayed skip button ({Pad.MousePos()})");
+        SendMouse(center, true);
+        await Frames(8);
+        Check(skip.Progress > 0 && !Read<bool>(scene, "_held"), "mouse input events fill the skip bar without advancing dialogue");
+        if (DisplayServer.GetName() != "headless")
+        {
+            await ToSignal(RenderingServer.Singleton, RenderingServer.SignalName.FramePostDraw);
+            using var image = GetViewport().GetTexture().GetImage();
+            Check(image.SavePng("user://mouse_skip_progress.png") == Error.Ok, "save rendered mouse skip progress");
+        }
+        await WaitUntil(() => Read<bool>(scene, "_leaving"), 120);
+        Check(completed == 0 && world.ProcessMode == ProcessModeEnum.Disabled, "held mouse keeps the battle paused after skip");
+        SendMouse(center, false);
+        await WaitUntil(() => completed == 1, 120);
+        Check(!IsInstanceValid(scene) && world.ProcessMode == ProcessModeEnum.Inherit, "polled mouse skip restores battle after release");
+    }
+
+    private void SendMouse(Vector2 designPosition, bool down)
+    {
+        if (DisplayServer.GetName() != "headless") GetViewport().WarpMouse(designPosition * UiKit.Scale);
+        Vector2 position = GetViewport().GetFinalTransform() * (designPosition * UiKit.Scale);
+        Input.ParseInputEvent(new InputEventMouseButton {
+            ButtonIndex = MouseButton.Left, Pressed = down, Position = position, GlobalPosition = position,
+        });
+        Input.FlushBufferedEvents();
     }
 
     // ①〜④を回想（あかりの memory）で確認する。
@@ -96,8 +230,6 @@ public partial class FilmSkipQa : Node
               "holding skip during the first viewing does nothing");
 
         // ②最後まで通すと記録が立つ。「初見を最後まで読んだ」を再現するため Z を叩いて送り切る
-        //   （戦闘中の回想は 2026-09-26 から初見でも Ctrl 押しっぱなしで早送りできるが＝Hud.BattleMemoryTempo、
-        //   ここで見たいのは X 長押しの既読スキップの開閉なので使わない）。
         await AdvanceUntil(() => ended, film!);
         await Frames(5);
         Check(ended && game.IsIdleDialogSeen(key), "finishing the flashback records it as seen");

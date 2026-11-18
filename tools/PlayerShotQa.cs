@@ -16,12 +16,12 @@ public partial class PlayerShotQa : Node
     private static void Call(object obj, string name, params object[] args)
         => obj.GetType().GetMethod(name, Private)!.Invoke(obj, args.Length == 0 ? null : args);
     private Bullet[] Active() => _pool.GetChildren().OfType<Bullet>().Where(b => b.Active).ToArray();
-    private static (int ways, int damage, float radius, int pierce, float speed, float spread) ChargeStats(Job job) => job switch
+    private static (int ways, int damage, float radius, int pierce, float speed, float spread, int shield) ChargeStats(Job job) => job switch
     {
-        Job.Tank => (1, 12, 9f, 5, 820f, 0f),
-        Job.Melee => (1, 18, 12f, 1, 240f, 0f),
-        Job.Heal => (3, 4, 6f, 1, 300f, 32f),
-        Job.Magic => (5, 3, 6f, 1, 540f, 64f),
+        Job.Tank => (1, 11, 9f, 2, 820f, 0f, 6),
+        Job.Melee => (1, 11, 12f, 1, 240f, 0f, 6),
+        Job.Heal => (3, 4, 6f, 0, 300f, 32f, 2),
+        Job.Magic => (5, 3, 6f, 1, 720f, 28f, 6),
         _ => throw new ArgumentOutOfRangeException(nameof(job)),
     };
 
@@ -36,9 +36,10 @@ public partial class PlayerShotQa : Node
             var b = shots[i];
             Check(b.Damage == expected.damage && b.Radius == expected.radius && b.Pierce == expected.pierce && b.ChargeJob == job,
                 $"{job}: charge damage, radius, penetration and identity match the character");
+            Check(b.ChargeFanCenter == (i == expected.ways / 2), $"{job}: only the center projectile carries the fan center flag");
             Check(Mathf.IsEqualApprox(b.Velocity.Length(), expected.speed)
                 && b.Homing == (job == Job.Heal) && b.Accel == (job == Job.Melee)
-                && b.TurnRateOverride == (job == Job.Heal ? 240 : 0), $"{job}: charge has its own speed and movement");
+                && b.TurnRateOverride == (job == Job.Heal ? 300 : 0), $"{job}: charge has its own speed and movement");
             float angle = shots.Length == 1 ? 0 : (float)i / (shots.Length - 1) - 0.5f;
             Check(Mathf.Abs(player.ShotDir.AngleTo(b.Velocity) - Mathf.DegToRad(angle * expected.spread)) < 0.001f,
                 $"{job}: charge fan is symmetric about the aim direction");
@@ -70,8 +71,22 @@ public partial class PlayerShotQa : Node
             DisplayServer.WindowSetMode(DisplayServer.WindowMode.Windowed);
             DisplayServer.WindowSetSize(new Vector2I(1280, 720));
             await Frames(2);
-            CheckArtwork();
-            if (OS.GetCmdlineUserArgs().Contains("--aim-spacing"))
+            if (OS.GetCmdlineUserArgs().Contains("--blender"))
+            {
+                await CheckBlenderProjectiles();
+                GD.Print("[ShotQA] BLENDER ALL PASS");
+                GetTree().Quit();
+                return;
+            }
+            if (!OS.GetCmdlineUserArgs().Contains("--damage-balance") && !OS.GetCmdlineUserArgs().Contains("--shop-upgrades")
+                && !OS.GetCmdlineUserArgs().Contains("--homing-only")) CheckArtwork();
+            if (OS.GetCmdlineUserArgs().Contains("--homing-only"))
+                await CheckHomingAccuracy();
+            else if (OS.GetCmdlineUserArgs().Contains("--shop-upgrades"))
+                await CheckShopUpgrades();
+            else if (OS.GetCmdlineUserArgs().Contains("--damage-balance"))
+                await MeasureDamageBalance();
+            else if (OS.GetCmdlineUserArgs().Contains("--aim-spacing"))
                 await CheckAimSpacing();
             else if (OS.GetCmdlineUserArgs().Contains("--charge-demo"))
                 foreach (var job in Jobs.All) await DemoCharge(job);
@@ -102,6 +117,264 @@ public partial class PlayerShotQa : Node
         }
     }
 
+    private async Task CheckShopUpgrades()
+    {
+        foreach (var job in Jobs.All)
+        {
+            var baseline = new List<(int Frame, int Damage, int Power, int Pierce)>();
+            foreach (bool upgraded in new[] { false, true })
+            {
+                _game.ResetPersistent();
+                _game.AutoSaveEnabled = false;
+                _game.SelectedJob = job.Id;
+                _game.TrainingSetAllUpgrades(upgraded);
+                var root = GD.Load<PackedScene>("res://Akari.tscn").Instantiate<AkariRoot>();
+                GetTree().Root.AddChild(root);
+                GetTree().CurrentScene = root;
+                root.Stage.SetProcess(false);
+                root.Stage.SetPhysicsProcess(false);
+                root.Hud.HoldBubble = false;
+                root.Hud.HideBubble();
+                root.Player.SetPhysicsProcess(false);
+                Write(root.Player, "_fireCooldown", 0f);
+                _pool.DespawnAll();
+                var emitted = new HashSet<(ulong Id, ulong Activation)>();
+                var samples = new List<(int Frame, int Damage, int Power, int Pierce)>();
+                for (int frame = 0; frame < 180; frame++)
+                {
+                    root.Player._PhysicsProcess(1d / 60);
+                    foreach (var shot in Active().Where(shot => !shot.IsEnemy))
+                        if (emitted.Add((shot.GetInstanceId(), shot.ActivationId)))
+                            samples.Add((frame, shot.Damage, shot.ShotPowerPercent, shot.Pierce));
+                    await ToSignal(GetTree(), SceneTree.SignalName.PhysicsFrame);
+                }
+                Check(samples.Count > 0 && samples.All(shot => shot.Pierce == 0),
+                    $"{job.CharacterId}: normal shots never gain shop penetration (upgraded={upgraded})");
+                if (upgraded)
+                    Check(baseline.SequenceEqual(samples),
+                        $"{job.CharacterId}: all shop purchases preserve normal shot count, cadence and damage ({samples.Count} shots/3s)");
+                else baseline.AddRange(samples);
+                Check(_game.HasChargeTier2 == upgraded && _game.HasSpecial == upgraded,
+                    $"{job.CharacterId}: charge tier 2 and deferred focus mode remain available");
+                _pool.DespawnAll();
+                Call(root.Player, "FireCharge", ChargeTier.First);
+                CheckChargeVolley(root.Player);
+                if (upgraded)
+                {
+                    _pool.DespawnAll();
+                    Call(root.Player, "FireCharge", ChargeTier.Second);
+                    var shots = Active();
+                    var stats = ChargeStats(job.Id);
+                    Check(shots.Length == stats.ways && shots.All(shot => shot.ChargeStage == ChargeTier.Second
+                        && shot.Damage == Mathf.RoundToInt(stats.damage * ChargeTier.PowerMul)
+                        && Mathf.IsEqualApprox(shot.Radius, stats.radius * ChargeTier.RadiusMul) && shot.Pierce == stats.pierce),
+                        $"{job.CharacterId}: tier-2 charge retains its count, damage, size and penetration");
+                    Check(Mathf.IsEqualApprox(_game.ChargeNeedSec, .6f) && Mathf.IsEqualApprox(_game.ChargeTier2NeedSec, .9f),
+                        $"{job.CharacterId}: charge timing remains 0.60s / 0.90s");
+                }
+                root.QueueFree();
+                await Frames(5);
+                _pool.DespawnAll();
+            }
+        }
+    }
+
+    private async Task CheckHomingAccuracy()
+    {
+        _game.SelectedJob = Job.Heal;
+        var player = new Player { Position = new Vector2(120, 108) };
+        AddChild(player);
+        player.SetPhysicsProcess(false);
+        player.CollisionLayer = player.CollisionMask = 0;
+        var cases = new (string name, Vector2 origin, Func<float, Vector2> target, bool shield)[]
+        {
+            ("far", new(90, 108), t => new(350, 108), false),
+            ("close", new(210, 108), t => new(230, 125), false),
+            ("behind muzzle", new(210, 108), t => new(220, 108), false),
+            ("crossing", new(120, 108), t => new(280, 108 + 70 * Mathf.Sin(t * 3)), false),
+            ("reversal", new(120, 108), t => new(280 - 180 * Mathf.Min(t / 0.6f, 1), 130), false),
+            ("top edge", new(300, 12), t => new(350, 6), false),
+            ("orbiting shield", new(210, 108), t => new(250, 108), true),
+            ("moving shield", new(120, 108), t => new(280, 108 + 55 * Mathf.Sin(t * 2.5f)), true),
+        };
+        var failures = new List<string>();
+        int total = 0, contacts = 0;
+        foreach (bool locked in new[] { false, true })
+        foreach (int tier in new[] { 0, ChargeTier.First, ChargeTier.Second })
+        foreach (var test in cases)
+        {
+            _pool.DespawnAll();
+            await ToSignal(GetTree(), SceneTree.SignalName.PhysicsFrame);
+            await ToSignal(GetTree(), SceneTree.SignalName.PhysicsFrame);
+            var target = new Enemy { Position = test.target(0) };
+            Write(target, "BarCount", 4);
+            Write(target, "PanelCount", test.shield ? 1 : 0);
+            Write(target, "PanelInk", 100);
+            Write(target, "PanelTexPath", "res://char/panel_anti.png");
+            Write(target, "OrbitRadius", 26f);
+            Write(target, "SpinSpeed", 6f);
+            AddChild(target);
+            target.SetPhysicsProcess(false);
+            target.SetProcess(false);
+            if (!test.shield) Call(target, "EnterExposed");
+            player.Position = test.origin;
+            Write(player, "_locked", locked);
+            Write(player, "_lockTarget", locked ? target : null!);
+            Write(player, "_lockUnfolder", null!);
+            await ToSignal(GetTree(), SceneTree.SignalName.PhysicsFrame);
+            await ToSignal(GetTree(), SceneTree.SignalName.PhysicsFrame);
+            if (tier == 0) Call(player, "FireHoming", player.GlobalPosition + player.ShotDir * 20f, 1);
+            else Call(player, "FireCharge", tier);
+            var shots = Active().ToHashSet();
+            Check(shots.Count == (tier == 0 ? 2 : 3), "homing volley emits every projectile");
+            var hits = new HashSet<Bullet>();
+            void OnContact(Area2D area) { if (area is Bullet b && shots.Contains(b)) hits.Add(b); }
+            Area2D collider = test.shield ? target.GetChildren().OfType<Panel>().Single() : target;
+            collider.AreaEntered += OnContact;
+            for (int frame = 0; frame < 180 && hits.Count < shots.Count; frame++)
+            {
+                target.Position = test.target(frame / 60f);
+                await ToSignal(GetTree(), SceneTree.SignalName.PhysicsFrame);
+            }
+            string label = $"koharu {test.name}, lock={locked}, tier={tier}: {hits.Count}/{shots.Count} contacts";
+            GD.Print($"[ShotQA] {(hits.Count == shots.Count ? "PASS" : "MISS")} {label}");
+            if (hits.Count != shots.Count) failures.Add(label);
+            total += shots.Count;
+            contacts += hits.Count;
+            collider.AreaEntered -= OnContact;
+            _pool.DespawnAll();
+            target.QueueFree();
+            await Frames(2);
+        }
+        Write(player, "_locked", false);
+        Write(player, "_lockTarget", null!);
+        var overlapTarget = new Enemy { Position = new Vector2(250, 108) };
+        Write(overlapTarget, "BarCount", 4);
+        Write(overlapTarget, "PanelCount", 0);
+        AddChild(overlapTarget);
+        overlapTarget.SetPhysicsProcess(false);
+        overlapTarget.SetProcess(false);
+        Call(overlapTarget, "EnterExposed");
+        await ToSignal(GetTree(), SceneTree.SignalName.PhysicsFrame);
+        await ToSignal(GetTree(), SceneTree.SignalName.PhysicsFrame);
+        for (int reuse = 0; reuse < 2; reuse++)
+        {
+            Write(overlapTarget, "_bodyHitCd", 0d);
+            int hp = Read<int>(overlapTarget, "_hp");
+            var shot = _pool.Spawn(overlapTarget.GlobalPosition, Vector2.Zero, false);
+            for (int frame = 0; frame < 4; frame++) await ToSignal(GetTree(), SceneTree.SignalName.PhysicsFrame);
+            Check(!shot.Active && Read<int>(overlapTarget, "_hp") < hp, $"non-homing overlapping shot registers on reuse {reuse}");
+        }
+        overlapTarget.QueueFree();
+        player.CollisionMask = 8;
+        Write(player, "_invincible", false);
+        int lives = player.Lives;
+        _pool.Spawn(player.GlobalPosition, Vector2.Zero, true);
+        for (int frame = 0; frame < 4; frame++) await ToSignal(GetTree(), SceneTree.SignalName.PhysicsFrame);
+        Check(player.Lives == lives - 1, $"overlapping enemy shot still hits the player ({lives} -> {player.Lives})");
+        _pool.DespawnAll();
+        player.CollisionMask = 0;
+        foreach (bool charged in new[] { false, true })
+        {
+            var shot = _pool.SpawnBossShot(new Vector2(200, 108), Vector2.Right, Job.Heal, charged);
+            shot.SetPhysicsProcess(false);
+            float turn = 0;
+            for (int frame = 0; frame < 90; frame++)
+            {
+                shot.GlobalPosition = new Vector2(200, 108);
+                player.GlobalPosition = shot.GlobalPosition + shot.Velocity.Normalized().Rotated(0.7f) * 70;
+                float before = shot.Velocity.Angle();
+                shot._PhysicsProcess(1d / 60);
+                turn += Mathf.Abs(Mathf.AngleDifference(before, shot.Velocity.Angle()));
+            }
+            Check(turn > Mathf.DegToRad(30) && turn <= Mathf.DegToRad(36.01f),
+                $"enemy homing retains its 36 degree total bend, charged={charged}");
+            _pool.DespawnAll();
+        }
+        player.QueueFree();
+        await Frames(2);
+        Check(failures.Count == 0, $"koharu homing hit {contacts}/{total} shots; {string.Join("; ", failures)}");
+    }
+
+    private async Task CheckBlenderProjectiles()
+    {
+        _game.MarkIdleDialogSeen(StageTutorial.ChoiceSeenKey);
+        _game.MarkIdleDialogSeen(StageTutorial.SkipKey);
+        foreach (var job in Jobs.All) _game.MarkIdleDialogSeen(PlayerSpecialTutorial.SeenKey(job.Id));
+        var root = GD.Load<PackedScene>("res://Akari.tscn").Instantiate<AkariRoot>();
+        GetTree().Root.AddChild(root);
+        GetTree().CurrentScene = root;
+        root.Stage.SetProcess(false);
+        root.World.ProcessMode = ProcessModeEnum.Disabled;
+        root.Player.SetPhysicsProcess(false);
+        root.Hud.HoldBubble = false;
+        root.Hud.HideBubble();
+        var hashes = new HashSet<string>();
+        foreach (var job in Jobs.All)
+        {
+            _game.SelectedJob = job.Id;
+            foreach (bool second in new[] { false, true })
+            {
+                var model = PlayerProjectileArt.Get(job.Id, second);
+                using var atlas = model.Texture.GetImage();
+                if (atlas.IsCompressed()) atlas.Decompress();
+                Check(atlas.GetSize() == new Vector2I(1024, 768) && atlas.HasMipmaps(), $"{model.Name}: bounded mipmapped animation atlas");
+                var frameHashes = new HashSet<string>();
+                for (int frame = 0; frame < ProjectileTurntable.FrameCount; frame++)
+                {
+                    using var cell = atlas.GetRegion((Rect2I)model.Frames[frame].Region);
+                    Rect2I used = cell.GetUsedRect();
+                    Check(used.Position.X > 0 && used.Position.Y > 0 && used.End.X < 128 && used.End.Y < 128
+                        && cell.GetPixel(64,64).A > .9f, $"{model.Name}/{frame}: unclipped solid body stays anchored to hit center");
+                    frameHashes.Add(Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(cell.GetData())));
+                }
+                Check(frameHashes.Count >= 44, $"{model.Name}: genuinely animated lighting and geometry");
+                Check(hashes.Add(Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(atlas.GetData()))), $"{model.Name}: distinct model");
+                Check(ReferenceEquals(model, PlayerProjectileArt.Get(job.Id, second)), $"{model.Name}: shared cached resources");
+            }
+            Check(ReferenceEquals(BulletArt.PlayerShot(job.Id), PlayerProjectileArt.Get(job.Id).Front)
+                && !ReferenceEquals(BulletArt.PlayerShot(job.Id).Texture, BulletArt.CharacterShot(job.Id).Texture),
+                $"{job.CharacterId}: player replacement leaves enemy source artwork separate");
+            foreach (int tier in new[] { 0, ChargeTier.First, ChargeTier.Second })
+            {
+                float radius = tier == 0 ? job.ShotRadius : job.ChargeRadius * ChargeTier.RadiusMulFor(tier);
+                var shot = _pool.Spawn(new Vector2(Field.CenterX, 100), Vector2.Zero, false, radius);
+                if (tier > 0) shot.MakeCharged(job.Id, tier);
+                shot.SetPhysicsProcess(false);
+                int firstFrame = shot.ModelAnimationFrame;
+                int damage = shot.Damage, pierce = shot.Pierce;
+                shot._PhysicsProcess(.16);
+                Check(shot.ModelAnimationName == job.CharacterId + (tier == ChargeTier.Second ? "_plane" : "_shot")
+                    && shot.ModelAnimationFrame != firstFrame, $"{job.CharacterId}/{tier}: pooled projectile advances the intended Blender model");
+                Check(shot.CollisionRadius == radius && Read<BulletFootprint?>(shot, "_footprint") == null
+                    && shot.Damage == damage && shot.Pierce == pierce, $"{job.CharacterId}/{tier}: animation preserves hit radius, damage and penetration");
+                var sprite = Read<Sprite2D>(shot, "_modelSprite");
+                Check(sprite.Visible && sprite.Material is ShaderMaterial && sprite.Scale.X > 0, $"{job.CharacterId}/{tier}: solid model is visible");
+                _pool.Despawn(shot);
+                var hostile = _pool.Spawn(new Vector2(Field.CenterX,100), Vector2.Left, true);
+                Check(ReferenceEquals(hostile, shot) && hostile.ModelAnimationName == null && !sprite.Visible,
+                    $"{job.CharacterId}/{tier}: enemy reuse cannot retain a player model");
+                _pool.Despawn(hostile);
+            }
+            if (DisplayServer.GetName() != "headless")
+            {
+                for (int tier=0;tier<=2;tier++)
+                {
+                    float radius=tier==0?job.ShotRadius:job.ChargeRadius*ChargeTier.RadiusMulFor(tier);
+                    var shot=_pool.Spawn(new Vector2(Field.Left+115+tier*70,Field.CenterY),Vector2.Zero,false,radius);
+                    if(tier>0) shot.MakeCharged(job.Id,tier);
+                    shot.SetPhysicsProcess(false);
+                    shot._PhysicsProcess(.16);
+                    shot.ResetPhysicsInterpolation();
+                }
+                await Shot(job.CharacterId+"_blender_ingame");
+                _pool.DespawnAll();
+            }
+        }
+        root.QueueFree();
+        await Frames(3);
+    }
+
     private void CheckArtwork()
     {
         var hashes = new HashSet<string>();
@@ -121,6 +394,7 @@ public partial class PlayerShotQa : Node
     private async Task DemoCharge(JobTuning job)
     {
         _game.SelectedJob = job.Id;
+        _game.TrainingSetUpgrade("n_charge_shot", true);
         _game.TrainingSetUpgrade("n_charge", true);
         var root = GD.Load<PackedScene>("res://Akari.tscn").Instantiate<AkariRoot>();
         GetTree().Root.AddChild(root);
@@ -169,6 +443,7 @@ public partial class PlayerShotQa : Node
     private async Task ShotChargeTiers(JobTuning job)
     {
         _game.SelectedJob = job.Id;
+        _game.TrainingSetUpgrade("n_charge_shot", true);
         _game.TrainingSetUpgrade("n_charge", true);
         var root = GD.Load<PackedScene>("res://Akari.tscn").Instantiate<AkariRoot>();
         GetTree().Root.AddChild(root);
@@ -218,6 +493,7 @@ public partial class PlayerShotQa : Node
     {
         var expected = ChargeStats(job.Id);
         _game.SelectedJob = job.Id;
+        _game.TrainingSetUpgrade("n_charge_shot", true);
         _game.TrainingSetUpgrade("n_charge", true);
         var root = GD.Load<PackedScene>("res://Akari.tscn").Instantiate<AkariRoot>();
         GetTree().Root.AddChild(root);
@@ -294,7 +570,8 @@ public partial class PlayerShotQa : Node
         bodyHit.Invoke(enemy, new object[] { charge });
         Check(Read<int>(enemy, "_hp") == hp - expected.damage, "character charge bypasses ordinary hit cooldown and damage cap");
         bodyHit.Invoke(enemy, new object[] { charge });
-        Check(Read<int>(enemy, "_hp") == hp - expected.damage && charge.Pierce == expected.pierce - 1, "moving body cannot be hit twice by the same charge");
+        Check(Read<int>(enemy, "_hp") == hp - expected.damage && charge.Pierce == Math.Max(0, expected.pierce - 1)
+            && charge.Active == (expected.pierce > 0), "moving body cannot be hit twice by the same charge");
         _pool.DespawnAll();
         enemy.Position = player.Position + new Vector2(30, 0);
         Call(enemy, "EnterExposed");
@@ -306,11 +583,11 @@ public partial class PlayerShotQa : Node
         _pool.DespawnAll();
         enemy.Position = player.Position + new Vector2(85, 0);
         Call(enemy, "EnterExposed");
-        Write(enemy, "_windowDamage", _game.ExposedDamageCap - 3);
+        Write(enemy, "_windowDamage", 180 - 3);
         charge = Fire();
         hp = Read<int>(enemy, "_hp");
         bodyHit.Invoke(enemy, new object[] { charge });
-        Check(Read<int>(enemy, "_hp") == hp - 3, "charge respects the remaining boss window budget");
+        Check(Read<int>(enemy, "_hp") == hp - expected.damage, "charge is not truncated at the old window cap");
         _pool.DespawnAll();
         Call(enemy, "EnterExposed");
         charge = Fire();
@@ -334,11 +611,11 @@ public partial class PlayerShotQa : Node
             "every projectile in a charged volley can damage the same exposed boss once");
         _pool.DespawnAll();
         Call(enemy, "EnterExposed");
-        Write(enemy, "_windowDamage", _game.ExposedDamageCap - 5);
+        Write(enemy, "_windowDamage", 180 - 5);
         Call(player, "FireCharge", ChargeTier.First);
         hp = Read<int>(enemy, "_hp");
         foreach (var b in Active().Where(b => b.Charged).ToArray()) bodyHit.Invoke(enemy, new object[] { b });
-        Check(Read<int>(enemy, "_hp") == hp - 5, "multi-projectile charge respects the shared boss window cap");
+        Check(Read<int>(enemy, "_hp") == hp - expected.damage * expected.ways, "all charged projectiles still damage beyond the old window cap");
         _pool.DespawnAll();
 
         var panel = new Panel();
@@ -349,26 +626,28 @@ public partial class PlayerShotQa : Node
         var panelHit = typeof(Panel).GetMethod("OnAreaEntered", Private)!;
         panelHit.Invoke(panel, new object[] { charge });
         panelHit.Invoke(panel, new object[] { charge });
-        int ink = Mathf.Min(3, 1 + (expected.damage - 1) / 2);
-        Check(panel.Ink == 20 - ink && charge.Active && charge.Pierce == expected.pierce - 1,
+        int ink = expected.shield;
+        Check(panel.Ink == 20 - ink && charge.Active == (expected.pierce > 0)
+            && charge.Pierce == Math.Max(0, expected.pierce - 1),
             "charge strips character-specific ink and hits each shield only once");
-        for (int i = 0; i < expected.pierce; i++)
+        for (int i = 0; i < Math.Max(1, expected.pierce); i++)
         {
             var next = new Panel();
             next.Setup(enemy, 0, 18, 0, 20);
             enemy.AddChild(next);
             next.SetPhysicsProcess(false);
             panelHit.Invoke(next, new object[] { charge });
+            if (expected.pierce == 0) Check(next.Ink == 20, "spent Koharu charge cannot damage another shield");
         }
         Check(!charge.Active, "the character penetration budget consumes the charge");
         var recycled = _pool.Spawn(player.Position, Vector2.Left * 40, true);
         Check(ReferenceEquals(recycled, charge) && !recycled.Charged && recycled.Pierce == 0
-            && !recycled.Homing && !recycled.Accel && recycled.TurnRateOverride == 0,
+            && !recycled.Homing && !recycled.Accel && recycled.TurnRateOverride == 0 && !recycled.ChargeFanCenter,
             "pool reuse clears charged state for enemies");
         _pool.DespawnAll();
         charge = Fire();
         _pool.DespawnPlayerBullets(preserveCharged: true);
-        Check(charge.Active, "defeating a small enemy preserves the piercing charge");
+        Check(charge.Active, "defeating another enemy preserves an unspent charge");
         _pool.DespawnAll();
         Check(!charge.Active, "boss and scene cleanup still remove charges");
         var ordinary = new Enemy();
@@ -386,8 +665,15 @@ public partial class PlayerShotQa : Node
             var shot = _pool.Spawn(player.Position, Vector2.Right * 360, false, 3, 20);
             if (tier > 0) shot.MakeCharged(_game.SelectedJob, tier);
             panelHit.Invoke(shield, new object[] { shot });
-            int cost = owner == ordinary ? 10 : tier == 0 ? 2 : tier == ChargeTier.First ? 3 : 5;
+            int cost = owner == ordinary ? 10 : tier == 0 ? 2 : expected.shield * (tier == ChargeTier.Second ? 2 : 1);
             Check(shield.Ink == 20 - cost, $"shield damage: boss={owner == enemy} tier={tier} cost={cost}");
+            if (owner == enemy && job.Id == Job.Magic && tier > 0)
+            {
+                var sideShot = _pool.Spawn(player.Position, Vector2.Right * 720, false, 6, 20);
+                sideShot.MakeCharged(Job.Magic, tier, fanCenter: false);
+                panelHit.Invoke(shield, new object[] { sideShot });
+                Check(shield.Ink == 20 - cost - 1, "Rei side projectiles chip the shield without multiplying the center bonus");
+            }
             shield.QueueFree();
             _pool.DespawnAll();
         }
@@ -417,7 +703,7 @@ public partial class PlayerShotQa : Node
         _pool.DespawnAll();
         Write(player, "_chargeHeld", true);
         Write(player, "_chargeT", 0.6f);
-        root.Hud.ShowDialog(Hud.LineKind.Mina, "……少し、お話ししましょう。", "res://char/mina_face.png");
+        root.Hud.ShowDialog(Hud.LineKind.Mina, "……少し、お話ししましょう。", "res://char/v3/mina_conversation_v1.png");
         player._PhysicsProcess(0.01);
         Call(player, "FireCharge", ChargeTier.First);
         await Frames(4);
@@ -466,15 +752,15 @@ public partial class PlayerShotQa : Node
             charge._PhysicsProcess(0.05);
             Check(ReferenceEquals(Read<Node2D>(charge, "_homeTarget"), first) && charge.Velocity.Y > 0
                 && Mathf.IsEqualApprox(charge.Velocity.Length(), 300), "koharu: charge steers toward an off-axis enemy at constant speed");
-            charge.RegisterChargeHit(first);
+            Write(first, "_purified", true);
             charge._PhysicsProcess(0.01);
             Check(ReferenceEquals(Read<Node2D>(charge, "_homeTarget"), second),
-                "koharu: a pierced target is replaced by the next unhit enemy");
-            charge.RegisterChargeHit(second);
+                "koharu: a target defeated before impact is replaced by the next live enemy");
+            Write(second, "_purified", true);
             var direction = charge.Velocity;
             charge._PhysicsProcess(0.01);
             Check(Read<Node2D?>(charge, "_homeTarget") == null && charge.Velocity.IsEqualApprox(direction),
-                "koharu: no unhit target means straight flight instead of orbiting a previous hit");
+                "koharu: no live target means straight flight instead of orbiting a defeated enemy");
             charge.Position = new Vector2(200, 100);
             Write(charge, "_age", 2.49f);
             charge._PhysicsProcess(0.02);
@@ -512,8 +798,17 @@ public partial class PlayerShotQa : Node
         {
             foreach (string input in new[] { "keyboard", "mouse" })
             {
-                // Charging works from the very first stage (2026-09-25); n_charge only unlocks the second tier.
-                // Without it the meter needs 0.60s and never goes past tier 1, however long the button is held.
+                _game.TrainingSetUpgrade("n_charge_shot", false);
+                _game.TrainingSetUpgrade("n_charge", true);
+                Write(player, "_fireCooldown", 0f);
+                Press(input, true);
+                player._PhysicsProcess(1.0);
+                Check(player.ChargeRatio == 0 && Active().Any(b => !b.Charged), $"{input}: holding the locked skill keeps normal fire");
+                Press(input, false);
+                player._PhysicsProcess(0.01);
+                Check(!Active().Any(b => b.Charged), $"{input}: release cannot fire a charge without the base skill");
+                _pool.DespawnAll();
+                _game.TrainingSetUpgrade("n_charge_shot", true);
                 _game.TrainingSetUpgrade("n_charge", false);
                 Write(player, "_fireCooldown", 0f);
                 Press(input, true);
@@ -532,14 +827,12 @@ public partial class PlayerShotQa : Node
                 _pool.DespawnAll();
                 _game.TrainingSetUpgrade("n_charge", true);
 
-                // With the upgrade the meter keeps going: tier 2 arrives at twice the hold (0.60 -> 1.20s)
-                // and the projectile carries the tier, its power multiplier and its wider radius.
                 Write(player, "_fireCooldown", 0f);
                 Press(input, true);
                 player._PhysicsProcess(0.65);
                 Check(player.ChargeFull && !player.ChargeFull2 && player.ChargeStage == ChargeTier.First,
                     $"{input}: tier 1 is reached first and tier 2 is still filling (ratio2={player.ChargeRatio2})");
-                player._PhysicsProcess(0.60);
+                player._PhysicsProcess(0.26);
                 Check(player.ChargeFull2 && player.ChargeStage == ChargeTier.Second,
                     $"{input}: tier 2 fills at {_game.ChargeTier2NeedSec:0.00}s (ratio2={player.ChargeRatio2})");
                 Press(input, false);
@@ -603,7 +896,6 @@ public partial class PlayerShotQa : Node
         foreach (var job in new[] { Job.Tank, Job.Melee })
         {
             _game.SelectedJob = job;
-            _game.TrainingSetUpgrade("n_lines", false);
             var root = GD.Load<PackedScene>("res://Akari.tscn").Instantiate<AkariRoot>();
             GetTree().Root.AddChild(root);
             GetTree().CurrentScene = root;
@@ -619,47 +911,42 @@ public partial class PlayerShotQa : Node
             for (int power = 0; power <= Player.PowerLevelCap; power++)
             {
                 if (power > 0) Check(root.Player.ApplyPowerup(PowerKind.Line), "line power applied");
-                foreach (bool upgrade in new[] { false, true })
+                const int count = 2;
+                const float gap = 8f;
+                for (int heading = 0; heading < 8; heading++)
                 {
-                    _game.TrainingSetUpgrade("n_lines", upgrade);
-                    int count = 2 + (upgrade ? 1 : 0);
-                    float gap = count == 2 || (job == Job.Melee && count == 3) ? 8f : 6f;
-                    for (int heading = 0; heading < 8; heading++)
-                    {
-                        _pool.DespawnAll();
-                        Vector2 direction = Vector2.Right.Rotated(heading * Mathf.Pi / 4f);
-                        Vector2 side = new(-direction.Y, direction.X);
-                        target.GlobalPosition = root.Player.GlobalPosition + direction * 64f;
-                        Call(root.Player, "Fire");
-                        var shots = Active().OrderBy(b => b.GlobalPosition.Dot(side)).ToArray();
-                        string label = $"{job}: {count} lines, heading {heading * 45}";
-                        Check(shots.Length == count, $"{label}: shot count retained");
-                        Vector2 muzzle = root.Player.GlobalPosition + direction * 20f;
-                        Check(shots.All(b => Mathf.Abs((b.GlobalPosition - muzzle).Dot(direction)) < 0.001f)
-                            && ((shots.First().GlobalPosition + shots.Last().GlobalPosition) * 0.5f).DistanceTo(muzzle) < 0.001f,
-                            $"{label}: volley is centered across the aim direction");
-                        Check(Enumerable.Range(1, count - 1).All(i => Mathf.Abs(shots[i].GlobalPosition.DistanceTo(shots[i - 1].GlobalPosition) - gap) < 0.001f),
-                            $"{label}: every adjacent shot has the same horizontal-fire spacing");
+                    _pool.DespawnAll();
+                    Vector2 direction = Vector2.Right.Rotated(heading * Mathf.Pi / 4f);
+                    Vector2 side = new(-direction.Y, direction.X);
+                    target.GlobalPosition = root.Player.GlobalPosition + direction * 64f;
+                    Call(root.Player, "Fire");
+                    var shots = Active().OrderBy(b => b.GlobalPosition.Dot(side)).ToArray();
+                    string label = $"{job}: {count} lines, heading {heading * 45}";
+                    Check(shots.Length == count, $"{label}: shot count retained");
+                    Vector2 muzzle = root.Player.GlobalPosition + direction * 20f;
+                    Check(shots.All(b => Mathf.Abs((b.GlobalPosition - muzzle).Dot(direction)) < 0.001f)
+                        && ((shots.First().GlobalPosition + shots.Last().GlobalPosition) * 0.5f).DistanceTo(muzzle) < 0.001f,
+                        $"{label}: volley is centered across the aim direction");
+                    Check(Enumerable.Range(1, count - 1).All(i => Mathf.Abs(shots[i].GlobalPosition.DistanceTo(shots[i - 1].GlobalPosition) - gap) < 0.001f),
+                        $"{label}: every adjacent shot has the same horizontal-fire spacing");
 
-                        int frames = job == Job.Melee ? Mathf.CeilToInt(_game.AccelChargeDelay * 60f) + 2 : 2;
-                        for (int frame = 0; frame < frames; frame++)
-                            foreach (var shot in shots) shot._PhysicsProcess(1.0 / 60.0);
-                        if (job == Job.Melee)
-                            Check(shots.All(b => b.Active && !b.AccelCharging
-                                && b.Velocity.Normalized().DistanceTo(b.GlobalPosition.DirectionTo(target.GlobalPosition)) < 0.001f),
-                                $"{label}: accelerated shots converge on the locked target");
-                        else
-                            Check(shots.All(b => b.Active && b.Velocity.Normalized().DistanceTo(direction) < 0.001f)
-                                && Enumerable.Range(1, count - 1).All(i => Mathf.Abs(shots[i].GlobalPosition.DistanceTo(shots[i - 1].GlobalPosition) - gap) < 0.001f),
-                                $"{label}: parallel spacing survives flight");
-                    }
+                    int frames = job == Job.Melee ? Mathf.CeilToInt(_game.AccelChargeDelay * 60f) + 2 : 2;
+                    for (int frame = 0; frame < frames; frame++)
+                        foreach (var shot in shots) shot._PhysicsProcess(1.0 / 60.0);
+                    if (job == Job.Melee)
+                        Check(shots.All(b => b.Active && !b.AccelCharging
+                            && b.Velocity.Normalized().DistanceTo(b.GlobalPosition.DirectionTo(target.GlobalPosition)) < 0.001f),
+                            $"{label}: accelerated shots converge on the locked target");
+                    else
+                        Check(shots.All(b => b.Active && b.Velocity.Normalized().DistanceTo(direction) < 0.001f)
+                            && Enumerable.Range(1, count - 1).All(i => Mathf.Abs(shots[i].GlobalPosition.DistanceTo(shots[i - 1].GlobalPosition) - gap) < 0.001f),
+                            $"{label}: parallel spacing survives flight");
                 }
             }
             _pool.DespawnAll();
             root.QueueFree();
             await Frames(5);
         }
-        _game.TrainingSetUpgrade("n_lines", false);
     }
 
     private async Task CheckCharacter(JobTuning job)
@@ -730,7 +1017,7 @@ public partial class PlayerShotQa : Node
         root.Player.SetPhysicsProcess(false);
         var enemy = _pool.Spawn(new Vector2(285, 90), Vector2.Left * 40, true, 5);
         enemy.SetWord("test", aching: true);
-        root.Hud.ShowDialog(Hud.LineKind.Mina, "……少し、ここでお話ししましょう。", "res://char/mina_worried.png");
+        root.Hud.ShowDialog(Hud.LineKind.Mina, "……少し、ここでお話ししましょう。", "res://char/v3/mina_conversation_worried_v1.png");
         root.Hud.RevealDialogNow();
         Check(Hud.BubblePaused && Active().Length == 0 && !enemy.IsVisibleInTree(), "dialogue immediately clears both sides, including word bullets");
         foreach (bool hostile in new[] { false, true })
@@ -819,6 +1106,7 @@ public partial class PlayerShotQa : Node
 
     private async Task Shot(string name)
     {
+        if (DisplayServer.GetName() == "headless") return;
         await Frames(2);
         await ToSignal(RenderingServer.Singleton, RenderingServer.SignalName.FramePostDraw);
         using var image = GetViewport().GetTexture().GetImage();

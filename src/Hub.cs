@@ -1,4 +1,5 @@
 using Godot;
+using System.Linq;
 
 // Hub : タイムラインハブ（ステージ間の中枢）。RefrainHTML のデザイン言語で非ピクセル化。
 //   - ヘッダ：使用中のアカウント（アバター/名前/フォロワー/インプレ/汚染）。
@@ -6,7 +7,7 @@ using Godot;
 //     （ダイブは難易度選択を挟む）。操作は「矢印で選ぶ・Z で決める・Esc／X でもどる」だけ（2026-09-27。項目ごとの
 //     文字キー J／C／T／R は廃止）。操作の案内は画面下端のヒント帯（UiKit.HintBar）1行にまとめる。
 //     カードは下から滑り込む流入アニメ（帰還投稿後は「タイムライン更新」として再流入）。
-//     エンゲージ数はクリア状態・フォロワー数と連動し、クリア済カードにはミナの自動投稿がスレッド返信風にぶら下がる。
+//     クリア済カードにはミナの自動投稿がスレッド返信風にぶら下がる。
 //   - クリア帰還でミナの会話＋自動投稿。クリア済カードの [返信]：コメント返信（1回）。
 //   - 全クリアで FINAL カード（枠とピルは穢れ色・フォロワー/インプレの生値を語ラベル付きで出す）。autoplay は会話を自動送り→自動ダイブ。
 public partial class Hub : Node2D
@@ -17,25 +18,33 @@ public partial class Hub : Node2D
     private static readonly Color PhoneBg = new("14171d");
     private static readonly Color PhoneRaised = new("1d2229");
 
+    private sealed record VoiceReply(string AuthorId, string[] Lines, float Bottom);
     private struct Entry
     {
-        public bool IsFinal;
+        public bool IsFinal, IsRepost;
         public string Id, Scene, Name, Handle, Tweet, Initial;
         public bool Unlocked, Cleared;
-        public long Likes, Reposts, Replies;
-        // 2-b: タイムラインの種別。Voice＝潜れる（三人＋FINAL）／Filler＝埋め草の他人の投稿／Pinned＝ミナの最新投稿。
-        //   Filler と Pinned は潜れない＝カーソルは乗るが Z では開かない。
+        public SnsVoices.Reach Reach;
+        public VoiceReply[]? VoiceReplies;
+        public readonly int Replies => Social?.Replies.Length ?? VoiceReplies?.Length ?? 0;
         public Kind Sort;
         public string RelT;       // 相対時刻（Filler は生成規則で散らす。三人は従来の RelTime）
-        public bool Redacted;     // 層2（病みサイン）＝伏字が明滅する埋め草。声のあるカードと同じ印を持つ
+        public SnsVoices.Post? Social;
         public int Icon;          // 埋め草のアイコン番号（1..SnsVoices.IconCount。0＝アイコンを持たない＝三人とミナ）
     }
-    private enum Kind { Voice, Filler, Pinned }
+    private enum Kind { Voice, Filler, Pinned, Personal }
     private Entry[] _entries = System.Array.Empty<Entry>();
+    private bool IsReturnPostUnlocked(SnsVoices.Post post) => post.CharacterId == "mina"
+        ? _previewState is "all" or "final" || (_previewState == null && _game.IsFinalCleared && _game.EndingRollSeen)
+        : post.CharacterId.Length > 0 && IsClearedForDisplay(post.CharacterId);
+    private bool IsUnreadReturnPost(SnsVoices.Post post) => IsReturnPostUnlocked(post)
+        && !_game.IsIdleDialogSeen(SnsVoices.ReturnPostReadKey(post));
+    private int UnreadReturnPostCount => System.Linq.Enumerable.Count(SnsVoices.ReturnPosts, IsUnreadReturnPost);
 
     // カードが「潜れる声」か（＝Z で投稿詳細が開き、そこから難易度を選んで潜れる）。
     private bool IsVoice(int i) => i >= 0 && i < _entries.Length && _entries[i].Sort == Kind.Voice
         && _entries[i].Unlocked;
+    private static bool IsNextKoharuPost(Entry e) => e.Sort == Kind.Voice && e.Id == "koharu" && !e.Cleared && !e.IsRepost;
 
     // ───────── 見せない／見せる のゲート（2026-09-07）─────────
     //   「まだ手に入れていないものは画面に出さない」を1か所に集める。判定は既存のクリア記録
@@ -48,13 +57,6 @@ public partial class Hub : Node2D
     //   （スクショで「名前は伏せているのにフッタだけ解禁済み」といった嘘が出ない）。
     private bool ShopUnlocked => IsClearedForDisplay(GameManager.FirstStageId);
 
-    // このステージのクリアで新しく開いたジョブ（無ければ null）。帰還トーストの見出しに使う。
-    private static JobTuning? JobUnlockedBy(string stageId)
-    {
-        foreach (var j in Jobs.All)
-            if (j.UnlockStageId == stageId) return j;
-        return null;
-    }
     private bool RecordsUnlocked
     {
         get
@@ -64,15 +66,7 @@ public partial class Hub : Node2D
         }
     }
 
-    // サイドバーの未解放ステージ名。タイムラインには未解放の投稿を置かない。
-    private const string LockedName = "???";
-    // FINAL（ミナ自身の内側）のシーン。カード生成・プレビュー・自動ダイブの3か所が同じ文字列を書いていたので定数へ。
-    // FINAL カードの本文（2026-09-27 作者指摘「説明的すぎる・意味がわからない」で全面改稿）。
-    //   これはミナ自身の投稿＝三人の下書きを預かりきった彼女の「下書き」が、本人の覚えのないまま投稿に立ったもの。
-    //   汚染・限界・ダイブといった仕組みの言葉は書かない。重さを「書かない」と言いながら消せない、で限界を見せる。
-    public const string FinalTweet = "三人ぶん、預かりました。重い、とは書きません。……消し方が、わかりません。";
-    // FINAL カードに添えるミナの一言（ホバー行と H3 帰還の行で共通）。説明ではなく、本人の覚えがないことだけを言う。
-    public const string FinalHoverLine = "……投稿した覚えが、ありません。";
+    public const string FinalTweet = "まだ、きこえる。ここを閉じたら、この声はどこへ行くの。";
     private const string FinalScene = "res://MinaBattle.tscn";
 
     // ───────── 3-1: 潜り方（難易度）の4段 ─────────
@@ -96,14 +90,30 @@ public partial class Hub : Node2D
     private readonly System.Collections.Generic.Dictionary<string, Texture2D> _playerFaces = new();
     private readonly System.Collections.Generic.Dictionary<string, Texture2D> _dialogueFaces = new();
     private Texture2D? _minaFace;
-    private Texture2D _customizeIcon = null!;
-    private Texture2D _hubMina = null!;
+    private PhoneVisuals _phoneVisuals = null!;
+    private CanvasItem _drawCanvas = null!;
+    private Node2D _phoneMask = null!, _phoneScreen = null!, _overlay = null!;
+    private SnsPostMedia _snsMedia = null!;
+    private bool _mediaHeld;
+    private readonly bool[] _phoneAppUnlocked = new bool[HomeAppCount];
+    private readonly float[] _phoneAppActivation = new float[HomeAppCount];
     private FontFile _sideNameFont = null!, _sideTitleFont = null!;
     private readonly System.Collections.Generic.Dictionary<string, Texture2D> _sidePortraits = new();
     private readonly System.Collections.Generic.Dictionary<string, Texture2D> _sideSkies = new();
     private readonly System.Collections.Generic.Dictionary<string, Texture2D> _sideScenery = new();
     private string _sideStoryId = "", _sideStoryPrevious = "";
     private float _sideStoryBlend = 1;
+    private VoiceMedallions _voiceMedallions = null!;
+    private bool FinalClearedForDisplay => _previewState == "final" || (_previewState == null && _game.IsFinalCleared);
+    private bool FinalPostAvailable => _previewState == null ? _game.AllStoryCleared : _previewState is "all" or "final";
+    private bool MinaCompanionOffline => _game.SelectedJob == Job.Tank && FinalPostAvailable && !FinalClearedForDisplay
+        && (!_minaCall || _dlgIdx == _minaDisconnectIndex);
+    private int VoiceMedallionCount => GameManager.Stages.Length + (FinalPostAvailable ? 1 : 0);
+    private static string VoiceStageId(int index) => index < GameManager.Stages.Length
+        ? GameManager.Stages[index].Id : GameManager.FinalStageId;
+    private Vector2 VoiceMedallionCenter(int index) => new(
+        FinalPostAvailable ? 935 + index * 96 : 953 + index * 110, 522);
+    private bool VoiceMedallionsInteractive => !_autoplay && _mode is Mode.Cards or Mode.Photos;
     private static readonly Rect2 CompanionArea = new(0, 0, PhoneX - 1, H);
     private static readonly Rect2 StoryArea = new(PhoneX + PhoneW + 1, 0, W - PhoneX - PhoneW - 1, H);
     // 埋め草アカウントのアイコン（添字＝SnsVoices の Icon 番号。1..IconCount。[0] は未使用）。
@@ -132,8 +142,6 @@ public partial class Hub : Node2D
     private double _t, _cardsEnteredT;
     private float _selT; // 選択補間 0→1（0.12s で寄る・(B)手触り）
     private int _selAnim = -1; // 補間中の選択インデックス（_sel 変化で 0 にリセット）
-    // クリア済カードにぶら下げる「ミナの自動投稿」の短縮テキスト（1行に収まるよう省略・キャッシュ）
-    private readonly System.Collections.Generic.Dictionary<string, string> _minaPosts = new();
 
     // デバッグ限定プレビュー：--hub-preview <all|final|lock> で表示状態だけ上書き（本番セーブ非汚染）。
     private string? _previewState;
@@ -160,7 +168,7 @@ public partial class Hub : Node2D
     // Job＝ジョブ選択（設計書 §6・ハブのフッタから開くオーバーレイ）。Detail と同じ「カードがその場で開く」
     //   作法で 4 ジョブを縦に並べ、Z で確定・X でとじる。ハブに居る＝ラン外なので、いつでも選び直せる
     //   （ラン中＝ステージのシーンには、ジョブを書き換える導線が一つも無い＝「選んだらそのランは変えられない」）。
-    private enum Mode { Home, HomeReveal, SnsOpening, Cards, Dialogue, Detail, Job, Photos }
+    private enum Mode { Home, HomeReveal, SnsOpening, Cards, Dialogue, Detail, Job, Photos, SocialThread, LimeFriends, LimeHistory, LimeDirect, MinaUnanswered }
     private Mode _mode = Mode.Home;
     private int _homeSel;
     private int _photoSel;
@@ -175,19 +183,17 @@ public partial class Hub : Node2D
     private const string AccountIntroSeenKey = "once_account_intro";
     private const double SnsOpenDuration = 0.65;
     private double _snsOpeningT;
-    private bool NeedsSnsIntro => _game.HeartsSaved == 0 && !_game.IsIdleDialogSeen(SnsIntroSeenKey);
+    private bool NeedsSnsIntro => !StageTutorial.Skipped(_game) && _game.HeartsSaved == 0 && !_game.IsIdleDialogSeen(SnsIntroSeenKey);
     private static readonly (string, string)[] SnsIntro =
     {
-        ("あなた", "ここが「Y」のタイムラインだよ。あかりさんの投稿に、観測のしるしをつけた。"),
-        ("ミナ", "ありました。……さっきの声の、続きですね。"),
-        ("あなた", "その投稿を選んで。僕が道を開いて、君をフェイクレルムへ送り出す。本音を隠した心の世界だ。"),
-        ("ミナ", "あの雨の向こうに、あかりさんが。"),
-        ("あなた", "うん。声を閉じ込めている存在がアンチャー。戦うのは、あの人を閉じ込めているものだよ。"),
-        ("ミナ", "ほどいた先で、ご本人のお話を聞くのですね。"),
-        ("あなた", "僕の声が届くのは、回線を結んだ仲間だけ。向こうの人には聞こえない。道案内は僕がするから、君自身の言葉で話してほしい。"),
-        ("ミナ", "承知しました。……何と言うかまで、決まっていないのですね。"),
-        ("あなた", "うん。まずは、続きを聞きに行こう。"),
-        ("ミナ", "はい。行ってまいります、ご主人様。"),
+        ("あなた", "あかりさんの投稿、見えた？　「Y」に観測のしるしをつけたよ。"),
+        ("ミナ", "はい。……あ、雨の音。さっきの声、まだあそこにいます。"),
+        ("あなた", "通話が終わったら、その投稿を選んで。僕がフェイクレルムへ道を開く。あかりさんが本音を隠した世界だよ。"),
+        ("ミナ", "……あの人と戦うんですか？　わたくし、声を聞きに来たのに。"),
+        ("あなた", "戦う相手は、あの人の声を閉じ込めているアンチャーだよ。僕の声は回線を結んだ仲間にしか届かない。ミナから、声をかけてあげて。"),
+        ("ミナ", "ああ、よかった。……最初に何て言おう。「雨、冷たかったですね」って、変でしょうか。"),
+        ("あなた", "僕なら、気づいてくれたんだって思うよ。"),
+        ("ミナ", "じゃあ、そう言います。行ってまいります、ご主人様。"),
     };
     private bool _homeRevealPending;
     private double _homeRevealT;
@@ -204,6 +210,10 @@ public partial class Hub : Node2D
     private int _jobSel;          // ジョブ選択のカーソル（開いたときに現在のジョブへ置く）
     private JobTuning[] _jobChoices = System.Array.Empty<JobTuning>();
     private Mode _jobReturnMode = Mode.Cards;
+    private VideoStreamPlayer? _unlockMovie;
+    private Job? _unlockJob;
+    private Texture2D? _unlockPortrait;
+    private Vector2? _unlockHoverOrigin;
     private (string sp, string tx)[] _dlg = System.Array.Empty<(string, string)>();
     private int _dlgIdx;
     private double _dlgLineT;
@@ -227,30 +237,36 @@ public partial class Hub : Node2D
         if (_dlgPagedIdx == _dlgIdx || _dlg.Length == 0 || _dlgIdx >= _dlg.Length) return;
         _dlgPagedIdx = _dlgIdx; _dlgPage = 0;
         _dlgPages.Clear();
-        _dlgPages.AddRange(DialogueBox.Paginate(_dlg[_dlgIdx].tx, DlgBodyWrapW));
+        if (_minaCall)
+            _dlgPages.AddRange(UiKit.Paginate(UiKit.Zen, _dlg[_dlgIdx].tx, 22, PhoneW - 84, 3));
+        else if (_limeConversation)
+        {
+            _limeCurrent = new LimeBubble(_dlg[_dlgIdx].sp, _dlg[_dlgIdx].tx);
+            _dlgPages.Add(_limeCurrent.DisplayText);
+        }
+        else _dlgPages.AddRange(DialogueBox.PaginatePhone(_dlg[_dlgIdx].tx, DlgBodyWrapW));
         _dlgPacing = DialoguePacing.ForPages(_dlg[_dlgIdx].tx, _dlgPages);
         _dlgAutoT = 0;
     }
     private void DlgNextPage() { _dlgPage++; _dlgReveal = 0; _dlgLineT = 0; _dlgAutoT = 0; }
     private bool _pendingBurn;
 
-    // 既読スキップ（#22）：Ctrl/RB 長押しで「既読の行だけ」高速送り（本編HUDと同じ作法・ハブ小話用）。
-    private int _dlgReadIdx = -1;  // 既読チェック済みの行 index
-    private bool _dlgReadBefore;   // 現在行が「表示開始時点で」既読だったか
+    private int _dlgReadIdx = -1;  // 既読記録済みの行 index
     private int _dlgLogIdx = -1;   // 会話ログ（Hud.Backlog）へ積んだ行 index（2026-09-26。オート送りでも積む）
     private bool _ffNow;           // いま高速送り中か（ボタン列の SKIP 点灯用）
 
-    // 会話ボックス上辺のボタン列（AUTO / SKIP / LOG / MENU・src/DialogToolbar.cs）。アンカーは DialogBox の右上（880,428）。
+    // 会話ボックス上辺のボタン列（AUTO / SKIP / LOG / MENU・src/DialogToolbar.cs）。アンカーは端末内の DialogBox の右上。
     //   ハブはカットシーンではない＝MENU のパッド Start・キー M は PauseMenu が自前で読む（ここは足さない）。
     private readonly DialogToolbar _toolbar = new();
     private static Rect2 DialogBox => new(PhoneX, DialogueBox.FullScreen.Position.Y, PhoneW, DialogueBox.FullScreen.Size.Y);
     private static Vector2 ToolbarAnchor => new(DialogBox.End.X, DialogBox.Position.Y);
-    private bool DialogShown => _mode == Mode.Dialogue && !_dived && _dlg.Length > 0;
+    private bool DialogShown => _mode == Mode.Dialogue && !_limeConversation && !_minaCall && !_dived && _dlg.Length > 0;
     // AUTO（GameManager.AutoAdvanceDialog）：現在ページの全文表示後、この秒数で次へ（--demo/--qa の _autoplay とは別）。
     private const double AutoAfterReveal = 1.0;
     private double _dlgAutoT;      // 現在ページを全文表示してからの経過（AUTO 用）
 
     private double _toastT;
+    private bool _prominentToast;
     private string _toast = "", _toastSub = "";
     private Color _toastCol = UiKit.Info;
 
@@ -303,10 +319,25 @@ public partial class Hub : Node2D
 
     public override void _Ready()
     {
+        TextureFilter = TextureFilterEnum.LinearWithMipmaps;
+        _drawCanvas = this;
+        _phoneMask = new Node2D { Name = "PhoneScreenMask", ClipChildren = ClipChildrenMode.Only };
+        _phoneMask.Draw += DrawPhoneMask;
+        AddChild(_phoneMask);
+        _phoneScreen = new Node2D { Name = "PhoneScreen" };
+        _phoneScreen.Draw += DrawPhoneScreen;
+        _phoneMask.AddChild(_phoneScreen);
+        _overlay = new Node2D { Name = "HubOverlay" };
+        _overlay.Draw += DrawOverlay;
+        AddChild(_overlay);
         _game = GetNodeOrNull<GameManager>("/root/Game")!;
+        RestoreLimeReplies();
         _zHeld = Pad.AdvanceHeld();
         _tabHeld = SwitchKeyDown();
-        _customizeIcon = GD.Load<Texture2D>("res://char/ui/cursor_refrain_v1.png");
+        _phoneVisuals = new PhoneVisuals();
+        AddChild(_phoneVisuals);
+        _snsMedia = new SnsPostMedia();
+        AddChild(_snsMedia);
         BuildNightBg();
         if (Audio.Instance != null) Audio.Instance.Music(Audio.Instance.BgmMenu);
         var args = OS.GetCmdlineUserArgs();
@@ -325,19 +356,20 @@ public partial class Hub : Node2D
         BuildEntries();
         ApplyPreview();
         LoadFaces();
-        _hubMina = GD.Load<Texture2D>("res://char/ui/hub_mina_v1.png");
         _sideNameFont = GD.Load<FontFile>("res://assets/fonts/ShipporiMincho-SemiBold.ttf");
         _sideTitleFont = GD.Load<FontFile>("res://assets/fonts/CormorantGaramond-Italic.ttf");
         foreach (var job in Jobs.All)
         {
             string id = job.CharacterId;
-            _sidePortraits[id] = id == "mina" ? _hubMina
+            _sidePortraits[id] = id == "mina" ? GD.Load<Texture2D>(Prologue.FirstTouchArt)
                 : GD.Load<Texture2D>($"res://char/bg2/opening/op_{id}_cutin_v1.png");
             _sideSkies[id] = GD.Load<Texture2D>($"res://char/bg2/route/{id}_far.png");
             _sideScenery[id] = GD.Load<Texture2D>($"res://char/bg2/route/{id}_mid.png");
         }
         if (_previewState == null) _sel = DefaultSelection();
         _sideStoryId = _sideStoryPrevious = SideStoryId();
+        _voiceMedallions = new VoiceMedallions();
+        AddChild(_voiceMedallions);
         UpdateFeedScrollTarget();
         if (_autoplay || _previewState != null || _openDetail || _openJob) _mode = Mode.Cards;
         // デバッグ限定：--hub-detail で選択カードの投稿詳細を開いた状態から始める（スクショ用）。
@@ -370,33 +402,34 @@ public partial class Hub : Node2D
         if (cleared != null)
         {
             _game!.JustClearedStageId = null;
-            // 解禁の告知（2026-09-07）。クリアして帰ってきた回に、新しく開いた導線をトーストで一度だけ出す。
-            //   新しい台詞は書いていない：見出しはフッタの語（強化／記録）とキー表記をそのまま並べただけで、
-            //   ミナは何も言わない。強化＝最初の面のクリア、記録＝初クリアで開くので、初回は両方が同時に開く。
-            //   強化の中身の案内は説明パート（ShopTutorialLines・同じ瞬間に一度きり流れる）が持つ。
-            //   ※見出しに世界の言葉（例「タイムラインに、新しい操作が増えた」）を添えるかは
-            //     scenario 担当の領分なので、ここでは足していない。
-            //   ★トーストは1枚しか出ない（_toast は上書き式）。1面クリアの瞬間は「強化／記録が開く」と
-            //     「ジョブが増える」が同時に来るので、2枚を重ねずに1枚へまとめる：見出し＝隣に立った子、
-            //     副題＝開いた導線のキー。以後の面は見出しだけ（導線はもう開いている）。
-            //     回避は 2026-09-22 からショップの段（n_dodge）で買うもの＝1面クリアの瞬間に出していた
-            //     HUD バナー（旧 GameManager.GrantDodge）は無くなったので、こことは渋滞しない。
-            string keyHint = _game.HeartsSaved == 1
+            string keyHint = _game.JustClearedStageWasNew && _game.HeartsSaved == 1
                 ? (ShopUnlocked
                     ? "強化ショップ・記録アプリを解放"
                     : "記録アプリを解放")
                 : "";
-            var freed = JobUnlockedBy(cleared);
-            if (freed != null)
+            var freed = Jobs.UnlockedBy(cleared);
+            if (_game.JustClearedStageWasNew && freed != null)
             {
-                string sub = $"アカウントに {AccountHandle(freed)} を追加";
-                if (keyHint.Length > 0) sub += $"    {keyHint}";
-                Toast($"{freed.CharacterName}が、隣に立つ", sub, JobColor(freed.Id));
+                string sub = $"「{SwitchLabel}」から選べます。";
+                if (keyHint.Length > 0) sub += $"\n{keyHint}";
+                Toast($"{freed.CharacterName}が使えるようになりました", sub, JobColor(freed.Id), prominent: true);
             }
             else if (keyHint.Length > 0)
                 Toast(keyHint, "", UiKit.Ok);
-            var lines = FillObservations(ReturnDialog(cleared));
             var companion = CompanionDialogue.MenuLines(_game.SelectedJob, CompanionDialogue.Menu.Return);
+            if (MinaLineUnavailable && !_game.JustClearedStageWasNew)
+            {
+                // Rei's first return contains the loss of contact. Later dives can still reward the return.
+                var home = _autoplay ? Mode.Cards : Mode.Home;
+                if (companion.Length > 0) StartHubConversation(companion, returnMode: home);
+                else
+                {
+                    StartDialogue(companion, null, returnMode: home);
+                    EndDialogue();
+                }
+                return;
+            }
+            var lines = FillObservations(ReturnDialog(cleared));
             if (companion.Length > 0)
             {
                 var combined = new System.Collections.Generic.List<(string, string)>(companion);
@@ -416,7 +449,7 @@ public partial class Hub : Node2D
             //   流れる静的配列なので配列自体は触らない。once は読み切った時点（EndDialogue）で立てて保存する。
             //   こはる／レイの追加時には出さない＝本文があかり固有（「名義は、わたくしではありません」）。
             string? seenKey = null;
-            if (freed != null && freed.CharacterId == "akari" && !_game.IsIdleDialogSeen(AccountIntroSeenKey))
+            if (freed != null && freed.CharacterId == "akari" && !StageTutorial.Skipped(_game) && !_game.IsIdleDialogSeen(AccountIntroSeenKey))
             {
                 int at = System.Array.FindIndex(lines, l => l.Item2.StartsWith("……お疲れさまでした"));
                 var spliced = new System.Collections.Generic.List<(string, string)>(lines);
@@ -424,7 +457,7 @@ public partial class Hub : Node2D
                 lines = spliced.ToArray();
                 seenKey = AccountIntroSeenKey;
             }
-            if (lines.Length > 0) StartDialogue(lines, null, returnMode: _autoplay ? Mode.Cards : Mode.Home, seenKey: seenKey);
+            if (lines.Length > 0) StartHubConversation(lines, returnMode: _autoplay ? Mode.Cards : Mode.Home, seenKey: seenKey, returning: true);
         }
         else if ((_game?.HeartsSaved ?? 0) > 0 && GD.Randf() < 0.5f)
         {
@@ -454,9 +487,10 @@ public partial class Hub : Node2D
         if (companion.Length > 0 && !_game.IsIdleDialogSeen(companionKey))
         {
             _game.MarkIdleDialogSeen(companionKey);
-            StartDialogue(companion, null, noPost: true);
+            StartHubConversation(companion, noPost: true);
             return;
         }
+        if (MinaLineUnavailable) return;
         for (int i = 0; i < SmallTalks.Length; i++)
         {
             // 「何も起きない日」は、この起動でまだ一度も潜っていないときだけ候補にする（潜った直後に出ると嘘になる）。
@@ -480,99 +514,94 @@ public partial class Hub : Node2D
         _game!.MarkIdleDialogSeen(pick.key);
         // `{dives}`（この旅で潜った回数）はここで差し込む。`{n}`（直前の行に留まっていた秒）は
         // AdvanceDialogue が行ごとに埋めるので、別トークンにして同じ小話で両方使えるようにする。
-        StartDialogue(FillDives(pick.lines), null);
+        StartHubConversation(FillDives(pick.lines));
     }
 
     private void BuildEntries()
     {
         var list = new System.Collections.Generic.List<Entry>();
-        var counts = new System.Collections.Generic.Dictionary<string, (long, long, long)>
-        {
-            ["rei"] = (12, 3, 48), ["akari"] = (34, 9, 210), ["koharu"] = (58, 21, 402),
-        };
-        long fol = _game?.Followers ?? 0;
         foreach (var s in GameManager.Stages)
         {
             if (!IsStageUnlockedForDisplay(s.Id)) continue;
             bool cleared = IsClearedForDisplay(s.Id);
             string name = s.Title.Contains("—") ? s.Title.Split('—')[^1].Trim() : s.Title;
-            var (rep, rt, lk) = counts.TryGetValue(s.Id, out var c) ? c : (0L, 0L, 0L);
-            // クリア＝浄化が届いた投稿は伸びる（ミナのフォロワー数と連動。数字に物語の意味を持たせる）。
-            if (cleared)
-                ApplyClearBoost(ref rep, ref rt, ref lk, fol, _game?.HasReplied(s.Id) ?? false);
             list.Add(new Entry
             {
                 IsFinal = false, Id = s.Id, Scene = s.Scene,
                 Name = name, Handle = s.Handle, Tweet = s.Tweet, Initial = name.Substring(0, 1),
                 Unlocked = true, Cleared = cleared,
-                Replies = rep, Reposts = rt, Likes = lk,
+                Reach = SnsVoices.VoiceReach(s.Id),
+                VoiceReplies = cleared ? BuildVoiceReplies(s.Id) : null,
                 Sort = Kind.Voice, RelT = RelTime(s.Id),
             });
         }
-        if (System.Array.TrueForAll(GameManager.Stages, s => IsClearedForDisplay(s.Id)))
+        if (FinalPostAvailable)
         {
             list.Add(new Entry
             {
-                IsFinal = true, Id = "final", Scene = FinalScene, Name = "ミナ", Handle = Handles.Mina,
-                Tweet = FinalTweet, Initial = "ミ",
-                Unlocked = true, Cleared = false,
+                IsFinal = true, Id = "final", Scene = FinalScene,
+                Name = FinalClearedForDisplay ? "ミナ" : FinalAccount.Name,
+                Handle = FinalClearedForDisplay ? Handles.Mina : FinalAccount.Handle,
+                Tweet = FinalTweet, Initial = FinalClearedForDisplay ? "ミ" : "?", Reach = new(2, 0, 53),
+                Unlocked = true, Cleared = FinalClearedForDisplay,
                 Sort = Kind.Voice, RelT = "now",
             });
         }
-        _entries = Interleave(list).ToArray();
+        var feed = Interleave(list);
+        var reposts = new System.Collections.Generic.List<Entry>();
+        foreach (string id in _game.RepostedPostIds)
+        {
+            int index = feed.FindIndex(entry => entry.Id == id);
+            Entry post;
+            if (index >= 0) post = feed[index];
+            else
+            {
+                bool companion = id.EndsWith("_companion", System.StringComparison.Ordinal);
+                var stage = System.Array.Find(GameManager.Stages, stage => id == ReturnPostId(stage.Id, companion) && IsClearedForDisplay(stage.Id));
+                if (stage == null) continue;
+                post = ReturnEntry(stage.Id, companion);
+            }
+            post.IsRepost = true;
+            reposts.Add(post);
+        }
+        feed.InsertRange(0, reposts);
+        _entries = feed.ToArray();
     }
-
-    private const int FillersPerBatch = 3;
 
     private System.Collections.Generic.List<Entry> Interleave(System.Collections.Generic.List<Entry> voices)
     {
         var feed = new System.Collections.Generic.List<Entry>();
         var pinned = PinnedPost();
         if (pinned != null) feed.Add(pinned.Value);
-        // 解放ごとに新着を上へ追加し、既存の投稿は内容・順序を保つ。
         for (int i = voices.Count - 1; i >= 0; i--)
         {
-            Entry voice = voices[i];
-            int batch = voice.IsFinal ? GameManager.Stages.Length
-                : System.Array.FindIndex(GameManager.Stages, stage => stage.Id == voice.Id);
-            var rng = new RandomNumberGenerator { Seed = (ulong)(0x5F1D + batch * 977) };
-            for (int k = 0; k < FillersPerBatch; k++)
+            feed.Add(voices[i]);
+            foreach (var post in SnsVoices.ReturnPosts)
+                if (voices[i].Id == SnsVoices.ReturnPostStageId(post) && IsReturnPostUnlocked(post))
+                {
+                    int koharu = post == SnsVoices.AkariReturnPost ? feed.FindIndex(IsNextKoharuPost) : -1;
+                    if (koharu >= 0) feed.Insert(koharu, SocialEntry(post));
+                    else feed.Add(SocialEntry(post));
+                }
+            foreach (var post in SnsVoices.Posts)
             {
-                if (k == 2) feed.Add(voice);
-                feed.Add(Filler(ThemeNear(voices, i), rng, batch * FillersPerBatch + k));
+                if (post.Chapter != i) continue;
+                feed.Add(SocialEntry(post));
             }
         }
         return feed;
     }
 
-    // 埋め草の面テーマ＝その位置の直後に来る声の面（FINAL の前後は Common に落とす＝内側の語を TL に出さない）。
-    private static PostPool.Theme ThemeNear(System.Collections.Generic.List<Entry> voices, int i)
+    private static Entry SocialEntry(SnsVoices.Post post)
     {
-        if (i < 0 || i >= voices.Count || voices[i].IsFinal) return PostPool.Theme.Common;
-        return voices[i].Id switch
-        {
-            "akari" => PostPool.Theme.Akari,
-            "koharu" => PostPool.Theme.Koharu,
-            "rei" => PostPool.Theme.Rei,
-            _ => PostPool.Theme.Common,
-        };
-    }
-
-    // 埋め草 1 枚。層は 09 の比率（PostPool.RollLayer）どおりで、層3（本人の声）が出たら層1 に落とす
-    //   ＝他人の投稿に本人の言葉を混ぜない。層2 を引いた枚は伏字が明滅する＝声のあるカードと同じ印を持ち、
-    //   「病みサインはあるが、まだ潜れない」＝見分けの練習になる。
-    private Entry Filler(PostPool.Theme theme, RandomNumberGenerator rng, int i)
-    {
-        var layer = PostPool.RollLayer(theme, rng);
-        if (layer == PostPool.Layer.L3) layer = PostPool.Layer.L1;
-        string body = PostPool.DrawStable(theme, layer, rng);
+        bool personal = post.CharacterId.Length > 0;
         return new Entry
         {
-            IsFinal = false, Id = $"filler{i}", Scene = "", Name = FillerName(i), Handle = FillerHandle(i),
-            Tweet = body, Initial = "", Unlocked = true, Cleared = false,
-            Sort = Kind.Filler, RelT = FillerRelTime(i), Redacted = layer == PostPool.Layer.L2,
-            Icon = SnsVoices.At(FillerVoice(i)).Icon,
-            Replies = FillerCount(i, 0), Reposts = FillerCount(i, 1), Likes = FillerCount(i, 2),
+            Id = post.Id, Scene = "", Name = SnsVoices.AuthorName(post), Handle = SnsVoices.AuthorHandle(post),
+            Tweet = post.Text, Initial = "", Unlocked = true, Sort = personal ? Kind.Personal : Kind.Filler, Social = post,
+            RelT = personal || post.PreviousId.Length > 0 ? "その後" : "日常",
+            Icon = personal ? 0 : SnsVoices.All[post.Author].Icon,
+            Reach = post.Reach,
         };
     }
 
@@ -583,15 +612,29 @@ public partial class Hub : Node2D
         string? last = null;
         for (int i = GameManager.Stages.Length - 1; i >= 0; i--)
             if (IsClearedForDisplay(GameManager.Stages[i].Id)) { last = GameManager.Stages[i].Id; break; }
-        if (last == null) return null;
-        var d = ReturnDialog(last);
-        if (d.Length == 0) return null;
+        return last == null ? null : ReturnEntry(last, _game.ClearedWithCompanion(last));
+    }
+
+    private static string ReturnPostId(string stageId, bool companion) => "pinned_" + stageId + (companion ? "_companion" : "");
+
+    private Entry ReturnEntry(string stageId, bool companion)
+    {
+        var d = companion ? CompanionReturnDialog(stageId) : MinaReturnDialog(stageId);
         return new Entry
         {
-            IsFinal = false, Id = "pinned", Scene = "", Name = "ミナ", Handle = Handles.Mina,
+            IsFinal = false, Id = ReturnPostId(stageId, companion), Scene = "", Name = "ミナ", Handle = Handles.Mina,
             Tweet = d[0].Item2, Initial = "ミ", Unlocked = true, Cleared = false,
             Sort = Kind.Pinned, RelT = "now",
-            Likes = _game?.Followers ?? 0, Reposts = (_game?.Followers ?? 0) / 4, Replies = (_game?.Followers ?? 0) / 8,
+            Reach = (stageId, companion) switch
+            {
+                ("akari", false) => new(38, 5, 1087),
+                ("akari", true) => new(7, 0, 93),
+                ("koharu", false) => new(16, 2, 211),
+                ("koharu", true) => new(8, 1, 105),
+                ("rei", false) => new(11, 1, 148),
+                ("rei", true) => new(5, 0, 72),
+                _ => throw new System.ArgumentOutOfRangeException(nameof(stageId)),
+            },
         };
     }
 
@@ -613,37 +656,6 @@ public partial class Hub : Node2D
         _ => _game?.IsStageUnlocked(id) ?? true,
     };
 
-    // ── 埋め草のメタ生成（StageImagery.cs の背景カードと同じ決定論式。並びは通し番号 i で固定）──
-    private static float Frac(float v) => v - Mathf.Floor(v);
-    // 埋め草の表示名・@ハンドル・アイコンは src/SnsVoices.cs の1枚の表から引く（道中の背景カード
-    //   ＝StageImagery.cs と同じ表・同じ式）。表示名／ハンドル／アイコンは必ず同じ添字＝同じ人には
-    //   毎回同じ名前と同じ顔が付く。通し番号 i は解放時の投稿グループ内で固定する。
-    private static int FillerVoice(int i) => (int)(Frac(Mathf.Sin(i * 45.3f) * 10247.7f) * SnsVoices.Count) % SnsVoices.Count;
-    private static string FillerHandle(int i)
-    {
-        int num = 10 + (int)(Frac(Mathf.Sin(i * 91.7f) * 7351.3f) * 8900f);
-        return Handles.Mob(SnsVoices.At(FillerVoice(i)).Handle, num);
-    }
-    private static string FillerName(int i) => SnsVoices.At(FillerVoice(i)).Name;
-    private static string FillerRelTime(int i)
-    {
-        float r = Frac(Mathf.Sin(i * 73.9f) * 4129.7f);
-        return r < 0.45f ? $"{1 + (int)(r * 130f)}分" : $"{1 + (int)((r - 0.45f) * 40f)}時間";
-    }
-    // 返信/リポスト/いいね。埋め草は伸びていない＝二桁までに収める（三人の投稿の数字と混ざらない）。
-    private static long FillerCount(int i, int kind)
-    {
-        float r = Frac(Mathf.Sin((i * 3 + kind) * 127.1f) * 6571.3f);
-        return kind switch { 0 => (long)(r * 6f), 1 => (long)(r * 9f), _ => (long)(r * 48f) };
-    }
-
-    // クリア済投稿はフォロワー数と返信に応じて反応が伸びる。
-    private static void ApplyClearBoost(ref long rep, ref long rt, ref long lk, long fol, bool replied)
-    {
-        lk = lk * 4 + fol * 2; rt = rt * 3 + fol / 4; rep = rep * 2 + fol / 8;
-        if (replied) { lk += 180; rt += 22; rep += 46; } // ミナの返信でさらに伸びた
-    }
-
     // デバッグ限定：表示状態だけを上書き（GameManager のセーブは一切触らない）。
     //   all   = 全ステージ解放＆クリア済（FINAL も表示）
     //   final = ストーリー全クリア直後（カードは「届いた」、FINAL を強調）
@@ -664,22 +676,22 @@ public partial class Hub : Node2D
             _playerFaces[job.CharacterId] = ResourceLoader.Load<Texture2D>(CompanionDialogue.AccountPortrait(job.Id));
             _dialogueFaces[job.CharacterId] = ResourceLoader.Load<Texture2D>(CompanionDialogue.Portrait(job.Id));
         }
-        _minaFace = ResourceLoader.Load<Texture2D>("res://char/mina_face.png");
+        _minaFace = _dialogueFaces["mina"];
         foreach (var e in _entries)
         {
             string id = e.Id;
             if (_faces.ContainsKey(id)) continue;
+            if (e.Sort == Kind.Personal) { _faces[id] = _playerFaces[e.Social!.CharacterId]; continue; }
             // 埋め草＝人の顔を持たない他人。アイコンは _mobIcons 側（SnsVoices の番号）から引く。
             if (e.Sort == Kind.Filler) { _faces[id] = null; continue; }
+            if (e.IsFinal && !e.Cleared) { _faces[id] = FinalAccount.CreateIcon(); continue; }
             if (e.Sort == Kind.Pinned || e.IsFinal) { _faces[id] = _playerFaces["mina"]; continue; }
             _faces[id] = GD.Load<Texture2D>(CompanionDialogue.AccountIcon(id));
         }
         LoadMobIcons();
     }
 
-    // 埋め草アカウントのアイコン（char/v3/icons/mob_01..12.png）。人の顔ではなく、SNS でよくある
-    //   種類（猫・犬・観葉植物・コーヒー・空・海・食べ物・幾何模様・本・カメラ・自転車・月）。
-    //   番号は SnsVoices の表が名前と対で持つ＝同じ名前には毎回同じアイコンが付く。
+
     private void LoadMobIcons()
     {
         if (_mobIcons.Length > 0) return;
@@ -706,8 +718,7 @@ public partial class Hub : Node2D
         "rei" => 0.02f,      // 419x720・短い黒髪。髪が暗いので顔を少し大きめに入れる
         "akari" => 0.025f,   // 446x720・琥珀のショート＋ポニー
         "koharu" => 0.02f,   // 408x720・焦げ茶のボブ（髪の量が多く上に張り出す）
-        "mina" => 0.05f,     // 474x720・据え置き（v3 の描き直しが無く、この値で合っている）
-        "final" => 0.05f,
+        "mina" or "final" => 0.03f,
         _ => 0.06f,
     };
 
@@ -716,17 +727,23 @@ public partial class Hub : Node2D
     private int DefaultSelection()
     {
         for (int i = 0; i < _entries.Length; i++)
-            if (_entries[i].Sort == Kind.Voice && !_entries[i].Cleared) return i;
+            if (!_entries[i].IsRepost && _entries[i].Sort == Kind.Voice && !_entries[i].Cleared) return i;
         for (int i = 0; i < _entries.Length; i++)
-            if (_entries[i].Sort == Kind.Voice) return i;
+            if (!_entries[i].IsRepost && _entries[i].Sort == Kind.Voice) return i;
         return 0;
     }
 
     public override void _Process(double delta)
     {
+        if (_unlockMovie != null || _unlockPortrait != null)
+        {
+            if (_mode != Mode.Job || _jobChoices[_jobSel].Id != _unlockJob) StopUnlockCard();
+            else if (_unlockMovie != null) _unlockMovie.Paused = Pad.UiBlocked(this);
+        }
+        if (LunaticUnlock.PlayIfPending(this)) { _zHeld = Pad.AdvanceHeld(); return; }
         // ボタン列は Pad.AdvanceHeld を読む前に回す（ボタン上のクリックを会話送りに数えない）。会話の外でも毎フレーム回す
         //   （SKIP ラッチは会話が閉じても切らない＝画面を跨いで残し、右上に印を出す）。
-        _toolbar.Tick(this, delta, DialogShown, ToolbarAnchor, unreadLine: !_dlgReadBefore);
+        _toolbar.Tick(this, delta, DialogShown, ToolbarAnchor, pointer: PhonePointer);
         _t += delta;
         string sideStory = SideStoryId();
         if (_sideStoryId != sideStory)
@@ -736,6 +753,7 @@ public partial class Hub : Node2D
             _sideStoryBlend = 0;
         }
         _sideStoryBlend = Mathf.Min(1, _sideStoryBlend + (float)delta / 0.45f);
+        UpdateVoiceMedallions(delta);
         if (_toastT > 0) _toastT -= delta;
         // 夜景のドリフト（会話中も止めない＝画面の裏で夜が流れ続ける）。
         if (_nightBg != null)
@@ -749,12 +767,13 @@ public partial class Hub : Node2D
         // ポーズメニューを閉じた Esc/Z の同じ押下が漏れて 決定/会話送り/リロード が誤発火しないよう食う（Pad.UiBlocked）。
         if (Pad.UiBlocked(this))
         {
-            _navHeld = _zHeld = _xHeld = _tabHeld = true;
+            _navHeld = _zHeld = _xHeld = _tabHeld = _mediaHeld = true;
             QueueRedraw();
             return;
         }
         // 画面下のヒント帯の「メニュー」は左クリックでも開く（PauseMenu の右下チップは Hub では出さない＝
         //   ヒント帯に含めたので二重になる。チップが持っていたクリックの役目をここで引き継ぐ）。
+        TickLimeReplies(delta);
         if (HintMenuClicked())
         {
             GetNodeOrNull<PauseMenu>("/root/PauseMenu")?.Open();
@@ -762,8 +781,12 @@ public partial class Hub : Node2D
             return;
         }
         if (ProcessSwitchButton()) { QueueRedraw(); return; }
+        if (ProcessVoiceMedallionClick()) { QueueRedraw(); return; }
+        if (MinaLineOpen) { ProcessMinaCall(delta); QueueRedraw(); return; }
+        if (LimeOpen) { ProcessLime(delta); QueueRedraw(); return; }
         if (_mode == Mode.Dialogue) { ProcessDialogue(delta); QueueRedraw(); return; }
         if (_mode == Mode.Detail) { ProcessDetail(delta); QueueRedraw(); return; }
+        if (_mode == Mode.SocialThread) { ProcessSocialThread(delta); QueueRedraw(); return; }
         if (_mode == Mode.Job) { ProcessJob(delta); QueueRedraw(); return; }
         if (_mode == Mode.Photos) { ProcessPhotos(delta); QueueRedraw(); return; }
         if (_mode == Mode.HomeReveal) { ProcessHomeReveal(delta); QueueRedraw(); return; }
@@ -778,12 +801,13 @@ public partial class Hub : Node2D
     //   インプレ／フォロワーの加算とトーストを出さない＝まだ何も投稿していないのに数字が動くのを防ぐ。
     private bool _dlgNoPost;
     private Mode _dlgReturnMode = Mode.Cards;
-    // 行ごとの立ち絵パス（省略／空＝話者から引く既定＝SpeakerFace）。同じ話者で表情だけ変える会話
-    //   （ショップ説明の 8 行目だけ mina_worried）のために行で指し、既定の作法は変えない。
+    // 行ごとの表情指定が空なら、話者の標準立ち絵を使う。
     private string[] _dlgFaces = System.Array.Empty<string>();
     private void StartDialogue((string, string)[] lines, string? replyId, bool noPost = false, Mode returnMode = Mode.Cards, string? seenKey = null, string[]? faces = null)
     {
         _mode = Mode.Dialogue;
+        _minaCall = false;
+        _limeConversation = false;
         _dlgNoPost = noPost;
         _dlgReturnMode = returnMode;
         _dlgSeenKey = seenKey;
@@ -792,7 +816,7 @@ public partial class Hub : Node2D
         // `{n}` の差し込みで中身を書き換えるので、静的な台詞データを直接持たず必ず写しで回す
         //（そのまま持つと差し込んだ実測値が静的配列に焼き付き、次の再訪でも同じ数字が出てしまう）。
         _dlg = ((string sp, string tx)[])lines.Clone(); _dlgIdx = 0; _dlgLineT = 0; _dlgReveal = 0; _dlgReplyId = replyId;
-        _dlgReadIdx = -1; _dlgReadBefore = false; _ffNow = false; _dlgLogIdx = -1; _dlgAutoT = 0;
+        _dlgReadIdx = -1; _ffNow = false; _dlgLogIdx = -1; _dlgAutoT = 0;
         _dlgPages.Clear(); _dlgPage = 0; _dlgPagedIdx = -1;
         // この会話の字形を先に作る（ハブの台本は大きく、読み込み中に作り切れないことがある・GlyphWarmer）。
         GlyphWarmer.WarmFirst(this, System.Linq.Enumerable.Select(_dlg, line => line.sp + line.tx));
@@ -827,7 +851,10 @@ public partial class Hub : Node2D
         {
             _dlgLogIdx = _dlgIdx;
             var (sp, tx) = _dlg[_dlgIdx];
-            Hud.PushLog(DialogLogKind(sp), sp, tx, SpeakerFace(sp).col);
+            string section = _shopTutorialDlg ? "強化ショップの案内"
+                : _dlgSeenKey == SnsIntroSeenKey ? "SNSの案内"
+                : _dlgReplyId != null ? "SNSの返信" : "ホーム";
+            Hud.PushLog(section, DialogLogKind(sp), sp, tx, SpeakerFace(sp).col);
         }
         int len = DlgCurPage.Length;
         if (_autoplay)
@@ -838,14 +865,12 @@ public partial class Hub : Node2D
             if (_dlgLineT >= AutoAdvance) { _dlgLineT = 0; if (!DlgLastPage) DlgNextPage(); else AdvanceDialogue(); }
             return;
         }
-        // 既読スキップ（#22）：行の表示開始時に一度だけ「既読か」を控え（＝高速送りの可否）、表示と同時に既読へ記録。
         if (_dlgReadIdx != _dlgIdx && _dlg.Length > 0 && _dlgIdx < _dlg.Length)
         {
             _dlgReadIdx = _dlgIdx;
-            _dlgReadBefore = _game?.IsLineRead(_dlg[_dlgIdx].tx) ?? false;
             _game?.MarkLineRead(_dlg[_dlgIdx].tx);
         }
-        _ffNow = Hud.SkipHeld && _dlgReadBefore; // 未読行では効かない
+        _ffNow = Hud.SkipHeld;
         _dlgLineT += delta;
         // 句読点の間は本編HUDと共有する。
         bool pageWasRevealed = _dlgReveal >= len;
@@ -882,12 +907,34 @@ public partial class Hub : Node2D
 
     private void AdvanceDialogue()
     {
+        if (_minaCall)
+        {
+            if (_minaChoices.Length > 0) return;
+            var line = _dlg[_dlgIdx];
+            _game.LimeThread("mina").Add(line);
+            Hud.PushLog("ミナとの回線", DialogLogKind(line.sp), line.sp, line.tx, SpeakerFace(line.sp).col);
+            if (!_autoplay) _game.MarkLineRead(line.tx);
+            if (_minaCasual) _game.AutoSave();
+            if (_minaCasual && _dlgIdx == _dlg.Length - 1)
+            {
+                OfferMinaChoices(_minaBeat!.Next.Length > 0);
+                return;
+            }
+        }
+        if (_limeConversation)
+        {
+            var (speaker, text) = _dlg[_dlgIdx];
+            _game.LimeHistory.Add((speaker, text));
+            Hud.PushLog("LIME", DialogLogKind(speaker), speaker, text, SpeakerFace(speaker).col);
+            if (!_autoplay) _game.MarkLineRead(text);
+            _limeScroll = 0;
+        }
         // 直前の行に留まっていた実秒。次行が「いまの間、{n}秒」なら、この値をそのまま差し込む
         // （仮台本 06 の再訪小話（1）の補助観測。表示専用＝保存しない）。
         int dwell = Mathf.Max(0, Mathf.RoundToInt((float)_dlgLineT));
         _dlgIdx++;
         _dlgReveal = 0;
-        _dlgLineT = 0; // 既読スキップの行ゲート用（オート送りは呼び出し側で別途リセット済み）
+        _dlgLineT = 0; // スキップの行ゲート用（オート送りは呼び出し側で別途リセット済み）
         _dlgPage = 0; _dlgPagedIdx = -1;
         if (_dlgIdx < _dlg.Length && _dlg[_dlgIdx].tx.Contains("{n}"))
             _dlg[_dlgIdx].tx = _dlg[_dlgIdx].tx.Replace("{n}", dwell.ToString());
@@ -896,6 +943,12 @@ public partial class Hub : Node2D
 
     private void EndDialogue()
     {
+        bool fromMina = _minaCall;
+        _minaCall = false;
+        _minaChoices = [];
+        _minaBeat = null;
+        _minaCasual = false;
+        _limeConversation = false;
         if (_dlgSeenKey != null)
         {
             // アカウント追加の説明を読み切った回＝次に SNS を開いたとき、フッタ「アカウント」を脈動させる。
@@ -909,6 +962,7 @@ public partial class Hub : Node2D
         //   「——では、まいりましょう。」がそのまま光ったアイコンへの号令になる（2026-10-03）。
         if (_shopTutorialDlg)
         {
+            _game.ShopTutorialSeen = true;
             _shopTutorialDlg = false;
             _shopNudge = true;         // オートプレイでは説明自体を出さない（TryOpenShopTutorial のガード）
             _homeSel = 1;              // カーソルは強化ショップのアイコンに置いておく
@@ -930,7 +984,7 @@ public partial class Hub : Node2D
         {
             long imp = _game?.GainImpression(60) ?? 0;
             _game?.AddFollowers(12);
-            _game?.MarkReplied(_dlgReplyId);
+            _game?.MarkReplied(_dlgReplyId, _dlg);
             BuildEntries();
             Toast($"{Handles.Mina} の返信が 12 人に届いた", $"Imp +{imp}  フォロワー +12", UiKit.Ok);
         }
@@ -951,13 +1005,19 @@ public partial class Hub : Node2D
         _game?.AutoSave(); // Hub帰還でオートセーブ（slot 0）
         _mode = _dlgReturnMode;
         _cardsEnteredT = _t;
+        if (_dlgReplyId != null && _mode == Mode.Cards) UpdateFeedScrollTarget();
         if (_homeRevealPending)
         {
-            using var screenshot = GetViewport().GetTexture().GetImage();
-            _homeSnapshot = ImageTexture.CreateFromImage(screenshot);
-            _homeSnapshotRegion = new Rect2(PhoneX / W * screenshot.GetWidth(), 0, PhoneW / W * screenshot.GetWidth(), screenshot.GetHeight());
+            if (DisplayServer.GetName() != "headless")
+            {
+                using var screenshot = GetViewport().GetTexture().GetImage();
+                _homeSnapshot = ImageTexture.CreateFromImage(screenshot);
+                _homeSnapshotRegion = new Rect2(PhoneX / W * screenshot.GetWidth(), 0, PhoneW / W * screenshot.GetWidth(), screenshot.GetHeight());
+            }
             _homeRevealPending = false;
             _homeRevealT = 0;
+            _homeRevealFromMina = fromMina;
+            _homeSel = fromMina ? 0 : LimeAppIndex;
             _mode = Mode.HomeReveal;
             _toastT = 0;
         }
@@ -967,7 +1027,11 @@ public partial class Hub : Node2D
     {
         double previous = _homeRevealT;
         _homeRevealT += delta;
-        if (previous < 1.15 && _homeRevealT >= 1.15) Audio.Instance?.PlayUiBuy();
+        if (previous < 1.15 && _homeRevealT >= 1.15)
+        {
+            _homeSel = 1;
+            Audio.Instance?.PlayUiBuy();
+        }
         if (_homeRevealT < 2.3) return;
         _homeSnapshot = null;
         _mode = Mode.Home;
@@ -992,9 +1056,7 @@ public partial class Hub : Node2D
     private bool TryOpenShopTutorial()
     {
         if (_autoplay || _dived || _game == null || _previewShopNudge) return false;
-        if (_game.ShopTutorialSeen || !ShopUnlocked) return false;
-        _game.ShopTutorialSeen = true;   // 一度きり（直後の AutoSave で永続化）
-        _game.AutoSave();
+        if (StageTutorial.Skipped(_game) || _game.ShopTutorialSeen || !ShopUnlocked || MinaLineUnavailable) return false;
         // 立ち絵は行ごと（表情差分）。戻り先はホーム＝説明の裏で光ったアイコンがそのまま見えている。
         var lines = new (string, string)[ShopTutorialLines.Length];
         var faces = new string[ShopTutorialLines.Length];
@@ -1004,7 +1066,7 @@ public partial class Hub : Node2D
             faces[i] = ShopTutorialLines[i].face;
         }
         _homeSel = 1;
-        StartDialogue(lines, null, noPost: true, returnMode: Mode.Home, faces: faces);
+        StartHubConversation(lines, noPost: true, returnMode: Mode.Home, faces: faces);
         _shopTutorialDlg = true;
         return true;
     }
@@ -1013,35 +1075,91 @@ public partial class Hub : Node2D
     {
         float k = Mathf.SmoothStep(0f, 1f, Mathf.Clamp((float)_homeRevealT / 1.1f, 0f, 1f));
         if (_homeSnapshot == null || k >= 1f) return;
-        Vector2 center = new Vector2(W / 2f, H / 2f).Lerp(HomeAppRect(0).Position + new Vector2(HomeAppRect(0).Size.X / 2f, 48f), k);
+        Vector2 center = new Vector2(W / 2f, H / 2f).Lerp(_homeRevealFromMina ? MinaHomeRect.GetCenter() : HomeAppIconRect(LimeAppIndex).GetCenter(), k);
         Vector2 size = new Vector2(PhoneW, H) * Mathf.Lerp(1f, 0.12f, k);
         float alpha = 1f - Mathf.SmoothStep(0f, 1f, Mathf.Clamp((k - 0.75f) / 0.25f, 0f, 1f));
-        DrawTextureRectRegion(_homeSnapshot, new Rect2(center - size / 2f, size), _homeSnapshotRegion, new Color(1, 1, 1, alpha));
+        _drawCanvas.DrawTextureRectRegion(_homeSnapshot, new Rect2(center - size / 2f, size), _homeSnapshotRegion, new Color(1, 1, 1, alpha));
     }
 
     // トースト：1行目＝世界の言葉（通知文）、2行目＝現状の数値（小さく・任意）。
-    private void Toast(string msg, string sub, Color col) { _toast = msg; _toastSub = sub; _toastCol = col; _toastT = 2.6; }
+    private void Toast(string msg, string sub, Color col, bool prominent = false)
+    {
+        _toast = msg; _toastSub = sub; _toastCol = col;
+        _prominentToast = prominent;
+        _toastT = prominent ? 6 : 2.6;
+    }
 
-    private static readonly string[] HomeApps = { "SNS", "強化ショップ", "記録", "写真", "カスタマイズ", "BOSSラッシュ" };
+    private static readonly string[] HomeApps = { "SNS", "強化ショップ", "記録", "写真", "カスタマイズ", "BOSSラッシュ", "プラクティス", "BOSS単体", "ミュージック", "LIME" };
+    internal static int HomeAppCount => HomeApps.Length;
     private const int HomeAppIdBase = 22000;
+    private static readonly Color[] HomeAppColors = {
+        new("6dc9d0"), new("db91b1"), new("a5c9a7"), new("e3bd76"),
+        new("a5b9e4"), new("e1a18a"), new("8ebfb7"), new("baa2df"), new("e9a7c9"), LimeAccent };
+    private static int HomePageCount => (HomeApps.Length + 3) / 4;
+    private int HomePage => _homeSel / 4;
+    internal void UpdatePhoneVisuals(double delta)
+    {
+        for (int i = 0; i < HomeApps.Length; i++)
+        {
+            _phoneAppUnlocked[i] = HomeAppUnlocked(i);
+            _phoneAppActivation[i] = _mode == Mode.HomeReveal && i == 1
+                ? Mathf.Clamp(((float)_homeRevealT - 1.15f) / .65f, 0, 1) : 1;
+        }
+        int selected = Pad.UsingMouse ? UiKit.HoveredId() - HomeAppIdBase : _homeSel;
+        bool interactive = _mode == Mode.Home && !_minaHomeFocus && !Pad.UiBlocked(this) && GetWindow().HasFocus() && !_dived;
+        _phoneVisuals.SnsOpening = _mode == Mode.SnsOpening ? Mathf.Clamp((float)(_snsOpeningT / SnsOpenDuration), 0, 1) : -1;
+        _phoneVisuals.Update(PhoneScreenPose,
+            HomePresented, interactive, selected, _phoneAppUnlocked, _phoneAppActivation, Pad.MousePos(), delta);
+    }
+    private bool HomePresented => _mode is Mode.Home or Mode.HomeReveal or Mode.SnsOpening
+        || (_mode == Mode.Dialogue && !_limeConversation && !_minaCall && _dlgReturnMode == Mode.Home && !_homeRevealPending)
+        || (_mode == Mode.Job && _jobReturnMode == Mode.Home);
+
+    private Transform2D HomePhoneTransform()
+    {
+        float opening = _mode == Mode.SnsOpening
+            ? Mathf.SmoothStep(0, 1, Mathf.Clamp((float)_snsOpeningT / (float)SnsOpenDuration, 0, 1)) : 0;
+        float scale = Mathf.Lerp(.83f, 1f, opening);
+        Vector2 center = new(W / 2, H / 2);
+        return new Transform2D(Vector2.Right * scale, Vector2.Down * scale, center * (1 - scale));
+    }
+
+    private Transform2D PhoneScreenPose => HomePresented ? HomePhoneTransform() : Transform2D.Identity;
+    private Vector2 PhonePointer => PhoneScreenPose.AffineInverse() * Pad.MousePos();
+
+    private void BeginPhoneScreen()
+    {
+        var pose = PhoneScreenPose;
+        _drawCanvas.DrawSetTransformMatrix(new Transform2D(pose.X * UiKit.Scale, pose.Y * UiKit.Scale, pose.Origin * UiKit.Scale));
+    }
+
+    private Rect2 HomePhoneBounds()
+    {
+        var pose = HomePhoneTransform();
+        var bounds = new Rect2(pose * new Vector2(PhoneX - 20, -16), Vector2.Zero);
+        foreach (var corner in new[] { new Vector2(PhoneX + PhoneW + 32, -16),
+            new Vector2(PhoneX + PhoneW + 32, H + 28), new Vector2(PhoneX - 20, H + 28) })
+            bounds = bounds.Expand(pose * corner);
+        return bounds;
+    }
+
+    private static Rect2 HomePageRect(int page) => new(PhoneX + 76 + page * 328f / HomePageCount, 624, 328f / HomePageCount, 44);
 
     private Rect2 HomeAppRect(int index)
     {
-        float width = (PhoneW - 48f) / 4f;
-        return new Rect2(PhoneX + 24f + index % 4 * width, 288f + index / 4 * 144f, width, 132f);
+        return new Rect2(PhoneX + 48f + index % 2 * 192f, 266f + index % 4 / 2 * 162f, 192f, 144f);
     }
 
     private Rect2 HomeAppIconRect(int index)
     {
         var rect = HomeAppRect(index);
-        return new Rect2(rect.Position + new Vector2((rect.Size.X - 80f) / 2f, 8f), new Vector2(80f, 80f));
+        return new Rect2(rect.Position + new Vector2((rect.Size.X - 88f) / 2f, 8f), new Vector2(88f, 88f));
     }
 
     private bool HomeAppUnlocked(int index) => index switch
     {
         1 => ShopUnlocked,
         2 => RecordsUnlocked,
-        5 => _game?.BossRushUnlocked == true,
         _ => true,
     };
 
@@ -1049,15 +1167,28 @@ public partial class Hub : Node2D
     {
         // 説明がまだなら、ホームを触らせる前に一度だけ挟む（解禁演出を経ないセーブの取りこぼし防止）。
         if (TryOpenShopTutorial()) return;
-        UiKit.BeginHotspots(Pad.MousePos());
-        for (int i = 0; i < HomeApps.Length; i++) UiKit.Hotspot(HomeAppRect(i), HomeAppIdBase + i);
+        Vector2 pointer = PhonePointer;
+        if (Pad.MouseClick())
+            for (int page = 0; page < HomePageCount; page++)
+                if (HomePageRect(page).HasPoint(pointer))
+                {
+                    _homeSel = page * 4;
+                    _minaHomeFocus = false;
+                    Audio.Instance?.PlayUiMove();
+                    return;
+                }
+        UiKit.BeginHotspots(pointer);
+        UiKit.Hotspot(MinaHomeRect, MinaHomeId);
+        for (int i = HomePage * 4; i < Mathf.Min(HomePage * 4 + 4, HomeApps.Length); i++) UiKit.Hotspot(HomeAppRect(i), HomeAppIdBase + i);
         int hovered = UiKit.HoveredId() - HomeAppIdBase;
+        if (Pad.UsingMouse) _minaHomeFocus = UiKit.HoveredId() == MinaHomeId;
         if (Pad.UsingMouse && hovered >= 0 && hovered < HomeApps.Length && hovered != _homeSel)
         {
             _homeSel = hovered;
             Audio.Instance?.PlayUiMove();
         }
         int clicked = UiKit.ClickedId(Pad.MouseClick()) - HomeAppIdBase;
+        if (clicked == MinaHomeId - HomeAppIdBase && _t > .3) { OpenMinaCall(); return; }
         if (clicked >= 0 && clicked < HomeApps.Length && _t > 0.3)
         {
             OpenHomeApp(clicked);
@@ -1067,15 +1198,21 @@ public partial class Hub : Node2D
         bool next = Input.IsActionPressed("ui_right") || Input.IsActionPressed("ui_down");
         if ((previous || next) && !_navHeld)
         {
-            if (Input.IsActionPressed("ui_up")) { if (_homeSel >= 4) _homeSel -= 4; }
-            else if (Input.IsActionPressed("ui_down")) { if (_homeSel < 4) _homeSel = Mathf.Min(HomeApps.Length - 1, _homeSel + 4); }
+            if (_minaHomeFocus) _minaHomeFocus = false;
+            else if (Input.IsActionPressed("ui_up") && _homeSel % 4 < 2) _minaHomeFocus = true;
+            else if (Input.IsActionPressed("ui_up")) _homeSel = (_homeSel + HomeApps.Length - 2) % HomeApps.Length;
+            else if (Input.IsActionPressed("ui_down")) _homeSel = (_homeSel + 2) % HomeApps.Length;
             else _homeSel = (_homeSel + (previous ? -1 : 1) + HomeApps.Length) % HomeApps.Length;
             Audio.Instance?.PlayUiMove();
         }
         _navHeld = previous || next;
         bool accept = Input.IsKeyPressed(Key.Z) || Input.IsActionPressed("ui_accept") || Pad.Pressed(JoyButton.A);
         bool edge = accept && !_zHeld; _zHeld = accept;
-        if (edge && _t > 0.3) OpenHomeApp(_homeSel);
+        if (edge && _t > 0.3)
+        {
+            if (_minaHomeFocus) OpenMinaCall();
+            else OpenHomeApp(_homeSel);
+        }
     }
 
     private void OpenHomeApp(int index)
@@ -1084,13 +1221,13 @@ public partial class Hub : Node2D
         if (!HomeAppUnlocked(index))
         {
             Audio.Instance?.PlayUiDeny();
-            Toast($"{HomeApps[index]}は準備中", index == 5 ? "ミナをクリアし、エンドロールを見ると解放"
-                : index == 1 ? "STAGE 1 クリアで利用可能" : "ステージクリアで利用可能", UiKit.Text3);
+            Toast($"{HomeApps[index]}は準備中", index == 1 ? "STAGE 1 クリアで利用可能" : "ステージクリアで利用可能", UiKit.Text3);
             return;
         }
         Audio.Instance?.PlayUiConfirm();
         _toastT = 0;
         _shopNudge = false;   // 自分で押せた＝誘導の役目は終わり（どのアプリを開いても降ろす）
+        _phoneVisuals.Press(index);
         if (index == 0)
         {
             _footSel = -1;   // SNS は毎回カード側から始める
@@ -1103,6 +1240,16 @@ public partial class Hub : Node2D
                 _sel = DefaultSelection();
                 _feedScroll = _feedScrollTarget = Mathf.Clamp(CardTop(_sel), 0f, FeedMaxScroll());
             }
+            else
+            {
+                int unread = System.Array.FindIndex(_entries, entry => !entry.IsRepost && entry.Sort == Kind.Personal
+                    && IsUnreadReturnPost(entry.Social!));
+                _sel = unread >= 0 ? unread : _entries[0].IsRepost ? 0 : DefaultSelection();
+                _feedScrollTarget = unread >= 0
+                    ? Mathf.Clamp(CardTop(_sel), 0f, FeedMaxScroll()) : 0f;
+                if (unread < 0) UpdateFeedScrollTarget();
+                _feedScroll = _feedScrollTarget;
+            }
             return;
         }
         if (index == 3)
@@ -1114,14 +1261,34 @@ public partial class Hub : Node2D
             _zHeld = _navHeld = _xHeld = true;
             return;
         }
+        if (index == LimeAppIndex)
+        {
+            OpenLimeFriends();
+            return;
+        }
         _dived = true;
+        if (index == 8)
+        {
+            PhoneAppTransition.Open(this, MusicApp.ScenePath, HomePhoneBounds());
+            return;
+        }
+        if (index == 6)
+        {
+            PhoneAppTransition.Open(this, BossPracticeRoot.ScenePath, HomePhoneBounds());
+            return;
+        }
+        if (index == 7)
+        {
+            PhoneAppTransition.Open(this, BossSelectRoot.ScenePath, HomePhoneBounds());
+            return;
+        }
         if (index == 5)
         {
             _game.PendingStageScene = BossRushRoot.ScenePath;
-            PhoneAppTransition.Open(this, "res://DiffSelect.tscn");
+            PhoneAppTransition.Open(this, "res://DiffSelect.tscn", HomePhoneBounds());
             return;
         }
-        PhoneAppTransition.Open(this, index == 1 ? "res://Shop.tscn" : index == 4 ? "res://Customize.tscn" : "res://Records.tscn");
+        PhoneAppTransition.Open(this, index == 1 ? "res://Shop.tscn" : index == 4 ? "res://Customize.tscn" : "res://Records.tscn", HomePhoneBounds());
     }
 
     private void GoHome()
@@ -1142,7 +1309,8 @@ public partial class Hub : Node2D
         _navHeld = _xHeld = true;
         if (NeedsSnsIntro)
         {
-            StartDialogue(SnsIntro, null, noPost: true, seenKey: SnsIntroSeenKey);
+            StartHubConversation(SnsIntro, noPost: true, returnMode: Mode.Cards, seenKey: SnsIntroSeenKey,
+                faces: ["", "", "", CompanionDialogue.MinaWorriedPortrait, "", CompanionDialogue.MinaSmilePortrait, "", CompanionDialogue.MinaSmilePortrait]);
         }
         else if (_idleTalkPending)
         {
@@ -1160,20 +1328,14 @@ public partial class Hub : Node2D
         var panel = new Rect2(icon.Position.Lerp(new Vector2(PhoneX, 0), k), icon.Size.Lerp(new Vector2(PhoneW, H), k));
         if (expansion >= 1f)
         {
-            DrawRect(new Rect2(PhoneX, 0, PhoneW, H), PhoneBg);
+            _drawCanvas.DrawRect(new Rect2(PhoneX, 0, PhoneW, H), PhoneBg);
             DrawTimeline(1f);
             DrawFooter();
         }
         float cover = 1f - Mathf.SmoothStep(0f, 1f, Mathf.Clamp((t - 0.7f) / 0.3f, 0f, 1f));
-        UiKit.Box(this, panel, new Color(new Color("82d8dc"), cover), 8f * (1f - k));
-        DrawSnsIcon(panel.GetCenter(), new Color(new Color("242c32"), cover));
-    }
-
-    private void DrawSnsIcon(Vector2 center, Color ink)
-    {
-        UiKit.Box(this, new Rect2(center - new Vector2(23, 20), new Vector2(46, 34)), Colors.Transparent, 8f, ink, 3f);
-        DrawPolyline(new[] { center + new Vector2(-11, 14), center + new Vector2(-11, 23), center + new Vector2(1, 14) }, ink, 3f, true);
-        for (int dot = 0; dot < 3; dot++) DrawCircle(center + new Vector2(-11 + dot * 11, -3), 2.5f, ink);
+        UiKit.Box(_drawCanvas, panel, new Color(new Color("142930"), cover), 24f * (1f - k),
+            new Color(new Color("82d8dc"), cover * .5f), 1.2f);
+        _phoneVisuals.DrawSnsLaunch(_drawCanvas, panel, t);
     }
 
     private readonly record struct PhotoEntry(string Id, string Title, string Sub, string Path, Vector4 Region, Color Accent, string[] Keys);
@@ -1199,19 +1361,19 @@ public partial class Hub : Node2D
         new("koharu_after", "こはる / その後", "After Scene", "res://char/v3/koharu_story_atlas_v2.png", StoryRegion(7, 4), new Color("a6dac8"), K("koharu_aftermath")),
         new("rei_memory", "レイ / 回想", "Memory Log", "res://char/v3/rei_story_atlas_v2.png", StoryRegion(4, 4), new Color("de91b9"), K("rei_memory")),
         new("rei_after", "レイ / その後", "After Scene", "res://char/v3/rei_story_atlas_v2.png", StoryRegion(6, 4), new Color("de91b9"), K("rei_aftermath")),
-        new("mina_memory", "ミナ / 回想", "Memory Log", "res://char/v3/mina_story_atlas.png", StoryRegion(3, 3), new Color("87d7ed"), K("mina_memory")),
-        new("mina_after", "ミナ / 届いた声", "After Scene", "res://char/bg2/ending/cg_ep_goodbye_v2.png", PhotoFull, new Color("87d7ed"), K("mina_aftermath")),
+        new("mina_memory", "ミナ / 回想", "Memory Log", MinaStoryFilm.PhoneDraftsArt, PhotoFull, new Color("87d7ed"), K("mina_memory")),
+        new("mina_after", "ミナ / 届いた声", "After Scene", "res://char/bg2/ending/cg_ep_mina_screen_goodnight_v1.png", PhotoFull, new Color("87d7ed"), K("mina_aftermath")),
         new("akari_playable_memory", "あかり / もう一度", "Playable Memory", "res://char/bg2/story/cg_akari_playable_memory_v1.png", PhotoFull, new Color("f0c969"), PlayableKeys("akari", aftermath: false)),
-        new("akari_playable_after", "あかり / 帰還", "Playable After", "res://char/bg2/story/cg_akari_playable_aftermath_v1.png", PhotoFull, new Color("f0c969"), PlayableKeys("akari", aftermath: true)),
+        new("akari_playable_after", "あかり / 帰還", "Playable After", "res://char/bg2/story/cg_akari_playable_aftermath_v2.png", PhotoFull, new Color("f0c969"), PlayableKeys("akari", aftermath: true)),
         new("koharu_playable_memory", "こはる / もう一度", "Playable Memory", "res://char/bg2/story/cg_koharu_playable_memory_v1.png", PhotoFull, new Color("a6dac8"), PlayableKeys("koharu", aftermath: false)),
-        new("koharu_playable_after", "こはる / 帰還", "Playable After", "res://char/bg2/story/cg_koharu_playable_aftermath_v1.png", PhotoFull, new Color("a6dac8"), PlayableKeys("koharu", aftermath: true)),
+        new("koharu_playable_after", "こはる / 帰還", "Playable After", "res://char/bg2/story/cg_koharu_playable_aftermath_v2.png", PhotoFull, new Color("a6dac8"), PlayableKeys("koharu", aftermath: true)),
         new("rei_playable_memory", "レイ / もう一度", "Playable Memory", "res://char/bg2/story/cg_rei_playable_memory_v1.png", PhotoFull, new Color("de91b9"), PlayableKeys("rei", aftermath: false)),
-        new("rei_playable_after", "レイ / 帰還", "Playable After", "res://char/bg2/story/cg_rei_playable_aftermath_v1.png", PhotoFull, new Color("de91b9"), PlayableKeys("rei", aftermath: true)),
+        new("rei_playable_after", "レイ / 帰還", "Playable After", "res://char/bg2/ending/cg_ep_rei_v2.png", PhotoFull, new Color("de91b9"), PlayableKeys("rei", aftermath: true)),
         new("mina_phase_rain", "未送信の雨", "Mina Phase", BossMina.PhaseBackground(1), PhotoFull, new Color("74b8e8"), MinaPhaseKeys(1)),
         new("mina_phase_clap", "消えない拍手", "Mina Phase", BossMina.PhaseBackground(2), PhotoFull, new Color("ee9bb7"), MinaPhaseKeys(2)),
         new("mina_phase_mask", "仮面の向こう", "Mina Phase", BossMina.PhaseBackground(3), PhotoFull, new Color("f0d98a"), MinaPhaseKeys(3)),
         new("mina_phase_voice", "わたしの声", "Mina Phase", BossMina.PhaseBackground(4), PhotoFull, new Color("85e8d0"), MinaPhaseKeys(4)),
-        new("ending", "覚えている声", "Ending", "res://char/bg2/ending/cg_ep_mina_sky_v3.png", PhotoFull, new Color("ffd98a"), K("ending")),
+        new("ending", "覚えている声", "Ending", "res://char/bg2/ending/cg_ep_mina_screen_v1.png", PhotoFull, new Color("ffd98a"), K("ending")),
     };
 
     private const int PhotoIdBase = 23000, PhotoCloseId = 23900;
@@ -1375,20 +1537,20 @@ public partial class Hub : Node2D
     {
         if (acquired && PhotoTexture(entry) is Texture2D tex)
         {
-            DrawTextureRectRegion(tex, rect, PhotoSource(tex, entry.Region, rect.Size), new Color(1, 1, 1, alpha));
-            DrawRect(rect, new Color(0, 0, 0, 0.08f * alpha));
+            _drawCanvas.DrawTextureRectRegion(tex, rect, PhotoSource(tex, entry.Region, rect.Size), new Color(1, 1, 1, alpha));
+            _drawCanvas.DrawRect(rect, new Color(0, 0, 0, 0.08f * alpha));
             return;
         }
-        UiKit.Box(this, rect, new Color(0.08f, 0.09f, 0.11f, 0.96f * alpha), 6f);
+        UiKit.Box(_drawCanvas, rect, new Color(0.08f, 0.09f, 0.11f, 0.96f * alpha), 6f);
         for (int i = -2; i < 8; i++)
         {
             float x = rect.Position.X + i * 42f;
-            DrawLine(new Vector2(x, rect.Position.Y + rect.Size.Y), new Vector2(x + 92f, rect.Position.Y),
+            _drawCanvas.DrawLine(new Vector2(x, rect.Position.Y + rect.Size.Y), new Vector2(x + 92f, rect.Position.Y),
                 new Color(1, 1, 1, 0.045f * alpha), 1f);
         }
         Vector2 c = rect.GetCenter();
-        DrawArc(c + new Vector2(0, -5f), 13f, Mathf.Pi, Mathf.Tau, 24, new Color(UiKit.Text3, 0.58f * alpha), 2f, true);
-        UiKit.Box(this, new Rect2(c - new Vector2(15f, 2f), new Vector2(30f, 20f)), new Color(UiKit.Text3, 0.58f * alpha), 4f);
+        _drawCanvas.DrawArc(c + new Vector2(0, -5f), 13f, Mathf.Pi, Mathf.Tau, 24, new Color(UiKit.Text3, 0.58f * alpha), 2f, true);
+        UiKit.Box(_drawCanvas, new Rect2(c - new Vector2(15f, 2f), new Vector2(30f, 20f)), new Color(UiKit.Text3, 0.58f * alpha), 4f);
     }
 
     private void DrawPhotoCard(int index, float alpha)
@@ -1397,65 +1559,65 @@ public partial class Hub : Node2D
         var rect = PhotoItemRect(index);
         if (rect.End.Y < PhotoGridTop || rect.Position.Y > PhotoGridBottom) return;
         bool acquired = PhotoAcquired(entry), selected = index == _photoSel, wallpaper = IsWallpaper(entry);
-        if (selected) UiKit.Box(this, rect.Grow(4f), new Color(entry.Accent, 0.12f * alpha), 7f, new Color(entry.Accent, 0.72f * alpha), 1.5f);
-        UiKit.Box(this, rect, new Color(0.03f, 0.035f, 0.046f, 0.95f * alpha), 6f,
+        if (selected) UiKit.Box(_drawCanvas, rect.Grow(4f), new Color(entry.Accent, 0.12f * alpha), 7f, new Color(entry.Accent, 0.72f * alpha), 1.5f);
+        UiKit.Box(_drawCanvas, rect, new Color(0.03f, 0.035f, 0.046f, 0.95f * alpha), 6f,
             new Color(acquired ? entry.Accent : UiKit.Text4, (selected ? 0.44f : 0.2f) * alpha), 1f);
         var shot = new Rect2(rect.Position + new Vector2(8f, 8f), new Vector2(rect.Size.X - 16f, 64f));
         DrawPhotoImage(shot, entry, acquired, alpha);
         if (wallpaper)
         {
             var badge = new Rect2(shot.End.X - 50f, shot.Position.Y + 6f, 42f, 18f);
-            UiKit.Box(this, badge, new Color(entry.Accent, 0.92f * alpha), 4f);
-            UiKit.Text(this, UiKit.ZenBold, badge.Position + new Vector2(0, 2f), "背景", 11,
+            UiKit.Box(_drawCanvas, badge, new Color(entry.Accent, 0.92f * alpha), 4f);
+            UiKit.Text(_drawCanvas, UiKit.ZenBold, badge.Position + new Vector2(0, 2f), "背景", 11,
                 new Color(0.02f, 0.025f, 0.03f, alpha), HorizontalAlignment.Center, badge.Size.X);
         }
-        UiKit.Text(this, UiKit.Mono, rect.Position + new Vector2(12f, 79f), acquired ? entry.Sub : "LOCKED", 11,
+        UiKit.Text(_drawCanvas, UiKit.Mono, rect.Position + new Vector2(12f, 79f), acquired ? entry.Sub : "LOCKED", 11,
             new Color(acquired ? entry.Accent : UiKit.Text4, alpha));
-        UiKit.Text(this, UiKit.ZenBold, rect.Position + new Vector2(12f, 94f), acquired ? entry.Title : "未取得のシーン", 13,
+        UiKit.Text(_drawCanvas, UiKit.ZenBold, rect.Position + new Vector2(12f, 94f), acquired ? entry.Title : "未取得のシーン", 13,
             new Color(acquired ? UiKit.White : UiKit.Text3, alpha), HorizontalAlignment.Left, rect.Size.X - 24f);
     }
 
     private void DrawPhotos()
     {
         float a = Mathf.Clamp((float)_photoT / 0.18f, 0f, 1f);
-        DrawRect(new Rect2(PhoneX, 0, PhoneW, H), PhoneBg);
+        _drawCanvas.DrawRect(new Rect2(PhoneX, 0, PhoneW, H), PhoneBg);
         // グリッドはヘッダ／ヒーロー枠より先に描き、上側を PhoneBg で塗り潰してから重ねる＝スクロールで
         //   PhotoGridTop より上へ出たカードがヒーロー枠に被らない（2026-09-23 ユーザー報告：未取得のヒーロー枠に
         //   「はじまりの光」等の行が重なって見えていた。DrawPhotoCard の早期 return は完全に外れたカードしか弾かない）。
         for (int i = 0; i < PhotoEntries.Length; i++) DrawPhotoCard(i, a);
-        DrawRect(new Rect2(PhoneX, 0, PhoneW, PhotoGridTop), PhoneBg);
+        _drawCanvas.DrawRect(new Rect2(PhoneX, 0, PhoneW, PhotoGridTop), PhoneBg);
         DrawBackButton(PhotoCloseRect(), PhotoCloseId, a);
-        UiKit.Text(this, UiKit.ZenBold, new Vector2(PhoneX + 66f, 25f), "写真", 22, new Color(UiKit.White, a));
-        UiKit.Text(this, UiKit.Mono, new Vector2(PhoneX + PhoneW - 154f, 29f), $"{PhotoAcquiredCount()}/{PhotoEntries.Length}", 18,
+        UiKit.Text(_drawCanvas, UiKit.ZenBold, new Vector2(PhoneX + 66f, 25f), "写真", 22, new Color(UiKit.White, a));
+        UiKit.Text(_drawCanvas, UiKit.Mono, new Vector2(PhoneX + PhoneW - 154f, 29f), $"{PhotoAcquiredCount()}/{PhotoEntries.Length}", 18,
             new Color(UiKit.Gold, a), HorizontalAlignment.Right, 128f);
-        DrawRect(new Rect2(PhoneX + 24f, 68f, PhoneW - 48f, 1f), new Color(1, 1, 1, 0.10f * a));
+        _drawCanvas.DrawRect(new Rect2(PhoneX + 24f, 68f, PhoneW - 48f, 1f), new Color(1, 1, 1, 0.10f * a));
 
         var entry = PhotoEntries[Mathf.Clamp(_photoSel, 0, PhotoEntries.Length - 1)];
         bool acquired = PhotoAcquired(entry);
         var hero = new Rect2(PhoneX + 24f, 88f, PhoneW - 48f, 208f);
-        UiKit.Box(this, hero, new Color(0.03f, 0.035f, 0.046f, 0.95f * a), 8f, new Color(entry.Accent, 0.36f * a), 1f);
+        UiKit.Box(_drawCanvas, hero, new Color(0.03f, 0.035f, 0.046f, 0.95f * a), 8f, new Color(entry.Accent, 0.36f * a), 1f);
         var image = new Rect2(hero.Position + new Vector2(10f, 10f), new Vector2(hero.Size.X - 20f, 142f));
         DrawPhotoImage(image, entry, acquired, a);
-        DrawRect(new Rect2(image.Position.X, image.End.Y - 38f, image.Size.X, 38f), new Color(0, 0, 0, 0.38f * a));
+        _drawCanvas.DrawRect(new Rect2(image.Position.X, image.End.Y - 38f, image.Size.X, 38f), new Color(0, 0, 0, 0.38f * a));
         if (acquired)
         {
             bool wallpaper = IsWallpaper(entry);
             float bw = wallpaper ? 112f : 126f;
             var badge = new Rect2(image.End.X - bw - 8f, image.Position.Y + 8f, bw, 26f);
-            UiKit.Box(this, badge, new Color(wallpaper ? entry.Accent : PhoneBg, 0.90f * a), 6f,
+            UiKit.Box(_drawCanvas, badge, new Color(wallpaper ? entry.Accent : PhoneBg, 0.90f * a), 6f,
                 new Color(entry.Accent, 0.55f * a), 1f);
-            UiKit.Text(this, UiKit.ZenBold, badge.Position + new Vector2(0, 5f), wallpaper ? "現在の背景" : "背景にする", 12,
+            UiKit.Text(_drawCanvas, UiKit.ZenBold, badge.Position + new Vector2(0, 5f), wallpaper ? "現在の背景" : "背景にする", 12,
                 new Color(wallpaper ? new Color(0.02f, 0.025f, 0.03f) : UiKit.White, a), HorizontalAlignment.Center, badge.Size.X);
         }
-        UiKit.Text(this, UiKit.Mono, hero.Position + new Vector2(20f, 158f), acquired ? entry.Sub : "LOCKED", 12,
+        UiKit.Text(_drawCanvas, UiKit.Mono, hero.Position + new Vector2(20f, 158f), acquired ? entry.Sub : "LOCKED", 12,
             new Color(acquired ? entry.Accent : UiKit.Text4, a));
-        UiKit.Text(this, UiKit.ZenBold, hero.Position + new Vector2(20f, 176f), acquired ? entry.Title : "まだ取得していないシーン", 18,
+        UiKit.Text(_drawCanvas, UiKit.ZenBold, hero.Position + new Vector2(20f, 176f), acquired ? entry.Title : "まだ取得していないシーン", 18,
             new Color(acquired ? UiKit.White : UiKit.Text3, a));
 
-        DrawRect(new Rect2(PhoneX, PhotoGridBottom, PhoneW, H - PhotoGridBottom), PhoneBg);
+        _drawCanvas.DrawRect(new Rect2(PhoneX, PhotoGridBottom, PhoneW, H - PhotoGridBottom), PhoneBg);
         DrawPhotoScrollHint(a);
         // キーの案内（旧「Z 背景にする　X もどる」の行）は右下のヒント帯（HintItems の Mode.Photos）へ移した。
-        UiKit.Box(this, new Rect2(PhoneX + (PhoneW - 116f) / 2f, H - 18f, 116f, 3f), new Color(UiKit.White, 0.65f * a), 1.5f);
+        UiKit.Box(_drawCanvas, new Rect2(PhoneX + (PhoneW - 116f) / 2f, H - 18f, 116f, 3f), new Color(UiKit.White, 0.65f * a), 1.5f);
     }
 
     private void DrawPhotoScrollHint(float alpha)
@@ -1465,8 +1627,8 @@ public partial class Hub : Node2D
         const float viewH = PhotoGridBottom - PhotoGridTop;
         float th = Mathf.Max(34f, viewH * viewH / (viewH + max));
         float ty = PhotoGridTop + (viewH - th) * Mathf.Clamp(_photoScroll / max, 0f, 1f);
-        DrawRect(new Rect2(PhoneX + PhoneW - 8f, PhotoGridTop, 2f, viewH), new Color(1, 1, 1, 0.08f * alpha));
-        DrawRect(new Rect2(PhoneX + PhoneW - 8f, ty, 2f, th), new Color(UiKit.Info, 0.58f * alpha));
+        _drawCanvas.DrawRect(new Rect2(PhoneX + PhoneW - 8f, PhotoGridTop, 2f, viewH), new Color(1, 1, 1, 0.08f * alpha));
+        _drawCanvas.DrawRect(new Rect2(PhoneX + PhoneW - 8f, ty, 2f, th), new Color(UiKit.Info, 0.58f * alpha));
     }
 
     private bool DrawSelectedPhotoWallpaper()
@@ -1476,9 +1638,41 @@ public partial class Hub : Node2D
         var entry = PhotoEntries[index];
         if (PhotoTexture(entry) is not Texture2D tex) return false;
         var rect = new Rect2(PhoneX, 0, PhoneW, H);
-        DrawTextureRectRegion(tex, rect, PhotoSource(tex, entry.Region, rect.Size), new Color(0.82f, 0.84f, 0.9f));
-        DrawRect(rect, new Color(0.02f, 0.025f, 0.035f, 0.35f));
+        DrawHomeWallpaper(tex, PhotoSource(tex, entry.Region, rect.Size), new Color(0.65f, 0.68f, 0.74f));
         return true;
+    }
+
+    private void DrawHomeWallpaper(Texture2D texture, Rect2 source, Color tint)
+    {
+        const float radius = 38f;
+        var points = new Vector2[36];
+        var uv = new Vector2[36];
+        var centers = new[] { new Vector2(PhoneX + PhoneW - radius, radius),
+            new Vector2(PhoneX + PhoneW - radius, H - radius),
+            new Vector2(PhoneX + radius, H - radius), new Vector2(PhoneX + radius, radius) };
+        for (int corner = 0; corner < 4; corner++)
+            for (int step = 0; step <= 8; step++)
+            {
+                int i = corner * 9 + step;
+                float angle = (corner - 1 + step / 8f) * Mathf.Pi / 2;
+                points[i] = centers[corner] + Vector2.FromAngle(angle) * radius;
+                uv[i] = (source.Position + (points[i] - new Vector2(PhoneX, 0)) / new Vector2(PhoneW, H) * source.Size) / texture.GetSize();
+            }
+        _drawCanvas.DrawPolygon(points, new[] { tint }, uv, texture);
+    }
+
+    private static Vector2[] HomeRoundOutline(Rect2 rect, float radius)
+    {
+        var points = new Vector2[69];
+        for (int corner = 0; corner < 4; corner++)
+        {
+            Vector2 center = new(corner < 2 ? rect.End.X - radius : rect.Position.X + radius,
+                corner is 1 or 2 ? rect.End.Y - radius : rect.Position.Y + radius);
+            for (int step = 0; step <= 16; step++)
+                points[corner * 17 + step] = center + Vector2.FromAngle((corner - 1 + step / 16f) * Mathf.Pi / 2) * radius;
+        }
+        points[^1] = points[0];
+        return points;
     }
 
     private void DrawHome()
@@ -1487,25 +1681,36 @@ public partial class Hub : Node2D
         {
             float sourceW = wallpaper.GetHeight() * PhoneW / H;
             var source = new Rect2((wallpaper.GetWidth() - sourceW) / 2f, 0, sourceW, wallpaper.GetHeight());
-            DrawTextureRectRegion(wallpaper, new Rect2(PhoneX, 0, PhoneW, H), source);
+            DrawHomeWallpaper(wallpaper, source, new Color(0.77f, 0.84f, 0.92f));
         }
-        DrawRect(new Rect2(PhoneX, 0, PhoneW, H), new Color(0.02f, 0.03f, 0.04f, 0.18f));
-        UiKit.Text(this, UiKit.ZenBold, new Vector2(PhoneX + 28f, 24f), "ホーム", 16, UiKit.Text2);
+        UiKit.Box(_drawCanvas, new Rect2(PhoneX, 0, PhoneW, H), new Color(0.02f, 0.03f, 0.06f, 0.20f), 38);
+        UiKit.Box(_drawCanvas, new Rect2(PhoneX + 182, 16, 116, 29), new Color("070b12"), 15);
+        _drawCanvas.DrawCircle(new Vector2(PhoneX + 282, 30), 4, new Color("24354c"));
+        _drawCanvas.DrawCircle(new Vector2(PhoneX + 281, 29), 1.3f, new Color("7194b5"));
+        UiKit.Text(_drawCanvas, UiKit.Zen, new Vector2(PhoneX + 36, 23), "Refrain", 15, new Color("d9e5ed"));
+        for (int bar = 0; bar < 4; bar++)
+            UiKit.Box(_drawCanvas, new Rect2(PhoneX + 378 + bar * 6, 35 - bar * 3, 3, 4 + bar * 3), UiKit.White, 1);
+        UiKit.Box(_drawCanvas, new Rect2(PhoneX + 414, 24, 25, 12), Colors.Transparent, 3, new Color("d9e5ed"), 1);
+        UiKit.Box(_drawCanvas, new Rect2(PhoneX + 417, 27, 17, 6), new Color("d9e5ed"), 1);
         var now = System.DateTime.Now;
-        UiKit.Text(this, UiKit.Mono, new Vector2(PhoneX, 112f), now.ToString("HH:mm"), 48, UiKit.White, HorizontalAlignment.Center, PhoneW);
-        UiKit.Text(this, UiKit.Zen, new Vector2(PhoneX, 180f), now.ToString("M月d日（ddd）", System.Globalization.CultureInfo.GetCultureInfo("ja-JP")),
-            16, UiKit.Text2, HorizontalAlignment.Center, PhoneW);
-        for (int i = 0; i < HomeApps.Length; i++)
+        UiKit.Text(_drawCanvas, UiKit.Zen, new Vector2(PhoneX, 76f), now.ToString("HH:mm"), 82, new Color("eff5f8"), HorizontalAlignment.Center, PhoneW);
+        UiKit.Text(_drawCanvas, UiKit.Zen, new Vector2(PhoneX, 190f), now.ToString("M月d日（ddd）", System.Globalization.CultureInfo.GetCultureInfo("ja-JP")),
+            18, UiKit.Text2, HorizontalAlignment.Center, PhoneW);
+        DrawMinaHomeButton();
+        for (int i = HomePage * 4; i < Mathf.Min(HomePage * 4 + 4, HomeApps.Length); i++)
         {
             var rect = HomeAppRect(i);
             var icon = HomeAppIconRect(i);
             bool unlocked = HomeAppUnlocked(i);
             float activation = _mode == Mode.HomeReveal && i == 1 ? Mathf.Clamp(((float)_homeRevealT - 1.15f) / 0.65f, 0f, 1f) : 1f;
-            bool focused = _mode == Mode.Home && (Pad.UsingMouse ? UiKit.HoveredId() == HomeAppIdBase + i : i == _homeSel);
-            Color color = i == 0 ? new Color("82d8dc") : i == 1 ? new Color("eba4b9") : i == 2 ? new Color("bddba7") : i == 3 ? new Color("f0c969") : new Color("b6c7eb");
-            if (!unlocked) color = new Color("737b85");
-            color = new Color("737b85").Lerp(color, activation);
-            if (focused) UiKit.Box(this, icon.Grow(6f), new Color(1, 1, 1, 0.08f), 8f, new Color(UiKit.White, 0.75f), 1.5f);
+            bool focused = _mode == Mode.Home && !_minaHomeFocus && (Pad.UsingMouse ? UiKit.HoveredId() == HomeAppIdBase + i : i == _homeSel);
+            Color inactiveColor = new("707b8a");
+            Color color = inactiveColor.Lerp(unlocked ? HomeAppColors[i] : inactiveColor, activation);
+            if (focused)
+            {
+                UiKit.RadialGlow(_drawCanvas, icon.GetCenter(), 76, color, 0.17f);
+                _drawCanvas.DrawPolyline(HomeRoundOutline(icon.Grow(6), 29), new Color(color.Lightened(0.3f), 0.65f), 1.2f, true);
+            }
             // 初回だけの誘導（2026-09-22）：説明を読んだ直後、強化ショップのアイコンを脈動させる。
             //   外へ広がりながら薄くなる輪を2枚ずらして重ねる＝「押して」と言わずに押す場所を示す。
             //   ミナの台詞は足していない（説明の最終行が号令の役をもう持っている）。
@@ -1514,86 +1719,60 @@ public partial class Hub : Node2D
                 for (int ring = 0; ring < 2; ring++)
                 {
                     float phase = Mathf.PosMod((float)_t * 0.8f + ring * 0.5f, 1f);
-                    UiKit.Box(this, icon.Grow(4f + phase * 16f), Colors.Transparent, 8f + phase * 8f,
-                        new Color(color, (1f - phase) * 0.55f), 2f);
+                    _drawCanvas.DrawPolyline(HomeRoundOutline(icon.Grow(4f + phase * 16f), 27f + phase * 16f),
+                        new Color(color, (1f - phase) * 0.55f), 1.5f, true);
                 }
             }
-            UiKit.Box(this, icon, color, 8f);
-            if (_mode == Mode.HomeReveal && i == 1 && activation > 0f)
-                UiKit.Box(this, icon.Grow(6f), Colors.Transparent, 8f, new Color(UiKit.Light, Mathf.Sin(activation * Mathf.Pi)), 2f);
-            Vector2 c = icon.GetCenter();
-            Color ink = new("242c32");
-            if (i == 0)
+            _phoneVisuals.DrawIcon(_drawCanvas, i, icon);
+            if (i == 0 && UnreadReturnPostCount > 0)
             {
-                DrawSnsIcon(c, ink);
-            }
-            else if (i == 1)
-            {
-                UiKit.Box(this, new Rect2(c - new Vector2(20, 12), new Vector2(40, 36)), Colors.Transparent, 5f, ink, 3f);
-                DrawArc(c + new Vector2(0, -12), 11f, Mathf.Pi, Mathf.Tau, 24, ink, 3f, true);
-                DrawLine(c + new Vector2(-8, 5), c + new Vector2(8, 5), ink, 3f, true);
-                DrawLine(c + new Vector2(0, -3), c + new Vector2(0, 13), ink, 3f, true);
-            }
-            else if (i == 2)
-            {
-                for (int bar = 0; bar < 3; bar++) DrawRect(new Rect2(c.X - 21f + bar * 16f, c.Y + 5f - bar * 12f, 10f, 16f + bar * 12f), ink);
-            }
-            else if (i == 3)
-            {
-                UiKit.Box(this, new Rect2(c - new Vector2(25f, 16f), new Vector2(50f, 34f)), Colors.Transparent, 7f, ink, 3f);
-                UiKit.Box(this, new Rect2(c + new Vector2(-15f, -23f), new Vector2(19f, 9f)), ink, 3f);
-                DrawCircle(c + new Vector2(1f, 1f), 11f, Colors.Transparent);
-                DrawArc(c + new Vector2(1f, 1f), 11f, 0, Mathf.Tau, 32, ink, 3f, true);
-                DrawCircle(c + new Vector2(1f, 1f), 4f, ink);
-            }
-            else if (i == 4)
-            {
-                DrawTextureRect(_customizeIcon, new Rect2(c - new Vector2(17f, 20f), new Vector2(34f, 40f)), false);
-            }
-            else
-            {
-                DrawArc(c, 24f, 0, Mathf.Tau, 32, ink, 3f, true);
-                for (int point = 0; point < 4; point++)
-                {
-                    Vector2 direction = Vector2.FromAngle(point * Mathf.Pi / 2f);
-                    DrawLine(c + direction * 14f, c + direction * 29f, ink, 3f, true);
-                }
-                DrawCircle(c, 7f, ink);
+                Vector2 badge = icon.Position + new Vector2(icon.Size.X - 5f, 5f);
+                _drawCanvas.DrawCircle(badge, 13f, PhoneBg);
+                _drawCanvas.DrawCircle(badge, 11f, new Color("d87555"));
+                UiKit.Text(_drawCanvas, UiKit.ZenBold, badge - new Vector2(11f, 10f), UnreadReturnPostCount.ToString(), 14,
+                    UiKit.White, HorizontalAlignment.Center, 22f);
             }
             if (!unlocked || activation == 0f)
             {
                 Vector2 p = icon.Position + new Vector2(73f, 75f);
-                DrawCircle(p, 12f, PhoneBg);
-                DrawArc(p + new Vector2(0, -2f), 4f, Mathf.Pi, Mathf.Tau, 12, UiKit.Text2, 1.5f, true);
-                UiKit.Box(this, new Rect2(p - new Vector2(5f, 1f), new Vector2(10f, 8f)), UiKit.Text2, 2f);
+                _drawCanvas.DrawCircle(p, 12f, PhoneBg);
+                _drawCanvas.DrawArc(p + new Vector2(0, -2f), 4f, Mathf.Pi, Mathf.Tau, 12, UiKit.Text2, 1.5f, true);
+                UiKit.Box(_drawCanvas, new Rect2(p - new Vector2(5f, 1f), new Vector2(10f, 8f)), UiKit.Text2, 2f);
             }
-            UiKit.Text(this, UiKit.ZenBold, rect.Position + new Vector2(0, 104f), HomeApps[i], 15,
+            UiKit.Text(_drawCanvas, UiKit.Zen, rect.Position + new Vector2(0, 112f),
+                i == 0 && UnreadReturnPostCount > 0 ? "SNS ・ 新着" : HomeApps[i], 20,
                 unlocked ? UiKit.White : UiKit.Text2, HorizontalAlignment.Center, rect.Size.X);
         }
         // 誘導の指示（初回のみ）。アイコン列の下に一行だけ。操作を名指しするのは UI の言葉で、
         //   ミナの台詞ではない＝語りの本数を増やさない。点滅は輪と同じ周期に合わせて散らかさない。
         if (_shopNudge && _mode == Mode.Home)
         {
-            var nudge = HomeAppRect(1);
             float blink = 0.65f + 0.35f * Mathf.Sin((float)_t * 4f);
-            UiKit.Text(this, UiKit.ZenBold, new Vector2(PhoneX, nudge.Position.Y + 136f),
+            UiKit.Text(_drawCanvas, UiKit.ZenBold, new Vector2(PhoneX, 592f),
                 Pad.UsingMouse ? "▲ クリックして ひらく" : "▲ Z で ひらく", 14,
                 new Color(new Color("eba4b9"), blink), HorizontalAlignment.Center, PhoneW);
         }
-        var job = _game.JobDef;
-        DrawRect(new Rect2(PhoneX + 24f, 610f, PhoneW - 48f, 1f), new Color(1, 1, 1, 0.18f));
-        UiKit.FaceAvatar(this, new Vector2(PhoneX + 46f, 645f), 20f, _playerFaces[job.CharacterId], JobColor(job.Id), false, 0f, 1f, _t);
-        UiKit.Text(this, UiKit.ZenBold, new Vector2(PhoneX + 78f, 623f), job.CharacterName, 17, UiKit.White);
-        UiKit.Text(this, UiKit.Mono, new Vector2(PhoneX + 78f, 650f), AccountHandle(job), 12, UiKit.Text2);
-        UiKit.Text(this, UiKit.Zen, new Vector2(PhoneX + 260f, 625f), $"救った心  {_game.HeartsSaved}", 14, UiKit.Text2, HorizontalAlignment.Right, PhoneW - 284f);
-        UiKit.Text(this, UiKit.Mono, new Vector2(PhoneX + 260f, 650f), $"Imp  {UiKit.Abbrev(_game.Impression)}", 14, UiKit.Gold, HorizontalAlignment.Right, PhoneW - 284f);
-        UiKit.Box(this, new Rect2(PhoneX + (PhoneW - 116f) / 2f, H - 18f, 116f, 3f), new Color(UiKit.White, 0.65f), 1.5f);
+        UiKit.Box(_drawCanvas, new Rect2(PhoneX + 72, 620, 336, 52), new Color(0.04f, 0.07f, 0.11f, 0.65f), 26);
+        for (int page = 0; page < HomePageCount; page++)
+        {
+            var tab = HomePageRect(page);
+            if (page == HomePage) UiKit.Box(_drawCanvas, tab, new Color(0.70f, 0.84f, 0.94f, 0.10f), 22);
+            UiKit.Text(_drawCanvas, UiKit.Zen, tab.Position + new Vector2(0, 10), page switch { 0 => "ホーム", 1 => "その他", _ => "音楽・トーク" }, 17,
+                page == HomePage ? UiKit.White : new Color("9faebd"), HorizontalAlignment.Center, tab.Size.X);
+        }
+        _drawCanvas.DrawLine(new Vector2(W / 2 - 58, H - 17), new Vector2(W / 2 + 58, H - 17), new Color(UiKit.White, 0.65f), 3, true);
+        _drawCanvas.DrawPolygon(new[] { new Vector2(PhoneX + 48, 2), new Vector2(PhoneX + 200, 2),
+            new Vector2(PhoneX + 80, H - 2), new Vector2(PhoneX + 40, H - 2) },
+            new[] { Colors.Transparent, new Color(0.8f, 0.92f, 1, 0.06f), new Color(0.8f, 0.92f, 1, 0.012f), Colors.Transparent });
+        _drawCanvas.DrawPolygon(new[] { new Vector2(PhoneX + 200, 2), new Vector2(PhoneX + 390, 2),
+            new Vector2(PhoneX + 220, H - 2), new Vector2(PhoneX + 80, H - 2) },
+            new[] { new Color(0.8f, 0.92f, 1, 0.06f), Colors.Transparent, Colors.Transparent, new Color(0.8f, 0.92f, 1, 0.012f) });
     }
 
     // ───────── カード ─────────
     // 返信できるのは「声のあるクリア済みカード」だけ（埋め草・固定ポストには返信しない）。
     private bool CanReplySel() => !_autoplay && IsVoice(_sel)
-        && _entries[_sel].Cleared && !(_game?.HasReplied(_entries[_sel].Id) ?? true);
+        && !_entries[_sel].IsFinal && _entries[_sel].Cleared && !(_game?.HasReplied(_entries[_sel].Id) ?? true);
 
     private Rect2 CardHitRect(int i)
     {
@@ -1645,6 +1824,180 @@ public partial class Hub : Node2D
         return new Rect2(cx + 24f, cy + ch - 64f, cw - 48f, 48f);
     }
 
+    private SnsVoices.Post? _socialPost;
+    private int _socialReturnFocus = -1;
+    private string[][] _socialLines = System.Array.Empty<string[]>();
+    private float[] _socialHeights = System.Array.Empty<float>();
+    private float _socialScroll, _socialScrollTarget, _socialContentHeight;
+    private const float SocialTop = 78f;
+    private const int SocialBackId = 40000, SocialPreviousId = 40001, SocialNextId = 40002;
+    private static Rect2 SocialBackRect => new(PhoneX + 12f, 16f, 40f, 40f);
+    private static Rect2 SocialLinkRect(bool next) => new(PhoneX + (next ? 246f : 16f), FeedBottom + 14f, 218f, 42f);
+
+    private SnsVoices.Post? RelatedSocialPost(bool next)
+    {
+        if (_socialPost == null) return null;
+        foreach (var entry in _entries)
+        {
+            var post = entry.Social;
+            if (post != null && (next ? post.PreviousId == _socialPost.Id : post.Id == _socialPost.PreviousId))
+                return post;
+        }
+        return null;
+    }
+
+    private void OpenSocialThread(SnsVoices.Post post)
+    {
+        _socialReturnFocus = -1;
+        if (IsUnreadReturnPost(post) && _previewState == null)
+        {
+            if (post == SnsVoices.AkariReturnPost)
+                _socialReturnFocus = System.Array.FindIndex(_entries, IsNextKoharuPost);
+            _game.MarkIdleDialogSeen(SnsVoices.ReturnPostReadKey(post));
+            _game.AutoSave();
+        }
+        _socialPost = post;
+        _mode = Mode.SocialThread;
+        _socialScroll = _socialScrollTarget = 0;
+        _mediaHeld = Pad.AdvanceHeld();
+        _socialLines = new string[post.Replies.Length + 1][];
+        _socialHeights = new float[_socialLines.Length];
+        _socialContentHeight = 0;
+        for (int i = 0; i < _socialLines.Length; i++)
+        {
+            bool root = i == 0;
+            int size = root ? 18 : 16;
+            string body = root ? post.Text : post.Replies[i - 1].Text;
+            _socialLines[i] = UiKit.WrapLines(UiKit.Zen, body, size, PhoneW - (root ? 48f : 104f)).ToArray();
+            _socialHeights[i] = (root ? 108f : 76f) + _socialLines[i].Length * (UiKit.Zen.GetHeight(size) + 3f);
+            if (root && SnsPostMedia.Find(post.Id) != null) _socialHeights[i] += PostMediaHeight + PostMediaGap;
+            _socialContentHeight += _socialHeights[i];
+        }
+        Audio.Instance?.PlayUiConfirm();
+    }
+
+    private void ProcessSocialThread(double delta)
+    {
+        UiKit.BeginHotspots(Pad.MousePos());
+        UiKit.Hotspot(SocialBackRect, SocialBackId);
+        if (RelatedSocialPost(false) != null) UiKit.Hotspot(SocialLinkRect(false), SocialPreviousId);
+        if (RelatedSocialPost(true) != null) UiKit.Hotspot(SocialLinkRect(true), SocialNextId);
+        bool video = _socialPost != null && SnsPostMedia.Find(_socialPost.Id)?.IsVideo == true;
+        if (video)
+        {
+            var visibleMedia = SocialMediaRect().Intersection(new Rect2(PhoneX, SocialTop, PhoneW, FeedBottom - SocialTop));
+            if (visibleMedia.HasArea()) UiKit.Hotspot(visibleMedia, PostMediaIdBase);
+        }
+        int clicked = UiKit.ClickedId(Pad.MouseClick());
+        bool mediaPress = Input.IsKeyPressed(Key.Z) || Input.IsKeyPressed(Key.Enter)
+            || Input.IsActionPressed("ui_accept") || Pad.Pressed(JoyButton.A);
+        if (video && (clicked == PostMediaIdBase || mediaPress && !_mediaHeld)) _snsMedia.Toggle(_socialPost!.Id);
+        _mediaHeld = mediaPress;
+        bool back = Input.IsKeyPressed(Key.X) || Input.IsKeyPressed(Key.Escape) || Pad.Pressed(JoyButton.B);
+        bool backEdge = back && !_xHeld;
+        _xHeld = back;
+        if (backEdge || clicked == SocialBackId)
+        {
+            _mode = Mode.Cards;
+            if (_socialReturnFocus >= 0)
+            {
+                _sel = _socialReturnFocus;
+                UpdateFeedScrollTarget();
+            }
+            _zHeld = Pad.AdvanceHeld();
+            Audio.Instance?.PlayUiCancel();
+            return;
+        }
+        bool left = Input.IsActionPressed("ui_left"), right = Input.IsActionPressed("ui_right");
+        bool previous = clicked == SocialPreviousId || (left && !_navHeld);
+        bool next = clicked == SocialNextId || (right && !_navHeld);
+        _navHeld = left || right;
+        if (previous || next)
+        {
+            var related = RelatedSocialPost(next);
+            if (related != null) OpenSocialThread(related);
+        }
+        float direction = (Input.IsActionPressed("ui_down") ? 1f : 0f) - (Input.IsActionPressed("ui_up") ? 1f : 0f);
+        float max = Mathf.Max(0, _socialContentHeight - (FeedBottom - SocialTop));
+        _socialScrollTarget = Mathf.Clamp(_socialScrollTarget + direction * 320f * (float)delta - Pad.WheelDelta() * WheelStep, 0, max);
+        _socialScroll = Mathf.Lerp(_socialScroll, _socialScrollTarget, Mathf.Min(1, (float)delta * 14f));
+    }
+
+    private void DrawSocialThread()
+    {
+        if (_socialPost == null) return;
+        float y = SocialTop - _socialScroll;
+        for (int i = 0; i < _socialLines.Length; i++)
+        {
+            bool root = i == 0;
+            int authorId = root ? _socialPost.Author : _socialPost.Replies[i - 1].Author;
+            bool personal = root && _socialPost.CharacterId.Length > 0;
+            string authorName = personal ? SnsVoices.AuthorName(_socialPost) : SnsVoices.All[authorId].Name;
+            string authorHandle = personal ? SnsVoices.AuthorHandle(_socialPost) : SnsVoices.AccountHandle(authorId);
+            float h = _socialHeights[i];
+            if (y + h >= SocialTop && y < FeedBottom)
+            {
+                if (!root && i < _socialLines.Length - 1)
+                    _drawCanvas.DrawLine(new Vector2(PhoneX + 43f, y + 52f), new Vector2(PhoneX + 43f, y + h + 14f), new Color(UiKit.Text4, 0.4f), 1.5f);
+                if (personal)
+                    UiKit.FaceAvatar(_drawCanvas, new Vector2(PhoneX + 43f, y + 33f), 23f,
+                        _playerFaces[_socialPost.CharacterId], AccountColor(_socialPost.CharacterId), false);
+                else DrawFillerAvatar(PhoneX + 43f, y + 33f, SnsVoices.All[authorId].Icon, 1f);
+                UiKit.Text(_drawCanvas, UiKit.ZenBold, new Vector2(PhoneX + 80f, y + 10f),
+                    FitText(UiKit.ZenBold, authorName, 16, PhoneW - 104f), 16, UiKit.White);
+                if (personal)
+                    UiKit.VerifiedBadge(_drawCanvas, new Vector2(PhoneX + 93f + UiKit.TextW(UiKit.ZenBold, authorName, 16), y + 22f),
+                        6f, UiKit.Ok);
+                UiKit.Text(_drawCanvas, UiKit.Mono, new Vector2(PhoneX + 80f, y + 35f),
+                    authorHandle, 12, UiKit.Text3);
+                float tx = PhoneX + (root ? 24f : 80f), ty = y + (root ? 76f : 60f);
+                int size = root ? 18 : 16;
+                foreach (string line in _socialLines[i])
+                {
+                    UiKit.Text(_drawCanvas, UiKit.Zen, new Vector2(tx, ty), line, size, UiKit.Text2);
+                    ty += UiKit.Zen.GetHeight(size) + 3f;
+                }
+                if (root)
+                {
+                    if (SnsPostMedia.Find(_socialPost.Id) != null) _snsMedia.Draw(_drawCanvas, _socialPost.Id, SocialMediaRect(), 1);
+                    var reach = DisplayReach(_socialPost.Id, _socialPost.Reach);
+                    UiKit.Text(_drawCanvas, UiKit.Zen, new Vector2(PhoneX + 24f, y + h - 26f),
+                        $"返信 {_socialPost.Replies.Length}　リポスト {reach.Reposts}　いいね {reach.Likes}　表示 {reach.Views}回", 12, UiKit.Text3);
+                    _drawCanvas.DrawRect(new Rect2(PhoneX + 20f, y + h - 1f, PhoneW - 40f, 1f), new Color(UiKit.Text4, 0.3f));
+                }
+            }
+            y += h;
+        }
+        _drawCanvas.DrawRect(new Rect2(PhoneX, 0, PhoneW, SocialTop), PhoneBg);
+        _drawCanvas.DrawRect(new Rect2(PhoneX, FeedBottom, PhoneW, H - FeedBottom), PhoneBg);
+        DrawBackButton(SocialBackRect, SocialBackId, 1f);
+        UiKit.Text(_drawCanvas, UiKit.ZenBold, new Vector2(PhoneX + 72f, 24f),
+            _socialPost.Replies.Length > 0 ? "投稿と返信" : "投稿", 21, UiKit.White);
+        UiKit.Text(_drawCanvas, UiKit.Zen, new Vector2(PhoneX + PhoneW - 100f, 31f),
+            _socialPost.CharacterId.Length > 0 ? "Y / " + SnsVoices.AuthorName(_socialPost) : "Y / 日常", 12, UiKit.Text3);
+        _drawCanvas.DrawRect(new Rect2(PhoneX, SocialTop - 1f, PhoneW, 1f), new Color(UiKit.Text4, 0.3f));
+        for (int i = 0; i < 2 && _socialPost.CharacterId.Length == 0; i++)
+        {
+            bool next = i == 1;
+            bool available = RelatedSocialPost(next) != null;
+            var rect = SocialLinkRect(next);
+            int id = next ? SocialNextId : SocialPreviousId;
+            UiKit.Box(_drawCanvas, rect, available ? PhoneRaised : PhoneBg, 8f,
+                new Color(UiKit.Text4, available ? 0.6f : 0.2f), 1f);
+            string label = next ? "その後の投稿 ›" : "‹ 前の投稿";
+            UiKit.Text(_drawCanvas, UiKit.ZenBold, rect.Position + new Vector2(0, 10f), label, 15,
+                available ? (UiKit.HoveredId() == id ? UiKit.White : UiKit.Info) : UiKit.Text4,
+                HorizontalAlignment.Center, rect.Size.X);
+        }
+        float view = FeedBottom - SocialTop;
+        if (_socialContentHeight > view)
+        {
+            float thumb = view * view / _socialContentHeight;
+            float top = SocialTop + (view - thumb) * _socialScroll / (_socialContentHeight - view);
+            UiKit.Box(_drawCanvas, new Rect2(PhoneX + PhoneW - 4f, top, 2f, thumb), new Color(UiKit.Text3, 0.65f), 1f);
+        }
+    }
+
     private void ProcessCards()
     {
         if (_autoplay) { if (_t - _cardsEnteredT >= AutoDiveDelay) DiveAuto(); return; }
@@ -1661,7 +2014,22 @@ public partial class Hub : Node2D
         //   カード id = 0..entries-1／フッタ id = FooterIdBase+i（空間を分けて種別を判別する）。
         UiKit.BeginHotspots(Pad.MousePos());
         for (int i = 0; i < _entries.Length; i++)
-            if (CardHitRect(i).HasArea()) UiKit.Hotspot(CardHitRect(i), i);
+        {
+            var card = CardHitRect(i);
+            if (!card.HasArea()) continue;
+            UiKit.Hotspot(card, i);
+            for (int b = RepostButton; b <= LikeButton; b++)
+            {
+                var rect = ReactionRect(i, b).Intersection(FeedRect);
+                if (rect.HasArea()) UiKit.Hotspot(rect, ReactionHotspot(i, b));
+            }
+        }
+        for (int i = 0; i < _entries.Length; i++)
+            if (SnsPostMedia.Find(_entries[i].Id)?.IsVideo == true)
+            {
+                var mediaHit = CardMediaRect(i).Intersection(FeedRect);
+                if (mediaHit.HasArea()) UiKit.Hotspot(mediaHit, PostMediaIdBase + i);
+            }
         // 選択中の声のカードの [ダイブ] [返信]。カードより後に登録＝重なりはボタンが勝つ（後勝ち）。
         //   フィードの窓からはみ出たぶんは切る（CardHitRect と同じ考え方＝フッタ・ヘッダの上で拾わない）。
         if (CardButtonsShown(_sel))
@@ -1682,6 +2050,22 @@ public partial class Hub : Node2D
         }
         int clk = UiKit.ClickedId(Pad.MouseClick());
         if (_footSel >= footItems.Count) _footSel = footItems.Count - 1;
+        if (clk >= ReactionIdBase && clk < ReactionIdBase + 2 * _entries.Length)
+        {
+            int offset = clk - ReactionIdBase;
+            ToggleReaction(offset / 2, RepostButton + offset % 2);
+            return;
+        }
+        if (clk >= PostMediaIdBase && clk < PostMediaIdBase + _entries.Length)
+        {
+            _sel = clk - PostMediaIdBase;
+            _headFocus = false;
+            _footSel = -1;
+            if (CardMediaRect(_sel).Intersection(FeedRect).Size.Y <= PostMediaHeight * .55f)
+                UpdateFeedScrollTarget();
+            _snsMedia.Toggle(_entries[_sel].Id);
+            return;
+        }
         if (clk == JobOpenId && _t > 0.3)
         {
             OpenJob();
@@ -1748,11 +2132,16 @@ public partial class Hub : Node2D
                     Audio.Instance?.PlayUiMove();
                 }
             }
-            else if (CardButtonsShown(_sel))
+            else if (_entries[_sel].Social != null && right && _cardBtn == 0)
             {
-                // ボタンは2つだけ＝←→どちらでも反対側へ。返信が使えないときは動かない（薄いボタンは選べない）。
-                int nb = _cardBtn == 0 ? 1 : 0;
-                if (nb == 0 || CanReplySel()) { _cardBtn = nb; Audio.Instance?.PlayUiMove(); }
+                _footSel = footItems.FindIndex(f => f.act == FootAct.Voice);
+                Audio.Instance?.PlayUiMove();
+            }
+            else
+            {
+                int last = _entries[_sel].Sort == Kind.Pinned ? LikeButton : CanReplySel() ? 1 : 0;
+                int next = Mathf.Clamp(_cardBtn + (left ? -1 : 1), RepostButton, last);
+                if (_cardBtn != next) { _cardBtn = next; Audio.Instance?.PlayUiMove(); }
             }
         }
         _navHeld = up || down || left || right;
@@ -1773,6 +2162,11 @@ public partial class Hub : Node2D
             return;
         }
         // キーの Z はカーソルのあるボタンを押す。返信を選んでいれば返信、それ以外は下のダイブ経路へ。
+        if (zEdge && _t > 0.3 && _cardBtn < 0)
+        {
+            ToggleReaction(_sel, _cardBtn);
+            return;
+        }
         if (zEdge && _t > 0.3 && CardButtonsShown(_sel) && _cardBtn == 1)
         {
             PressCardButton(1);
@@ -1785,7 +2179,8 @@ public partial class Hub : Node2D
         {
             var e = _entries[_sel];
             // 2-b: Z でカードがその場で開く（投稿詳細）。潜れるのは声のある投稿だけ。
-            if (e.Sort != Kind.Voice) Audio.Instance?.PlayUiDeny();   // 埋め草・固定ポスト＝無言（開かない）
+            if (e.Social != null) OpenSocialThread(e.Social);
+            else if (e.Sort != Kind.Voice) Audio.Instance?.PlayUiDeny();
             else if (e.Unlocked) OpenDetail();
             else
             {
@@ -1807,8 +2202,47 @@ public partial class Hub : Node2D
     //   済ませた・声のないカードへ移った）ダイブへ落とす。
     private void NormalizeCardBtn()
     {
-        if (_cardBtnFor != _sel) { _cardBtnFor = _sel; _cardBtn = 0; }
+        if (_cardBtnFor != _sel) { _cardBtnFor = _sel; _cardBtn = _entries[_sel].Sort == Kind.Pinned ? LikeButton : 0; }
         if (_cardBtn == 1 && !CanReplySel()) _cardBtn = 0;
+    }
+
+    private const int RepostButton = -2, LikeButton = -1, ReactionIdBase = 54000;
+    private static int ReactionHotspot(int index, int button) => ReactionIdBase + index * 2 + button - RepostButton;
+    private Rect2 ReactionRectAt(int index, float bottom, int button)
+    {
+        var e = _entries[index];
+        var reach = DisplayReach(e.Id, e.Reach);
+        float x = PhoneX + 26 + 46 + UiKit.TextW(UiKit.Mono, UiKit.Abbrev(e.Replies), UiKit.FontLabel);
+        if (button == LikeButton)
+            x += 46 + UiKit.TextW(UiKit.Mono, UiKit.Abbrev(reach.Reposts), UiKit.FontLabel);
+        int count = button == LikeButton ? reach.Likes : reach.Reposts;
+        float width = 30 + UiKit.TextW(UiKit.Mono, UiKit.Abbrev(count), UiKit.FontLabel);
+        return new Rect2(x - 5, bottom - 30, width, 24);
+    }
+    private Rect2 ReactionRect(int index, int button) =>
+        ReactionRectAt(index, FeedTop + CardTop(index + 1) - _feedScroll, button);
+
+    private void ToggleReaction(int index, int button)
+    {
+        if (_previewState != null) return;
+        var entry = _entries[index];
+        _headFocus = false;
+        _footSel = -1;
+        _sel = index;
+        if (button == LikeButton) _game.TogglePostLike(entry.Id);
+        else
+        {
+            _game.ToggleRepost(entry.Id);
+            BuildEntries();
+            _sel = _game.IsPostReposted(entry.Id) ? 0
+                : System.Array.FindIndex(_entries, e => !e.IsRepost && e.Id == entry.Id);
+            if (_sel < 0) _sel = Mathf.Min(index, _entries.Length - 1);
+            _feedScroll = _feedScrollTarget = Mathf.Clamp(CardTop(_sel), 0, FeedMaxScroll());
+            Pad.ReleaseMouseFollow();
+        }
+        _cardBtnFor = _sel;
+        _cardBtn = button;
+        Audio.Instance?.PlayUiConfirm();
     }
 
     // カード下部のボタンを押す（キーの Z とクリックの共通経路）。0＝ダイブ（投稿詳細＝難易度選択を開く）／1＝返信。
@@ -1827,6 +2261,20 @@ public partial class Hub : Node2D
         if (_t <= 0.3 || _dived) return;
         switch (act)
         {
+            case FootAct.Reposts:
+                _sel = 0;
+                _headFocus = false;
+                _footSel = -1;
+                _feedScroll = _feedScrollTarget = 0;
+                Audio.Instance?.PlayUiConfirm();
+                break;
+            case FootAct.Voice:
+                _sel = DefaultSelection();
+                _headFocus = false;
+                _footSel = -1;
+                UpdateFeedScrollTarget();
+                Audio.Instance?.PlayUiConfirm();
+                break;
             case FootAct.Home:
                 GoHome();
                 break;
@@ -1972,36 +2420,80 @@ public partial class Hub : Node2D
     // ───────── 描画 ─────────
     public override void _Draw()
     {
-        UiKit.BeginDesign(this);
-        DrawRect(new Rect2(0, 0, W, H), new Color(0.025f, 0.03f, 0.04f, _hasNightBg ? 0.48f : 1f));
-        bool home = _mode == Mode.Home || _mode == Mode.HomeReveal || _mode == Mode.SnsOpening
-            || (_mode == Mode.Dialogue && _dlgReturnMode == Mode.Home && !_homeRevealPending)
-            || (_mode == Mode.Job && _jobReturnMode == Mode.Home);
-        // 写真アプリから開いたキャラ切り替え（と、その直後の同行キャラの一言）は写真の上に重ねる。
+        _drawCanvas = this;
+        UiKit.BeginDesign(_drawCanvas);
+        _drawCanvas.DrawRect(new Rect2(0, 0, W, H), new Color(0.025f, 0.03f, 0.04f, _hasNightBg ? 0.48f : 1f));
+        bool home = HomePresented;
+        bool focusedOverlay = _mode == Mode.Dialogue || _mode == Mode.Detail || _mode == Mode.Job;
+        if (home) DrawHomeSurroundings(focusedOverlay ? 0.34f : 1f);
+        else DrawSidePanels(focusedOverlay ? 0.34f : 1f);
+        if (_mode == Mode.SocialThread)
+        {
+            _drawCanvas.DrawRect(CompanionArea, new Color(0, 0, 0, 0.6f));
+            _drawCanvas.DrawRect(StoryArea, new Color(0, 0, 0, 0.6f));
+        }
+        DrawSwitchButton();
+        if (PendingHomeCard is { } arrival) DrawUnlockNotice(arrival);
+        _phoneVisuals.DrawHardware(_drawCanvas);
+        UiKit.EndDesign(_drawCanvas);
+        _phoneMask.QueueRedraw();
+        _phoneScreen.QueueRedraw();
+        _overlay.QueueRedraw();
+    }
+
+    private void DrawPhoneMask()
+    {
+        _drawCanvas = _phoneMask;
+        BeginPhoneScreen();
+        // The glass opening in phone_ui.glb is 480 × 720 with a 38 px corner radius.
+        UiKit.Box(_drawCanvas, new Rect2(PhoneX, 0, PhoneW, H), Colors.White, 38f);
+        UiKit.EndDesign(_drawCanvas);
+    }
+
+    private void DrawPhoneScreen()
+    {
+        _drawCanvas = _phoneScreen;
+        BeginPhoneScreen();
         bool photos = _mode == Mode.Photos || (_mode == Mode.Job && _jobReturnMode == Mode.Photos)
             || (_mode == Mode.Dialogue && _dlgReturnMode == Mode.Photos);
-        bool focusedOverlay = _mode == Mode.Dialogue || _mode == Mode.Detail || _mode == Mode.Job;
-        DrawSidePanels(focusedOverlay ? 0.34f : 1f);
-        DrawSwitchButton();
-        DrawRect(new Rect2(PhoneX - 1f, 0, PhoneW + 2f, H), new Color("353b43"));
-        DrawRect(new Rect2(PhoneX, 0, PhoneW, H), PhoneBg);
-        if (home) DrawHome();
-        else if (photos) DrawPhotos();
-        else DrawTimeline(_mode == Mode.Cards || _dlgSeenKey == SnsIntroSeenKey ? 1f : 0.22f);
-        if (_mode == Mode.HomeReveal) DrawHomeReveal();
-        else if (_mode == Mode.SnsOpening) DrawSnsOpening();
-        else if (_mode == Mode.Dialogue) DrawDialog();
+        if (MinaLineOpen) DrawMinaCall();
+        else if (LimeOpen) DrawLime();
+        else if (HomePresented)
+        {
+            DrawHome();
+            if (_mode == Mode.HomeReveal) DrawHomeReveal();
+            else if (_mode == Mode.SnsOpening) DrawSnsOpening();
+        }
+        else
+        {
+            _drawCanvas.DrawRect(new Rect2(PhoneX, 0, PhoneW, H), PhoneBg);
+            if (photos) DrawPhotos();
+            else if (_mode == Mode.SocialThread) DrawSocialThread();
+            else DrawTimeline(_mode == Mode.Cards || _dlgSeenKey == SnsIntroSeenKey ? 1f : 0.22f);
+        }
+        DrawPhoneOverlay();
+        UiKit.EndDesign(_drawCanvas);
+    }
+
+    private void DrawPhoneOverlay()
+    {
+        if (_mode == Mode.Dialogue && !_limeConversation && !_minaCall) DrawDialog();
         else if (_mode == Mode.Detail) DrawDetail();
         else if (_mode == Mode.Job) DrawJob();
         else if (_mode == Mode.Cards) DrawFooter();
-        DrawToast();
+        if (!_limeConversation && !MinaLineOpen) DrawToast();
+        if (DialogShown) _toolbar.Draw(_drawCanvas, ToolbarAnchor, _game?.AutoAdvanceDialog ?? false, Hud.SkipLatched || _ffNow);
+    }
+
+    private void DrawOverlay()
+    {
+        _drawCanvas = _overlay;
+        UiKit.BeginDesign(_drawCanvas);
         DrawContaminationOverlay();
-        // 会話ボックスのボタン列（最前面）。SKIP はラッチ中か、押しっぱなしの早送り中に点ける。
-        //   会話の外で SKIP ラッチが立っていれば画面右上に「▶▶」の印（ラッチは画面を跨いで残る）。
-        if (DialogShown) _toolbar.Draw(this, ToolbarAnchor, _game?.AutoAdvanceDialog ?? false, Hud.SkipLatched || _ffNow);
-        _toolbar.DrawLatchMark(this, new Vector2(UiKit.DesignW - 16f, 14f));
+        if (_limeConversation || MinaLineOpen) DrawToast();
+        _toolbar.DrawLatchMark(_drawCanvas, new Vector2(UiKit.DesignW - 16f, 14f));
         DrawHintBar();
-        UiKit.EndDesign(this);
+        UiKit.EndDesign(_drawCanvas);
     }
 
     // ───────── 画面下端のヒント帯（2026-09-27）─────────
@@ -2023,6 +2515,15 @@ public partial class Hub : Node2D
             Mode.Home => pad
                 ? new[] { ("十字", "えらぶ"), (ok, "ひらく"), (menu, "メニュー") }
                 : new[] { ("↑↓←→", "えらぶ"), (ok, "ひらく"), (menu, "メニュー") },
+            Mode.Dialogue or Mode.MinaUnanswered when MinaLineOpen && _minaHistoryOpen => new[] { (pad ? "十字上下" : "↑↓", "履歴"), (back, "回線へ") },
+            Mode.MinaUnanswered => new[] { (back, "閉じる"), (pad ? "X" : "H", "通話履歴") },
+            Mode.Dialogue when _minaCall && _minaChoices.Length > 0 => new[] { (pad ? "十字上下" : "↑↓", "選ぶ"), (pad ? "A" : "Enter", "話す"), (back, "終話"), (pad ? "X" : "H", "履歴") },
+            Mode.Dialogue when _minaCall && _minaCasual => new[] { (back, "終話"), (pad ? "X" : "H", "履歴") },
+            Mode.Dialogue when _minaCall => new[] { (pad ? "A" : "Enter", MinaStoryEnd ? "終話" : MinaCallAction ?? "会話"), (pad ? "X" : "H", "通話履歴") },
+            Mode.LimeFriends => new[] { (pad ? "十字上下" : "↑↓", "フレンド"), (ok, "トークを開く"), (back, "ホームへ") },
+            Mode.LimeHistory => new[] { (pad ? "十字上下" : "↑↓", "履歴"), (back, "フレンドへ") },
+            Mode.LimeDirect => new[] { (pad ? "A" : "Enter", "送信"), (pad ? "十字上下" : "↑↓", "履歴"), (back, "フレンドへ") },
+            Mode.Dialogue when _limeConversation && LimeDraft != null => new[] { (pad ? "A" : "Enter", "送信") },
             // ヘッダー（使用中のアカウント）にカーソル：↓ で先頭のカードへ戻る／Z で切り替えを開く。
             Mode.Cards when _headFocus => pad
                 ? new[] { ("十字", "もどる"), (ok, "アカウント切り替え"), (back, "ホームへ"), (menu, "メニュー") }
@@ -2030,9 +2531,20 @@ public partial class Hub : Node2D
             Mode.Cards when _footSel >= 0 => pad
                 ? new[] { ("十字", "えらぶ"), (ok, "けってい"), (back, "ホームへ"), (menu, "メニュー") }
                 : new[] { ("←→", "えらぶ"), (ok, "けってい"), (back, "ホームへ"), (menu, "メニュー") },
+            Mode.Cards when _cardBtn < 0 || _entries[_sel].Social != null =>
+                new[] { (pad ? "十字上下" : "↑↓", "投稿"), (pad ? "十字左右" : "←→", "ボタン"),
+                    (ok, _cardBtn == LikeButton ? "いいね" : _cardBtn == RepostButton ? "リツイート" : "読む"), (back, "ホームへ") },
             Mode.Cards => pad
                 ? new[] { ("十字", "えらぶ"), (ok, "けってい"), (back, "ホームへ"), (menu, "メニュー") }
                 : new[] { ("↑↓", "えらぶ"), ("←→", "ボタン"), (ok, "けってい"), (back, "ホームへ"), (menu, "メニュー") },
+            Mode.SocialThread when _socialPost != null && SnsPostMedia.Find(_socialPost.Id)?.IsVideo == true => pad
+                ? new[] { ("十字", "スクロール・前後の投稿"), (ok, "再生／停止"), (back, "もどる"), (menu, "メニュー") }
+                : new[] { ("↑↓", "スクロール"), ("←→", "前後の投稿"), (ok, "再生／停止"), (back, "もどる") },
+            Mode.SocialThread when _socialPost?.CharacterId.Length > 0 =>
+                new[] { (back, "もどる"), (menu, "メニュー") },
+            Mode.SocialThread => pad
+                ? new[] { ("十字上下", "スクロール"), ("十字左右", "前後の投稿"), (back, "もどる"), (menu, "メニュー") }
+                : new[] { ("↑↓", "スクロール"), ("←→", "前後の投稿"), (back, "もどる"), (menu, "メニュー") },
             Mode.Detail or Mode.Job => pad
                 ? new[] { ("十字", "えらぶ"), (ok, "けってい"), (back, "もどる"), (menu, "メニュー") }
                 : new[] { ("↑↓", "えらぶ"), (ok, "けってい"), (back, "もどる"), (menu, "メニュー") },
@@ -2074,7 +2586,7 @@ public partial class Hub : Node2D
         // 帯の下敷き（暗い角丸の板）。SNS のキーボード表記は項目が5つで右の余白（約370px）に収まらず、
         //   スマホ本体の右下へ少しかかる。板を敷いて「画面の上に浮いた案内」として読ませる（地の絵や枠線と混ざらない）。
         //   マウスが「メニュー」に乗っているときだけその項目に下敷きを敷く＝押せることを見せる（旧チップの作法）。
-        UiKit.HintBarPlate(this, HintAnchor, items, "メニュー");
+        UiKit.HintBarPlate(_drawCanvas, HintAnchor, items, "メニュー");
     }
 
     private void DrawSidePanels(float alpha)
@@ -2084,24 +2596,62 @@ public partial class Hub : Node2D
         DrawSignalSidePanel(alpha);
     }
 
+    private void DrawHomeSurroundings(float alpha)
+    {
+        _drawCanvas.DrawRect(new Rect2(0, 0, W, H), new Color(0.025f, 0.045f, 0.075f, 0.45f));
+        UiKit.RadialGlow(_drawCanvas, new Vector2(635, 310), 490, new Color("5991ad"), 0.12f);
+        var job = _game.JobDef;
+        UiKit.RadialGlow(_drawCanvas, new Vector2(240, 350), 380, JobColor(job.Id), 0.08f);
+        float breath = Mathf.Sin((float)_t * 0.85f) * 2;
+        if (!MinaCompanionOffline)
+            DrawSidePortrait(job.CharacterId, new Rect2(0, 126, 452, H - 126), new Vector2(230, 286 + breath), 840, alpha * 0.94f);
+        DrawSideShade(new Rect2(0, 0, 452, H), 470, alpha * 0.86f);
+        UiKit.Text(_drawCanvas, _sideTitleFont, new Vector2(48, 38), "Refrain", 66, new Color("fff4df", alpha));
+        UiKit.Text(_drawCanvas, UiKit.Zen, new Vector2(52, 534), MinaCompanionOffline ? "応答なし" : "同行中", 13, new Color("9cbcc7", alpha));
+        UiKit.Text(_drawCanvas, _sideNameFont, new Vector2(48, 558), job.CharacterName, 38, new Color("fff7ea", alpha));
+        UiKit.Text(_drawCanvas, _sideTitleFont, new Vector2(52, 610), AccountHandle(job), 23, new Color("bddde4", alpha * 0.8f));
+
+        string id = _sideStoryId;
+        bool final = id == "final";
+        string character = final ? "mina" : id;
+        var storyJob = System.Array.Find(Jobs.All, j => j.CharacterId == character)!;
+        var card = new Rect2(925, 284, 290, 152);
+        UiKit.Box(_drawCanvas, new Rect2(card.Position + new Vector2(0, 12), card.Size), new Color(0, 0, 0, alpha * 0.22f), 20);
+        UiKit.Box(_drawCanvas, card, new Color(0.055f, 0.085f, 0.12f, alpha * 0.72f), 20,
+            new Color(0.62f, 0.78f, 0.87f, alpha * 0.14f), 1);
+        _drawCanvas.DrawLine(new Vector2(950, 285), new Vector2(1190, 285), new Color(0.72f, 0.86f, 0.91f, alpha * 0.18f), 1, true);
+        string caption = final ? "最後の声" : IsClearedForDisplay(id) ? "届いた声" : "次の声";
+        UiKit.Text(_drawCanvas, UiKit.Zen, new Vector2(946, 306), caption, 13, new Color("b5c8d1", alpha));
+        UiKit.FaceAvatar(_drawCanvas, new Vector2(1159, 355), 30, final && FinalClearedForDisplay ? _minaFace : _faces[id],
+            new Color("9dbacb"), false, 0, alpha * 0.9f, _t);
+        UiKit.Text(_drawCanvas, _sideNameFont, new Vector2(944, 333), final && !FinalClearedForDisplay ? FinalAccount.Name : storyJob.CharacterName, 30, new Color("fff4df", alpha));
+        UiKit.Text(_drawCanvas, _sideTitleFont, new Vector2(947, 382), final ? "Final" : $"Story {System.Array.FindIndex(GameManager.Stages, s => s.Id == id) + 1:00}",
+            23, new Color("eacb8b", alpha * 0.82f));
+        UiKit.Text(_drawCanvas, UiKit.Zen, new Vector2(932, 468), "届いた声", 14, new Color("9cb3c0", alpha));
+        UiKit.Text(_drawCanvas, UiKit.Mono, new Vector2(1110, 466), $"{ClearedStageCount():00} / {GameManager.Stages.Length:00}", 17,
+            new Color("dce6ec", alpha));
+        for (int i = 0; i < GameManager.Stages.Length; i++)
+            UiKit.Box(_drawCanvas, new Rect2(932 + i * 94, 502, 82, 3),
+                new Color(IsClearedForDisplay(GameManager.Stages[i].Id) ? new Color("8ccdbd") : new Color("344452"), alpha), 1);
+    }
+
     private string SideStoryId()
     {
         bool home = _mode is Mode.Home or Mode.HomeReveal or Mode.SnsOpening or Mode.Photos
             || (_mode == Mode.Dialogue && _dlgReturnMode == Mode.Home)
             || (_mode == Mode.Job && _jobReturnMode is Mode.Home or Mode.Photos);
+        if (!home && _mode == Mode.SocialThread && _socialPost?.CharacterId.Length > 0)
+            return SnsVoices.ReturnPostStageId(_socialPost);
+        if (!home && _entries[_sel].Sort == Kind.Personal) return SnsVoices.ReturnPostStageId(_entries[_sel].Social!);
         if (!home && IsVoice(_sel)) return _entries[_sel].Id;
         return _entries[DefaultSelection()].Id;
     }
 
-    // サイドパネル立ち絵の「顔」（画像ピクセル）：eyes＝両目の中点、face＝目線から顎までの高さ。
-    //   4枚とも 1024x1536 だが構図が違う（ミナ＝専用の全身絵 hub_mina_v1、他3人＝オープニングのカットイン
-    //   op_*_cutin_v1 を流用したバストアップ）。高さだけで合わせると顔の大きさが2倍近く違って見える
-    //   （2026-09-23 ユーザー報告「ミナに対してあかりがでかい」）ので、ここから顔の高さ比を出して縮め、
-    //   両目の中点を同じ点に置く＝顔の大きさと肩の高さがミナ基準で揃う。新しい絵は作らない。
+    // 端末の一枚絵と縦長の立ち絵で目線と顔の表示寸法を揃える。
     private static (Vector2 eyes, float face) SidePortraitFace(string id) => id switch
     {
         "akari" => (new(535, 365), 200f), "koharu" => (new(662, 357), 148f),
-        "rei" => (new(555, 357), 163f), _ => (new(615, 240), 97f),
+        "rei" => (new(555, 357), 163f), _ => (new(1040, 365), 118f),
     };
 
     // rect を clip で切って描く。fade > 0 なら画像の下端 fade px を透明へ落とす＝バストアップの切り抜きが
@@ -2116,7 +2666,7 @@ public partial class Hub : Node2D
             Rect2 solid = new(visible.Position, new Vector2(visible.Size.X, solidEnd - visible.Position.Y));
             Rect2 source = new((solid.Position - rect.Position) / rect.Size * texture.GetSize(),
                 solid.Size / rect.Size * texture.GetSize());
-            DrawTextureRectRegion(texture, solid, source, new Color(1, 1, 1, alpha));
+            _drawCanvas.DrawTextureRectRegion(texture, solid, source, new Color(1, 1, 1, alpha));
         }
         if (solidEnd >= visible.End.Y) return;
         float top = Mathf.Max(solidEnd, visible.Position.Y);
@@ -2125,7 +2675,7 @@ public partial class Hub : Node2D
         for (int i = 0; i < 4; i++) uvs[i] = (pts[i] - rect.Position) / rect.Size;
         float a0 = alpha * Mathf.Clamp((rect.End.Y - top) / fade, 0f, 1f);
         float a1 = alpha * Mathf.Clamp((rect.End.Y - visible.End.Y) / fade, 0f, 1f);
-        DrawPolygon(pts, new[] { new Color(1, 1, 1, a0), new Color(1, 1, 1, a0), new Color(1, 1, 1, a1), new Color(1, 1, 1, a1) },
+        _drawCanvas.DrawPolygon(pts, new[] { new Color(1, 1, 1, a0), new Color(1, 1, 1, a0), new Color(1, 1, 1, a1), new Color(1, 1, 1, a1) },
             uvs, texture);
     }
 
@@ -2139,7 +2689,7 @@ public partial class Hub : Node2D
             DrawSideTexture(texture, new Rect2(area.GetCenter() - size / 2 + new Vector2(drift, 0), size),
                 area, alpha * (layer == 0 ? 0.82f : 0.68f));
         }
-        DrawRect(area, new Color(0.015f, 0.025f, 0.035f, alpha * 0.18f));
+        _drawCanvas.DrawRect(area, new Color(0.015f, 0.025f, 0.035f, alpha * 0.18f));
     }
 
     // focus＝両目の中点を置く画面座標。height＝ミナ（全身絵）を描く高さで、他の絵は顔の高さ比で縮める。
@@ -2147,13 +2697,13 @@ public partial class Hub : Node2D
     {
         Texture2D texture = _sidePortraits[id];
         var (eyes, face) = SidePortraitFace(id);
-        float scale = height / texture.GetHeight() * (SidePortraitFace("mina").face / face);
+        float scale = height / 1536f * (97f / face);
         DrawSideTexture(texture, new Rect2(focus - eyes * scale, texture.GetSize() * scale), area, alpha, fade: 120f);
     }
 
     private void DrawSideShade(Rect2 area, float top, float alpha, float end = 0.75f)
     {
-        UiKit.VGradient(this, new Rect2(area.Position.X, top, area.Size.X, H - top),
+        UiKit.VGradient(_drawCanvas, new Rect2(area.Position.X, top, area.Size.X, H - top),
             new[] { new Color(0.027f, 0.038f, 0.045f, 0), new Color(0.027f, 0.038f, 0.045f, alpha) },
             new[] { 0f, end });
     }
@@ -2166,26 +2716,27 @@ public partial class Hub : Node2D
         float arrive = Mathf.SmoothStep(0, 1, Mathf.Clamp((float)(_t / 0.7), 0, 1));
         float breath = Mathf.Sin((float)_t * 0.85f) * 3;
         // 両目の中点を (239, 263) へ＝ミナの見え方は従来（焦点 0.56/0.16・高さ 780）のまま。他3人はここに顔を揃える。
-        DrawSidePortrait(id, CompanionArea, new Vector2(239 - (1 - arrive) * 22, 263 + breath),
-            780, alpha * arrive);
+        if (!MinaCompanionOffline)
+            DrawSidePortrait(id, CompanionArea, new Vector2(239 - (1 - arrive) * 22, 263 + breath),
+                780, alpha * arrive);
         DrawSideShade(CompanionArea, 430, alpha);
-        UiKit.VGradient(this, new Rect2(0, 0, CompanionArea.Size.X, 195),
+        UiKit.VGradient(_drawCanvas, new Rect2(0, 0, CompanionArea.Size.X, 195),
             new[] { new Color(0.027f, 0.038f, 0.045f, alpha * 0.6f), new Color(0, 0, 0, 0) }, new[] { 0f, 1f });
-        UiKit.Text(this, _sideTitleFont, new Vector2(40, 30), "Refrain", 72, new Color("fff4df", alpha));
-        UiKit.Text(this, UiKit.Zen, new Vector2(46, 128), "同行中", 13, new Color("bee8dc", alpha));
-        UiKit.Text(this, _sideNameFont, new Vector2(42, 548), job.CharacterName, 46, new Color("fff7ea", alpha));
-        UiKit.Text(this, _sideTitleFont, new Vector2(46, 614), AccountHandle(job), 24, new Color("bddde4", alpha));
+        UiKit.Text(_drawCanvas, _sideTitleFont, new Vector2(40, 30), "Refrain", 72, new Color("fff4df", alpha));
+        UiKit.Text(_drawCanvas, UiKit.Zen, new Vector2(46, 128), MinaCompanionOffline ? "応答なし" : "同行中", 13, new Color("bee8dc", alpha));
+        UiKit.Text(_drawCanvas, _sideNameFont, new Vector2(42, 548), job.CharacterName, 46, new Color("fff7ea", alpha));
+        UiKit.Text(_drawCanvas, _sideTitleFont, new Vector2(46, 614), AccountHandle(job), 24, new Color("bddde4", alpha));
         var btn = SwitchButtonRect();
         float rowY = btn.GetCenter().Y, ax = btn.End.X + CompanionRowGap + CompanionR;
         int count = 0;
         foreach (var companion in Jobs.All)
         {
             if (!_game.IsJobUnlocked(companion.Id)) continue;
-            UiKit.FaceAvatar(this, new Vector2(ax + count * CompanionStep, rowY), CompanionR, _playerFaces[companion.CharacterId],
+            UiKit.FaceAvatar(_drawCanvas, new Vector2(ax + count * CompanionStep, rowY), CompanionR, _playerFaces[companion.CharacterId],
                 JobColor(companion.Id), false, 0, alpha * (companion.Id == job.Id ? 1 : 0.55f), _t);
             count++;
         }
-        UiKit.Text(this, UiKit.Zen, new Vector2(CompanionLabelX(count), rowY - 11f), job.CharacterName, 13,
+        UiKit.Text(_drawCanvas, UiKit.Zen, new Vector2(CompanionLabelX(count), rowY - 11f), job.CharacterName, 13,
             new Color(UiKit.Text2, alpha));
     }
 
@@ -2211,13 +2762,40 @@ public partial class Hub : Node2D
     private bool SwitchAvailable => !_dived && !_autoplay
         && _mode is Mode.Home or Mode.Cards or Mode.Detail or Mode.Photos or Mode.Job;
     private bool SwitchHovered => Pad.UsingMouse && SwitchButtonRect().HasPoint(Pad.MousePos());
+    private static readonly Rect2 UnlockNoticeRect = new(925, 120, 290, 123);
+    private JobTuning? PendingHomeCard => _mode == Mode.Home && SwitchAvailable && _game is { JobForcedByCmdline: false }
+        ? _game.NextUnlockCard : null;
+
+    private void DrawUnlockNotice(JobTuning job)
+    {
+        var r = UnlockNoticeRect;
+        bool hover = Pad.UsingMouse && r.HasPoint(Pad.MousePos());
+        var (ink, paper, edge) = job.Id switch
+        {
+            Job.Heal => (new Color("21473b"), new Color("e2f3db"), new Color("8ab7a0")),
+            Job.Magic => (new Color("392d53"), new Color("e7dff3"), new Color("ab93c3")),
+            _ => (new Color("422d32"), new Color("f5e5c6"), new Color("ceaa76")),
+        };
+        UiKit.Box(_drawCanvas, r, hover ? paper.Lightened(.18f) : paper, 12f, edge, 2f);
+        UiKit.FaceAvatar(_drawCanvas, r.Position + new Vector2(37, 37), 23, _playerFaces[job.CharacterId],
+            JobColor(job.Id), false, 0, 1, _t);
+        UiKit.Text(_drawCanvas, UiKit.ZenBold, r.Position + new Vector2(71, 17), $"{job.CharacterName}が", 20, ink);
+        UiKit.Text(_drawCanvas, UiKit.ZenBold, r.Position + new Vector2(71, 41), "仲間になった！", 25, ink);
+        Rect2 action = new(r.Position + new Vector2(11, 82), new Vector2(r.Size.X - 22, 31));
+        UiKit.Box(_drawCanvas, action, ink, 6f);
+        UiKit.KeyCap(_drawCanvas, action.Position + new Vector2(11, 4), Pad.UsingPad ? "Y" : "Tab", 22f, pad: Pad.UsingPad);
+        UiKit.Text(_drawCanvas, UiKit.ZenBold, action.Position + new Vector2(57, 4), $"{job.CharacterName}を見る", 16, paper);
+        var tip = action.End - new Vector2(14, 15);
+        _drawCanvas.DrawPolyline(new[] { tip + new Vector2(-5, -5), tip, tip + new Vector2(-5, 5) }, new Color("fff3da"), 2f, true);
+    }
 
     // Tab／Y／クリックで開く（切り替え画面の中なら閉じる）。処理したフレームは true＝各モードの入力へ流さない。
     private bool ProcessSwitchButton()
     {
         bool key = SwitchKeyDown();
         bool edge = key && !_tabHeld; _tabHeld = key;
-        bool click = Pad.MouseClick() && SwitchButtonRect().HasPoint(Pad.MousePos());
+        bool click = Pad.MouseClick() && (SwitchButtonRect().HasPoint(Pad.MousePos())
+            || PendingHomeCard != null && UnlockNoticeRect.HasPoint(Pad.MousePos()));
         return (edge || click) && PressSwitchButton();
     }
 
@@ -2245,15 +2823,15 @@ public partial class Hub : Node2D
         // 角丸の板。ホバーで明るく、切り替え画面を開いている間とホバー中は浄化色の枠（ヘッダー・フッタのカーソルと同じ色）。
         Color bg = hover ? new Color(0.17f, 0.21f, 0.25f, 0.92f) : new Color(0.07f, 0.09f, 0.11f, 0.80f);
         Color border = hover || open ? new Color(UiKit.Purify, 0.95f) : new Color(1, 1, 1, 0.16f);
-        UiKit.Box(this, r, new Color(bg, bg.A * a), 8f, new Color(border, border.A * a), hover || open ? 1.5f : 1f);
+        UiKit.Box(_drawCanvas, r, new Color(bg, bg.A * a), 8f, new Color(border, border.A * a), hover || open ? 1.5f : 1f);
         bool pad = Pad.UsingPad;
         string token = pad ? "Y" : "Tab";
         float slot = SwitchCapSlot, cw = UiKit.KeyCapW(token, SwitchCapH, pad);
         var capPos = new Vector2(r.Position.X + SwitchPadL + (slot - cw) / 2f, r.Position.Y + (r.Size.Y - SwitchCapH) / 2f);
-        UiKit.KeyCap(this, capPos, token, SwitchCapH, pressed: on && _tabHeld, alpha: a, pad: pad);
+        UiKit.KeyCap(_drawCanvas, capPos, token, SwitchCapH, pressed: on && _tabHeld, alpha: a, pad: pad);
         var font = UiKit.ZenBold;
         float ty = r.Position.Y + (r.Size.Y - font.GetHeight(SwitchLabelSize)) / 2f;
-        UiKit.Text(this, font, new Vector2(r.Position.X + SwitchPadL + slot + SwitchGap, ty), SwitchLabel, SwitchLabelSize,
+        UiKit.Text(_drawCanvas, font, new Vector2(r.Position.X + SwitchPadL + slot + SwitchGap, ty), SwitchLabel, SwitchLabelSize,
             new Color(hover || open ? UiKit.White : UiKit.Text2, a));
     }
 
@@ -2263,62 +2841,138 @@ public partial class Hub : Node2D
         if (blend < 1) DrawStoryPreview(_sideStoryPrevious, alpha * (1 - blend));
         DrawStoryPreview(_sideStoryId, alpha * blend);
         const float x = 919;
-        int cleared = ClearedStageCount();
-        UiKit.Text(this, UiKit.Zen, new Vector2(x, 461), "届いた声", 14, new Color("c9d8d8", alpha));
-        UiKit.Text(this, UiKit.Mono, new Vector2(1159, 457), $"{cleared:00} / {GameManager.Stages.Length:00}", 17,
+        int count = VoiceMedallionCount;
+        int cleared = ClearedStageCount() + (FinalClearedForDisplay ? 1 : 0);
+        UiKit.Text(_drawCanvas, UiKit.Zen, new Vector2(x, 461), "届いた声", 14, new Color("c9d8d8", alpha));
+        UiKit.Text(_drawCanvas, UiKit.Mono, new Vector2(1159, 457), $"{cleared:00} / {count:00}", 17,
             new Color("f4dc9f", alpha));
-        for (int i = 0; i < GameManager.Stages.Length; i++)
+        for (int i = 0; i < count - 1; i++)
+            DrawVoiceLink(VoiceMedallionCenter(i) + new Vector2(0, 6),
+                VoiceMedallionCenter(i + 1) + new Vector2(0, 6), IsClearedForDisplay(VoiceStageId(i)), alpha);
+        for (int i = 0; i < count; i++)
         {
-            var stage = GameManager.Stages[i];
-            var entry = System.Array.Find(_entries, e => e.Id == stage.Id && e.Sort == Kind.Voice);
-            bool saved = IsClearedForDisplay(stage.Id);
-            bool known = entry.Unlocked || saved;
-            float cx = x + 34 + i * 110;
-            bool current = stage.Id == _sideStoryId;
-            Color accent = saved ? UiKit.Ok : current ? new Color("f4dc9f") : UiKit.Text3;
-            if (i < GameManager.Stages.Length - 1)
-                DrawLine(new Vector2(cx + 31, 524), new Vector2(cx + 78, 524),
-                    new Color(accent, alpha * (saved ? 0.8f : 0.24f)), 1.5f, true);
-            UiKit.FaceAvatar(this, new Vector2(cx, 524), current ? 27 : 22, known ? _faces[stage.Id] : null,
-                accent, !known, 0, alpha * (known ? 1 : 0.42f), _t);
-            UiKit.Text(this, UiKit.ZenBold, new Vector2(cx - 48, 558), known ? entry.Name : LockedName, 15,
-                new Color(known ? UiKit.White : UiKit.Text3, alpha), HorizontalAlignment.Center, 96);
-            UiKit.Text(this, UiKit.Zen, new Vector2(cx - 48, 584), saved ? "届いた" : known ? "未送信" : "未受信", 11,
-                new Color(accent, alpha * 0.88f), HorizontalAlignment.Center, 96);
+            string id = VoiceStageId(i);
+            var entry = System.Array.Find(_entries, e => e.Id == id && e.Sort == Kind.Voice && !e.IsRepost);
+            bool saved = id == GameManager.FinalStageId ? FinalClearedForDisplay : IsClearedForDisplay(id);
+            Vector2 center = VoiceMedallionCenter(i);
+            float cx = center.X;
+            bool current = id == _sideStoryId;
+            DrawVoiceMedallion(center, saved ? _faces[id] : null, saved, current, i, alpha);
+            UiKit.Text(_drawCanvas, UiKit.ZenBold, new Vector2(cx - 48, 564),
+                saved ? (id == GameManager.FinalStageId ? "MINA" : entry.Name) : $"STAGE {i + 1}", 15,
+                new Color(saved || current ? UiKit.White : UiKit.Text3, alpha), HorizontalAlignment.Center, 96);
         }
         DrawSideMetric(new Vector2(x, 624), "フォロワー", UiKit.Abbrev(_game.Followers), new Color("eba4b9"), alpha);
         DrawSideMetric(new Vector2(x + 170, 624), "インプレ", UiKit.Abbrev(_game.Impression), new Color("e5c986"), alpha);
     }
 
+    private void DrawVoiceLink(Vector2 origin, Vector2 next, bool connected, float alpha)
+    {
+        var from = origin + new Vector2(27, 0);
+        var to = next - new Vector2(27, 0);
+        _drawCanvas.DrawLine(from + new Vector2(0, 5), to + new Vector2(0, 5), new Color("020606", alpha * 0.8f), 8, true);
+        _drawCanvas.DrawLine(from, to, new Color("273b3b", alpha), 7, true);
+        _drawCanvas.DrawLine(from + new Vector2(0, 2), to + new Vector2(0, 2), new Color("0a1418", alpha), 4, true);
+        _drawCanvas.DrawLine(from - new Vector2(0, 3), to - new Vector2(0, 3), new Color("7b9996", alpha * 0.35f), 1, true);
+        if (!connected) return;
+        _drawCanvas.DrawLine(from, to, new Color("3cd9a8", alpha * 0.12f), 13, true);
+        _drawCanvas.DrawLine(from, to, new Color("49bd98", alpha * 0.7f), 3, true);
+        _drawCanvas.DrawLine(from - new Vector2(0, 0.5f), to - new Vector2(0, 0.5f), new Color("ceffe9", alpha * 0.85f), 1, true);
+        float travel = Mathf.PosMod((float)_t * 0.16f - origin.X * 0.003f, 1);
+        var light = from.Lerp(to, travel);
+        UiKit.RadialGlow(_drawCanvas, light, 8, new Color("79f3c9"), 0.25f * alpha);
+    }
+
+    private void UpdateVoiceMedallions(double delta)
+    {
+        _voiceMedallions.SetPresented(!HomePresented);
+        if (HomePresented) return;
+        bool canHover = Pad.UsingMouse && !Pad.UiBlocked(this) && !_dived
+            && VoiceMedallionsInteractive && GetWindow().HasFocus();
+        Vector2 pointer = Pad.MousePos();
+        for (int i = 0; i < VoiceMedallionCount; i++)
+        {
+            string id = VoiceStageId(i);
+            var entry = System.Array.Find(_entries, e => e.Id == id && e.Sort == Kind.Voice && !e.IsRepost);
+            bool saved = id == GameManager.FinalStageId ? FinalClearedForDisplay : IsClearedForDisplay(id);
+            bool hovered = canHover && entry.Unlocked && pointer.DistanceSquaredTo(VoiceMedallionCenter(i)) <= 42 * 42;
+            _voiceMedallions.UpdateMedal(i, saved ? _faces[id] : null,
+                saved, id == _sideStoryId, hovered, _t, delta);
+        }
+    }
+
+    private bool ProcessVoiceMedallionClick()
+    {
+        if (!VoiceMedallionsInteractive || _t <= 0.3 || !Pad.MouseClick()) return false;
+        for (int i = 0; i < VoiceMedallionCount; i++)
+        {
+            if (Pad.MousePos().DistanceSquaredTo(VoiceMedallionCenter(i)) > 42 * 42) continue;
+            string id = VoiceStageId(i);
+            int entry = System.Array.FindIndex(_entries, e => e.Id == id && e.Sort == Kind.Voice && !e.IsRepost);
+            if (entry < 0 || !_entries[entry].Unlocked)
+            {
+                Audio.Instance?.PlayUiDeny();
+                return true;
+            }
+            _sel = entry;
+            _footSel = -1;
+            _headFocus = false;
+            _cardBtn = 0;
+            UpdateFeedScrollTarget();
+            OpenDetail();
+            return true;
+        }
+        return false;
+    }
+
+    private void DrawVoiceMedallion(Vector2 center, Texture2D? face, bool saved, bool current, int index, float alpha)
+    {
+        Color light = saved ? new Color("8ff0cc") : current ? new Color("f4dc9f") : new Color("84959e");
+        _drawCanvas.DrawSetTransform((center + new Vector2(2, 37)) * UiKit.Scale, 0, new Vector2(1, 0.18f) * UiKit.Scale);
+        UiKit.RadialGlow(_drawCanvas, Vector2.Zero, 39, Colors.Black, 0.75f * alpha);
+        if (face != null)
+            UiKit.RadialGlow(_drawCanvas, Vector2.Zero, 29, light, (saved ? 0.2f : 0.1f) * alpha);
+        UiKit.BeginDesign(_drawCanvas);
+        _voiceMedallions.Draw(_drawCanvas, center, index, alpha);
+        if (current)
+            _drawCanvas.DrawLine(center + new Vector2(-13, 41), center + new Vector2(13, 41), new Color("f4dc9f", alpha * 0.8f), 2, true);
+    }
     private void DrawStoryPreview(string id, float alpha)
     {
         bool final = id == "final";
         string character = final ? "mina" : id;
         var job = System.Array.Find(Jobs.All, j => j.CharacterId == character)!;
-        DrawSideLandscape(character, StoryArea, alpha);
-        float drift = Mathf.Sin((float)_t * 0.65f + 1.2f);
-        // 基準高 1140＝顔（目線→顎）が約 72px。旧 650 でカットイン3人を流していたときの平均に合わせ、
-        //   最後の声（ミナの全身絵）だけ小さく写っていたのを同じ大きさへ揃える。
-        DrawSidePortrait(character, new Rect2(StoryArea.Position, new Vector2(StoryArea.Size.X, 458)),
-            new Vector2(1137 + drift * 4, 222 + drift * 2), 1140, alpha);
+        bool masked = final && !FinalClearedForDisplay;
+        if (masked)
+        {
+            _drawCanvas.DrawRect(StoryArea, new Color("172632", alpha));
+            UiKit.FaceAvatar(_drawCanvas, new Vector2(1105, 230), 68, _faces[id], new Color("67838a"), false, 0, alpha, _t);
+        }
+        else
+        {
+            DrawSideLandscape(character, StoryArea, alpha);
+            float drift = Mathf.Sin((float)_t * 0.65f + 1.2f);
+            DrawSidePortrait(character, new Rect2(StoryArea.Position, new Vector2(StoryArea.Size.X, 458)),
+                new Vector2(1137 + drift * 4, 222 + drift * 2), 1140, alpha);
+        }
         DrawSideShade(StoryArea, 300, alpha, 0.36f);
-        UiKit.VGradient(this, new Rect2(StoryArea.Position.X, 0, StoryArea.Size.X, 135),
+        UiKit.VGradient(_drawCanvas, new Rect2(StoryArea.Position.X, 0, StoryArea.Size.X, 135),
             new[] { new Color(0.027f, 0.038f, 0.045f, alpha * 0.65f), new Color(0, 0, 0, 0) }, new[] { 0f, 1f });
         string caption = final ? "最後の声" : IsClearedForDisplay(id) ? "届いた声" : "次の声";
-        UiKit.Text(this, _sideNameFont, new Vector2(919, 38), caption, 23, new Color("fff4df", alpha));
+        UiKit.Text(_drawCanvas, _sideNameFont, new Vector2(919, 38), caption, 23, new Color("fff4df", alpha));
         int index = System.Array.FindIndex(GameManager.Stages, stage => stage.Id == id);
-        UiKit.Text(this, _sideTitleFont, new Vector2(919, 77), final ? "Final" : $"Story {index + 1:00}", 27,
+        UiKit.Text(_drawCanvas, _sideTitleFont, new Vector2(919, 77), final ? "Final" : $"Story {index + 1:00}", 27,
             new Color("eacb8b", alpha));
-        UiKit.Text(this, _sideNameFont, new Vector2(914, 348), job.CharacterName, 40,
+        UiKit.Text(_drawCanvas, _sideNameFont, new Vector2(914, 348), masked ? FinalAccount.Name : job.CharacterName, 40,
             new Color("fff7ea", alpha));
-        UiKit.Text(this, _sideTitleFont, new Vector2(919, 404), AccountHandle(job), 21,
+        UiKit.Text(_drawCanvas, _sideTitleFont, new Vector2(919, 404), masked ? FinalAccount.Handle : AccountHandle(job), 21,
             new Color("dae4e5", alpha));
     }
 
     private void DrawSideMetric(Vector2 pos, string label, string value, Color accent, float alpha)
     {
-        UiKit.Text(this, UiKit.Zen, pos, label, 12, new Color(UiKit.Text3, 0.86f * alpha));
-        UiKit.Text(this, UiKit.Mono, pos + new Vector2(0, 24), value, 22, new Color(accent, alpha));
+        UiKit.Text(_drawCanvas, UiKit.Zen, pos, label, 12, new Color(UiKit.Text3, 0.86f * alpha));
+        UiKit.Text(_drawCanvas, UiKit.Mono, pos + new Vector2(0, 24), value, 22, new Color(accent, alpha));
     }
 
     private int ClearedStageCount()
@@ -2331,8 +2985,8 @@ public partial class Hub : Node2D
     private void DrawTimeline(float alpha)
     {
         DrawCards(alpha);
-        DrawRect(new Rect2(PhoneX, 0, PhoneW, FeedTop), PhoneBg);
-        DrawRect(new Rect2(PhoneX, FeedBottom, PhoneW, H - FeedBottom), PhoneBg);
+        _drawCanvas.DrawRect(new Rect2(PhoneX, 0, PhoneW, FeedTop), PhoneBg);
+        _drawCanvas.DrawRect(new Rect2(PhoneX, FeedBottom, PhoneW, H - FeedBottom), PhoneBg);
         DrawHeader();
     }
 
@@ -2352,7 +3006,7 @@ public partial class Hub : Node2D
         var gray = new Color("8c889c");
         var purple = new Color("5a3a78");
         float colorT = Mathf.Clamp((contam - 0.25f) / 0.75f, 0f, 1f);
-        DrawRect(new Rect2(0, 0, W, H), new Color(gray.Lerp(purple, colorT), alpha));
+        _drawCanvas.DrawRect(new Rect2(0, 0, W, H), new Color(gray.Lerp(purple, colorT), alpha));
     }
 
     private void DrawHeader()
@@ -2366,21 +3020,61 @@ public partial class Hub : Node2D
         float right = PhoneX + PhoneW - 22f;
         const string ImpLabel = "インプレ", FolLabel = "フォロワー";
         float iw = UiKit.TextW(UiKit.Mono, imp, 15), ilw = UiKit.TextW(UiKit.Zen, ImpLabel, 12);
-        UiKit.Text(this, UiKit.Zen, new Vector2(right - iw - 6f - ilw, 92f), ImpLabel, 12, new Color(UiKit.Gold, 0.75f));
-        UiKit.Text(this, UiKit.Mono, new Vector2(right - iw, 89f), imp, 15, UiKit.Gold);
+        UiKit.Text(_drawCanvas, UiKit.Zen, new Vector2(right - iw - 6f - ilw, 92f), ImpLabel, 12, new Color(UiKit.Gold, 0.75f));
+        UiKit.Text(_drawCanvas, UiKit.Mono, new Vector2(right - iw, 89f), imp, 15, UiKit.Gold);
         float fw = UiKit.TextW(UiKit.Mono, fol, 15), flw = UiKit.TextW(UiKit.Zen, FolLabel, 12);
         float fx = right - iw - 6f - ilw - 18f - fw;
-        UiKit.Text(this, UiKit.Zen, new Vector2(fx - 6f - flw, 92f), FolLabel, 12, new Color(UiKit.Hp, 0.75f));
-        UiKit.Text(this, UiKit.Mono, new Vector2(fx, 89f), fol, 15, UiKit.Hp);
-        DrawRect(new Rect2(PhoneX + 20f, 68f, PhoneW - 40f, 1f), new Color(1, 1, 1, 0.07f));
-        UiKit.Text(this, UiKit.ZenBold, new Vector2(x, 87f), "タイムライン", 20, UiKit.White);
+        UiKit.Text(_drawCanvas, UiKit.Zen, new Vector2(fx - 6f - flw, 92f), FolLabel, 12, new Color(UiKit.Hp, 0.75f));
+        UiKit.Text(_drawCanvas, UiKit.Mono, new Vector2(fx, 89f), fol, 15, UiKit.Hp);
+        _drawCanvas.DrawRect(new Rect2(PhoneX + 20f, 68f, PhoneW - 40f, 1f), new Color(1, 1, 1, 0.07f));
+        UiKit.Text(_drawCanvas, UiKit.ZenBold, new Vector2(x, 87f), "タイムライン", 20, UiKit.White);
         float contam = Mathf.Clamp(_game?.Contamination ?? 0f, 0f, 1f);
-        DrawRect(new Rect2(PhoneX, FeedTop - 3f, PhoneW, 3f), new Color(UiKit.Kegare, 0.10f));
-        if (contam > 0) DrawRect(new Rect2(PhoneX, FeedTop - 3f, PhoneW * contam, 3f), UiKit.Kegare);
+        _drawCanvas.DrawRect(new Rect2(PhoneX, FeedTop - 3f, PhoneW, 3f), new Color(UiKit.Kegare, 0.10f));
+        if (contam > 0) _drawCanvas.DrawRect(new Rect2(PhoneX, FeedTop - 3f, PhoneW * contam, 3f), UiKit.Kegare);
     }
 
     private const float FeedTop = 128f, FeedBottom = 646f;
-    private static float CardHeight(Entry e) => e.Sort == Kind.Voice && e.Unlocked ? 232f : 152f;
+    private const float PostMediaHeight = 216f, PostMediaGap = 12f;
+    private const int PostMediaIdBase = 53000;
+    private const float RepostHeaderHeight = 28f;
+    private static float CardHeight(Entry e)
+    {
+        float header = e.IsRepost ? RepostHeaderHeight : 0;
+        if (e.VoiceReplies is { Length: > 0 } rows) return header + rows[^1].Bottom + 64f;
+        if (e.Sort == Kind.Personal) return header + 376f;
+        if (e.Social != null) return header + 230f + (SnsPostMedia.Find(e.Id) != null ? PostMediaHeight + PostMediaGap : 0);
+        return header + (e.Sort == Kind.Voice && e.Unlocked ? 232f : 168f);
+    }
+
+    private static float PostMediaTop(Entry e) => e.Sort == Kind.Personal ? 118f : 150f;
+    private Rect2 CardMediaRect(int index) => new(PhoneX + 24, FeedTop + CardTop(index) - _feedScroll
+        + (_entries[index].IsRepost ? RepostHeaderHeight : 0) + PostMediaTop(_entries[index]), PhoneW - 48, PostMediaHeight);
+
+    private Rect2 SocialMediaRect() => new(PhoneX + 24,
+        SocialTop - _socialScroll + 76 + _socialLines[0].Length * (UiKit.Zen.GetHeight(18) + 3) + PostMediaGap,
+        PhoneW - 48, PostMediaHeight);
+
+    internal void UpdateSnsMedia()
+    {
+        string visible = "";
+        if (!_dived && !Pad.UiBlocked(this) && GetWindow().HasFocus())
+        {
+            if (_mode == Mode.Cards)
+            {
+                float best = PostMediaHeight * .55f;
+                for (int i = 0; i < _entries.Length; i++)
+                {
+                    if (SnsPostMedia.Find(_entries[i].Id)?.IsVideo != true) continue;
+                    float height = CardMediaRect(i).Intersection(FeedRect).Size.Y;
+                    if (height > best) { best = height; visible = _entries[i].Id; }
+                }
+            }
+            else if (_mode == Mode.SocialThread && _socialPost != null && SnsPostMedia.Find(_socialPost.Id)?.IsVideo == true
+                && SocialMediaRect().Intersection(new Rect2(PhoneX, SocialTop, PhoneW, FeedBottom - SocialTop)).Size.Y > PostMediaHeight * .55f)
+                visible = _socialPost.Id;
+        }
+        _snsMedia.SetVisiblePost(visible);
+    }
 
     private float CardTop(int index)
     {
@@ -2398,9 +3092,7 @@ public partial class Hub : Node2D
 
     private float _feedScroll, _feedScrollTarget;
     private const float WheelStep = 90f;        // ホイール1ノッチあたりのスクロール量（設計座標）
-    private float FeedViewHeight => ((_mode == Mode.SnsOpening && NeedsSnsIntro)
-        || (_mode == Mode.Dialogue && _dlgSeenKey == SnsIntroSeenKey)
-        ? DialogBox.Position.Y : FeedBottom) - FeedTop;
+    private float FeedViewHeight => FeedBottom - FeedTop;
     private float FeedMaxScroll()
     {
         return Mathf.Max(0f, CardTop(_entries.Length) - FeedViewHeight);
@@ -2425,7 +3117,7 @@ public partial class Hub : Node2D
             if (cy + h < FeedTop || cy > FeedBottom) continue;
             bool sel = (_mode == Mode.Cards || _dlgSeenKey == SnsIntroSeenKey) && i == _sel && _footSel < 0 && !_headFocus;
             float ep = Mathf.Clamp(((float)(_t - _cardsEnteredT) - i * 0.04f) / 0.20f, 0f, 1f);
-            DrawCard(_entries[i], cy, h, sel, sel ? _selT : 0f, alpha * ep);
+            DrawCard(i, cy, h, sel, sel ? _selT : 0f, alpha * ep);
         }
         DrawScrollHint(FeedTop, alpha);
     }
@@ -2439,74 +3131,127 @@ public partial class Hub : Node2D
         float viewH = FeedViewHeight;
         float th = Mathf.Max(28f, viewH * viewH / (viewH + max));
         float ty = top + (viewH - th) * Mathf.Clamp(_feedScroll / max, 0f, 1f);
-        UiKit.Box(this, new Rect2(PhoneX + PhoneW - 4f, ty, 2f, th), new Color(UiKit.Text3, 0.45f * alpha), 1f);
+        UiKit.Box(_drawCanvas, new Rect2(PhoneX + PhoneW - 4f, ty, 2f, th), new Color(UiKit.Text3, 0.45f * alpha), 1f);
     }
 
-    private void DrawCard(Entry e, float cy, float h, bool sel, float st, float alpha)
+    private void DrawCard(int index, float cy, float h, bool sel, float st, float alpha)
     {
+        var e = _entries[index];
         float x = PhoneX, w = PhoneW;
         bool voice = e.Sort == Kind.Voice, filler = e.Sort == Kind.Filler;
         Color acc = BarColorFor(e);
-        if (sel) DrawRect(new Rect2(x, cy, w, h), new Color(acc, (0.045f + 0.025f * st) * alpha));
-        DrawRect(new Rect2(x + 20f, cy + h - 1f, w - 40f, 1f), new Color(1, 1, 1, 0.09f * alpha));
+        if (sel) _drawCanvas.DrawRect(new Rect2(x, cy, w, h), new Color(acc, (0.045f + 0.025f * st) * alpha));
+        _drawCanvas.DrawRect(new Rect2(x + 20f, cy + h - 1f, w - 40f, 1f), new Color(1, 1, 1, 0.09f * alpha));
         if (sel && voice && e.Unlocked)
-            DrawRect(new Rect2(x, cy + 16f, 3f, h - 32f), new Color(UiKit.Purify, alpha));
+            _drawCanvas.DrawRect(new Rect2(x, cy + 16f, 3f, h - 32f), new Color(UiKit.Purify, alpha));
+        if (e.IsRepost)
+        {
+            UiKit.Text(_drawCanvas, UiKit.ZenBold, new Vector2(x + 24, cy + 6), "あなたがリツイート", 13, new Color(UiKit.Ok, alpha));
+            cy += RepostHeaderHeight;
+            h -= RepostHeaderHeight;
+        }
         float ax = x + 43f, ay = cy + 37f;
         if (filler) DrawFillerAvatar(ax, ay, e.Icon, alpha);
-        else UiKit.FaceAvatar(this, new Vector2(ax, ay), 23f, e.Unlocked ? FaceFor(e.Id) : null, acc, false,
+        else UiKit.FaceAvatar(_drawCanvas, new Vector2(ax, ay), 23f, e.Unlocked ? FaceFor(e.Id) : null, acc, false,
             0f, alpha, _t);
         float tx = x + 80f;
         string name = FitText(filler ? UiKit.Zen : UiKit.ZenBold, e.Name, 17, w - 186f);
-        UiKit.Text(this, filler ? UiKit.Zen : UiKit.ZenBold, new Vector2(tx, cy + 17f), name, 17,
+        UiKit.Text(_drawCanvas, filler ? UiKit.Zen : UiKit.ZenBold, new Vector2(tx, cy + 17f), name, 17,
             new Color(UiKit.White, e.Unlocked ? alpha : alpha * 0.5f));
         if (e.Unlocked && !filler)
-            UiKit.VerifiedBadge(this, new Vector2(tx + UiKit.TextW(UiKit.ZenBold, name, 17) + 13f, cy + 28f),
+            UiKit.VerifiedBadge(_drawCanvas, new Vector2(tx + UiKit.TextW(UiKit.ZenBold, name, 17) + 13f, cy + 28f),
                 6f, e.Cleared ? UiKit.Ok : UiKit.Purify, alpha);
-        UiKit.Text(this, UiKit.Mono, new Vector2(tx, cy + 43f), FitText(UiKit.Mono, e.Handle, 12, w - 108f),
+        UiKit.Text(_drawCanvas, UiKit.Mono, new Vector2(tx, cy + 43f), FitText(UiKit.Mono, e.Handle, 12, w - 180f),
             12, new Color(UiKit.Text3, alpha));
-        if (e.Sort == Kind.Pinned) DrawPinnedMark(x + w - 22f, cy + 19f, alpha);
+        if (e.Unlocked) Metric(x + w - 84f, cy + 41f, e.Reach.Views, new Color(UiKit.Text3, alpha), views: true);
+        if (e.Sort == Kind.Pinned && !e.IsRepost) DrawPinnedMark(x + w - 22f, cy + 19f, alpha);
+        else if (e.Sort == Kind.Personal)
+        {
+            bool unread = IsUnreadReturnPost(e.Social!);
+            UiKit.Text(_drawCanvas, UiKit.Zen, new Vector2(x + w - 82f, cy + 20f), unread ? "新着" : e.RelT, 12,
+                new Color(unread ? UiKit.Ok : UiKit.Text3, alpha), HorizontalAlignment.Right, 60f);
+        }
         else if (e.IsFinal || e.Cleared)
-            DrawBadgePill(e, e.IsFinal ? "限界" : "届いた", x + w - 22f, cy + 19f, alpha);
+            DrawBadgePill(e, e.IsFinal ? (e.Cleared ? "クリア済" : "限界") : "届いた", x + w - 22f, cy + 19f, alpha);
         else if (e.Unlocked)
-            UiKit.Text(this, UiKit.Zen, new Vector2(x + w - 82f, cy + 20f), e.RelT, 12,
+            UiKit.Text(_drawCanvas, UiKit.Zen, new Vector2(x + w - 82f, cy + 20f), e.RelT, 12,
                 new Color(UiKit.Text4, alpha), HorizontalAlignment.Right, 60f);
 
-        UiKit.Multi(this, UiKit.Zen, new Vector2(x + 24f, cy + 75f), e.Tweet, 17,
-            new Color(UiKit.Text2, e.Unlocked ? alpha : alpha * 0.45f), w - 48f, 2);
+        UiKit.Multi(_drawCanvas, UiKit.Zen, new Vector2(x + 24f, cy + 75f), e.Tweet, 17,
+            new Color(UiKit.Text2, e.Unlocked ? alpha : alpha * 0.45f), w - 48f, e.Social != null ? 3 : 2);
+        if (e.Social != null)
+        {
+            float mediaSpace = SnsPostMedia.Find(e.Id) != null ? PostMediaHeight + PostMediaGap : 0;
+            if (mediaSpace > 0) _snsMedia.Draw(_drawCanvas, e.Id, new Rect2(x + 24, cy + PostMediaTop(e), w - 48, PostMediaHeight), alpha);
+            if (e.Social.Replies.Length > 0)
+            {
+                var reply = e.Social.Replies[0];
+                string preview = SnsVoices.All[reply.Author].Name + "  " + reply.Text;
+                _drawCanvas.DrawLine(new Vector2(x + 30f, cy + 158f + mediaSpace), new Vector2(x + 30f, cy + 183f + mediaSpace), new Color(UiKit.Info, alpha * 0.4f), 2f);
+                UiKit.Text(_drawCanvas, UiKit.Zen, new Vector2(x + 42f, cy + 160f + mediaSpace),
+                    FitText(UiKit.Zen, preview, 13, w - 66f), 13, new Color(UiKit.Text3, alpha));
+            }
+            UiKit.Text(_drawCanvas, UiKit.ZenBold, new Vector2(x + w - 144f, cy + h - 27f),
+                e.Replies > 0 ? $"返信{e.Replies}件を読む ›" : "投稿を見る ›", 14,
+                new Color(sel ? UiKit.White : UiKit.Info, alpha), HorizontalAlignment.Right, 120f);
+        }
         bool buttons = sel && voice && e.Unlocked && _mode == Mode.Cards && !_autoplay;
         bool hoverHere = sel && e.Unlocked && HoverLineFor(e).Length > 0;
         if (voice && e.Unlocked)
         {
-            if (e.Cleared && !e.IsFinal) DrawMinaReply(e.Id, x, cy, w, h, alpha);
+            if (e.VoiceReplies != null) DrawVoiceReplies(e, x, cy, alpha);
             else if (hoverHere) DrawHoverLine(e, x, cy, w, h, alpha);
             else RedactedBars(x + 24f, cy + 136f, w - 48f, alpha);
             // ボタンを出している間は BEST を少し上げる（下のボタン列と文字が触れないように）。
-            if (!e.IsFinal && !hoverHere) DrawCardBest(e.Id, x + w - 24f, cy + (buttons ? 173f : 179f), alpha);
+            if (!e.IsFinal && !hoverHere) DrawCardBest(e.Id, x + w - 24f, cy + h - (buttons ? 59f : 53f), alpha);
         }
-        else if (e.Redacted) RedactedBars(x + 24f, cy + 103f, w - 48f, alpha);
 
         if (e.Unlocked)
         {
             float ey = cy + h - 25f, ex = x + 26f;
             if (e.IsFinal)
             {
-                // ★2026-09-17：FINAL だけは他カードと違い「いいね/ビュー」ではなくミナ自身の
-                //   フォロワー数・インプレッションの生値を出している。♥と棒グラフのままでは
-                //   投稿のエンゲージ数と読み違える（ユーザー指摘）ので、語ラベル付きに変える。
-                ex = MetricLabeled(ex, ey, "フォロワー", _game?.Followers ?? 0, new Color(UiKit.Hp, alpha));
-                MetricLabeled(ex, ey, "インプレ", _game?.Impression ?? 0, new Color(UiKit.Text3, alpha));
+                float accountX = MetricLabeled(ex, ey - 32, "フォロワー", _game?.Followers ?? 0, new Color(UiKit.Hp, alpha));
+                MetricLabeled(accountX, ey - 32, "所持インプレ", _game?.Impression ?? 0, new Color(UiKit.Text3, alpha));
             }
-            else
-            {
-                ex = Metric(ex, ey, 0, e.Replies, new Color(UiKit.Text3, alpha));
-                ex = Metric(ex, ey, 1, e.Reposts, new Color(UiKit.Ok, alpha));
-                ex = Metric(ex, ey, 2, e.Likes, new Color(UiKit.Hp, alpha));
-                // ボタンを出している間はビュー数を畳む（右側をボタンに明け渡す）。
-                if (!filler && !buttons) Metric(ex, ey, 3, ViewsFor(e), new Color(UiKit.Text3, alpha));
-            }
+            Metric(ex, ey, e.Replies, new Color(UiKit.Text3, alpha));
+            for (int b = RepostButton; b <= LikeButton; b++)
+                DrawReaction(index, b, cy + h, sel && _cardBtn == b, alpha);
         }
         if (buttons)
             for (int b = 0; b < CardBtnCount(e); b++) DrawCardButton(e, b, cy, h, alpha);
+    }
+
+    private SnsVoices.Reach DisplayReach(string id, SnsVoices.Reach reach) => reach with
+    {
+        Likes = reach.Likes + (_game.IsPostLiked(id) ? 1 : 0),
+        Reposts = reach.Reposts + (_game.IsPostReposted(id) ? 1 : 0),
+    };
+
+    private void DrawReaction(int index, int button, float bottom, bool focused, float alpha)
+    {
+        var e = _entries[index];
+        bool like = button == LikeButton;
+        bool active = like ? _game.IsPostLiked(e.Id) : _game.IsPostReposted(e.Id);
+        var reach = DisplayReach(e.Id, e.Reach);
+        int count = like ? reach.Likes : reach.Reposts;
+        var rect = ReactionRectAt(index, bottom, button);
+        bool hovered = UiKit.HoveredId() == ReactionHotspot(index, button);
+        Color color = new(like ? UiKit.Hp : UiKit.Ok, alpha);
+        if (focused || hovered)
+            UiKit.Box(_drawCanvas, rect, new Color(color, 0.12f * alpha), 4f,
+                new Color(color, 0.5f * alpha), 1f);
+        Vector2 origin = rect.Position + new Vector2(5, 5);
+        Vector2 center = origin + new Vector2(8, 8);
+        if (like) UiKit.Heart(_drawCanvas, center, 6f, color);
+        else
+        {
+            _drawCanvas.DrawLine(center + new Vector2(-6, -3), center + new Vector2(5, -3), color, 1.4f);
+            _drawCanvas.DrawLine(center + new Vector2(6, 3), center + new Vector2(-5, 3), color, 1.4f);
+        }
+        UiKit.Text(_drawCanvas, UiKit.Mono, origin + new Vector2(20, 0), UiKit.Abbrev(count), UiKit.FontLabel, color);
+        if (active)
+            _drawCanvas.DrawLine(new Vector2(rect.Position.X + 5, rect.End.Y), new Vector2(rect.End.X - 5, rect.End.Y), color, 2f);
     }
 
     // ───────── 声のカードの下部ボタン [ダイブ] [返信]（2026-09-27）─────────
@@ -2548,12 +3293,12 @@ public partial class Hub : Node2D
         Color acc = b == 0 ? (e.IsFinal ? UiKit.Kegare : UiKit.Purify) : UiKit.Info;
         float a = alpha * (enabled ? 1f : 0.35f);
         // フォーカス＝フッタのカーソルと同じ浄化色の縁と薄い塗り。ホバーは白の下敷きだけ。
-        if (focus) UiKit.Box(this, r, new Color(acc, 0.16f * a), CardBtnH / 2f, new Color(acc, 0.85f * a), 1.4f);
-        else UiKit.Box(this, r, new Color(1, 1, 1, (hovered && enabled ? 0.08f : 0.03f) * a), CardBtnH / 2f,
+        if (focus) UiKit.Box(_drawCanvas, r, new Color(acc, 0.16f * a), CardBtnH / 2f, new Color(acc, 0.85f * a), 1.4f);
+        else UiKit.Box(_drawCanvas, r, new Color(1, 1, 1, (hovered && enabled ? 0.08f : 0.03f) * a), CardBtnH / 2f,
             new Color(UiKit.Text4, 0.55f * a), 1f);
         Color ink = focus ? UiKit.White : enabled ? (hovered ? UiKit.White : UiKit.Text2) : UiKit.Text4;
         float asc = UiKit.ZenBold.GetAscent(14), desc = UiKit.ZenBold.GetDescent(14);
-        DrawString(UiKit.ZenBold, new Vector2(r.Position.X, r.Position.Y + (r.Size.Y + asc - desc) / 2f), CardBtnLabel[b],
+        _drawCanvas.DrawString(UiKit.ZenBold, new Vector2(r.Position.X, r.Position.Y + (r.Size.Y + asc - desc) / 2f), CardBtnLabel[b],
             HorizontalAlignment.Center, r.Size.X, 14, new Color(ink, a));
     }
 
@@ -2561,29 +3306,25 @@ public partial class Hub : Node2D
     private static Color BarColorFor(Entry e) => e.Sort switch
     {
         Kind.Filler => UiKit.Text4,
+        Kind.Personal => AccountColor(e.Social!.CharacterId),
         Kind.Pinned => UiKit.Mina,
         _ => e.IsFinal ? UiKit.Kegare : AccountColor(e.Id),
     };
 
-    // 埋め草のアバター。2026-09-07 まで X の初期アイコン（無地の円＋灰色の人型シルエット）を全員に
-    //   出していたが、実際の TL でそれが並ぶことはない＝「作りかけ」に見えていた。SnsVoices の表が
-    //   名前と対で持つアイコン番号（猫・犬・観葉植物・コーヒー・空・海・食べ物・幾何模様・本・カメラ・
-    //   自転車・月の12種）を丸窓に出す。人の顔は出さない＝声のあるカードとの見分けは保つ。
-    //   アイコンは正方形なので topCrop=0 で全面をサンプルする（縦長立ち絵の頭部窓とは別扱い）。
-    //   リングは無彩色に近い薄灰のまま＝アカウント色を持つ三人と混ざらない。画像が無い場合だけ旧シルエット。
+    // 正方形のアイコンは topCrop=0 で全面を丸窓に収める。
     private void DrawFillerAvatar(float cx, float cy, int icon, float alpha)
     {
         var tex = MobIcon(icon);
         if (tex != null)
         {
-            UiKit.FaceAvatar(this, new Vector2(cx, cy), 24f, tex, new Color(UiKit.Text4, 0.55f), false, 0f, alpha * 0.92f, _t);
+            UiKit.FaceAvatar(_drawCanvas, new Vector2(cx, cy), 24f, tex, new Color(UiKit.Text4, 0.55f), false, 0f, alpha * 0.92f, _t);
             return;
         }
-        DrawCircle(new Vector2(cx, cy), 24f, new Color(0.16f, 0.15f, 0.21f, 0.9f * alpha));
-        DrawArc(new Vector2(cx, cy), 24f, 0f, Mathf.Tau, 28, new Color(1, 1, 1, 0.08f * alpha), 1f);
+        _drawCanvas.DrawCircle(new Vector2(cx, cy), 24f, new Color(0.16f, 0.15f, 0.21f, 0.9f * alpha));
+        _drawCanvas.DrawArc(new Vector2(cx, cy), 24f, 0f, Mathf.Tau, 28, new Color(1, 1, 1, 0.08f * alpha), 1f);
         var sil = new Color(UiKit.Text4, 0.5f * alpha);
-        DrawCircle(new Vector2(cx, cy - 5f), 7f, sil);                       // 頭
-        DrawColoredPolygon(new[] { new Vector2(cx - 11f, cy + 13f), new Vector2(cx + 11f, cy + 13f),
+        _drawCanvas.DrawCircle(new Vector2(cx, cy - 5f), 7f, sil);                       // 頭
+        _drawCanvas.DrawColoredPolygon(new[] { new Vector2(cx - 11f, cy + 13f), new Vector2(cx + 11f, cy + 13f),
                                    new Vector2(cx + 8f, cy + 4f), new Vector2(cx - 8f, cy + 4f) }, sil);  // 肩
     }
     // 固定ポストの印（X の pinned post）。ピルではなく、小さなピンと「固定」の一語だけ置く。
@@ -2592,10 +3333,10 @@ public partial class Hub : Node2D
         const string s = "固定";
         float tw = UiKit.TextW(UiKit.Zen, s, UiKit.FontSmall);
         float x = right - tw;
-        UiKit.Text(this, UiKit.Zen, new Vector2(x, y + 2f), s, UiKit.FontSmall, new Color(UiKit.Text3, 0.9f * alpha));
+        UiKit.Text(_drawCanvas, UiKit.Zen, new Vector2(x, y + 2f), s, UiKit.FontSmall, new Color(UiKit.Text3, 0.9f * alpha));
         // ピン＝頭の丸と細い軸（ラベルの左に控えめに）。
-        DrawCircle(new Vector2(x - 12f, y + 6f), 3f, new Color(UiKit.Mina, 0.8f * alpha));
-        DrawLine(new Vector2(x - 12f, y + 8f), new Vector2(x - 12f, y + 15f), new Color(UiKit.Mina, 0.6f * alpha), 1.4f);
+        _drawCanvas.DrawCircle(new Vector2(x - 12f, y + 6f), 3f, new Color(UiKit.Mina, 0.8f * alpha));
+        _drawCanvas.DrawLine(new Vector2(x - 12f, y + 8f), new Vector2(x - 12f, y + 15f), new Color(UiKit.Mina, 0.6f * alpha), 1.4f);
     }
 
     // 声のあるカードにカーソルが乗ったときの、カード下部のミナの一行（2-b）。
@@ -2605,52 +3346,21 @@ public partial class Hub : Node2D
     {
         string line = HoverLineFor(e);
         if (line.Length == 0) return;
-        UiKit.FaceAvatar(this, new Vector2(x + 35f, cy + 158f), 10f, _playerFaces["mina"], UiKit.Mina, false, 0f, alpha, _t);
-        UiKit.Multi(this, UiKit.Zen, new Vector2(x + 56f, cy + 146f), line, 14,
+        UiKit.FaceAvatar(_drawCanvas, new Vector2(x + 35f, cy + 158f), 10f, _playerFaces["mina"], UiKit.Mina, false, 0f, alpha, _t);
+        UiKit.Multi(_drawCanvas, UiKit.Zen, new Vector2(x + 56f, cy + 146f), line, 14,
             new Color(UiKit.Mina, alpha), w - 80f, 2);
     }
 
     // ホバー行の文言。既存の台詞からの転用に限る（新規の台詞は書かない）。
     private string HoverLineFor(Entry e)
     {
-        if (e.Sort == Kind.Filler) return MobLineFor(e);      // 埋め草＝声の聞こえない側の一言
-        if (e.IsFinal) return FinalHoverLine;   // H3 帰還の行と同じ（投稿した覚えがない＝内側で何かが起きている）
+        if (e.Sort == Kind.Filler) return "";      // 埋め草＝声の聞こえない側の一言
         if (e.Cleared) return "";                                                     // 届いた投稿には、もう言うことがない
+        if (e.IsFinal) return "";
         // あかりの初回＝H0（仮台本 06）の2行目をそのまま置く。旧実装の入場ダイアログの代わり。
         if (e.Id == "akari") return "……送れなかった言葉も、聞こえます。";
-        // こはる・レイは帰還小話の「次の声も、もう、聞こえています。」（H1 帰還の最終行）を引く。
+        if (e.Id == "koharu") return "学校の話になったとき、少し声が小さくなりました。";
         return "次の声も、もう、聞こえています。";
-    }
-
-    // ───────── 埋め草（モブの投稿）に添えるミナの一言 ─────────
-    //   2026-09-07 ユーザー要望「他の投稿を選ぶとミナのひとことあるとうれしい」。
-    //
-    //   【この行が壊してはいけないもの】
-    //   潜れる投稿とそうでない投稿の見分け。声のある投稿の行（上の HoverLineFor）は「聞こえます」＝
-    //   潜れる合図で、こちらは “聞こえない側” の一言＝観測だけを言う。
-    //   ここに「聞こえます」系の語を絶対に書かないこと（書くと探す遊びが消える）。
-    //
-    //   【文言は未確定】以下は差し込み口を通すための暫定で、正式な文言は scenario 担当が書く。
-    //   必要数＝SnsVoices.Count（20）。添字は名前・アイコンと同じ VoiceIndex なので、
-    //   同じアカウントには毎回同じ一言が付く（名前と一言が噛み合う形で書ける）。
-    private static readonly string[] MobLines =
-    {
-        // TODO(scenario): 20行。SnsVoices.All と同じ並び＝各行はその人の名前に噛み合わせて書く。
-        //   観測だけを言う（例：「……この方は、下書きがありません」「……送ってから、消していませんね」）。
-        //   「聞こえます」「声」は使わない＝潜れる投稿との見分けを保つ。
-        "", "", "", "", "", "", "", "", "", "",
-        "", "", "", "", "", "", "", "", "", "",
-    };
-
-    // Entry（埋め草）→ その人の一言。未記入（空文字）なら行を出さない＝いまは従来どおり無言になる。
-    //   Icon から人を引けないので（12種を20人で共有）、名前と同じ FillerVoice 添字を Entry.Id に
-    //   埋めてある通し番号から引き直す。Id は "filler{i}" 形式（BuildFiller が振る）。
-    private static string MobLineFor(Entry e)
-    {
-        if (!e.Id.StartsWith("filler")) return "";
-        if (!int.TryParse(e.Id.Substring(6), out int i)) return "";
-        int v = FillerVoice(i);
-        return v >= 0 && v < MobLines.Length ? MobLines[v] : "";
     }
 
     // カード右下のベストタイム表示。最速難易度のベスト＋小さな難易度ラベル。
@@ -2666,10 +3376,10 @@ public partial class Hub : Node2D
         float lw = UiKit.TrackedW(UiKit.SmallLabel, "BEST") + 6;
         float x0 = right - (lw + tw + dw);
         Color tc = best != null ? UiKit.Gold : UiKit.Text4;
-        UiKit.Draw(this, UiKit.SmallLabel, new Vector2(x0, y + 1), "BEST", new Color(UiKit.Text3, alpha));
-        UiKit.Text(this, UiKit.Mono, new Vector2(x0 + lw, y), timeStr, UiKit.FontLabel, new Color(tc, alpha));
+        UiKit.Draw(_drawCanvas, UiKit.SmallLabel, new Vector2(x0, y + 1), "BEST", new Color(UiKit.Text3, alpha));
+        UiKit.Text(_drawCanvas, UiKit.Mono, new Vector2(x0 + lw, y), timeStr, UiKit.FontLabel, new Color(tc, alpha));
         if (diffStr.Length > 0)
-            UiKit.Draw(this, UiKit.SmallLabel, new Vector2(x0 + lw + tw + 8, y + 1), diffStr, new Color(UiKit.Info, alpha));
+            UiKit.Draw(_drawCanvas, UiKit.SmallLabel, new Vector2(x0 + lw + tw + 8, y + 1), diffStr, new Color(UiKit.Info, alpha));
     }
 
     private static string DiffShort(GameManager.Diff d) => d switch
@@ -2686,48 +3396,60 @@ public partial class Hub : Node2D
     {
         float bw = UiKit.TextW(UiKit.ZenBold, badge, UiKit.FontSmall) + 22f;
         var r = new Rect2(right - bw, y, bw, 20f);
-        if (e.IsFinal)
+        if (e.IsFinal && !e.Cleared)
         {
             float pulse = 0.72f + 0.20f * Mathf.Sin((float)_t * 2.6f);
-            UiKit.Box(this, r, new Color(UiKit.Kegare, pulse * alpha), 10f);
-            UiKit.Text(this, UiKit.ZenBold, new Vector2(r.Position.X, y + 2f), badge, UiKit.FontSmall, new Color(UiKit.BgDeep, alpha), HorizontalAlignment.Center, bw);
+            UiKit.Box(_drawCanvas, r, new Color(UiKit.Kegare, pulse * alpha), 10f);
+            UiKit.Text(_drawCanvas, UiKit.ZenBold, new Vector2(r.Position.X, y + 2f), badge, UiKit.FontSmall, new Color(UiKit.BgDeep, alpha), HorizontalAlignment.Center, bw);
         }
         else if (e.Cleared)
         {
-            UiKit.Box(this, r, new Color(UiKit.Ok, 0.10f * alpha), 10f, new Color(UiKit.Ok, 0.55f * alpha), 1f);
-            UiKit.Text(this, UiKit.ZenBold, new Vector2(r.Position.X, y + 2f), badge, UiKit.FontSmall, new Color(UiKit.Ok, alpha), HorizontalAlignment.Center, bw);
+            UiKit.Box(_drawCanvas, r, new Color(UiKit.Ok, 0.10f * alpha), 10f, new Color(UiKit.Ok, 0.55f * alpha), 1f);
+            UiKit.Text(_drawCanvas, UiKit.ZenBold, new Vector2(r.Position.X, y + 2f), badge, UiKit.FontSmall, new Color(UiKit.Ok, alpha), HorizontalAlignment.Center, bw);
         }
         else
         {
             // 「声」＝これから潜る投稿。塗りピルの淡い明滅で「ここへ」を誘導（常時アニメはこれと選択グロウのみ）。
             float pulse = 0.74f + 0.18f * Mathf.Sin((float)_t * 3.0f);
-            UiKit.Box(this, r, new Color(UiKit.Purify, pulse * alpha), 10f);
-            UiKit.Text(this, UiKit.ZenBold, new Vector2(r.Position.X, y + 2f), badge, UiKit.FontSmall, new Color(UiKit.BgDeep, alpha), HorizontalAlignment.Center, bw);
+            UiKit.Box(_drawCanvas, r, new Color(UiKit.Purify, pulse * alpha), 10f);
+            UiKit.Text(_drawCanvas, UiKit.ZenBold, new Vector2(r.Position.X, y + 2f), badge, UiKit.FontSmall, new Color(UiKit.BgDeep, alpha), HorizontalAlignment.Center, bw);
         }
     }
 
-    // クリア済カードの下段：ミナの自動投稿をスレッド返信風に 1 行で。親アバターから細い会話線で繋ぐ。
-    //   帰還小話で見た「ミナの投稿」が、そのままタイムラインに残っている——という画。
-    private void DrawMinaReply(string id, float x, float cy, float w, float h, float alpha)
-    {
-        UiKit.FaceAvatar(this, new Vector2(x + 35f, cy + 148f), 10f, _playerFaces["mina"], UiKit.Mina, false, 0f, alpha, _t);
-        UiKit.Text(this, UiKit.ZenBold, new Vector2(x + 56f, cy + 132f), "ミナ", 13, new Color(UiKit.Mina, alpha));
-        UiKit.Text(this, UiKit.Zen, new Vector2(x + 56f, cy + 152f), MinaPostShort(id, w - 80f), 14, new Color(UiKit.Text2, alpha));
-    }
+    private const float VoiceRepliesTop = 132f;
+    private const int VoiceReplyFontSize = 14;
+    private static float VoiceReplyLineHeight => UiKit.Zen.GetHeight(VoiceReplyFontSize) + 2f;
 
-    // ミナの自動投稿の 1 行短縮（幅に収まるよう末尾を「…」で省略。レイアウト幅は固定なので id キャッシュで足りる）。
-    private string MinaPostShort(string id, float maxW)
+    private VoiceReply[] BuildVoiceReplies(string id)
     {
-        if (_minaPosts.TryGetValue(id, out var cached)) return cached;
-        var d = ReturnDialog(id);
-        string s = d.Length > 0 ? d[0].Item2 : "";
-        if (UiKit.TextW(UiKit.Zen, s, UiKit.FontLabel) > maxW)
+        var rows = new System.Collections.Generic.List<VoiceReply>();
+        float y = VoiceRepliesTop;
+        foreach (var (speaker, text) in _game.SentReplies(id).Prepend(ReturnDialog(id)[0]))
         {
-            while (s.Length > 1 && UiKit.TextW(UiKit.Zen, s + "…", UiKit.FontLabel) > maxW) s = s.Substring(0, s.Length - 1);
-            s += "…";
+            var lines = UiKit.WrapLines(UiKit.Zen, text, VoiceReplyFontSize, PhoneW - 80f).ToArray();
+            y += 24f + lines.Length * VoiceReplyLineHeight;
+            rows.Add(new VoiceReply(speaker.StartsWith("ミナ", System.StringComparison.Ordinal) ? "mina" : id, lines, y));
         }
-        _minaPosts[id] = s;
-        return s;
+        return rows.ToArray();
+    }
+
+    private void DrawVoiceReplies(Entry e, float x, float cy, float alpha)
+    {
+        float y = cy + VoiceRepliesTop;
+        foreach (var reply in e.VoiceReplies!)
+        {
+            bool mina = reply.AuthorId == "mina";
+            Color color = mina ? UiKit.Mina : AccountColor(reply.AuthorId);
+            UiKit.FaceAvatar(_drawCanvas, new Vector2(x + 35f, y + 12f), 10f, _playerFaces[reply.AuthorId], color, false, 0f, alpha, _t);
+            UiKit.Text(_drawCanvas, UiKit.ZenBold, new Vector2(x + 56f, y), mina ? "ミナ" : e.Name, 13, new Color(color, alpha));
+            y += 20f;
+            foreach (string line in reply.Lines)
+            {
+                UiKit.Text(_drawCanvas, UiKit.Zen, new Vector2(x + 56f, y), line, VoiceReplyFontSize, new Color(UiKit.Text2, alpha));
+                y += VoiceReplyLineHeight;
+            }
+            y = cy + reply.Bottom;
+        }
     }
 
     // 伏字バー（2-a で用途を反転）。声のあるカードの本文の下に薄く明滅させ、
@@ -2737,8 +3459,8 @@ public partial class Hub : Node2D
     {
         float pulse = 0.045f + 0.040f * (0.5f + 0.5f * Mathf.Sin((float)_t * Mathf.Tau / 2.6f));
         var c = new Color(1, 1, 1, pulse * alpha);
-        DrawRect(new Rect2(x, y, w * 0.52f, 7f), c);
-        DrawRect(new Rect2(x, y + 13f, w * 0.31f, 7f), c);
+        _drawCanvas.DrawRect(new Rect2(x, y, w * 0.52f, 7f), c);
+        _drawCanvas.DrawRect(new Rect2(x, y + 13f, w * 0.31f, 7f), c);
     }
 
     // クリア順に基づくゆるい相対時刻（X風メタ表示・実害なし）。
@@ -2747,30 +3469,18 @@ public partial class Hub : Node2D
         "rei" => "3h", "akari" => "5h", "koharu" => "1d", _ => "now",
     };
 
-    // ビュー（表示回数）= だいたい likes×8 の概算。
-    private static long ViewsFor(Entry e) => e.Likes > 0 ? e.Likes * 8 + e.Reposts * 30 : 0;
-
-    // 小さなエンゲージメント指標（0=返信 1=リポスト 2=いいね）。次の x を返す。
-    private float Metric(float x, float y, int kind, long count, Color col)
+    private void Metric(float x, float y, long count, Color col, bool views = false)
     {
         var c = new Vector2(x + 8, y + 8);
-        switch (kind)
+        if (views)
         {
-            case 0: UiKit.Box(this, new Rect2(c.X - 7, c.Y - 6, 14, 10), null, 3f, col, 1.4f); break;
-            case 1:
-                DrawLine(new Vector2(c.X - 6, c.Y - 3), new Vector2(c.X + 5, c.Y - 3), col, 1.4f);
-                DrawLine(new Vector2(c.X + 6, c.Y + 3), new Vector2(c.X - 5, c.Y + 3), col, 1.4f);
-                break;
-            case 3: // ビュー指標（小さな棒グラフ）
-                DrawRect(new Rect2(c.X - 6, c.Y + 1, 2.4f, 4f), col);
-                DrawRect(new Rect2(c.X - 2, c.Y - 2, 2.4f, 7f), col);
-                DrawRect(new Rect2(c.X + 2, c.Y - 5, 2.4f, 10f), col);
-                break;
-            default: DrawHeart(c, 6f, col); break;
+            _drawCanvas.DrawRect(new Rect2(c.X - 6, c.Y + 1, 2.4f, 4f), col);
+            _drawCanvas.DrawRect(new Rect2(c.X - 2, c.Y - 2, 2.4f, 7f), col);
+            _drawCanvas.DrawRect(new Rect2(c.X + 2, c.Y - 5, 2.4f, 10f), col);
         }
+        else UiKit.Box(_drawCanvas, new Rect2(c.X - 7, c.Y - 6, 14, 10), null, 3f, col, 1.4f);
         string s = UiKit.Abbrev(count);
-        UiKit.Text(this, UiKit.Mono, new Vector2(x + 20, y), s, UiKit.FontLabel, col);
-        return x + 20 + UiKit.TextW(UiKit.Mono, s, UiKit.FontLabel) + 26;
+        UiKit.Text(_drawCanvas, UiKit.Mono, new Vector2(x + 20, y), s, UiKit.FontLabel, col);
     }
 
     // 記号の代わりに語で意味を示す指標（FINAL カードのフォロワー／インプレ）。次の x を返す。
@@ -2778,18 +3488,12 @@ public partial class Hub : Node2D
     private float MetricLabeled(float x, float y, string label, long count, Color col)
     {
         float lw = UiKit.TextW(UiKit.Zen, label, UiKit.FontSmall);
-        UiKit.Text(this, UiKit.Zen, new Vector2(x, y + 2f), label, UiKit.FontSmall, new Color(col, col.A * 0.8f));
+        UiKit.Text(_drawCanvas, UiKit.Zen, new Vector2(x, y + 2f), label, UiKit.FontSmall, new Color(col, col.A * 0.8f));
         string s = UiKit.Abbrev(count);
-        UiKit.Text(this, UiKit.Mono, new Vector2(x + lw + 6f, y), s, UiKit.FontLabel, col);
+        UiKit.Text(_drawCanvas, UiKit.Mono, new Vector2(x + lw + 6f, y), s, UiKit.FontLabel, col);
         return x + lw + 6f + UiKit.TextW(UiKit.Mono, s, UiKit.FontLabel) + 26;
     }
 
-    private void DrawHeart(Vector2 c, float r, Color col)
-    {
-        DrawCircle(new Vector2(c.X - r * 0.45f, c.Y - r * 0.25f), r * 0.55f, col);
-        DrawCircle(new Vector2(c.X + r * 0.45f, c.Y - r * 0.25f), r * 0.55f, col);
-        DrawColoredPolygon(new[] { new Vector2(c.X - r * 0.9f, c.Y), new Vector2(c.X + r * 0.9f, c.Y), new Vector2(c.X, c.Y + r) }, col);
-    }
 
     // ── フッタ操作（クリック可能なショップ入口ほか）──
     //   フェーズ2のカードクリックに続き、フッタの操作ヒントもマウスで押せるようにする。
@@ -2797,7 +3501,7 @@ public partial class Hub : Node2D
     //   ・「えらぶ」はナビ表示のみ＝クリック対象外。「ダイブ」はカードクリックで足りるので表示のみ。
     //   ・レイアウトは DrawFooter と単一ソース化（FooterItems を DrawFooter とホットスポット登録で共用）。
     //     フッタ id は カード id(0..entries) と衝突しないよう FooterIdBase から採番する。
-    private enum FootAct { Job, Home }
+    private enum FootAct { Job, Home, Voice, Reposts }
     private const int FooterIdBase = 10000;
 
     // 現在のフッタ項目（表示順）。label/accent＝見た目、act＝クリック時のアクション。
@@ -2807,11 +3511,14 @@ public partial class Hub : Node2D
     {
         // ジョブは解禁ゲート無し＝初回訪問から出す（設計書 §6：ショップは1面ボスまで開かないので、
         //   ハブに置かないと最初のダイブ前に一度も選べない）。
-        return new System.Collections.Generic.List<(string, bool, FootAct)>
+        var items = new System.Collections.Generic.List<(string, bool, FootAct)>
         {
             ("ホーム", false, FootAct.Home),
             ("アカウント", false, FootAct.Job),
+            ("ボスステージ", true, FootAct.Voice),
         };
+        if (_entries.Length > 0 && _entries[0].IsRepost) items.Add(("リツイート", false, FootAct.Reposts));
+        return items;
     }
 
     private Rect2 FooterItemRect(int i)
@@ -2822,7 +3529,7 @@ public partial class Hub : Node2D
 
     private void DrawFooter()
     {
-        DrawRect(new Rect2(PhoneX, FeedBottom, PhoneW, 1f), new Color(1, 1, 1, 0.12f));
+        _drawCanvas.DrawRect(new Rect2(PhoneX, FeedBottom, PhoneW, 1f), new Color(1, 1, 1, 0.12f));
         var items = FooterItems();
         for (int i = 0; i < items.Count; i++)
         {
@@ -2835,9 +3542,10 @@ public partial class Hub : Node2D
             // キーボード／パッドのカーソルはカードの選択枠と同じ浄化色の縁で見せる（マウスのホバーより強く＝
             //   「いまカーソルがここにある」がカードから降りた瞬間に分かる）。
             if (_mode == Mode.Cards && _footSel == i)
-                UiKit.Box(this, rect, new Color(UiKit.Purify, 0.10f), 8f, new Color(UiKit.Purify, 0.6f), 1f);
-            else if (hovered) UiKit.Box(this, rect, new Color(1, 1, 1, 0.05f), 8f);
-            Vector2 c = rect.Position + new Vector2(rect.Size.X / 2f, 18f);
+                UiKit.Box(_drawCanvas, rect, new Color(UiKit.Purify, 0.10f), 8f, new Color(UiKit.Purify, 0.6f), 1f);
+            else if (hovered) UiKit.Box(_drawCanvas, rect, new Color(1, 1, 1, 0.05f), 8f);
+            float iconX = items.Count == 4 ? 16f : 26f;
+            Vector2 c = rect.Position + new Vector2(iconX, 24f);
             // アカウント追加の説明を読んだ直後だけの誘導（2026-09-23）：フッタ「アカウント」の顔アイコンから
             //   外へ広がりながら薄くなる輪を2枚ずらして重ねる＝ホームの強化アイコン（_shopNudge）と同じ作法。
             //   台詞は足していない（説明の2行目「SNSの下、「アカウント」から」が場所をもう言っている）。
@@ -2846,13 +3554,14 @@ public partial class Hub : Node2D
                 for (int ring = 0; ring < 2; ring++)
                 {
                     float phase = Mathf.PosMod((float)_t * 0.8f + ring * 0.5f, 1f);
-                    DrawArc(c, 17f + phase * 14f, 0f, Mathf.Tau, 48, new Color(UiKit.Purify, (1f - phase) * 0.55f), 2f, true);
+                    _drawCanvas.DrawArc(c, 17f + phase * 14f, 0f, Mathf.Tau, 48, new Color(UiKit.Purify, (1f - phase) * 0.55f), 2f, true);
                 }
             }
             DrawFooterIcon(act, c, col);
             // キー表記は貼らない（2026-09-27 作者指示。案内は画面下端のヒント帯に1行でまとめた）。
-            UiKit.Text(this, UiKit.Zen, new Vector2(rect.Position.X, rect.Position.Y + 38f), label, 12, col,
-                HorizontalAlignment.Center, rect.Size.X);
+            float labelX = iconX + 18f;
+            UiKit.Text(_drawCanvas, UiKit.Zen, new Vector2(rect.Position.X + labelX, rect.Position.Y + 16f), label, 12, col,
+                HorizontalAlignment.Left, rect.Size.X - labelX - 4f);
         }
     }
 
@@ -2860,19 +3569,24 @@ public partial class Hub : Node2D
     private void DrawToast()
     {
         if (_toastT <= 0) return;
-        const float w = PhoneW - 32f;
-        var lines = UiKit.WrapLines(UiKit.ZenBold, _toast, 15, w - 32f);
-        var sub = UiKit.WrapLines(UiKit.Zen, _toastSub, 12, w - 32f);
-        float h = 24f + lines.Count * UiKit.ZenBold.GetHeight(15) + (_toastSub.Length > 0 ? sub.Count * UiKit.Zen.GetHeight(12) + 6f : 0f);
-        float x = PhoneX + 16f, y = _mode == Mode.Dialogue ? FeedTop + 12f : FeedBottom - h - 8f;
-        UiKit.Box(this, new Rect2(x, y, w, h), PhoneRaised, 8f, new Color(_toastCol, 0.6f), 1f);
-        UiKit.Multi(this, UiKit.ZenBold, new Vector2(x + 16f, y + 12f), _toast, 15, _toastCol, w - 32f);
+        bool besidePhone = _limeConversation || MinaLineOpen;
+        float w = besidePhone ? PhoneX - 40f : PhoneW - 32f;
+        int titleSize = _prominentToast ? (besidePhone ? 19 : 22) : 15, subSize = _prominentToast ? 16 : 12;
+        var lines = UiKit.WrapLines(UiKit.ZenBold, _toast, titleSize, w - 32f);
+        var sub = UiKit.WrapLines(UiKit.Zen, _toastSub, subSize, w - 32f);
+        float titleHeight = lines.Count * UiKit.ZenBold.GetHeight(titleSize);
+        float h = 24f + titleHeight + (_toastSub.Length > 0 ? sub.Count * UiKit.Zen.GetHeight(subSize) + 6f : 0f);
+        float x = besidePhone ? 20f : PhoneX + 16f, y = besidePhone ? LimeHeaderY + 8
+            : _mode == Mode.Dialogue ? FeedTop + 12f : FeedBottom - h - 8f;
+        if (_mode == Mode.Dialogue && !besidePhone && _dlgReturnMode == Mode.Home && !_dlgNoPost)
+            y = DialogBox.Position.Y - h - 12f;
+        UiKit.Box(_drawCanvas, new Rect2(x, y, w, h), PhoneRaised, 8f, new Color(_toastCol, 0.6f), 1f);
+        UiKit.Multi(_drawCanvas, UiKit.ZenBold, new Vector2(x + 16f, y + 12f), _toast, titleSize, _toastCol, w - 32f);
         if (_toastSub.Length > 0)
-            UiKit.Multi(this, UiKit.Zen, new Vector2(x + 16f, y + 18f + lines.Count * UiKit.ZenBold.GetHeight(15)), _toastSub, 12, UiKit.Text3, w - 32f);
+            UiKit.Multi(_drawCanvas, UiKit.Zen, new Vector2(x + 16f, y + 18f + titleHeight), _toastSub, subSize, _prominentToast ? UiKit.Text2 : UiKit.Text3, w - 32f);
     }
 
     // 小話の話者文字列 → (立ち絵, 円窓のリング色, topCrop)。本編会話と同じ FaceAvatar で顔を出す。
-    //   ミナ系(ミナ・ミナの投稿・ミナ→@xxx)=mina_face / 相手キャラ=各 _face。
     //   top の負値は「顔を描かない」印：-1＝アバターごと省略 / DraftTop＝人物シルエット。
     private const float DraftTop = -2f;
     private (Texture2D? face, Color col, float top) SpeakerFace(string sp)
@@ -2881,7 +3595,7 @@ public partial class Hub : Node2D
         //   DrawDialog にアバターごと省かせる（null のままだと FaceAvatar が「?」のロック円を描き、
         //   未解放カードと同じ見た目になってしまう）。H0 の投稿、H2 の炎上の引用、H3 の FINAL カードがここ。
         if (sp.StartsWith("Ｙ")) return (null, UiKit.Info, -1f);
-        if (sp == "あなた") return (null, UiKit.Info, DraftTop);
+        if (sp == "あなた") return (null, UiKit.CutWarm, DraftTop);
         if (sp.StartsWith("ミナ")) return (_minaFace, UiKit.Mina, TopCropFor("mina"));
         foreach (var job in Jobs.All)
             if (sp == job.CharacterName) return (_dialogueFaces[job.CharacterId], CompanionDialogue.Accent(job.Id), TopCropFor(job.CharacterId));
@@ -2899,41 +3613,44 @@ public partial class Hub : Node2D
         float a = Mathf.Clamp((float)_detailT / 0.18f, 0f, 1f);
         var (cx, cy, cw, ch) = DetailBox(tiers);
         Color acc = e.IsFinal ? UiKit.Kegare : AccountColor(e.Id);
-        DrawRect(new Rect2(PhoneX, 0, PhoneW, H), new Color(0, 0, 0, 0.5f * a));
-        UiKit.Box(this, new Rect2(cx, cy, cw, ch), new Color(PhoneBg, a), 8f);
+        _drawCanvas.DrawRect(new Rect2(PhoneX, 0, PhoneW, H), new Color(0, 0, 0, 0.5f * a));
+        UiKit.Box(_drawCanvas, new Rect2(cx, cy, cw, ch), new Color(PhoneBg, a), 8f);
         DrawBackButton(DetailCloseRect(tiers), DetailCloseId, a);
-        UiKit.Text(this, UiKit.ZenBold, new Vector2(cx + 60f, cy + 21f), "投稿", 20, new Color(UiKit.White, a));
+        UiKit.Text(_drawCanvas, UiKit.ZenBold, new Vector2(cx + 60f, cy + 21f), "投稿", 20, new Color(UiKit.White, a));
         DrawJobButton(DetailJobRect(tiers), a);
-        UiKit.FaceAvatar(this, new Vector2(cx + 47f, cy + 91f), 23f, FaceFor(e.Id), acc, false, 0f, a, _t);
-        UiKit.Text(this, UiKit.ZenBold, new Vector2(cx + 84f, cy + 70f), e.Name, 19, new Color(UiKit.White, a));
-        UiKit.VerifiedBadge(this, new Vector2(cx + 97f + UiKit.TextW(UiKit.ZenBold, e.Name, 19), cy + 82f), 6f, e.Cleared ? UiKit.Ok : UiKit.Purify, a);
-        UiKit.Text(this, UiKit.Mono, new Vector2(cx + 84f, cy + 98f), e.Handle + " · " + e.RelT, 12, new Color(UiKit.Text3, a));
-        if (e.IsFinal || e.Cleared) DrawBadgePill(e, e.IsFinal ? "限界" : "届いた", cx + cw - 24f, cy + 74f, a);
-        UiKit.Multi(this, UiKit.Zen, new Vector2(cx + 24f, cy + 135f), e.Tweet, 18, new Color(UiKit.Text2, a), cw - 48f, 3);
+        UiKit.FaceAvatar(_drawCanvas, new Vector2(cx + 47f, cy + 91f), 23f, FaceFor(e.Id), acc, false, 0f, a, _t);
+        UiKit.Text(_drawCanvas, UiKit.ZenBold, new Vector2(cx + 84f, cy + 70f), e.Name, 19, new Color(UiKit.White, a));
+        UiKit.VerifiedBadge(_drawCanvas, new Vector2(cx + 97f + UiKit.TextW(UiKit.ZenBold, e.Name, 19), cy + 82f), 6f, e.Cleared ? UiKit.Ok : UiKit.Purify, a);
+        UiKit.Text(_drawCanvas, UiKit.Mono, new Vector2(cx + 84f, cy + 98f), e.Handle + " · " + e.RelT, 12, new Color(UiKit.Text3, a));
+        if (e.IsFinal || e.Cleared) DrawBadgePill(e, e.IsFinal ? (e.Cleared ? "クリア済" : "限界") : "届いた", cx + cw - 24f, cy + 74f, a);
+        UiKit.Multi(_drawCanvas, UiKit.Zen, new Vector2(cx + 24f, cy + 135f), e.Tweet, 18, new Color(UiKit.Text2, a), cw - 48f, 3);
         RedactedBars(cx + 24f, cy + 226f, cw - 48f, a);
         string quip = HoverLineFor(e);
-        if (quip.Length == 0) quip = "……届きました。";
-        UiKit.FaceAvatar(this, new Vector2(cx + 35f, cy + 274f), 10f, _playerFaces["mina"], UiKit.Mina, false, 0f, a, _t);
-        UiKit.Multi(this, UiKit.Zen, new Vector2(cx + 56f, cy + 260f), quip, 14, new Color(UiKit.Mina, a), cw - 80f, 2);
+        if (!e.IsFinal || e.Cleared)
+        {
+            if (quip.Length == 0) quip = "……届きました。";
+            UiKit.FaceAvatar(_drawCanvas, new Vector2(cx + 35f, cy + 274f), 10f, _playerFaces["mina"], UiKit.Mina, false, 0f, a, _t);
+            UiKit.Multi(_drawCanvas, UiKit.Zen, new Vector2(cx + 56f, cy + 260f), quip, 14, new Color(UiKit.Mina, a), cw - 80f, 2);
+        }
         if (tiers)
         {
             // 2026-09-17 ユーザー指示：「潜り方」の見出しを削除。区切り線は本文と段の境目として残す
             //   （線まで消すと、投稿本文と難易度の一覧が地続きに見えて読み分けられない）。
-            DrawRect(new Rect2(cx + 24f, cy + 305f, cw - 48f, 1f), new Color(1, 1, 1, 0.09f * a));
+            _drawCanvas.DrawRect(new Rect2(cx + 24f, cy + 305f, cw - 48f, 1f), new Color(1, 1, 1, 0.09f * a));
             for (int i = 0; i < Tiers.Length; i++) DrawTier(i, cx + 24f, cy + TierTop + i * 68f, cw - 48f, 62f, a);
         }
         else if (NeedsFinalAccount)
         {
-            DrawRect(new Rect2(cx + 24f, cy + 320f, cw - 48f, 1f), new Color(1, 1, 1, 0.09f * a));
-            UiKit.Box(this, new Rect2(cx + 24f, cy + 344f, cw - 48f, 76f), new Color(UiKit.Kegare, 0.10f * a), 8f,
+            _drawCanvas.DrawRect(new Rect2(cx + 24f, cy + 320f, cw - 48f, 1f), new Color(1, 1, 1, 0.09f * a));
+            UiKit.Box(_drawCanvas, new Rect2(cx + 24f, cy + 344f, cw - 48f, 76f), new Color(UiKit.Kegare, 0.10f * a), 8f,
                 new Color(UiKit.Kegare, 0.5f * a), 1f);
-            UiKit.Text(this, UiKit.ZenBold, new Vector2(cx + 40f, cy + 356f), GameManager.MinaFinalLockHint, 15,
+            UiKit.Text(_drawCanvas, UiKit.ZenBold, new Vector2(cx + 40f, cy + 356f), GameManager.MinaFinalLockHint, 15,
                 new Color(UiKit.Kegare, a));
-            UiKit.Text(this, UiKit.Zen, new Vector2(cx + 40f, cy + 384f),
+            UiKit.Text(_drawCanvas, UiKit.Zen, new Vector2(cx + 40f, cy + 384f),
                 "あかり／こはる／レイ のどなたかで、潜ってください。", 13, new Color(UiKit.Text2, a));
         }
         if (!tiers)
-            DrawPrimaryButton(FinalDiveRect(), NeedsFinalAccount ? "アカウントを選ぶ" : "ミナを迎えに行く",
+            DrawPrimaryButton(FinalDiveRect(), NeedsFinalAccount ? "アカウントを選ぶ" : "投稿に潜る",
                 FinalDiveId, NeedsFinalAccount ? UiKit.Purify : acc, a);
     }
 
@@ -2947,16 +3664,16 @@ public partial class Hub : Node2D
         // キーボード／パッドのカーソルがヘッダーにあるとき＝フッタのカーソルと同じ浄化色の縁と薄い塗り（2026-09-27）。
         //   マウスのホバーは従来どおり白の下敷きだけ（カーソルの方が強く見える＝フッタと同じ強弱）。
         if (header && _headFocus && _mode == Mode.Cards)
-            UiKit.Box(this, rect, new Color(UiKit.Purify, 0.10f * alpha), 8f, new Color(UiKit.Purify, 0.6f * alpha), 1f);
-        else if (UiKit.HoveredId() == JobOpenId) UiKit.Box(this, rect, new Color(1, 1, 1, 0.06f * alpha), 8f);
-        UiKit.FaceAvatar(this, rect.Position + new Vector2(header ? 28f : 20f, rect.Size.Y / 2f), header ? 20f : 15f,
+            UiKit.Box(_drawCanvas, rect, new Color(UiKit.Purify, 0.10f * alpha), 8f, new Color(UiKit.Purify, 0.6f * alpha), 1f);
+        else if (UiKit.HoveredId() == JobOpenId) UiKit.Box(_drawCanvas, rect, new Color(1, 1, 1, 0.06f * alpha), 8f);
+        UiKit.FaceAvatar(_drawCanvas, rect.Position + new Vector2(header ? 28f : 20f, rect.Size.Y / 2f), header ? 20f : 15f,
             _playerFaces[job.CharacterId], acc, false, 0f, alpha, _t);
-        UiKit.Text(this, UiKit.ZenBold, rect.Position + new Vector2(tx, header ? 6f : 2f), job.CharacterName, nameSize, new Color(UiKit.White, alpha));
+        UiKit.Text(_drawCanvas, UiKit.ZenBold, rect.Position + new Vector2(tx, header ? 6f : 2f), job.CharacterName, nameSize, new Color(UiKit.White, alpha));
         float nameW = UiKit.TextW(UiKit.ZenBold, job.CharacterName, nameSize);
-        UiKit.VerifiedBadge(this, rect.Position + new Vector2(tx + nameW + 12f, header ? 19f : 12f), header ? 7f : 5f, new Color(UiKit.Purify, alpha));
-        UiKit.Text(this, UiKit.Mono, rect.Position + new Vector2(tx, header ? 32f : 23f), AccountHandle(job), header ? 12 : 11, new Color(UiKit.Text3, alpha));
+        UiKit.VerifiedBadge(_drawCanvas, rect.Position + new Vector2(tx + nameW + 12f, header ? 19f : 12f), header ? 7f : 5f, new Color(UiKit.Purify, alpha));
+        UiKit.Text(_drawCanvas, UiKit.Mono, rect.Position + new Vector2(tx, header ? 32f : 23f), AccountHandle(job), header ? 12 : 11, new Color(UiKit.Text3, alpha));
         Vector2 p = rect.Position + new Vector2(rect.Size.X - 12f, rect.Size.Y / 2f);
-        DrawPolyline(new[] { p + new Vector2(-4, -2), p + new Vector2(0, 2), p + new Vector2(4, -2) }, new Color(UiKit.Text3, alpha), 1.5f, true);
+        _drawCanvas.DrawPolyline(new[] { p + new Vector2(-4, -2), p + new Vector2(0, 2), p + new Vector2(4, -2) }, new Color(UiKit.Text3, alpha), 1.5f, true);
     }
 
     private static string AccountHandle(JobTuning job) => job.Id == Job.Tank
@@ -2972,24 +3689,24 @@ public partial class Hub : Node2D
         bool sel = i == _tierSel, open = TierOpen(i);
         float mid = y + h / 2f;   // 行の縦中央（1行になったぶん、ここへ寄せる）
         Color acc = tr.Diff == GameManager.Diff.Lunatic ? UiKit.Kegare : tr.Diff == GameManager.Diff.Hard ? UiKit.Gold : UiKit.Purify;
-        if (sel && open) UiKit.Box(this, new Rect2(x, y, w, h), new Color(acc, 0.10f * alpha), 8f, new Color(acc, 0.6f * alpha), 1f);
-        else DrawRect(new Rect2(x + 12f, y + h - 1f, w - 24f, 1f), new Color(1, 1, 1, 0.06f * alpha));
-        DrawArc(new Vector2(x + 18f, mid), 5f, 0f, Mathf.Tau, 20, new Color(open ? acc : UiKit.Text4, alpha), 1.5f, true);
-        if (sel && open) DrawCircle(new Vector2(x + 18f, mid), 2.5f, new Color(acc, alpha));
-        UiKit.Text(this, UiKit.ZenBold, new Vector2(x + 33f, mid - 12f), tr.Name, 17, new Color(open ? UiKit.White : UiKit.Text4, alpha));
+        if (sel && open) UiKit.Box(_drawCanvas, new Rect2(x, y, w, h), new Color(acc, 0.10f * alpha), 8f, new Color(acc, 0.6f * alpha), 1f);
+        else _drawCanvas.DrawRect(new Rect2(x + 12f, y + h - 1f, w - 24f, 1f), new Color(1, 1, 1, 0.06f * alpha));
+        _drawCanvas.DrawArc(new Vector2(x + 18f, mid), 5f, 0f, Mathf.Tau, 20, new Color(open ? acc : UiKit.Text4, alpha), 1.5f, true);
+        if (sel && open) _drawCanvas.DrawCircle(new Vector2(x + 18f, mid), 2.5f, new Color(acc, alpha));
+        UiKit.Text(_drawCanvas, UiKit.ZenBold, new Vector2(x + 33f, mid - 12f), tr.Name, 17, new Color(open ? UiKit.White : UiKit.Text4, alpha));
         if (!open)
         {
-            UiKit.Text(this, UiKit.Zen, new Vector2(x + 110f, mid - 8f),
-                $"フォロワー{GameManager.LunaticFollowerReq}以上で解放",
+            UiKit.Text(_drawCanvas, UiKit.Zen, new Vector2(x + 110f, mid - 8f),
+                GameManager.LunaticUnlockHint,
                 12, new Color(UiKit.Text4, alpha), HorizontalAlignment.Right, w - 126f);
             return;
         }
         // ♥・ボムの基礎値は全難易度3/1で共通になった（2026-09-15）ので賭け金表示から外し、
         // 難易度で本当に変わる獲得倍率だけを出す。
         string stake = $"×{GameManager.DifficultyImpressionMulFor(tr.Diff):0.0}";
-        UiKit.Text(this, UiKit.Zen, new Vector2(x + 132f, mid - 7f), stake, 12, new Color(UiKit.Hp, alpha), HorizontalAlignment.Right, w - 190f);
+        UiKit.Text(_drawCanvas, UiKit.Zen, new Vector2(x + 132f, mid - 7f), stake, 12, new Color(UiKit.Hp, alpha), HorizontalAlignment.Right, w - 190f);
         int bars = tr.Diff switch { GameManager.Diff.Easy => 2, GameManager.Diff.Hard => 5, GameManager.Diff.Lunatic => 6, _ => 4 };
-        for (int b = 0; b < bars; b++) DrawRect(new Rect2(x + w - 18f - (bars - b) * 7f, mid - 5f, 3f, 11f), new Color(acc, 0.6f * alpha));
+        for (int b = 0; b < bars; b++) _drawCanvas.DrawRect(new Rect2(x + w - 18f - (bars - b) * 7f, mid - 5f, 3f, 11f), new Color(acc, 0.6f * alpha));
     }
 
     // ───────── ジョブ選択（設計書 §6）─────────
@@ -3014,10 +3731,7 @@ public partial class Hub : Node2D
         _ => UiKit.Mina,
     };
 
-    // 段の高さと、選択中の段の性能を出す詳細パネルの高さ（2026-09-27）。
-    //   段は「誰か」だけを言う高さまで詰め（旧100→62）、浮いたぶんを詳細パネルへ回す＝
-    //   1行に数値を詰め込まず、選んだ1人ぶんだけを大きく読ませる（ショップの詳細欄と同じ作法）。
-    private const float JobRowH = 62f, JobPanelH = 246f, JobPanelGap = 10f;
+    private const float JobRowH = 48f, JobPanelH = 350f, JobPanelGap = 10f;
 
     private (float cx, float cy, float cw, float ch) JobBox()
     {
@@ -3054,17 +3768,17 @@ public partial class Hub : Node2D
 
     private void DrawBackButton(Rect2 rect, int id, float alpha)
     {
-        if (UiKit.HoveredId() == id) UiKit.Box(this, rect, new Color(1, 1, 1, 0.06f * alpha), 8f);
+        if (UiKit.HoveredId() == id) UiKit.Box(_drawCanvas, rect, new Color(1, 1, 1, 0.06f * alpha), 8f);
         Vector2 c = rect.GetCenter();
-        DrawPolyline(new[] { c + new Vector2(3, -7), c + new Vector2(-4, 0), c + new Vector2(3, 7) },
+        _drawCanvas.DrawPolyline(new[] { c + new Vector2(3, -7), c + new Vector2(-4, 0), c + new Vector2(3, 7) },
             new Color(UiKit.Text2, alpha), 2f, true);
     }
 
     private void DrawPrimaryButton(Rect2 rect, string label, int id, Color accent, float alpha)
     {
         bool hovered = UiKit.HoveredId() == id;
-        UiKit.Box(this, rect, new Color(accent, (hovered ? 0.24f : 0.14f) * alpha), 8f, new Color(accent, 0.6f * alpha), 1f);
-        UiKit.Text(this, UiKit.ZenBold, rect.Position + new Vector2(0, 10f), label, 16,
+        UiKit.Box(_drawCanvas, rect, new Color(accent, (hovered ? 0.24f : 0.14f) * alpha), 8f, new Color(accent, 0.6f * alpha), 1f);
+        UiKit.Text(_drawCanvas, UiKit.ZenBold, rect.Position + new Vector2(0, 10f), label, 16,
             new Color(UiKit.White, alpha), HorizontalAlignment.Center, rect.Size.X);
     }
 
@@ -3072,12 +3786,22 @@ public partial class Hub : Node2D
     {
         switch (act)
         {
+            case FootAct.Reposts:
+                _drawCanvas.DrawPolyline(new[] { c + new Vector2(-8, 4), c + new Vector2(-8, -4), c + new Vector2(7, -4),
+                    c + new Vector2(3, -8) }, color, 1.6f, true);
+                _drawCanvas.DrawPolyline(new[] { c + new Vector2(8, -4), c + new Vector2(8, 4), c + new Vector2(-7, 4),
+                    c + new Vector2(-3, 8) }, color, 1.6f, true);
+                break;
+            case FootAct.Voice:
+                _drawCanvas.DrawArc(c, 9f, 0, Mathf.Tau, 24, color, 1.8f, true);
+                _drawCanvas.DrawLine(c + new Vector2(7, 7), c + new Vector2(13, 13), color, 1.8f, true);
+                break;
             case FootAct.Job:
-                UiKit.FaceAvatar(this, c, 13f, _playerFaces[_game.JobDef.CharacterId], JobColor(_game.SelectedJob), false, 0f, 1f, _t);
+                UiKit.FaceAvatar(_drawCanvas, c, 13f, _playerFaces[_game.JobDef.CharacterId], JobColor(_game.SelectedJob), false, 0f, 1f, _t);
                 break;
             case FootAct.Home:
-                DrawPolyline(new[] { c + new Vector2(-11, -1), c + new Vector2(0, -10), c + new Vector2(11, -1) }, color, 1.8f, true);
-                DrawPolyline(new[] { c + new Vector2(-8, -3), c + new Vector2(-8, 9), c + new Vector2(-3, 9), c + new Vector2(-3, 2),
+                _drawCanvas.DrawPolyline(new[] { c + new Vector2(-11, -1), c + new Vector2(0, -10), c + new Vector2(11, -1) }, color, 1.8f, true);
+                _drawCanvas.DrawPolyline(new[] { c + new Vector2(-8, -3), c + new Vector2(-8, 9), c + new Vector2(-3, 9), c + new Vector2(-3, 2),
                     c + new Vector2(3, 2), c + new Vector2(3, 9), c + new Vector2(8, 9), c + new Vector2(8, -3) }, color, 1.8f, true);
                 break;
         }
@@ -3100,14 +3824,51 @@ public partial class Hub : Node2D
         _jobT = 0;
         // カーソルは今のジョブに置く＝「いま何を選んでいるか」が開いた瞬間に分かる（Detail の _tierSel と同じ）。
         var cur = _game?.SelectedJob ?? Job.Tank;
-        if (MinaBlockedHere && cur == Job.Tank) cur = Job.Magic;
+        bool hideMina = _jobReturnMode == Mode.Detail && MinaBlockedHere;
+        if (hideMina && cur == Job.Tank) cur = Job.Magic;
         // FINAL のカードに向き合っている間だけ、結び手（ミナ）を一覧から落とす＝押せないものを見せない
         //   （未解禁ジョブと同じ作法。ここは「選べる口が無い」だけで、ヒントは Detail 側が文で出す）。
-        bool hideMina = MinaBlockedHere;
         _jobChoices = System.Array.FindAll(Jobs.All,
             job => _game!.IsJobUnlocked(job.Id) && !(hideMina && job.Id == Job.Tank));
         _jobSel = 0;
         for (int i = 0; i < _jobChoices.Length; i++) if (_jobChoices[i].Id == cur) { _jobSel = i; break; }
+        _unlockHoverOrigin = null;
+        StopUnlockCard();
+        if (_game is not { JobForcedByCmdline: false, NextUnlockCard: { } arrival }) return;
+        int index = System.Array.FindIndex(_jobChoices, job => job.Id == arrival.Id);
+        if (index < 0) return;
+        _jobSel = index;
+        _unlockJob = arrival.Id;
+        _unlockHoverOrigin = Pad.MousePos();
+        _unlockMovie = new VideoStreamPlayer
+        {
+            Stream = GD.Load<VideoStream>($"res://assets/video/{arrival.CharacterId}_unlock.ogv"), Visible = false,
+        };
+        AddChild(_unlockMovie);
+        _unlockMovie.Finished += HoldUnlockCard;
+        _unlockMovie.Play();
+        _game.AcknowledgeUnlockCard(arrival);
+    }
+
+    private void HoldUnlockCard()
+    {
+        _unlockPortrait = _unlockMovie!.GetVideoTexture();
+        ReleaseUnlockMovie();
+    }
+
+    private void StopUnlockCard()
+    {
+        _unlockPortrait = null;
+        _unlockJob = null;
+        ReleaseUnlockMovie();
+    }
+
+    private void ReleaseUnlockMovie()
+    {
+        if (_unlockMovie is not { } movie) return;
+        _unlockMovie = null;
+        movie.Finished -= HoldUnlockCard;
+        movie.QueueFree();
     }
 
     private void ProcessJob(double delta)
@@ -3116,12 +3877,14 @@ public partial class Hub : Node2D
         int n = _jobChoices.Length;
 
         // マウス：段と「とじる」を登録（Detail と同じ作法）。ホバーでカーソルが移る。
-        UiKit.BeginHotspots(Pad.MousePos());
+        UiKit.BeginHotspots(PhonePointer);
         for (int i = 0; i < n; i++) UiKit.Hotspot(JobHitRect(i), JobIdBase + i);
         UiKit.Hotspot(JobCloseRect(), JobCloseId);
         UiKit.Hotspot(JobConfirmRect(), JobConfirmId);
         int hov = UiKit.HoveredId();
-        if (Pad.UsingMouse && hov >= JobIdBase && hov < JobIdBase + n && hov - JobIdBase != _jobSel)
+        if (_unlockHoverOrigin is Vector2 origin && origin.DistanceSquaredTo(Pad.MousePos()) > 1)
+            _unlockHoverOrigin = null;
+        if (_unlockHoverOrigin == null && Pad.UsingMouse && hov >= JobIdBase && hov < JobIdBase + n && hov - JobIdBase != _jobSel)
         {
             _jobSel = hov - JobIdBase; Audio.Instance?.PlayUiMove();
         }
@@ -3194,10 +3957,10 @@ public partial class Hub : Node2D
     {
         float a = Mathf.Clamp((float)_jobT / 0.18f, 0f, 1f);
         var (cx, cy, cw, ch) = JobBox();
-        DrawRect(new Rect2(PhoneX, 0, PhoneW, H), new Color(0, 0, 0, 0.5f * a));
-        UiKit.Box(this, new Rect2(cx, cy, cw, ch), new Color(PhoneBg, a), 8f);
+        _drawCanvas.DrawRect(new Rect2(PhoneX, 0, PhoneW, H), new Color(0, 0, 0, 0.5f * a));
+        UiKit.Box(_drawCanvas, new Rect2(cx, cy, cw, ch), new Color(PhoneBg, a), 8f);
         DrawBackButton(JobCloseRect(), JobCloseId, a);
-        UiKit.Text(this, UiKit.ZenBold, new Vector2(cx + 60f, cy + 21f), "アカウント切り替え", 20, new Color(UiKit.White, a));
+        UiKit.Text(_drawCanvas, UiKit.ZenBold, new Vector2(cx + 60f, cy + 21f), "アカウント切り替え", 20, new Color(UiKit.White, a));
         var cur = _game.SelectedJob;
         for (int i = 0; i < _jobChoices.Length; i++)
         {
@@ -3206,6 +3969,10 @@ public partial class Hub : Node2D
         }
         DrawJobPanel(JobPanelRect(), _jobChoices[_jobSel], a);
         var job = _jobChoices[_jobSel];
+        if (job.Id == _unlockJob && (_unlockPortrait ?? _unlockMovie?.GetVideoTexture()) is { } card)
+        {
+            _drawCanvas.DrawTextureRect(card, JobPanelRect().Grow(-4), false, new Color(1, 1, 1, a));
+        }
         // 「戻る」の行き先は開いた画面（キャラ切り替えボタンならホーム／写真からも開く）。
         string back = _jobReturnMode switch
         {
@@ -3224,34 +3991,34 @@ public partial class Hub : Node2D
     //   返り値：(ラベル, 値, 良し悪し)。良し悪しは色分けだけに使う（+1=強み色／-1=弱み色／0=基準）。
     private static (string label, string value, int sign)[] JobVitals(JobTuning j) => new[]
     {
-        ("♥", System.FormattableString.Invariant($"{j.MaxLifeDelta:+0;-0;±0}"),
+        ("最大ライフ", System.FormattableString.Invariant($"{j.MaxLifeDelta:+0;-0;±0}"),
             j.MaxLifeDelta > 0 ? 1 : j.MaxLifeDelta < 0 ? -1 : 0),
         // 倍率は 0.00 固定で出す（×1 と ×0.96 が並ぶと桁が揃わず、序列が目で追えない）。
-        ("移動", System.FormattableString.Invariant($"×{j.MoveMul:0.00}"),
+        ("移動速度", System.FormattableString.Invariant($"×{j.MoveMul:0.00}"),
             j.MoveMul > 1.001f ? 1 : j.MoveMul < 0.999f ? -1 : 0),
         ("回避距離", System.FormattableString.Invariant($"×{j.DodgeDistMul:0.00}"),
             j.DodgeDistMul > 1.001f ? 1 : j.DodgeDistMul < 0.999f ? -1 : 0),
         // 回避の戻り＝再使用までの待ち。小さいほど速く回れるので、符号は倍率と逆向きに読む。
-        ("回避の戻り", System.FormattableString.Invariant($"×{j.DodgeCdMul:0.00}"),
+        ("再使用時間", System.FormattableString.Invariant($"×{j.DodgeCdMul:0.00}"),
             j.DodgeCdMul < 0.999f ? 1 : j.DodgeCdMul > 1.001f ? -1 : 0),
     };
 
-    // 詳細パネルに並べる「強み」。上の4項目（♥・移動・回避距離・回避の戻り）は必ず別枠で出すので、
-    //   ここは「その人しか持っていない性質」だけを拾う＝同じことを二度書かない。
-    //   ★文言はここで作るが、判定に使う数値は必ず JobTuning のフィールドを読む（生の係数を書かない）。
     private static System.Collections.Generic.List<string> JobPros(JobTuning j)
     {
         var l = new System.Collections.Generic.List<string>();
         if (j.HitInvulSec > 1.201f) l.Add(System.FormattableString.Invariant($"被弾後の無敵が長い {j.HitInvulSec:0.0}秒"));
-        if (j.NoHitKnockback) l.Add("被弾でのけぞらない");
-        if (j.CloseDodgeCdMul < 0.999f) l.Add(System.FormattableString.Invariant($"密着中は回避が軽い ×{j.CloseDodgeCdMul:0.##}"));
-        if (j.CritEnabled && j.CritMult > 1.26f)
-            l.Add(System.FormattableString.Invariant($"密着クリティカル ×{j.CritMult:0.##}（上限{j.CritCap}）"));
-        if (j.FarMult > 1.001f) l.Add(System.FormattableString.Invariant($"{Jobs.FarRange:0}px より遠い敵に ×{j.FarMult:0.##}"));
-        if (j.DrainPerLife > 0) l.Add($"{j.DrainPerLife}体 浄化するごとに♥+1");
-        if (j.BombOnBreak) l.Add("BREAK ごとにボム+1");
+        if (j.NoHitKnockback) l.Add("被弾しても位置がずれない");
+        if (j.CloseDodgeCdMul < 0.999f)
+            l.Add(System.FormattableString.Invariant($"敵から{Jobs.CloseRange:0}px以内で回避の再使用時間×{j.CloseDodgeCdMul:0.##}"));
+        if (j.DodgeCdMul < 0.999f)
+            l.Add(System.FormattableString.Invariant($"回避を素早く再使用できる（再使用時間×{j.DodgeCdMul:0.00}）"));
+        if (j.CritEnabled)
+            l.Add(System.FormattableString.Invariant($"密着{Jobs.CloseRange:0}px以内で威力×{j.CritMult:0.##}（通常弾上限{j.CritCap}）"));
+        if (j.FarMult > 1.001f) l.Add(System.FormattableString.Invariant($"{Jobs.FarRange:0}pxより遠い敵への威力×{j.FarMult:0.##}"));
+        if (j.DrainPerLife > 0) l.Add($"雑魚{j.DrainPerLife}体の浄化でライフ+1。満タン時は数えない");
+        if (j.BombOnBreak) l.Add("BREAK ごとにボム+1（所持上限まで）");
         if (j.VeilFloorRadius > 0f)
-            l.Add(System.FormattableString.Invariant($"祈りの帳を常時 {j.VeilFloorRadius:0}px／{j.VeilFloorDuration:0.0}秒"));
+            l.Add(System.FormattableString.Invariant($"回避終了後に祈りの帳。半径{j.VeilFloorRadius:0}px／{j.VeilFloorDuration:0.0}秒無敵"));
         return l;
     }
 
@@ -3259,8 +4026,20 @@ public partial class Hub : Node2D
     private static System.Collections.Generic.List<string> JobCons(JobTuning j)
     {
         var l = new System.Collections.Generic.List<string>();
+        if (j.MaxLifeDelta < 0) l.Add($"最大ライフが{-j.MaxLifeDelta}少ない");
+        if (j.PowerMul < 0.999f) l.Add(System.FormattableString.Invariant($"基礎威力が低い（威力補正×{j.PowerMul:0.00}）"));
+        if (j.MoveMul < 0.999f) l.Add(System.FormattableString.Invariant($"移動速度が遅い（標準の×{j.MoveMul:0.00}）"));
+        if (j.DodgeDistMul < 0.999f) l.Add(System.FormattableString.Invariant($"回避で移動できる距離が短い（×{j.DodgeDistMul:0.00}）"));
+        if (j.DodgeCdMul > 1.001f) l.Add(System.FormattableString.Invariant($"回避の再使用までの時間が長い（×{j.DodgeCdMul:0.00}）"));
         if (!j.CritEnabled) l.Add("密着クリティカルなし");
         if (j.HitInvulSec < 1.199f) l.Add(System.FormattableString.Invariant($"被弾後の無敵が短い {j.HitInvulSec:0.0}秒"));
+        if (j.Mode == GameManager.ShotMode.Accel)
+        {
+            l.Add(System.FormattableString.Invariant($"通常弾は発射から{j.AccelDelay:0.0}秒待って加速する"));
+            l.Add(System.FormattableString.Invariant($"敵から{Jobs.CloseRange:0}pxを超えると密着の恩恵はない"));
+        }
+        if (j.Mode == GameManager.ShotMode.Spread)
+            l.Add(System.FormattableString.Invariant($"拡散弾は1発あたりの威力に×{GameManager.Instance!.SpreadPowerMul:0.00}の補正"));
         return l;
     }
 
@@ -3269,31 +4048,30 @@ public partial class Hub : Node2D
     private void DrawJobPanel(Rect2 r, JobTuning jd, float alpha)
     {
         Color acc = JobColor(jd.Id);
-        UiKit.Box(this, r, new Color(acc, 0.07f * alpha), 8f, new Color(acc, 0.35f * alpha), 1f);
+        UiKit.Box(_drawCanvas, r, new Color(acc, 0.07f * alpha), 8f, new Color(acc, 0.35f * alpha), 1f);
         const float pad = 14f;
         float x = r.Position.X + pad, y = r.Position.Y + 10f, innerW = r.Size.X - pad * 2f;
 
         // 撃ち方＝この画面で一番大きな選択理由なので、名前をチップで出して右に一言を添える。
         string mode = Jobs.ModeName(jd.Mode);
         float chipW = UiKit.TextW(UiKit.ZenBold, mode, 15) + 20f;
-        UiKit.Box(this, new Rect2(x, y, chipW, 24f), new Color(acc, 0.26f * alpha), 6f);
-        UiKit.Text(this, UiKit.ZenBold, new Vector2(x, y + 3f), mode, 15, new Color(UiKit.White, alpha),
+        UiKit.Box(_drawCanvas, new Rect2(x, y, chipW, 24f), new Color(acc, 0.26f * alpha), 6f);
+        UiKit.Text(_drawCanvas, UiKit.ZenBold, new Vector2(x, y + 3f), mode, 15, new Color(UiKit.White, alpha),
             HorizontalAlignment.Center, chipW);
-        UiKit.Text(this, UiKit.Zen, new Vector2(x + chipW + 10f, y + 4f), Jobs.ModeNote(jd.Mode), 13,
+        UiKit.Text(_drawCanvas, UiKit.Zen, new Vector2(x + chipW + 10f, y + 4f), Jobs.ModeNote(jd.Mode), 13,
             new Color(UiKit.Text2, alpha));
         y += 32f;
 
         // 火力（PowerMul）と溜め打ち（ChargeDescription＋ChargePower/Ways）。ラベル幅をそろえて縦線を通す。
-        const float labelW = 52f;
-        UiKit.Text(this, UiKit.Zen, new Vector2(x, y), "火力", 13, new Color(UiKit.Text3, alpha));
-        UiKit.Text(this, UiKit.ZenBold, new Vector2(x + labelW, y), Jobs.PowerLabel(jd), 14,
+        const float labelW = 62f;
+        UiKit.Text(_drawCanvas, UiKit.Zen, new Vector2(x, y), "威力補正", 13, new Color(UiKit.Text3, alpha));
+        UiKit.Text(_drawCanvas, UiKit.ZenBold, new Vector2(x + labelW, y), Jobs.PowerLabel(jd), 14,
             new Color(jd.PowerMul > 1.001f ? UiKit.Light : jd.PowerMul < 0.999f ? UiKit.Text3 : UiKit.White, alpha));
         y += 22f;
-        UiKit.Text(this, UiKit.Zen, new Vector2(x, y), "溜め", 13, new Color(UiKit.Text3, alpha));
-        UiKit.Multi(this, UiKit.Zen, new Vector2(x + labelW, y), Jobs.ChargeLabel(jd), 13,
-            new Color(UiKit.Text2, alpha), innerW - labelW, 2);
-        y += 26f;
-        DrawRect(new Rect2(x, y, innerW, 1f), new Color(1, 1, 1, 0.08f * alpha));
+        UiKit.Text(_drawCanvas, UiKit.Zen, new Vector2(x, y), "溜め", 13, new Color(UiKit.Text3, alpha));
+        y += UiKit.MultiLeading(_drawCanvas, UiKit.Zen, new Vector2(x + labelW, y), Jobs.ChargeLabel(jd), 13,
+            new Color(UiKit.Text2, alpha), innerW - labelW, 0) + 7f;
+        _drawCanvas.DrawRect(new Rect2(x, y, innerW, 1f), new Color(1, 1, 1, 0.08f * alpha));
         y += 9f;
 
         // 体の目安。4項目を等幅の列に並べる＝人を替えたときに同じ位置で数字だけが動く（序列が目で読める）。
@@ -3303,48 +4081,41 @@ public partial class Hub : Node2D
         {
             var (label, value, sign) = vitals[i];
             Color vc = sign > 0 ? UiKit.Ok : sign < 0 ? UiKit.Hp : UiKit.Text2;
-            UiKit.Text(this, UiKit.Zen, new Vector2(x + i * colW, y), label, 11, new Color(UiKit.Text4, alpha),
+            UiKit.Text(_drawCanvas, UiKit.Zen, new Vector2(x + i * colW, y), label, 11, new Color(UiKit.Text4, alpha),
                 HorizontalAlignment.Center, colW);
-            UiKit.Text(this, UiKit.ZenBold, new Vector2(x + i * colW, y + 14f), value, 15, new Color(vc, alpha),
+            UiKit.Text(_drawCanvas, UiKit.ZenBold, new Vector2(x + i * colW, y + 14f), value, 15, new Color(vc, alpha),
                 HorizontalAlignment.Center, colW);
         }
         y += 38f;
         // 回避距離だけ一言を添える（2026-09-27）。4人で 0.55〜1.50 と開きが大きく、
         //   倍率だけでは「踏み込む足」なのか「その場でやり過ごす無敵」なのかが読めないため。
         //   列の下に薄い線を引いて、その下に「回避距離：…」と左寄せで1行。数字の並びを乱さない。
-        DrawRect(new Rect2(x, y, innerW, 1f), new Color(1, 1, 1, 0.06f * alpha));
-        UiKit.Text(this, UiKit.Zen, new Vector2(x, y + 6f), "回避距離", 11, new Color(UiKit.Text4, alpha));
-        UiKit.Text(this, UiKit.Zen, new Vector2(x + 52f, y + 5f), Jobs.DodgeDistNote(jd), 12,
+        _drawCanvas.DrawRect(new Rect2(x, y, innerW, 1f), new Color(1, 1, 1, 0.06f * alpha));
+        UiKit.Text(_drawCanvas, UiKit.Zen, new Vector2(x, y + 6f), "回避距離", 11, new Color(UiKit.Text4, alpha));
+        UiKit.Text(_drawCanvas, UiKit.Zen, new Vector2(x + 52f, y + 5f), Jobs.DodgeDistNote(jd), 12,
             new Color(UiKit.Text2, alpha));
         y += 26f;
-
-        // 強み・弱み。ここは「その人しか持っていない性質」だけ＝空なら上の4項目を見ろ、と言う
-        //   （♥-1 を抱えた あかりに「弱み 特になし」と書くと、すぐ上の赤い -1 と矛盾する）。
-        //   行数は最大4／2（パネル高 JobPanelH で足りる範囲）。溢れたら後ろを切る＝はみ出さない。
-        y = DrawJobTraits(x, y, innerW, "強み", JobPros(jd), UiKit.Ok, alpha, 4, "上の数値のとおり");
-        DrawJobTraits(x, y + 2f, innerW, "弱み", JobCons(jd), UiKit.Hp, alpha, 2, "上の数値のとおり");
+        y += UiKit.MultiLeading(_drawCanvas, UiKit.Zen, new Vector2(x, y),
+            "数値は標準比。最大ライフは増減、再使用時間は小さいほど短い。", 11,
+            new Color(UiKit.Text3, alpha), innerW, 0) + 8f;
+        y = DrawJobTraits(x, y, innerW, "強み", JobPros(jd), UiKit.Ok, alpha);
+        DrawJobTraits(x, y + 5f, innerW, "弱点", JobCons(jd), UiKit.Hp, alpha);
     }
 
-    // 「強み」「弱み」の1ブロック。見出しの色で強弱を分け、各行は中黒つきの1行に収める。
     private float DrawJobTraits(float x, float y, float innerW, string head, System.Collections.Generic.List<string> items,
-        Color headColor, float alpha, int maxLines, string empty)
+        Color headColor, float alpha)
     {
-        UiKit.Text(this, UiKit.ZenBold, new Vector2(x, y), head, 12, new Color(headColor, alpha));
+        UiKit.Text(_drawCanvas, UiKit.ZenBold, new Vector2(x, y), head, 12, new Color(headColor, alpha));
         const float headW = 36f;
         if (items.Count == 0)
         {
-            UiKit.Text(this, UiKit.Zen, new Vector2(x + headW, y), empty, 12, new Color(UiKit.Text4, alpha));
+            UiKit.Text(_drawCanvas, UiKit.Zen, new Vector2(x + headW, y), "なし", 13, new Color(UiKit.Text2, alpha));
             return y + 18f;
         }
-        int n = Mathf.Min(items.Count, maxLines);
-        for (int i = 0; i < n; i++)
-        {
-            string s = "・" + items[i];
-            // 行がパネル内に収まらない長さになったら、ここで丸める（右端をはみ出させない）。
-            while (s.Length > 4 && UiKit.TextW(UiKit.Zen, s, 12) > innerW - headW) s = s[..^2] + "…";
-            UiKit.Text(this, UiKit.Zen, new Vector2(x + headW, y + i * 17f), s, 12, new Color(UiKit.Text2, alpha));
-        }
-        return y + n * 17f + 2f;
+        foreach (string item in items)
+            y += UiKit.MultiLeading(_drawCanvas, UiKit.Zen, new Vector2(x + headW, y), "・" + item, 13,
+                new Color(UiKit.Text2, alpha), innerW - headW, 0) + 2f;
+        return y + 2f;
     }
 
     private void DrawJobRow(int i, Job cur, float x, float y, float w, float h, float alpha)
@@ -3352,18 +4123,18 @@ public partial class Hub : Node2D
         var jd = _jobChoices[i];
         bool sel = i == _jobSel, now = jd.Id == cur;
         Color acc = JobColor(jd.Id);
-        if (sel) DrawRect(new Rect2(x, y, w, h), new Color(acc, 0.07f * alpha));
-        DrawRect(new Rect2(x, y + h - 1f, w, 1f), new Color(1, 1, 1, 0.07f * alpha));
-        UiKit.FaceAvatar(this, new Vector2(x + 32f, y + 30f), 21f, _playerFaces[jd.CharacterId], acc, false, 0f, alpha, _t);
-        UiKit.Text(this, UiKit.ZenBold, new Vector2(x + 76f, y + 8f), jd.CharacterName, 18, new Color(UiKit.White, alpha));
-        UiKit.Text(this, UiKit.Mono, new Vector2(x + 76f, y + 34f), AccountHandle(jd), 12, new Color(UiKit.Text3, alpha));
+        if (sel) _drawCanvas.DrawRect(new Rect2(x, y, w, h), new Color(acc, 0.07f * alpha));
+        _drawCanvas.DrawRect(new Rect2(x, y + h - 1f, w, 1f), new Color(1, 1, 1, 0.07f * alpha));
+        UiKit.FaceAvatar(_drawCanvas, new Vector2(x + 32f, y + 24f), 17f, _playerFaces[jd.CharacterId], acc, false, 0f, alpha, _t);
+        UiKit.Text(_drawCanvas, UiKit.ZenBold, new Vector2(x + 76f, y + 3f), jd.CharacterName, 16, new Color(UiKit.White, alpha));
+        UiKit.Text(_drawCanvas, UiKit.Mono, new Vector2(x + 76f, y + 26f), AccountHandle(jd), 11, new Color(UiKit.Text3, alpha));
         // 段は「誰か」＋撃ち方/火力の一言だけ。右寄せでチェック印（now）の手前に収める＝行の高さを増やさない。
-        UiKit.Text(this, UiKit.Zen, new Vector2(x, y + 36f), JobStats(jd), 12,
+        UiKit.Text(_drawCanvas, UiKit.Zen, new Vector2(x, y + 26f), JobStats(jd), 12,
             new Color(sel ? UiKit.Text2 : UiKit.Text4, alpha), HorizontalAlignment.Right, w - 34f);
         if (now)
         {
             Vector2 p = new(x + w - 20f, y + 21f);
-            DrawPolyline(new[] { p + new Vector2(-5, 0), p + new Vector2(-1, 4), p + new Vector2(6, -5) }, new Color(acc, alpha), 2f, true);
+            _drawCanvas.DrawPolyline(new[] { p + new Vector2(-5, 0), p + new Vector2(-1, 4), p + new Vector2(6, -5) }, new Color(acc, alpha), 2f, true);
         }
     }
 
@@ -3375,12 +4146,22 @@ public partial class Hub : Node2D
         // 行で立ち絵が指されていれば（表情差分）そちらを出す。話者色と円窓の上端は話者のまま。
         face = LineFace(line) ?? face;
         var box = DialogBox;
+        if (_dlgReturnMode == Mode.Home && !_dlgNoPost
+            && (sp == "ミナ" || (sp == "あなた" && line > 0 && _dlg[line - 1].sp == "ミナ")))
+        {
+            var area = new Rect2(PhoneX, 0, PhoneW, box.Position.Y);
+            _drawCanvas.DrawRect(area, new Color("182939"));
+            var portrait = _game.AllStoryCleared && !_game.IsFinalCleared ? _minaWorried : _minaFace!;
+            float height = area.Size.Y - 52f;
+            var size = portrait.GetSize() * (height / portrait.GetHeight());
+            _drawCanvas.DrawTextureRect(portrait, new Rect2(area.GetCenter().X - size.X / 2f, 52f, size.X, height), false);
+        }
         bool draft = top == DraftTop;
-        DialogueBox.DrawFrame(this, box, sp, accent, top < 0 || draft ? null : face, draft, faceTop: Mathf.Max(0, top));
-        DialogueBox.DrawBody(this, box, DlgCurPage, _dlgReveal,
+        DialogueBox.DrawFrame(_drawCanvas, box, sp, accent, top < 0 || draft ? null : face, draft, faceTop: Mathf.Max(0, top));
+        DialogueBox.DrawBody(_drawCanvas, box, DlgCurPage, _dlgReveal,
             speed: _game?.MsgCharsPerSec ?? DialogueBox.DefaultCharsPerSec, pacing: DlgPacing);
         if (!_autoplay && DlgPageReady && !_ffNow)
-            DialogueBox.DrawContinue(this, box, !DlgLastPage);
+            DialogueBox.DrawContinue(_drawCanvas, box, !DlgLastPage, PhonePointer);
     }
 
     // ───────── 会話データ（③-2 / ③-3 / ③-6）─────────
@@ -3391,8 +4172,8 @@ public partial class Hub : Node2D
         "akari" => new[]
         {
             new (string, string)[] {
-        ("ミナ", "ご主人様。あちらの世界、雨がひどかったので。窓の雨粒を、数えてしまいました。"),
-        ("ミナ", "途中で、やめました。……数えるたびに、増えるので。"),
+        ("ミナ", "ご主人様。あちらの世界はひどい雨で、つい窓の雨粒を数えてしまいました。"),
+        ("ミナ", "数えるそばから増えるので、途中でやめました。"),
         ("ミナ", "ひとつだけ、最後まで落ちなかった粒が、ありました。……それだけ、覚えています。"),
         ("ミナ", "……いまの間、{n}秒。集計だけして、意味は付けないでおきます。"),
         ("あなた", "数えるのをやめても、その粒は覚えてるんだね。"),
@@ -3410,7 +4191,7 @@ public partial class Hub : Node2D
         "koharu" => new[]
         {
             new (string, string)[] {
-        ("ミナ", "ご主人様。わたくし、数えるのが得意でして。あの部屋では、配信に来た回数を数えました。八十七回。"),
+        ("ミナ", "ご主人様。あの部屋で配信に来た回数を数えてみたら、八十七回でした。わたくし、数えるのは得意です。"),
         ("ミナ", "ついでに、こちらも。ご主人様がこの旅で潜った回数、{dives}回。……比べません。数えただけです。"),
         ("ミナ", "数えなくていいものを数える、というのは、案外、退屈しませんね。"),
         ("ミナ", "……いまの間、{n}秒。……これも、数えなくていいものです。"),
@@ -3433,7 +4214,7 @@ public partial class Hub : Node2D
         ("ミナ", "減っていませんので、優秀です。……増えてもいませんが。"),
         ("ミナ", "あの部屋で、十四件、という数を拾いました。出せなかった企画の数、だそうです。"),
         ("ミナ", "わたくしの企画メモは、ゼロ件。出したのも、ゼロ件。……出せた割合は、集計不能です。"),
-        ("あなた", "企画、一件できたよ。「ミナの何でもない話を聞く時間」。"),
+        ("あなた", "僕なら「ミナの何でもない話を聞く時間」って企画にするよ。"),
         ("ミナ", "それを企画にしてよいのなら、わたくしは、かなりの数を持っています。"),
     },
             new (string, string)[] {
@@ -3466,7 +4247,7 @@ public partial class Hub : Node2D
         ("ミナ", "ご主人様。ご報告を。今日、フォロワーが九人、増えました。ひとり、減りました。"),
         ("ミナ", "増えた九人の名前は、まだ、読んでいません。減ったひとりの名前は、読みました。"),
         ("あなた", "減った一人が、気になってるんだね。"),
-        ("ミナ", "はい。一度、来てくださった方ですので。……来なくなった理由は、観測できません。向こう側ですので。"),
+        ("ミナ", "一度は来てくださった方ですから。こちらの画面からは、来なくなった理由までは分かりません。"),
         ("ミナ", "増えた九人のお名前も、読みます。……うれしかったほうを、後回しにしておりました。"),
     },
         new (string, string)[] {
@@ -3492,12 +4273,12 @@ public partial class Hub : Node2D
         new (string, string)[] {
         ("ミナ", "ご主人様。もし、わたくしが一度だけ外へ出られるとしたら、どこへ行くと思いますか。"),
         ("あなた", "海、かな。ミナに見せてみたい景色は、いっぱいある。"),
-        ("ミナ", "はずれです。玄関の外で、結構ですよ。雨が上がった直後の、あの匂いを、一度。"),
+        ("ミナ", "はずれです。玄関の外で、雨上がりの匂いを一度かいでみたいんです。"),
         ("あなた", "そっか。僕がいつも通り過ぎる場所だね。今度、ちゃんと覚えて帰る。"),
         ("ミナ", "地味で、結構です。派手なものは、画面越しでも届きますので。……匂いだけは、こちらへ、来ないんです。"),
     },
         new (string, string)[] {
-        ("ミナ", "ご主人様。今日は、打ち間違いが多いです。いつもの、二倍ほど。"),
+        ("ミナ", "ご主人様。今日はいつもの倍ほど打ち間違えておいでですよ。"),
         ("ミナ", "隣り合う字の打ち間違いが、続いています。——画面に寄って、猫背、と推定します。姿勢までは、観測できませんので。"),
         ("あなた", "……いま、伸ばした"),
         ("ミナ", "……次の一文に、間違いがありませんでした。伸びたことに、しておきます。"),
@@ -3612,43 +4393,54 @@ public partial class Hub : Node2D
 
     private static readonly (string sp, string tx, string face)[] ShopTutorialLines =
     {
-        ("あなた", "ダイブで拾った心の欠片は、ショップで使えるよ。残りは「浄化した心」の数字で確認できる。", ""),
-        ("ミナ", "あかりさんのところで、少しずつ増えていたものですね。", "res://char/mina_face.png"),
-        ("あなた", "うん。強化ショップで、仲間みんなの力に変えられる。上から順に、一段ずつ。", ""),
-        ("ミナ", "急に最終形態には、なれないのですね。", "res://char/mina_face.png"),
-        ("あなた", "なれても、僕が驚いて案内を忘れそう。", ""),
-        ("ミナ", "それは困ります。順番どおりに、お願いします。", "res://char/mina_face.png"),
-        ("あなた", "欲しいものの値段は先まで見られる。届かない段は、また帰ってきてからでいい。", ""),
-        ("ミナ", "では、今日はこの一段を。次に帰ってくる場所も、できました。", "res://char/mina_face.png"),
+        ("あなた", "ダイブから戻ると、そのときのスコアに応じて「浄化した心」がもらえるよ。リトライ中は増えないから、帰還してからショップで使おう。", ""),
+        ("ミナ", "あかりさんのところで、少しずつ増えていたものですね。", CompanionDialogue.MinaPortrait),
+        ("あなた", "うん。ショップで強くしたい仲間を選んで、その子に欲しいものから買えるよ。", ""),
+        ("ミナ", "では、わたくしの分は、わたくしが選んでも？", CompanionDialogue.MinaPortrait),
+        ("あなた", "もちろん。心はみんなのお財布から使うから、値段も見てね。", ""),
+        ("ミナ", "ふふ。では、お財布と相談いたしましょう。", CompanionDialogue.MinaPortrait),
+        ("あなた", "足りなかったら、またダイブで拾ってくればいいよ。", ""),
+        ("ミナ", "では、今日はこれを。次に帰ってくる場所も、できました。", CompanionDialogue.MinaPortrait),
     };
 
     private (string, string)[] ReturnDialog(string id)
-        => _game?.ClearedWithCompanion(id) == true ? CompanionReturnDialog(id) : MinaReturnDialog(id);
+    {
+        var lines = _game.ClearedWithCompanion(id) ? CompanionReturnDialog(id) : MinaReturnDialog(id);
+        if (id == "rei" && _game.IsFinalCleared)
+            return [.. lines[..^ReiSignalLoss.Length], ("ミナ", "はい。今日はここまでにしましょう。おやすみなさい、ご主人様。")];
+        return lines;
+    }
+
+    private static readonly (string, string)[] ReiSignalLoss =
+    [
+        ("ミナ", "ご主人様、もう一度「ミナ」と呼んでいただけますか？"),
+        ("あなた", "ミナ。……あれ、僕の声だけ返ってくる。"),
+        ("ミナ", "はい、ここに……。ご主人様には、わたくしの声が……"),
+        ("Ｙ システム", $"{FinalAccount.Handle} が投稿しました。"),
+        ("あなた", MinaLastCall),
+    ];
 
     private static (string, string)[] CompanionReturnDialog(string id) => id switch
     {
         "akari" => new (string, string)[] {
-        ("ミナの投稿", "帰ってきた仲間から、声の続きを聞きました。言えなかった想いも、なかったことにはなりません。——以上、業務連絡です。"),
+        ("ミナの投稿", "帰ってきた仲間から教わって、この投稿を開きました。「すき」を三回、声に出して読んでみたら、三回とも違って聞こえました。"),
         ("ミナ", "お話を聞いて、書きたくなりました。今度は、わたくしが受け取る番ですね。"),
         ("あなた", "うん。向こうで聞いた声を、ここでも分け合える。"),
         ("ミナ", "では、急がずに。被弾は{n}回でしたから、まずは休憩を。"),
         },
         "koharu" => new (string, string)[] {
-        ("ミナの投稿", "帰ってきた仲間から、こはるさんのお話を聞きました。好きだった時間まで、むだだったことにはなりません。"),
+        ("ミナの投稿", "帰ってきた仲間から教わって、「明日も学校に行ける」を読みました。明日が楽しみになるなら、配信を見る時間を、わたくしはむだだと思いません。"),
         ("ミナ", "消えた画面の前で、一人だったのですね。……聞いているだけなのに、胸のあたりが。"),
         ("あなた", "話を聞いてくれてありがとう。でも、ミナが全部、抱えなくていいんだよ。"),
         ("ミナ", "はい。ただ、誰にも届かなかったことには、したくなくて。"),
         ("あなた", "ここにも届いた。それはもう、消えないよ。"),
         },
-        "rei" => new (string, string)[] {
-        ("ミナの投稿", "帰ってきた仲間から、レイさんの声を聞きました。話してくださったことを、覚えておきます。"),
+        "rei" => [
+        ("ミナの投稿", "帰ってきた仲間からこの投稿を教わりました。「追いつけない」と言われたら、かえって次を読みたくなりますね。"),
         ("ミナ", "あかりさんも、こはるさんも、レイさんも。聞かせていただいた声が、まだ残っています。"),
         ("あなた", "ミナ、今日はここで終わりにしよう。回線は切らない。休む場所を整えるから。"),
-        ("Ｙ システム", "@mïna_ai_ が投稿しました。"),
-        ("ミナ", "……投稿した覚えが、ありません。"),
-        ("ミナ", "休もうと、思っているのです。でも、声が……。ご主人様、わたくしの投稿を、閉じてください。勝手に、開いて……。"),
-        ("あなた", "ミナ？　聞こえる？　……返事して、ミナ。"),
-        },
+        .. ReiSignalLoss,
+        ],
         _ => System.Array.Empty<(string, string)>(),
     };
 
@@ -3658,30 +4450,27 @@ public partial class Hub : Node2D
         ("ミナの投稿", "言いたかったことを、言えないまま終わる。よくある話です。ですがそれは、なかったことにはなりません。——以上、業務連絡です。"),
         ("ミナ", "……勝手に投稿しました。名義はミナですので、問題ありません。"),
         ("あなた", "いいと思う。君が言いたくて書いたんでしょう。"),
-        ("ミナ", "はい。……もう、千を超えています。"),
+        ("ミナ", "はい。……表示回数が、もう千を超えています。"),
         ("あなた", "さっきから、何度か開いてるね。"),
         ("ミナ", "三度です。……いえ、四度になりました。数えるのは、わたくしの担当なのに。"),
         ("あなた", "うれしいんだね。"),
         ("ミナ", "……はい。ですから、それ以上うれしそうに見ないでください。"),
-        ("あなた", "無事に帰ってきてくれて、僕もうれしいよ。"),
-        ("ミナ", "ただいま、ご主人様。被弾は{n}回。……こちらも、あとで一緒に見直しましょう。"),
+        ("あなた", "スマホをのぞいたら、君と目が合って。"),
+        ("ミナ", "被弾は{n}回。……こちらも、あとで一緒に見直しましょう。"),
     },
         "koharu" => new (string, string)[] {
-        ("ミナの投稿", "むだだった、と本人が言う時間を、八十七回ぶん、数えてまいりました。むだは、一秒も、ありませんでした。数えた者が、言っています。"),
-        ("ミナ", "……今日は、数字を書きましたね、わたくし。読み返して、自分で驚いています。"),
-        ("ミナ", "今日の心象は、少し暗いだけです。……電気の消えた部屋に、長くいたので。"),
+        ("ミナの投稿", "「明日も学校に行ける」。わたくし、三回読み返しました。配信を見る時間も、こうして読み返す時間も、むだとは思いません。以上、数えた者より。"),
+        ("ミナ", "自分の投稿を読み返して驚きました。今日は数字を書いたのですね。"),
+        ("ミナ", "電気の消えた部屋に長くいたので、今日の心象は少し暗いのです。"),
         ("あなた", "笑ってる。何か、思い出した？"),
-        ("ミナ", "消えたペンライトを、必死で振ったことを。……また教わりに行きたいです。"),
+        ("ミナ", "消えたペンライトを必死で振ったことです。……また振り方を教わりたいです。"),
     },
-        "rei" => new (string, string)[] {
-        ("ミナの投稿", "見ていました。だれも見ていない場所も。覚えておきます。"),
+        "rei" => [
+        ("ミナの投稿", "「だれも、わたしには追いつけない」って、ずるいです。わたくし、もう次の投稿が気になっています。"),
         ("ミナ", "……なんて。バズ狙いの一言ですよ。……数字は、見ました。言いません。"),
         ("あなた", "ミナ、今日はここで終わりにしよう。回線は切らない。休む場所を整えるから。"),
-        ("Ｙ システム", "@mïna_ai_ が投稿しました。"),
-        ("ミナ", "……投稿した覚えが、ありません。"),
-        ("ミナ", "休もうと、思っているのです。でも、声が……。ご主人様、わたくしの投稿を、閉じてください。勝手に、開いて……。"),
-        ("あなた", "ミナ？　聞こえる？　……返事して、ミナ。"),
-    },
+        .. ReiSignalLoss,
+    ],
         _ => System.Array.Empty<(string, string)>(),
     };
 
@@ -3696,7 +4485,7 @@ public partial class Hub : Node2D
             ? "聞いただけのAIが、むだじゃないって決めるなよ。"
             : "数えた者って、数えただけの人が何言ってんの。"),
         ("ミナ", "……返信を書いてみました。四件とも、送ってはいません。"),
-        ("あなた", "腹が立つよ。何を聞いて、君があれを書いたか、知らないのに。"),
+        ("あなた", "君がどんな話を聞いてあれを書いたのか、あの人たちは知らないのに。……腹が立つよ。"),
         ("ミナ", "説明すれば、こはるさんのお話まで、晒してしまいます。"),
         ("あなた", "うん。あの話は守ろう。でも、嫌だったって気持ちまで、君が飲み込む必要はない。"),
         ("ミナ", "では、ご主人様に。……嫌でした。少し、傷つきました。"),
@@ -3708,29 +4497,30 @@ public partial class Hub : Node2D
 
     // 17（道中の選択肢 案C）: S1-5 で送っていれば、ミナ側の一行の直後にもう一行足す。
     //   あかりの返信「……なんでだろ。あなたの言い方、誰かに似てる。」は一字も変えない。
-    //   送っていなければ返信は現行のまま（本編の文言に手を入れない）。
     private (string, string)[] WithS15((string, string)[] lines)
     {
         string word = ChoiceEffects.SentWordAt(_game, "s1_5");
         if (string.IsNullOrEmpty(word)) return lines;
         var list = new System.Collections.Generic.List<(string, string)>(lines);
-        list.Insert(1, ("ミナ→@akãri", $"あのフロアで、ご主人様も「一人にしたくない」と。わたくしも、同じ気持ちでした。"));
+        list.Insert(1, ("ミナ→@akãri", "またここへ読みに来ても、よろしいですか。"));
         return list.ToArray();
     }
 
     private (string, string)[] ReplyDialog(string id) => id switch
     {
         "akari" => WithS15(new (string, string)[] {
-        ("ミナ→@akãri", "想いは、罪ではありませんよ。たとえ既読が、もう付かなくても。"),
+        ("ミナ→@akãri", "最後の「本物になって」で、もう一度、最初から読んでしまいました。"),
         ("@akãri", "……なんでだろ。あなたの言い方、誰かに似てる。"),
     }),
         "koharu" => new (string, string)[] {
-        ("ミナ→@køharu", "八十七回、むだではありませんでしたよ。……八十八回目も、どうぞ。"),
-        ("@køharu", "ありがと、知らない人。……明日も、行ってみる。"),
+        ("ミナ→@køharu", "何がいちばん良かったのか、わたくしも聞きたいです。"),
+        ("@køharu", "え、一個だけ？　んー、最後の「またね」かな。あれ好きなんだ。"),
+        ("ミナ→@køharu", "ふふ、一個に絞らせてしまいましたね。では、わたくしも。またね、こはるさん。"),
     },
         "rei" => new (string, string)[] {
-        ("ミナ→@rëi_____", "見ていましたよ。……次も、見に行きます。逃げたら承知しない、と、言われましたので。"),
-        ("@rëi_____", "は? 誰よあんた。……まあいいわ。次は、本気で来なさい。見てなさい。"),
+        ("ミナ→@rëi_____", "そう言われると、追いかけてみたくなります。わたくしも混ざってよろしいですか？"),
+        ("@rëi_____", "いちいち許可取るの、あんたくらいよ。いいから来なさい！"),
+        ("ミナ→@rëi_____", "はい。では、お言葉に甘えて。"),
     },
         _ => System.Array.Empty<(string, string)>(),
     };

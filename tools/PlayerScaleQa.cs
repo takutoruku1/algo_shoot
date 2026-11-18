@@ -18,15 +18,13 @@ public partial class PlayerScaleQa : Node
 
     // 全ポーズの素材名（Cosmetics.PosePath に渡す綴り）。
     private static readonly string[] Poses =
-        { "idle", "aim_u", "aim_ur", "aim_r", "aim_dr", "aim_d", "spin_00", "spin_01", "spin_02", "spin_03", "spin_04" };
+        { "idle", "aim_u", "aim_ur", "aim_r", "aim_dr", "aim_d", "spin_00", "spin_01", "spin_02", "spin_03", "spin_04", "spin_05", "spin_06", "spin_07" };
     // 照準は 5枚の素材を左右反転で八方位へ割り当てる（Player.AimSpriteFor）。狙う向きと出るべき素材の対。
     private static readonly (Vector2 Dir, string Pose)[] AimDirs =
     {
         (Vector2.Up, "u"), (new Vector2(1, -1), "ur"), (Vector2.Right, "r"), (new Vector2(1, 1), "dr"),
         (Vector2.Down, "d"), (Vector2.Left, "r"), (new Vector2(-1, -1), "ur"), (new Vector2(-1, 1), "dr"),
     };
-    // 回避8ステップが引く素材の番号と反転（Player.SpinFrameIdx / SpinFrameFlip と同じ表）。
-    private static readonly int[] SpinIdx = { 0, 1, 2, 3, 4, 3, 2, 1 };
 
     // 1ポーズぶんの実測。Now＝修正後／Old＝修正前（36/テクスチャ高・Offset なし）の中身の外接（ワールド座標）。
     private readonly record struct Sample(string Tag, Texture2D Tex, float Scale, Vector2 Offset, bool Flip,
@@ -76,9 +74,6 @@ public partial class PlayerScaleQa : Node
         // 4キャラぶんの衣装を触るため全ステージをクリア済みにし（IsJobUnlocked のゲート）、追加衣装を買っておく。
         foreach (var stage in GameManager.Stages) Read<HashSet<string>>(game, "_cleared").Add(stage.Id);
         game.TrainingSetImpression(5000);
-        // 回避は 2026-09-22 からショップの段 n_dodge。TryDodge を直に叩くため直書きで付ける
-        //（AutoSaveEnabled=false なのでディスクへは漏れない）。
-        game.TrainingSetUpgrade("n_dodge", true);
         foreach (var item in Cosmetics.All.Where(i => i.Kind == CosmeticKind.Costume && i.Price > 0))
             Check($"追加衣装を用意（{item.Id}）", game.TryPurchaseCosmetic(item.Id));
 
@@ -156,6 +151,7 @@ public partial class PlayerScaleQa : Node
         string label = Label(item);
         Check($"{label}：衣装を装備できる", game.EquipCosmetic(item.Id));
         game.SelectedJob = job.Id;
+        game.TrainingSetUpgrade("n_dodge", true);
         Call(training, "ResetTrial");
         await Frames(3);
         var player = Read<Player>(training, "_player");
@@ -206,10 +202,8 @@ public partial class PlayerScaleQa : Node
                 {
                     Call(player, "ApplySpinFrame", Mathf.Tau * (i + 0.1f) / 8f);
                     int frame = sign > 0 ? i : (8 - i) % 8;
-                    bool flip = (frame >= 5) ^ (facing < 0);
-                    Check($"{label}：回避 {i} コマ（回り {sign:+0;-0} 向き {facing:+0;-0}）＝spin_{SpinIdx[frame]:00}"
-                        + $"{(flip ? "・反転" : "")}",
-                        sprite.Texture.ResourcePath == item.PosePath($"spin_{SpinIdx[frame]:00}") && sprite.FlipH == flip);
+                    Check($"{label}：回避 {i} コマ（回り {sign:+0;-0} 向き {facing:+0;-0}）＝spin_{frame:00}",
+                        sprite.Texture.ResourcePath == item.PosePath($"spin_{frame:00}") && !sprite.FlipH);
                     samples.Add(Take(player, sprite,
                         sign > 0 && facing > 0 ? $"spin{i}" : $"spin{i} 回り{sign:+0;-0} 向き{facing:+0;-0}"));
                 }
@@ -225,6 +219,23 @@ public partial class PlayerScaleQa : Node
             && trail.FlipH == sprite.FlipH && trail.Offset.IsEqualApprox(sprite.Offset));
         Call(player, "EndDodge");
         await Frames(2);
+
+        foreach (var direction in new[] { Vector2.Left, Vector2.Right })
+        {
+            Write(player, "_dodgeCd", 0f);
+            Call(player, "TryDodge", direction);
+            Check($"{label}：{direction} 回避の回転方向", player.Dodging && Read<float>(player, "_dodgeSpinSign") == direction.X);
+            var seen = new HashSet<string>();
+            bool unmirrored = true;
+            for (int tick = 0; tick < 60 && player.Dodging; tick++)
+            {
+                seen.Add(sprite.Texture.ResourcePath);
+                unmirrored &= !sprite.FlipH;
+                await Frames(1);
+            }
+            Check($"{label}：{direction} 回避を鏡像なしで一周して着地",
+                unmirrored && !player.Dodging && seen.Contains(item.PosePath("spin_02")) && seen.Contains(item.PosePath("spin_06")));
+        }
 
         // (d) 当たり判定は一切触っていない＝見え方だけを直した。
         var hit = (CircleShape2D)player.GetNode<CollisionShape2D>("HitShape").Shape;

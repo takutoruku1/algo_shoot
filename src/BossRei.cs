@@ -7,10 +7,21 @@ using Godot;
 public partial class BossRei : Enemy
 {
     public override UnfolderKind UnfolderStyle => UnfolderKind.Rei;
+    protected override string LunaticEncounterLine => IsForm2
+        ? "羽、画面からはみ出しちゃった。……まだ見てる？"
+        : "あ、その名前。今日も来てくれたんだ。";
     public bool Finished { get; private set; }
     public System.Action<System.Action>? MemoryFollowUp { get; set; }
 
     private readonly BossMover _mover = new BossMover();
+    private double _rallyReaction;
+
+    internal void ReactToRallyBreak()
+    {
+        _rallyReaction = 1.0;
+    }
+
+    internal void EndRallyReaction() => _rallyReaction = 0;
 
     private bool _rallied;
     private bool _accelerated; // HP2割以下で戦闘BGMを一度だけ加速させた（多重発火防止）
@@ -76,11 +87,18 @@ public partial class BossRei : Enemy
         (2, "初見さん、大歓迎。コメント、全部読むから。……ぜんぶ、読んだから。", "res://char/v3/rei_gawa_face_v1.png"),
         (2, "登録者、二千。去年も、二千。……減ってない。減ってないでしょう?", "res://char/v3/rei_gawa_face_v1.png"),
         (2, "だから……だからなんで、だれも、中にいるわたしに、気づいてくれないのよ!", "res://char/v3/rei_gawa_face_v1.png"),
-        (1, "見ていました。", "res://char/mina_face.png"),
+        (1, "見ていました。", CompanionDialogue.MinaPortrait),
         (2, "……は? ……なに、それ。……見てたって、なにを——", "res://char/v3/rei_gawa_face_v1.png"),
-        (1, "だれも見ていない場所に、あなたが書いて、消した一行を。", "res://char/mina_face.png"),
-        (1, "「わたしに、気づいてよ。わたしを、見てよ」。", "res://char/mina_face.png"),
+        (1, "あなたがひとりで書いて、消した一行を読みました。", CompanionDialogue.MinaPortrait),
+        (1, "「わたしに、気づいてよ。わたしを、見てよ」。", CompanionDialogue.MinaPortrait),
         (2, "…………。", "res://char/v3/rei_face_cry.png"),
+        (2, "じゃあ……わたしが好きな本の話、聞いて。配信では、まだ一度もしてない。", "res://char/v3/rei_face_cry.png"),
+        (1, "はい。どんなお話ですか。", CompanionDialogue.MinaPortrait),
+        (2, "帰ってくる人を待って、台所の灯りをつけるの。……それだけの場面なんだけど。", "res://char/v3/rei_face_cry.png"),
+        (1, "帰る前から、ですか。", CompanionDialogue.MinaPortrait),
+        (2, "そう。来るって、信じてるから。……ここが、ずっと好きだった。", "res://char/v3/rei_face_cry.png"),
+        (1, "……続きを、聞いても？", CompanionDialogue.MinaPortrait),
+        (2, "うん。……今度は、わたしの話をする。", "res://char/v3/rei_face_cry.png"),
     };
     // 決定打の手前で BGM を落とす行（0始まり。Lines の「見ていました。」）＝ここから無音のまま置く。
     private const int SilenceAtLine = 3;
@@ -97,13 +115,13 @@ public partial class BossRei : Enemy
     private int _storySilenceAt = -1;
     // 他ジョブ潜行の回想（CharacterStory.Memory）を会話枠だけで送るドライバ。null＝ミナ潜行（＝フィルム）。
     private static readonly (int who, string text, string face)[] MemoryLeadIn = {
-        (1, "その「いらっしゃい」は、最初から今の言い方だったのですか。", "res://char/mina_face.png"),
+        (1, "その「いらっしゃい」は、最初から今の言い方だったのですか。", CompanionDialogue.MinaPortrait),
         (2, "……もっと、下手だったわよ。誰もいない画面に、何しゃべればいいか分からなくて。", "res://char/v3/rei_gawa_face_v1.png"),
-        (1, "それでも、始めたかったのですね。", "res://char/mina_face.png"),
+        (1, "それでも、始めたかったのですね。", CompanionDialogue.MinaPortrait),
         (2, "帰ってきた人に、おかえりって言える場所が欲しかったの。わたしも、誰かに言ってほしかったから。", "res://char/v3/rei_gawa_face_v1.png"),
-        (1, "最初に、言葉を返してくれた人は？", "res://char/mina_face.png"),
+        (1, "最初に、言葉を返してくれた人は？", CompanionDialogue.MinaPortrait),
         (2, "一行だけ。「今日、誰とも話してなかった」って。……まだ、覚えてる。", "res://char/v3/rei_gawa_face_v1.png"),
-        (1, "聞かせてください。その一行を読んだ、レイさんのお話を。", "res://char/mina_face.png"),
+        (1, "その一行を読んだときのお話、聞かせていただけますか。", CompanionDialogue.MinaPortrait),
     };
 
     private CharacterStoryTalk? _memoryTalk;
@@ -123,6 +141,9 @@ public partial class BossRei : Enemy
         // INI hp_bars > 0 で全難易度を固定本数に上書きできる。
         int bars = BossTuning.I("rei", "hp_bars", 0);
         BarCount = bars > 0 ? bars : DiffBars(finalBoss: false) + 1;
+        if (GameManager.Instance?.Difficulty == GameManager.Diff.Hard
+            && GetTree().GetFirstNodeInGroup("boss_rush") is BossRushRoot { SingleBoss: true })
+            BarHp = BossTuning.I("rei", "solo_hard_bar_hp", 748);
 
         _tauntLimit = BossTuning.I("rei", "pressure_max", 2);
         _tauntDelay = BossTuning.F("rei", "pressure_delay", 6.0f);
@@ -208,8 +229,13 @@ public partial class BossRei : Enemy
     {
         // 自機の位置は毎フレーム渡す（自機狙いの追従＝x と y の両方、向きの反転判定に要る）。
         if (GetTree().GetFirstNodeInGroup("player") is Node2D pl) _mover.SetPlayerPos(pl.GlobalPosition);
-        if (!BarrageHolding) GlobalPosition = _mover.Step(GlobalPosition, delta, IsForm2 ? 1.65f : 1f);
-        ApplyBossMotion(_mover.VisualOffset, _mover.Lean, IsForm2 ? !_mover.FacingLeft : _mover.FacingLeft, _mover.SquashScale);
+        if (!BarrageHolding) GlobalPosition = _mover.Step(GlobalPosition, delta, IsForm2 ? 1.65f : 1f, framed: !BossInArena);
+        else _mover.TickFacing(GlobalPosition, delta);
+        _rallyReaction = System.Math.Max(0, _rallyReaction - delta);
+        float recoil = Mathf.Sin((1 - (float)_rallyReaction) * Mathf.Pi) * (float)_rallyReaction;
+        ApplyBossMotion(_mover.VisualOffset + new Vector2(recoil * 4, recoil * 5), _mover.Lean + recoil * .18f,
+            RallyGuarded ? !IsForm2 : IsForm2 ? !_mover.FacingLeft : _mover.FacingLeft,
+            _mover.SquashScale * new Vector2(1 + recoil * .03f, 1 - recoil * .04f));
         FxLayer.Instance?.EmitBossAura(FxLayer.BossAura.Rei, GlobalPosition, (float)delta, 32f);
         TickRelayWatch();
         TickTaunt(delta);
@@ -346,7 +372,7 @@ public partial class BossRei : Enemy
         GetNodeOrNull<GameManager>("/root/Game")?.EndFury();           // 【激情】メーターを止めて畳む
         GetNodeOrNull<GameManager>("/root/Game")?.NotifyRedemptionStart(); // 残機0の抜けプロンプトを演出に重ねない
         // 改心が始まる確実な瞬間に「解決音（完）」へ移す＝半音で落ちていたモチーフが主音に届く。
-        Audio.Instance?.PlayRedeem(0);
+        Audio.Instance?.Music(Audio.Instance.BgmStoryRei, 0.8f);
         // 会話を出せない状況（Hud が取れない／台詞が無い）なら会話に入らず即着地させる
         //   ＝送るものが無いのに EndCryNow を待ち続けて Finished が立たない詰まりを断つ。
         //   ルナティックも同じ経路＝改心のかけあい（弾を止める会話）を出さず、その場で着地して Finished へ
@@ -382,6 +408,7 @@ public partial class BossRei : Enemy
             //   ＝弾幕も曲も途切れない（S3-7 の割り込みは StageRei 側がルナティックで抑止）。
             if (GameManager.SkipBossStory) { OnHpChanged(); return; }
             _caster.CancelPendingAttacks();
+            Audio.Instance?.Music(Audio.Instance.BgmStoryRei, 0.7f);
             void ResumeBattle()
             {
                 _zHeld = Pad.AdvanceHeld();
@@ -460,7 +487,7 @@ public partial class BossRei : Enemy
             Hud.LineKind.Companion => face,   // 潜行キャラ本人＝表情差分（空欄は Hud がジョブ立ち絵へ）
             // 戦闘中のレイはガワ（笑顔固定・泣き顔なし）。割れる行だけ face 指定で中の人の泣き顔へ。
             Hud.LineKind.Other => string.IsNullOrEmpty(face) ? RGawa : face,
-            _ => string.IsNullOrEmpty(face) ? "res://char/mina_face.png" : face, // ミナも行ごと表情
+            _ => string.IsNullOrEmpty(face) ? CompanionDialogue.MinaPortrait : face, // ミナも行ごと表情
         };
         hud.ShowDialog(kind, text, portrait, otherName: "レイ");
     }

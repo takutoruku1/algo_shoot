@@ -16,8 +16,10 @@ config/features=PackedStringArray("4.3", "C#", "Forward Plus")
 
 [autoload]
 
+Startup="*res://src/Startup.cs"
 Pool="*res://src/BulletPool.cs"
 Game="*res://src/GameManager.cs"
+SteamAchievements="*res://src/SteamAchievements.cs"
 DemoPilot="*res://src/DemoPilot.cs"
 QaPilot="*res://src/QaPilot.cs"
 Shot="*res://src/Shot.cs"
@@ -49,3 +51,7 @@ project/assembly_name="algo_shoot"
 [rendering]
 
 renderer/rendering_method="forward_plus"
+
+[editor_plugins]
+
+enabled=PackedStringArray("res://addons/godotsharp_mcp/plugin.cfg")

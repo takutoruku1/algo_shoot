@@ -221,7 +221,7 @@ public partial class FinalRouteQa : Node
             {
                 Check(_bossDefeated, $"{label}: boss was defeated before the transition");
                 string expected = name == "MinaBattle"
-                    ? (diff == GameManager.Diff.Lunatic ? "res://TitleMenu.tscn" : "res://Final.tscn")
+                    ? (diff == GameManager.Diff.Lunatic ? "res://Hub.tscn" : "res://Final.tscn")
                     : "res://Hub.tscn";
                 Check(nextPath == expected, $"{label}: leaves the stage to {expected} (got {nextPath})");
             }

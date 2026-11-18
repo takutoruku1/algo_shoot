@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AssemblyName>GodotSharp.Relay</AssemblyName>
+    <RootNamespace>GodotSharp.Relay</RootNamespace>
+    <!-- PublishSingleFile / RuntimeIdentifier are passed at publish time via build.ps1.
+         Framework-dependent (not self-contained) — requires .NET 8 runtime on the host,
+         which every Godot C# developer already has installed. -->
+  </PropertyGroup>
+
+</Project>

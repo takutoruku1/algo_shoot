@@ -1,0 +1,67 @@
+{
+  "references": [
+    "char/bg2/opening/op_akari_v1.png",
+    "char/bg2/opening/op_koharu_v1.png",
+    "char/bg2/opening/op_rei_v1.png",
+    "char/bg2/prologue/timeline_depth_v2.png",
+    "tools/build_route_backgrounds.py",
+    "tools/route_blender_architecture.py"
+  ],
+  "assets": [
+    {
+      "name": "akari_realm",
+      "nodes": 387,
+      "bytes": 2024216
+    },
+    {
+      "name": "envelope",
+      "nodes": 4,
+      "bytes": 17160
+    },
+    {
+      "name": "koharu_realm",
+      "nodes": 664,
+      "bytes": 5583488
+    },
+    {
+      "name": "office",
+      "nodes": 524,
+      "bytes": 2088016
+    },
+    {
+      "name": "penlight",
+      "nodes": 4,
+      "bytes": 37460
+    },
+    {
+      "name": "phone",
+      "nodes": 34,
+      "bytes": 177380
+    },
+    {
+      "name": "rei_realm",
+      "nodes": 689,
+      "bytes": 6025120
+    },
+    {
+      "name": "signal",
+      "nodes": 334,
+      "bytes": 1800024
+    },
+    {
+      "name": "star",
+      "nodes": 1,
+      "bytes": 11748
+    },
+    {
+      "name": "studio",
+      "nodes": 309,
+      "bytes": 3066416
+    },
+    {
+      "name": "study",
+      "nodes": 314,
+      "bytes": 3191904
+    }
+  ]
+}

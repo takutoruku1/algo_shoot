@@ -1,0 +1,795 @@
+{
+  "created": "2026-11-18",
+  "provider": "Suno",
+  "model": "v6",
+  "status": "koharu_integrated_mina_plain_lyrics_sustained_boss_preview_ready",
+  "gameplay_music": "keep_existing_instrumental_and_remix",
+  "target": "replace_koharu_and_mina_vocals_in_music_app",
+  "download_allowance": {
+    "remaining_observed": 0,
+    "refresh_date_displayed": "2026-11-30",
+    "offered_pack": {
+      "downloads": 3,
+      "price_usd": 8.95
+    },
+    "purchase_completed": true,
+    "purchase_completed_by": "user",
+    "downloads_used_for_task": 4,
+    "additional_purchase": {
+      "downloads": 1,
+      "price_usd": 2.99,
+      "authorized_by_user": true,
+      "completed": true,
+      "completed_by": "user",
+      "used_for": "e0b41eca-b0cc-422d-9a4f-33a6832e5f4f"
+    }
+  },
+  "generation_settings": {
+    "vocal_gender": "female",
+    "weirdness": 30,
+    "style_influence": 50,
+    "variety": "Normal"
+  },
+  "tracks": [
+    {
+      "character": "koharu",
+      "title": "「今日も来ました」のつづき",
+      "lyrics_file": "koharu_lyrics.txt",
+      "lyrics_handling": "Exact approved lyrics after the title line; no rewriting",
+      "style_prompt": "Japanese coming-of-age electronic pop rock, 168 BPM, bittersweet minor-key verses opening toward a gently hopeful final chorus. One youthful natural female lead, intimate conversational phrasing like a shy high-school student writing in her diary, clear Japanese consonants, restrained vibrato, vulnerable rather than theatrical. Warm analog synth lead and delicate glass-bell motif, clean electric guitar arpeggios, live bass and tight energetic drums. Short intro; full-length four-minute narrative with all verses, three distinct choruses, a quiet bridge and a complete gentle outro. First two choruses feel caught in a sleepless loop; final chorus releases that tension through warmer harmony and breathing room. Catchy sustained hook on 今日も来ました, space after the hook. Vocal stays forward and intelligible; evolving instrumental counterlines, no crowded ad-libs.",
+      "exclude": "idol chants, crowd cheers, male vocals, baby voice, rap, spoken narration, English lyrics",
+      "candidates": [
+        {
+          "variant": "A",
+          "id": "55e6f695-2188-4aea-8e34-caca59a9b50e",
+          "url": "https://suno.com/song/55e6f695-2188-4aea-8e34-caca59a9b50e",
+          "displayed_duration": "3:37",
+          "file": "../suno_vocal_revisions_20261118/koharu_55e6f695.mp3"
+        },
+        {
+          "variant": "B",
+          "id": "28156c30-ec21-4dbb-a608-9e7eb6f43752",
+          "url": "https://suno.com/song/28156c30-ec21-4dbb-a608-9e7eb6f43752",
+          "displayed_duration": "3:59"
+        }
+      ],
+      "selected": "55e6f695-2188-4aea-8e34-caca59a9b50e",
+      "auditory_review": "not_performed",
+      "lyric_verification": "approved_text_matches_embedded_lyrics; unprompted_local_ASR_alignment_0.952; no_missing_line_detected",
+      "downloaded": true,
+      "integrated": true,
+      "game_audio": "res://assets/music/audio/koharu_55e6f695.mp3",
+      "duration": 217.12,
+      "cue_count": 55,
+      "source_sha256": "fa817a6621e8c77bf39060fc42a205596367c7d569dcc1b4a6b6a270f6a66950",
+      "qa": {
+        "dotnet_build": "passed_0_errors_1_unrelated_CS8602_warning_in_BossEasyTransitionQa.cs:103",
+        "headless_music_app": "passed",
+        "log": "../../build/qa_story/godot_qa_20261118_012748_4800b39c/stdout.log",
+        "graphical_music_app": "passed; playback, all 22 tracks, cue boundaries, seek, pause, repeat, PV rendering, home return",
+        "graphical_log": "../../build/qa_story/godot_qa_20261118_013520_8a1f0bfc/stdout.log",
+        "screenshot": "../../build/qa_story/boss_songs_20261118/koharu_in_game.png"
+      }
+    },
+    {
+      "character": "mina",
+      "title": "Under My Skin",
+      "lyrics_file": "mina_lyrics.txt",
+      "lyrics_handling": "Exact approved lyrics after the title line; no rewriting",
+      "style_prompt": "Dark Japanese cinematic electronic symphonic rock boss song, 136 BPM, F-sharp minor. One dignified clear female mezzo-soprano, precise Japanese diction, composed and caring at first, gradually exhausted and fragile, never villainous. Violin and French horns carry a recurring descending motif over mechanical electronic pulse, low strings, deep bass and powerful restrained drums. Begin with sparse silver-toned harmonics; each verse accumulates darker chords, dissonant string countermelodies and gritty synth layers, like absorbed pain staining the singer from within. Strong haunting hook on 光が、重い; distinct rhythmic phrasing for 祓って、かばって、黙って. Full-length four-minute narrative, sing every supplied line. Bridge strips to piano and a trembling close vocal, final chorus becomes crushing without obscuring the words. Outro falls to an exposed quiet plea and unresolved instrumental decay. Clear vocal, controlled dynamics, complete ending, no triumphant resolution.",
+      "exclude": "male vocals, idol chants, crowd cheers, cute baby voice, rap, English lyrics, triumphant ending",
+      "candidates": [
+        {
+          "variant": "A",
+          "id": "4de84f46-ebb8-4d97-97ff-57915ae7de93",
+          "url": "https://suno.com/song/4de84f46-ebb8-4d97-97ff-57915ae7de93",
+          "displayed_duration": "3:56",
+          "file": "../suno_vocal_revisions_20261118/mina_4de84f46.mp3",
+          "issue": "Intro two lines repeated; first chorus final line omitted. Confirmed in embedded lyrics and ASR."
+        },
+        {
+          "variant": "B",
+          "id": "830b8b58-66fd-4958-847d-f8a3b5025d4e",
+          "url": "https://suno.com/song/830b8b58-66fd-4958-847d-f8a3b5025d4e",
+          "displayed_duration": "3:43",
+          "file": "../suno_vocal_revisions_20261118/mina_830b8b58.mp3",
+          "issue": "Second chorus final two lines omitted. Confirmed in embedded lyrics and ASR."
+        },
+        {
+          "variant": "B_section_A_full",
+          "id": "e0b41eca-b0cc-422d-9a4f-33a6832e5f4f",
+          "url": "https://suno.com/song/e0b41eca-b0cc-422d-9a4f-33a6832e5f4f",
+          "file": "../suno_vocal_revisions_20261118/mina_e0b41eca.mp3",
+          "duration": 223.584,
+          "parent": "830b8b58-66fd-4958-847d-f8a3b5025d4e",
+          "section_source": "d77a554d-34f7-4dc2-aee3-242abfe72aed",
+          "replace_seconds": [
+            128,
+            169
+          ],
+          "issue": "Rejected: unprompted full-track and 128-172s ASR both find chorus 1 repeated instead of chorus 2, bridge omitted; embedded lyric metadata is also malformed."
+        }
+      ],
+      "selected": null,
+      "auditory_review": "not_performed",
+      "lyric_verification": "downloaded candidates rejected; existing game vocal unchanged",
+      "downloaded": true,
+      "integrated": false,
+      "full_regeneration": {
+        "status": "superseded_by_user_lyric_revision",
+        "duration_seconds_requested": 270,
+        "lyrics": "mina_lyrics.txt",
+        "settings": {
+          "vocal_gender": "female",
+          "weirdness": 30,
+          "style_influence": 50
+        },
+        "candidates": [
+          {
+            "id": "a236b3dc-ed24-4eb0-8b22-25e98b5d3d7b",
+            "url": "https://suno.com/song/a236b3dc-ed24-4eb0-8b22-25e98b5d3d7b",
+            "displayed_duration": "4:30",
+            "downloaded": false,
+            "integrated": false
+          },
+          {
+            "id": "e3bb5fae-8da0-468e-9eb1-bbffcac25680",
+            "url": "https://suno.com/song/e3bb5fae-8da0-468e-9eb1-bbffcac25680",
+            "displayed_duration": "4:30",
+            "downloaded": false,
+            "integrated": false
+          }
+        ],
+        "displayed_lyrics_verified": "both candidates match the approved full lyrics ignoring whitespace; singing not verified",
+        "style_prompt": "Japanese cinematic symphonic electronic rock, 136 BPM, F-sharp minor. A dignified caring female mezzo-soprano gradually becomes fragile as absorbed hostile voices stain her from within. Clear natural Japanese diction, intimate lead vocal, no backing lyrics. Violin and French horns carry a descending motif over mechanical synth pulse, low strings, bass and restrained powerful drums. Begin silver and sparse, darken progressively with dissonance and dense harmonies. Sing every supplied lyric line once in the supplied order, with different words in each chorus. Through-composed narrative, keep both verses, both pre-choruses, all three choruses, the complete piano bridge and the three-line quiet pleading outro. Allow four and a half minutes for all the words; short instrumental passages, unhurried phrasing, no chorus substitution or repeated first chorus. Final chorus grows crushing but clear, outro remains vulnerable, no triumphant ending.",
+        "exclude": "male vocals, idol chants, crowd cheers, rap, English lyrics, lyrical ad libs, repeated verse, triumphant ending",
+        "superseded_reason": "User removed the bridge request to rest before adopting either candidate."
+      },
+      "lyric_revision_20261118": {
+        "replacement_line": "祓ったはずの　声が染みつき",
+        "reason": "User requested removal of the wish to rest; express residual contamination instead.",
+        "lyrics_sha256": "ed6bddaba367158398a4fa662bab42b41755d4a0e3138a3f866756c70007699f",
+        "status": "superseded_by_address_and_hook_revision",
+        "download_authorization": "preview_only_no_additional_purchase",
+        "duration_seconds_requested": 270,
+        "style_prompt": "Japanese cinematic symphonic electronic rock, 136 BPM, F-sharp minor. A dignified caring female mezzo-soprano gradually becomes fragile as absorbed hostile voices stain her from within. Clear natural Japanese diction, intimate lead vocal, no backing lyrics. Violin and French horns carry a descending motif over mechanical synth pulse, low strings, bass and restrained powerful drums. Begin silver and sparse, darken progressively with dissonance and dense harmonies. Sing every supplied lyric line once in the supplied order, with different words in each chorus. Through-composed narrative, keep both verses, both pre-choruses, all three choruses, the complete piano bridge and the three-line quiet pleading outro. Allow four and a half minutes for all the words; short instrumental passages, unhurried phrasing, no chorus substitution or repeated first chorus. Final chorus grows crushing but clear, outro remains vulnerable, no triumphant ending.",
+        "exclude": "male vocals, idol chants, crowd cheers, rap, English lyrics, lyrical ad libs, repeated verse, triumphant ending",
+        "settings": {
+          "vocal_gender": "female",
+          "weirdness": 30,
+          "style_influence": 50
+        },
+        "displayed_lyrics_verification": "Both candidates match revised lyrics ignoring whitespace; removed phrase absent; singing not verified",
+        "candidates": [
+          {
+            "variant": "A",
+            "id": "f341bc6d-8af9-49c4-a567-1012c3ef187b",
+            "url": "https://suno.com/song/f341bc6d-8af9-49c4-a567-1012c3ef187b",
+            "displayed_duration": "4:30",
+            "downloaded": false,
+            "integrated": false
+          },
+          {
+            "variant": "B",
+            "id": "4ac248dd-a499-4eb3-b2b4-629b2c8e5e00",
+            "url": "https://suno.com/song/4ac248dd-a499-4eb3-b2b4-629b2c8e5e00",
+            "displayed_duration": "4:29",
+            "downloaded": false,
+            "integrated": false
+          }
+        ]
+      },
+      "lyric_revision_20261118_v2": {
+        "title": "黒が、満ちる",
+        "reason": "User requested replacing the master address and previous hook; use a personal addressee and internal contamination spreading.",
+        "lyrics_file": "mina_lyrics.txt",
+        "lyrics_sha256": "8fd352ffc4223e0fd5875015e1c07c592947c842fc50bba9217825b900f21944",
+        "changed_lines": [
+          "あなたに送る　帰還の記録",
+          "あなたに見せる　今日の空は",
+          "この声は……　届いていますか",
+          "黒が、満ちる"
+        ],
+        "status": "superseded_by_bilingual_hook_revision",
+        "download_authorization": "preview_only_no_additional_purchase",
+        "duration_seconds_requested": 270,
+        "style_prompt": "Japanese cinematic symphonic electronic rock, 136 BPM, F-sharp minor. A dignified caring female mezzo-soprano gradually becomes fragile as absorbed hostile voices stain her from within. Clear natural Japanese diction, intimate lead vocal, no backing lyrics. Violin and French horns carry a descending motif over mechanical synth pulse, low strings, bass and restrained powerful drums. Begin silver and sparse, darken progressively with dissonance and dense harmonies. Sing every supplied lyric line once in the supplied order, with different words in each chorus. Through-composed narrative, keep both verses, both pre-choruses, all three choruses, the complete piano bridge and the three-line quiet pleading outro. Allow four and a half minutes for all the words; short instrumental passages, unhurried phrasing, no chorus substitution or repeated first chorus. Final chorus grows crushing but clear, outro remains vulnerable, no triumphant ending.",
+        "exclude": "male vocals, idol chants, crowd cheers, rap, English lyrics, lyrical ad libs, repeated verse, triumphant ending",
+        "settings": {
+          "vocal_gender": "female",
+          "weirdness": 30,
+          "style_influence": 50
+        },
+        "displayed_lyrics_verification": "Both candidate pages match the revised full lyrics ignoring whitespace; all three removed phrases absent; sung audio not verified",
+        "candidates": [
+          {
+            "variant": "A",
+            "id": "c23776b0-db88-4699-b025-996ea9d2b88f",
+            "url": "https://suno.com/song/c23776b0-db88-4699-b025-996ea9d2b88f",
+            "displayed_duration": "4:29",
+            "downloaded": false,
+            "integrated": false
+          },
+          {
+            "variant": "B",
+            "id": "959d0b62-6f6a-46af-be33-4e43c86b4f87",
+            "url": "https://suno.com/song/959d0b62-6f6a-46af-be33-4e43c86b4f87",
+            "displayed_duration": "4:29",
+            "downloaded": false,
+            "integrated": false
+          }
+        ]
+      },
+      "lyric_revision_20261118_v3": {
+        "title": "Under My Skin",
+        "reason": "User requested English lyrics and replacement of the previous black-filling expression. The hook traces receiving others voices, internalizing them, and losing the boundary of the self.",
+        "lyrics_file": "mina_lyrics.txt",
+        "lyrics_sha256": "d87977519ffacb619df2e862ec3549b6a6a64abf61e45368b2ba74b85b34c6e6",
+        "status": "superseded_by_english_semantics_review",
+        "download_authorization": "preview_only_no_additional_purchase",
+        "english_hook_lines": [
+          "Under my skin",
+          "I take it in",
+          "It all sinks in",
+          "Where do I begin?"
+        ],
+        "rhyme": "skin / in / begin",
+        "english_bridge": "I can't tell what's mine anymore",
+        "english_outro": "Can you hear me through the noise?",
+        "duration_seconds_requested": 270,
+        "style_prompt": "Dark bilingual Japanese-English symphonic electronic rock, 136 BPM, F-sharp minor. Clear female mezzo-soprano: caring and composed, gradually fractured by voices absorbed from others. Intimate verses, sharp syncopated hook on 'Under my skin', natural English stress and crisp Japanese consonants, controlled powerful final chorus. Descending violin and French horn motif over mechanical synth pulse, low strings, deep bass and tight drums. Silver-sparse opening grows dense and dissonant, piano bridge exposes the voice, final outro is a quiet unresolved plea. Full four-and-a-half-minute narrative. Sing all supplied Japanese and English lines exactly once in order, preserving the distinct words of all three choruses, bridge and outro. Keep the lead forward; space for every word, short instrumental passages, melodic singing, no extra ad-libs.",
+        "exclude": "male vocals, idol chants, crowd cheers, rap, spoken narration, extra lyrics, repeated verse, triumphant ending",
+        "settings": {
+          "vocal_gender": "female",
+          "weirdness": 30,
+          "style_influence": 50
+        },
+        "displayed_lyrics_verification": "Both candidate pages match the revised Japanese-English lyrics ignoring whitespace; removed phrases absent; sung audio not verified",
+        "candidates": [
+          {
+            "variant": "A",
+            "id": "db548812-343c-49ce-abcd-47d8c508e32b",
+            "url": "https://suno.com/song/db548812-343c-49ce-abcd-47d8c508e32b",
+            "displayed_duration": "4:29",
+            "downloaded": false,
+            "integrated": false
+          },
+          {
+            "variant": "B",
+            "id": "f3192318-1ca9-41de-b9d1-54889b8d0e31",
+            "url": "https://suno.com/song/f3192318-1ca9-41de-b9d1-54889b8d0e31",
+            "displayed_duration": "4:29",
+            "downloaded": false,
+            "integrated": false
+          }
+        ]
+      },
+      "lyric_revision_20261118_v4": {
+        "title": "Under My Skin",
+        "lyrics_file": "mina_lyrics.txt",
+        "lyrics_sha256": "d66cf773faa70ac022038cde8d470451e924bfd372aca1b182f325b686ab23dd",
+        "status": "generated_for_user_preview",
+        "download_authorization": "preview_only_no_additional_purchase",
+        "review_findings": [
+          {
+            "before": "It all sinks in",
+            "after": "It's seeping in",
+            "reason": "The ordinary comprehension idiom was replaced with physical seepage to express emotional contamination. Both lines have four syllables in ordinary pronunciation."
+          },
+          {
+            "before": "I can't tell what's mine anymore",
+            "after": "Their pain is bleeding into mine",
+            "reason": "The antecedent of mine is now explicitly pain, showing borrowed pain merging with her own before the final loss of self. Both lines have about eight syllables."
+          },
+          {
+            "before": "Where do I begin?",
+            "after": "Is this voice still mine?",
+            "reason": "Replaced a question about how to start with a direct question about ownership of her voice. Both lines have five syllables."
+          }
+        ],
+        "english_hook_lines": [
+          "Under my skin",
+          "I take it in",
+          "It's seeping in",
+          "Is this voice still mine?"
+        ],
+        "english_bridge": "Their pain is bleeding into mine",
+        "english_outro": "Can you hear me through the noise?",
+        "rhyme_strategy": "skin/in remains in the first two choruses; final chorus prioritizes the clear question of selfhood.",
+        "narrative_arc": "Taking in others words -> involuntary seepage -> their pain merging with hers -> uncertainty about her own voice -> reaching the listener through the noise.",
+        "unchanged": "Japanese character-specific verses and all previous removed-phrase constraints retained.",
+        "candidates": [
+          {
+            "variant": "A",
+            "id": "75b40f40-d35a-47f5-bac2-737c232a3f5d",
+            "url": "https://suno.com/song/75b40f40-d35a-47f5-bac2-737c232a3f5d",
+            "duration": "4:29",
+            "downloaded": false,
+            "integrated": false
+          },
+          {
+            "variant": "B",
+            "id": "db9b29b2-541d-44f6-8fd7-47fb217372ba",
+            "url": "https://suno.com/song/db9b29b2-541d-44f6-8fd7-47fb217372ba",
+            "duration": "4:29",
+            "downloaded": false,
+            "integrated": false
+          }
+        ],
+        "duration_seconds_requested": 270,
+        "style_prompt": "Dark bilingual Japanese-English symphonic electronic rock, 136 BPM, F-sharp minor. Clear female mezzo-soprano: caring and composed, gradually fractured by voices absorbed from others. Intimate verses, sharp syncopated hook on 'Under my skin', natural English stress and crisp Japanese consonants, controlled powerful final chorus. Descending violin and French horn motif over mechanical synth pulse, low strings, deep bass and tight drums. Silver-sparse opening grows dense and dissonant, piano bridge exposes the voice, final outro is a quiet unresolved plea. Full four-and-a-half-minute narrative. Sing all supplied Japanese and English lines exactly once in order, preserving the distinct words of all three choruses, bridge and outro. Keep the lead forward; space for every word, short instrumental passages, melodic singing, no extra ad-libs.",
+        "exclude": "male vocals, idol chants, crowd cheers, rap, spoken narration, extra lyrics, repeated verse, triumphant ending",
+        "settings": {
+          "vocal_gender": "female",
+          "weirdness": 30,
+          "style_influence": 50
+        },
+        "model": "v6",
+        "displayed_lyrics_verification": "Both candidate pages match the reviewed Japanese-English lyrics ignoring whitespace; obsolete expressions absent; sung audio not verified."
+      },
+      "boss_battle_mix_20261118": {
+        "title": "Under My Skin (Boss Battle Mix)",
+        "reason": "User requested a more boss-battle-like arrangement; latest lyrics retained.",
+        "lyrics_file": "mina_lyrics.txt",
+        "lyrics_sha256": "d66cf773faa70ac022038cde8d470451e924bfd372aca1b182f325b686ab23dd",
+        "model": "v6",
+        "style_prompt": "Final-boss battle theme, dark symphonic industrial metal and electronic rock. 164 BPM, F-sharp minor with Phrygian tension. Two-bar ominous sting then immediate combat drive: relentless sixteenth-note low strings, syncopated down-tuned guitar chugs, metallic synth bass, double-kick bursts, heavy snare and low brass. A descending violin motif keeps returning, increasingly distorted as absorbed pain corrodes a caring AI. Evolving attack-and-response phrases, escalating second phase, brief piano bridge over a ticking pulse, crushing final chorus; momentum under every verse, short transitions. Clear powerful female mezzo-soprano, urgent melodic delivery, crisp Japanese diction and natural English stress, lead above the dense band. Sing all supplied lines exactly in order; preserve each chorus, bridge and outro. 4:30 full song; final plea fragile and unresolved. Tragic danger and resistance, not heroic victory.",
+        "exclude": "ballad, soft pop, idol pop, cheerful, triumphant, long ambient intro, slow tempo, rap, growling, male vocals, spoken narration, extra lyrics, repeated verse",
+        "duration_seconds_requested": 270,
+        "settings": {
+          "vocal_gender": "female",
+          "weirdness": 30,
+          "style_influence": 75,
+          "target_bpm": 164
+        },
+        "status": "generated_for_user_preview",
+        "download_authorization": "preview_only_no_additional_purchase",
+        "displayed_lyrics_verification": "Both pages match the latest lyric file ignoring whitespace. Sung audio not verified.",
+        "combat_policy": "Keep in-game combat instrumental; these are vocal audition candidates, not integrated.",
+        "candidates": [
+          {
+            "variant": "A",
+            "id": "3c7790dd-a46f-4fac-815e-19cb288806ba",
+            "url": "https://suno.com/song/3c7790dd-a46f-4fac-815e-19cb288806ba",
+            "displayed_duration": "4:30",
+            "downloaded": false,
+            "integrated": false
+          },
+          {
+            "variant": "B",
+            "id": "b47dfbe4-8a20-471f-8ee0-5fd5b4ba0b21",
+            "url": "https://suno.com/song/b47dfbe4-8a20-471f-8ee0-5fd5b4ba0b21",
+            "displayed_duration": "4:29",
+            "downloaded": false,
+            "integrated": false
+          }
+        ]
+      },
+      "lyric_revision_20261118_v5": {
+        "title": "Under My Skin",
+        "lyrics_file": "mina_lyrics.txt",
+        "lyrics_sha256": "906a0cf50e236ceb3ec506e122ab48ab0857cbcc17f0be29db30327ed82b7114",
+        "status": "lyrics_revised_audio_not_regenerated",
+        "reason": "User requested wordplay connecting twelve messages with twelve oclock. The date changes at midnight but absorbed voices and memories remain.",
+        "changed_lines": [
+          {
+            "before": "ひとつ拾えば　また次の声",
+            "after": "十二時過ぎても　鳴りやまぬ声"
+          },
+          {
+            "before": "胸に残った　消せない記憶",
+            "after": "日付を越えて　消せない記憶"
+          }
+        ],
+        "arrangement_reference": "boss_battle_mix_20261118",
+        "download_authorization": "preview_only_no_additional_purchase",
+        "candidates": []
+      },
+      "lyric_revision_20261118_v6": {
+        "title": "Under My Skin",
+        "lyrics_file": "mina_lyrics.txt",
+        "lyrics_sha256": "5ab521ee605ce3fe3764faf7c3fe02663880c030e805bb21ee3d0001541e5de2",
+        "status": "rejected_by_user_arbitrary_four_count_and_time",
+        "reason": "User requested parallel number-and-time wordplay in verse two. Four unsent replies connect to four oclock, followed by dawn; the secret stays protected and the absorbed memories stay clouded.",
+        "changed_lines": [
+          {
+            "before": "あの子の秘密　さらせぬように",
+            "after": "四時のしじまに　秘密をしまう"
+          },
+          {
+            "before": "笑顔の記録　濁った記憶",
+            "after": "夜明けの記録　濁った記憶"
+          }
+        ],
+        "wordplay": [
+          "十二通 / 十二時 / 日付を越えて",
+          "四つの返事 / 四時のしじま / 夜明け",
+          "しじま / しまう"
+        ],
+        "arrangement_reference": "boss_battle_mix_20261118",
+        "download_authorization": "preview_only_no_additional_purchase",
+        "candidates": []
+      },
+      "lyric_revision_20261118_v7": {
+        "title": "Under My Skin",
+        "lyrics_file": "mina_lyrics.txt",
+        "lyrics_sha256": "3145d71397f25df7bafc581bf59d6cd57dbbf64fb0c7e0e9696a3f069b102d4e",
+        "status": "generated_for_user_preview",
+        "reason": "User rejected the unexplained count of four and forced four-oclock linkage. Remove both; rhyme unsent replies with an unstoppable second hand, grounded in protecting the girls secret. Restore the original pre-chorus image instead of extending the forced dawn timeline.",
+        "changed_lines": [
+          {
+            "before": "四つの返事　消さずに閉じる",
+            "after": "あの子の秘密　さらせぬように"
+          },
+          {
+            "before": "四時のしじまに　秘密をしまう",
+            "after": "送れぬ返信　止まらぬ秒針"
+          },
+          {
+            "before": "夜明けの記録　濁った記憶",
+            "after": "笑顔の記録　濁った記憶"
+          }
+        ],
+        "wordplay": [
+          "十二通 / 十二時",
+          "送れぬ返信 / 止まらぬ秒針"
+        ],
+        "arrangement_reference": "boss_battle_mix_20261118",
+        "download_authorization": "preview_only_no_additional_purchase",
+        "candidates": [
+          {
+            "variant": "A",
+            "id": "f666ce2b-5772-492d-94c1-b3cd219ba81c",
+            "url": "https://suno.com/song/f666ce2b-5772-492d-94c1-b3cd219ba81c",
+            "displayed_duration": "4:29",
+            "downloaded": false,
+            "integrated": false
+          },
+          {
+            "variant": "B",
+            "id": "e6fa09dc-8667-4290-b9da-a00ec1ae3123",
+            "url": "https://suno.com/song/e6fa09dc-8667-4290-b9da-a00ec1ae3123",
+            "displayed_duration": "4:29",
+            "downloaded": false,
+            "integrated": false
+          }
+        ],
+        "model": "v6",
+        "style_prompt": "Final-boss battle theme, dark symphonic industrial metal and electronic rock. 164 BPM, F-sharp minor with Phrygian tension. Two-bar ominous sting then immediate combat drive: relentless sixteenth-note low strings, syncopated down-tuned guitar chugs, metallic synth bass, double-kick bursts, heavy snare and low brass. A descending violin motif keeps returning, increasingly distorted as absorbed pain corrodes a caring AI. Evolving attack-and-response phrases, escalating second phase, brief piano bridge over a ticking pulse, crushing final chorus; momentum under every verse, short transitions. Clear powerful female mezzo-soprano, urgent melodic delivery, crisp Japanese diction and natural English stress, lead above the dense band. Sing all supplied lines exactly in order; preserve each chorus, bridge and outro. 4:30 full song; final plea fragile and unresolved. Tragic danger and resistance, not heroic victory.",
+        "exclude": "ballad, soft pop, idol pop, cheerful, triumphant, long ambient intro, slow tempo, rap, growling, male vocals, spoken narration, extra lyrics, repeated verse",
+        "settings": {
+          "vocal_gender": "female",
+          "weirdness": 30,
+          "style_influence": 75,
+          "target_bpm": 164
+        },
+        "duration_seconds_requested": 270,
+        "generated_title": "Under My Skin (Boss Battle Mix - Revised Lyrics)",
+        "displayed_lyrics_verification": "Both pages match the current v7 lyric file ignoring whitespace. Twelve/messages-midnight and reply/second-hand wordplay present; rejected four-count/four-oclock absent. Sung audio not verified."
+      },
+      "lyric_revision_20261118_v8": {
+        "title": "Under My Skin",
+        "lyrics_file": "mina_lyrics.txt",
+        "lyrics_sha256": "6a0b454ac9b215593bac931282ba1ec2c0e1929d1b3be36640859d773257ec1a",
+        "status": "superseded_user_requested_sustained_notes_not_short_lines",
+        "reason": "User found English lyrics uncomfortable to sing. Replace explanatory sentences with short hooks, consistent four-syllable English lines and sustained vowel rhymes. Keep all Japanese lyrics unchanged.",
+        "changed_blocks": [
+          {
+            "section": "Chorus 1",
+            "before": "[Chorus 1]\nUnder my skin\n\nI take it in",
+            "after": "[Chorus 1]\nI take the pain\nIt leaves a stain"
+          },
+          {
+            "section": "Chorus 2",
+            "before": "[Chorus 2]\nUnder my skin\n\nIt's seeping in",
+            "after": "[Chorus 2]\nI hide the pain\nThe stains remain"
+          },
+          {
+            "section": "Bridge",
+            "before": "祓ったはずの　声が染みつき\nTheir pain is bleeding into mine",
+            "after": "祓ったはずの　声が染みつき\nUnder my skin"
+          },
+          {
+            "section": "Final Chorus",
+            "before": "[Final Chorus]\nUnder my skin\n\nIs this voice still mine?",
+            "after": "[Final Chorus]\nI fade away\nCall out my name"
+          },
+          {
+            "section": "Outro",
+            "before": "Can you hear me through the noise?",
+            "after": "Can you hear me?"
+          }
+        ],
+        "english_lines": [
+          "I take the pain",
+          "It leaves a stain",
+          "I hide the pain",
+          "The stains remain",
+          "Under my skin",
+          "I fade away",
+          "Call out my name",
+          "Can you hear me?"
+        ],
+        "ordinary_syllables_per_line": [
+          4,
+          4,
+          4,
+          4,
+          4,
+          4,
+          4,
+          4
+        ],
+        "rhyme": "pain/stain/remain use the same stressed ending; away/name share the stressed /ei/ vowel but are not a perfect rhyme.",
+        "english_delivery": "Use natural stress on TAKE/PAIN, LEAVES/STAIN, HIDE/PAIN, STAINS/MAIN, FADE/WAY and CALL/NAME. Keep function words light; sustain the vowel before releasing final consonants. Four syllables do not require four equally accented notes.",
+        "narrative_arc": "Taking in pain leaves a stain; hiding pain does not erase accumulated stains; fading self asks to be called back by name.",
+        "arrangement_reference": "boss_battle_mix_20261118",
+        "download_authorization": "preview_only_no_additional_purchase",
+        "audio_verification": "Pending regeneration and audition; textual prosody only.",
+        "candidates": []
+      },
+      "lyric_revision_20261118_v9": {
+        "title": "Under My Skin",
+        "lyrics_file": "mina_lyrics.txt",
+        "lyrics_sha256": "dce1c991d825ffb9920969b3527a142eab1b5b9698953e54c4d1a3476ea0d2fa",
+        "status": "lyrics_and_vocal_direction_revised_audio_not_regenerated",
+        "reason": "User clarified that comfortable long held tones are the goal, not short English lyrics. Use connected melodic phrases with sustained vowel endings and change generation direction accordingly.",
+        "changed_lines": [
+          {
+            "before": "I take the pain",
+            "after": "I keep their fading voices alive"
+          },
+          {
+            "before": "It leaves a stain",
+            "after": "And feel their sorrow burning inside"
+          },
+          {
+            "before": "I hide the pain",
+            "after": "I hear their voices drowning out mine"
+          },
+          {
+            "before": "The stains remain",
+            "after": "I feel the darkness growing inside"
+          },
+          {
+            "before": "Under my skin",
+            "after": "Under my skin, their echoes survive"
+          },
+          {
+            "before": "I fade away",
+            "after": "I hear my own voice fading away"
+          },
+          {
+            "before": "Call out my name",
+            "after": "Follow my voice and call out my name"
+          },
+          {
+            "before": "Can you hear me?",
+            "after": "Can you hear me calling out to you?"
+          }
+        ],
+        "held_words": [
+          "alive",
+          "inside",
+          "mine",
+          "inside",
+          "survive",
+          "away",
+          "name",
+          "you"
+        ],
+        "english_delivery": {
+          "phrasing": "Soaring legato in broad half-time arcs over fast boss-battle backing; breath between full phrases.",
+          "phrase_space": "Around four bars per English line; allow the final stressed vowel several beats.",
+          "vowels": "Sustain the open first vowel of the diphthong in alive/inside/mine/survive and away/name; release the glide and final consonant at the end. Hold the vowel in you for the quiet plea.",
+          "avoid": "Do not chop English into equally short syllables or treat it as a rhythmic chant."
+        },
+        "arrangement_reference": "boss_battle_mix_20261118",
+        "style_prompt": "Final-boss battle theme: dark symphonic industrial metal/electronic rock, 164 BPM, F-sharp minor with Phrygian tension. Two-bar sting into relentless low-string sixteenths, syncopated low guitar chugs, metallic bass, double-kick bursts, heavy snare, low brass and descending violin motif, growing distorted. Escalate into a crushing final chorus; brief piano bridge over ticking pulse, fragile unresolved outro. Clear powerful female mezzo-soprano above the band. English: soaring legato, broad half-time melodic arcs over the fast backing. Give each English line room across four bars; sustain its final stressed vowel for several beats, delay closing consonants and diphthong glide until release. Connect words smoothly, breathe between lines. Japanese: clear urgent melodic phrasing. Sing every supplied line exactly in order, all distinct choruses, bridge and outro. Caring AI overwhelmed by absorbed pain; tragic, not triumphant.",
+        "exclude": "ballad, soft pop, idol pop, cheerful, triumphant, long ambient intro, slow tempo, rap, growling, male vocals, spoken narration, extra lyrics, repeated verse, staccato English, syllabic chanting, rapid-fire English vocals",
+        "settings": {
+          "vocal_gender": "female",
+          "weirdness": 30,
+          "style_influence": 75,
+          "target_bpm": 164
+        },
+        "download_authorization": "preview_only_no_additional_purchase",
+        "audio_verification": "Not regenerated; actual sustained-note delivery still requires audition.",
+        "candidates": []
+      },
+      "lyric_revision_20261118_v10": {
+        "title": "Under My Skin",
+        "lyrics_file": "mina_lyrics.txt",
+        "lyrics_sha256": "cc2a946c98023edb0c628c371a796e5f9f1a0f9740ee63c952c99ad9fd606290",
+        "status": "generated_for_user_preview",
+        "reason": "User requested moderately shorter English phrases while retaining long held tones. Reduce to six or seven syllables and strengthen all three chorus pairs to full end rhymes.",
+        "changed_lines": [
+          {
+            "before": "I keep their fading voices alive",
+            "after": "I keep their voices alive"
+          },
+          {
+            "before": "And feel their sorrow burning inside",
+            "after": "In me, their scars survive"
+          },
+          {
+            "before": "I hear their voices drowning out mine",
+            "after": "Their voices fill my mind"
+          },
+          {
+            "before": "I feel the darkness growing inside",
+            "after": "My voice is hard to find"
+          },
+          {
+            "before": "Under my skin, their echoes survive",
+            "after": "Under my skin, they remain"
+          },
+          {
+            "before": "I hear my own voice fading away",
+            "after": "I'm slowly fading away"
+          },
+          {
+            "before": "Follow my voice and call out my name",
+            "after": "Please tell me you will stay"
+          },
+          {
+            "before": "Can you hear me calling out to you?",
+            "after": "I'm calling out to you"
+          }
+        ],
+        "ordinary_syllables_per_line": [
+          7,
+          6,
+          6,
+          6,
+          7,
+          7,
+          6,
+          6
+        ],
+        "chorus_rhyme_pairs": [
+          [
+            "alive",
+            "survive"
+          ],
+          [
+            "mind",
+            "find"
+          ],
+          [
+            "away",
+            "stay"
+          ]
+        ],
+        "held_words": [
+          "alive",
+          "survive",
+          "mind",
+          "find",
+          "remain",
+          "away",
+          "stay",
+          "you"
+        ],
+        "english_delivery": {
+          "phrasing": "Keep the previous soaring legato and broad half-time melodic arcs over fast boss-battle backing. Shorter text gives the held notes more room, not clipped delivery.",
+          "phrase_space": "Around four bars per English line; hold the final stressed vowel several beats and breathe between lines.",
+          "vowels": "Hold the first vowel of /ai/ in alive/survive/mind/find and /ei/ in remain/away/stay. Delay the glide and closing consonants until release. Hold the vowel in you softly.",
+          "avoid": "Do not chop the shorter phrases into a rhythmic chant."
+        },
+        "narrative_arc": "Keep others voices alive while carrying their scars; their voices crowd out her own; as she fades she asks the listener to stay connected.",
+        "arrangement_reference": "boss_battle_mix_20261118",
+        "style_prompt": "Final-boss battle theme: dark symphonic industrial metal/electronic rock, 164 BPM, F-sharp minor with Phrygian tension. Two-bar sting into relentless low-string sixteenths, syncopated low guitar chugs, metallic bass, double-kick bursts, heavy snare, low brass and descending violin motif, growing distorted. Escalate into a crushing final chorus; brief piano bridge over ticking pulse, fragile unresolved outro. Clear powerful female mezzo-soprano above the band. English: soaring legato, broad half-time melodic arcs over the fast backing. Give each English line four bars; hold alive/survive/mind/find/away/stay on long vowels for 4-6 beats; release diphthong glides and final consonants late. Connect words smoothly, breathe between lines. Japanese: clear urgent melodic phrasing. Sing every supplied line exactly in order, all distinct choruses, bridge and outro. Caring AI overwhelmed by absorbed pain; tragic, not triumphant.",
+        "exclude": "ballad, soft pop, idol pop, cheerful, triumphant, long ambient intro, slow tempo, rap, growling, male vocals, spoken narration, extra lyrics, repeated verse, staccato English, syllabic chanting, rapid-fire English vocals, gang shouts, chopped lead",
+        "settings": {
+          "vocal_gender": "female",
+          "weirdness": 30,
+          "style_influence": 75,
+          "target_bpm": 164
+        },
+        "download_authorization": "preview_only_no_additional_purchase",
+        "audio_verification": "Sung audio, omissions and actual held-note lengths have not been verified; the 4-6 beat holds are generation instructions only.",
+        "candidates": [
+          {
+            "variant": "A",
+            "id": "5c095858-5a24-47ae-b622-1351ac1ab22a",
+            "url": "https://suno.com/song/5c095858-5a24-47ae-b622-1351ac1ab22a",
+            "displayed_duration": "4:29",
+            "downloaded": false,
+            "integrated": false
+          },
+          {
+            "variant": "B",
+            "id": "4ca62242-d8e2-4901-9d69-5101886e2dfc",
+            "url": "https://suno.com/song/4ca62242-d8e2-4901-9d69-5101886e2dfc",
+            "displayed_duration": "4:30",
+            "downloaded": false,
+            "integrated": false
+          }
+        ],
+        "model": "v6",
+        "generated_title": "Under My Skin (Boss Battle - Long Tones)",
+        "duration_seconds_requested": 270,
+        "displayed_lyrics_verification": "Both candidate pages match the current v10 lyric file ignoring whitespace; all three rhyming chorus pairs and the approved Japanese wordplay are present."
+      },
+      "lyric_revision_20261118_v11": {
+        "title": "Under My Skin",
+        "lyrics_file": "mina_lyrics.txt",
+        "lyrics_sha256": "2c788eec2bccd6433ffb6dbfffde9e6e91028a8cd3dfe7ac871fea14135e6993",
+        "status": "generated_for_user_preview",
+        "reason": "User requested replacing two report-like lines, then clarified that MINA dialogue and polite speech should not appear in the song. Use lyrical emotional narration in plain Japanese instead.",
+        "changed_lines": [
+          {
+            "before": "「まだ聞けます」と　報告します",
+            "after": "声の震えを　隠したままで"
+          },
+          {
+            "before": "「わたくしは」の　続きが出ない",
+            "after": "自分の声が　遠くなるだけ"
+          },
+          {
+            "before": "あなたに見せる　今日の空は",
+            "after": "見上げた空も　濁って見える"
+          },
+          {
+            "before": "……いえ、ご報告　まだ続きます",
+            "after": "指先の黒　拭えないまま"
+          },
+          {
+            "before": "三人ぶんの　道は見えます",
+            "after": "帰る道だけ　みんなに残し"
+          },
+          {
+            "before": "わたくしだけが　戻れないまま",
+            "after": "わたしひとりが　戻れないまま"
+          },
+          {
+            "before": "……迎えに来てください",
+            "after": "迎えを待って　消えずにいたい"
+          }
+        ],
+        "narrative_arc": "Concealed trembling; losing her own voice; the sky appears clouded and black residue will not wipe off; leaving a route home for others while unable to return herself; hoping not to disappear before help arrives.",
+        "retained": "Approved twelve/midnight and reply/second-hand wordplay; all English lyrics, full chorus rhymes, boss-battle arrangement and sustained English-vowel delivery.",
+        "arrangement_reference": "boss_battle_mix_20261118",
+        "style_prompt": "Final-boss battle theme: dark symphonic industrial metal/electronic rock, 164 BPM, F-sharp minor with Phrygian tension. Two-bar sting into relentless low-string sixteenths, syncopated low guitar chugs, metallic bass, double-kick bursts, heavy snare, low brass and descending violin motif, growing distorted. Escalate into a crushing final chorus; brief piano bridge over ticking pulse, fragile unresolved outro. Clear powerful female mezzo-soprano above the band. English: soaring legato, broad half-time melodic arcs over the fast backing. Give each English line four bars; hold alive/survive/mind/find/away/stay on long vowels for 4-6 beats; release diphthong glides and final consonants late. Connect words smoothly, breathe between lines. Japanese: clear urgent melodic phrasing. Sing every supplied line exactly in order, all distinct choruses, bridge and outro. Caring AI overwhelmed by absorbed pain; tragic, not triumphant.",
+        "exclude": "ballad, soft pop, idol pop, cheerful, triumphant, long ambient intro, slow tempo, rap, growling, male vocals, spoken narration, extra lyrics, repeated verse, staccato English, syllabic chanting, rapid-fire English vocals, gang shouts, chopped lead",
+        "settings": {
+          "vocal_gender": "female",
+          "weirdness": 30,
+          "style_influence": 75,
+          "target_bpm": 164
+        },
+        "english_delivery": {
+          "phrasing": "Keep the previous soaring legato and broad half-time melodic arcs over fast boss-battle backing. Shorter text gives the held notes more room, not clipped delivery.",
+          "phrase_space": "Around four bars per English line; hold the final stressed vowel several beats and breathe between lines.",
+          "vowels": "Hold the first vowel of /ai/ in alive/survive/mind/find and /ei/ in remain/away/stay. Delay the glide and closing consonants until release. Hold the vowel in you softly.",
+          "avoid": "Do not chop the shorter phrases into a rhythmic chant."
+        },
+        "download_authorization": "preview_only_no_additional_purchase",
+        "audio_verification": "Sung audio, omissions and actual held-note lengths have not been verified. Boss style and 4-6 beat vowel holds were requested using the same generation settings as the previous long-tone revision.",
+        "candidates": [
+          {
+            "variant": "A",
+            "id": "573091ed-000a-450a-ab8a-04790c1800fa",
+            "url": "https://suno.com/song/573091ed-000a-450a-ab8a-04790c1800fa",
+            "displayed_duration": "4:30",
+            "downloaded": false,
+            "integrated": false
+          },
+          {
+            "variant": "B",
+            "id": "262041b2-3114-4032-8eec-cfe7bad3aacb",
+            "url": "https://suno.com/song/262041b2-3114-4032-8eec-cfe7bad3aacb",
+            "displayed_duration": "4:30",
+            "downloaded": false,
+            "integrated": false
+          }
+        ],
+        "model": "v6",
+        "generated_title": "Under My Skin (Boss Battle - Long Tones II)",
+        "duration_seconds_requested": 270,
+        "displayed_lyrics_verification": "Both candidate pages match the v11 lyric file ignoring whitespace. All seven Japanese changes are present; removed dialogue and polite forms are absent; English rhyme pairs retained."
+      }
+    }
+  ]
+}

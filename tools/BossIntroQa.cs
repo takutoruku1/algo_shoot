@@ -32,6 +32,12 @@ public partial class BossIntroQa : Node
             _game.MsgCharsPerSec = 1;
             DisplayServer.WindowSetMode(DisplayServer.WindowMode.Windowed);
             DisplayServer.WindowSetSize(new Vector2I(1280, 720));
+            if (LunaticOnly)
+            {
+                typeof(Settings).GetProperty(nameof(Settings.PauseWhenUnfocused))!.SetValue(null, false);
+                if (OS.GetCmdlineUserArgs().Contains("--lunatic-shots"))
+                    DisplayServer.WindowSetPosition(new Vector2I(-16000, -16000));
+            }
             await Frames(2);
             if (OS.GetCmdlineUserArgs().Contains("--dialogue-only"))
             {
@@ -49,21 +55,27 @@ public partial class BossIntroQa : Node
             }
             foreach (string id in new[] { "akari", "koharu", "rei", "mina" })
             {
-                foreach (Job job in Enum.GetValues<Job>()) await Encounter(id, job);
-                await RouteEntry(id);
+                if (!LunaticOnly)
+                {
+                    foreach (Job job in Enum.GetValues<Job>()) await Encounter(id, job);
+                    await RouteEntry(id);
+                }
                 await Lunatic(id);
             }
-            foreach (int chapter in new[] { 2, 3, 4 })
-            foreach (Job job in new[] { Job.Melee, Job.Heal, Job.Magic })
+            if (!LunaticOnly)
             {
-                var opening = CharacterStory.Lines(job, chapter, CharacterStory.Beat.PreBoss);
-                var lines = ((int who, string text, string face)[])typeof(CameoIntroScene)
-                    .GetMethod("BossDialogue", BindingFlags.Static | BindingFlags.NonPublic)!.Invoke(null, new object[] { job, "koharu", opening })!;
-                Check(lines.Take(opening.Length).SequenceEqual(opening), $"{job}/chapter {chapter}: personal story retained");
-                Check(lines.All(l => UiKit.WrapLines(UiKit.Zen, l.text, 24, 1056).Count <= 2), "chapter dialogue fits the subtitle area");
+                foreach (int chapter in new[] { 2, 3, 4 })
+                foreach (Job job in new[] { Job.Melee, Job.Heal, Job.Magic })
+                {
+                    var opening = CharacterStory.Lines(job, chapter, CharacterStory.Beat.PreBoss);
+                    var lines = ((int who, string text, string face)[])typeof(CameoIntroScene)
+                        .GetMethod("BossDialogue", BindingFlags.Static | BindingFlags.NonPublic)!.Invoke(null, new object[] { job, "koharu", opening })!;
+                    Check(lines.Take(opening.Length).SequenceEqual(opening), $"{job}/chapter {chapter}: personal story retained");
+                    Check(lines.All(l => UiKit.WrapLines(UiKit.Zen, l.text, 24, 1056).Count <= 2), "chapter dialogue fits the subtitle area");
+                }
+                await ReplaySkip();
+                await EarlyExit();
             }
-            await ReplaySkip();
-            await EarlyExit();
             Pool.DespawnAll();
             Audio.Instance?.StopMusic(0);
             foreach (var audio in GetNode<Audio>("/root/Audio").GetChildren().OfType<AudioStreamPlayer>())
@@ -306,15 +318,57 @@ public partial class BossIntroQa : Node
         await Clean(root);
     }
 
+    private static bool LunaticOnly => OS.GetCmdlineUserArgs().Contains("--lunatic-lines");
+
     private async Task Lunatic(string id)
     {
         Read<HashSet<string>>(_game, "_idleDialogSeen").Remove(StageTutorial.BossSeenKey);
+        var seen = new HashSet<string>();
+        if (id != "mina")
+        {
+            var mid = Load(id, Job.Tank, GameManager.StageEntry.MidBoss, GameManager.Diff.Lunatic);
+            await Frames(5);
+            await CheckLine(mid, "midboss");
+            await Clean(mid);
+        }
         var root = Load(id, Job.Tank, difficulty: GameManager.Diff.Lunatic);
         await Frames(5);
         Check(GetTree().GetFirstNodeInGroup("boss_intro") == null && !Hud.BubblePaused && _game.BossReached,
             $"{id}: Lunatic immediately enters combat");
         Check(!_game.IsIdleDialogSeen(StageTutorial.BossSeenKey), "Lunatic does not consume the tutorial");
+        await CheckLine(root, "opening");
+        var boss = Read<Enemy>(Stage(root, id), "_boss");
+        for (int phase = 1; phase <= (boss is BossMina ? 4 : 1); phase++)
+        {
+            if (boss is BossMina)
+                typeof(BossMina).GetMethod("BeginPhaseTransition", Private)!.Invoke(boss, null);
+            else
+                Check((bool)typeof(Enemy).GetMethod("AdvanceForm2", Private)!.Invoke(boss, null)!, $"{id}: entered second form");
+            await Frames(5);
+            await CheckLine(root, $"form_{phase}");
+        }
+        var hud = root.GetNode<Hud>("Hud");
+        hud._Process(4);
+        Check(Read<string>(hud, "_bossLine") == "", $"{id}: subtitle expires without input");
+        hud.ShowBossLine("敵", "攻撃中", Colors.White, 3);
+        Check(Read<string>(hud, "_bossLine") == "", $"{id}: ordinary attack chatter stays silent");
         await Clean(root);
+
+        async Task CheckLine(Node scene, string moment)
+        {
+            var display = scene.GetNode<Hud>("Hud");
+            string speaker = id switch { "akari" => "あかり", "koharu" => "こはる", "rei" => "レイ", _ => "ミナ" };
+            string line = Read<string>(display, "_bossLine");
+            Check(Read<string>(display, "_bossLineSpeaker") == speaker && line.Length > 0 && seen.Add(line),
+                $"{id}/{moment}: {speaker}「{line}」");
+            Check(!Hud.BubblePaused && !display.HoldBubble && !display.CinematicMode && !GetTree().Paused
+                && scene.GetNode<Node>("World").CanProcess(), $"{id}/{moment}: combat keeps running");
+            if (OS.GetCmdlineUserArgs().Contains("--lunatic-shots"))
+            {
+                await Frames(50);
+                await Shot($"lunatic_{id}_{moment}");
+            }
+        }
     }
 
     private async Task ReplaySkip()

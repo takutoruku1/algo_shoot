@@ -86,11 +86,13 @@ public partial class StoryFilmQa : Node
                     {
                         await AdvanceUntil(() => Read<int>(artFilm, "_shot") == shot);
                         await Frames(65);
-                        foreach (var size in new[] { new Vector2I(1280, 720), new Vector2I(960, 540) })
+                        foreach (var size in new[] { new Vector2I(1920, 1080), new Vector2I(1280, 720), new Vector2I(960, 540) })
                         {
+                            DisplayServer.WindowSetMode(DisplayServer.WindowMode.Windowed);
                             DisplayServer.WindowSetSize(size);
                             await Frames(5);
                             using var frame = await Shot($"shot_{shot}_{size.X}", grayscale: !aftermath);
+                            Check(frame.GetSize() == size, $"shot {shot}: captured at {size.X}x{size.Y}");
                         }
                         Check(world.ProcessMode == ProcessModeEnum.Disabled && Hud.BubblePaused,
                             "combat stays paused while the corrected illustration is displayed");
@@ -129,7 +131,6 @@ public partial class StoryFilmQa : Node
             }
             Write(boss, "_hp", (int)(maxHp * (burst ? rei ? 0.18f : 0.24f : koharu || rei ? 0.49f : 0.51f)), typeof(Enemy));
             Call(boss, "OnHpChanged");
-            Write(game, "_comboTimer", 5.0);
             await Frames(10);
             if (!koharu && !rei) await CheckMemoryLeadIn(boss, hud, player, stage, game);
             else await AdvanceUntil(() => GetTree().GetFirstNodeInGroup("storyfilm") != null);
@@ -149,7 +150,6 @@ public partial class StoryFilmQa : Node
             float hp = boss.HpRatio;
             double phaseT = Read<double>(boss, "_phaseT", typeof(Enemy));
             double elapsed = Read<double>(stage, "_stageElapsed");
-            double comboTime = Read<double>(game, "_comboTimer");
             KeyEvent(Key.Right, true);
             KeyEvent(Key.X, true);
             await Frames(90);
@@ -158,14 +158,14 @@ public partial class StoryFilmQa : Node
             Check(player.GlobalPosition == position && player.Lives == lives && boss.HpRatio == hp
                   && game.Bombs == bombs && player.BombCount == bombCount, "movement, damage and bombs stay frozen");
             Check(Read<double>(boss, "_phaseT", typeof(Enemy)) == phaseT && Read<double>(stage, "_stageElapsed") == elapsed, "boss phase and stage clocks stay frozen");
-            Check(game.ProcessMode == ProcessModeEnum.Disabled && Read<double>(game, "_comboTimer") == comboTime, "combo timeout stays frozen during memory");
+            Check(game.ProcessMode == ProcessModeEnum.Disabled, "game state stays paused during memory");
             if (Array.IndexOf(OS.GetCmdlineUserArgs(), "--memory-lead-in") >= 0)
             {
                 await AdvanceUntil(() => !IsInstanceValid(film));
                 await WaitUntil(() => !hud.CinematicMode, 600);
-                Check(!hud.CinematicMode && !Hud.BubblePaused && !hud.HoldBubble && !hud.BattleMemoryTempo
+                Check(!hud.CinematicMode && !Hud.BubblePaused && !hud.HoldBubble
                       && world.ProcessMode == ProcessModeEnum.Inherit && game.ProcessMode == gameMode,
-                    $"lead-in and flashback release every dialogue pause (cinematic={hud.CinematicMode}, bubble={Hud.BubblePaused}, hold={hud.HoldBubble}, tempo={hud.BattleMemoryTempo}, world={world.ProcessMode}, game={game.ProcessMode}/{gameMode})");
+                    $"lead-in and flashback release every dialogue pause (cinematic={hud.CinematicMode}, bubble={Hud.BubblePaused}, hold={hud.HoldBubble}, world={world.ProcessMode}, game={game.ProcessMode}/{gameMode})");
                 Check(Read<bool>(boss, "_form2", typeof(Enemy)) && GetTree().GetFirstNodeInGroup("corridor") == null,
                     "second form starts after the flashback without a corridor");
                 Call(boss, "OnHpChanged");
@@ -210,12 +210,11 @@ public partial class StoryFilmQa : Node
                 Check(!hud.CinematicMode && Hud.BubblePaused && Read<int>(stage, "_step") == 15,
                     "memory hands directly into Mina's report without a battle frame");
                 Check(world.ProcessMode == ProcessModeEnum.Disabled && game.ProcessMode == ProcessModeEnum.Disabled,
-                    "memory follow-up retains world and combo pause");
+                    "memory follow-up retains world and game pause");
                 await Frames(45);
                 Check(player.GlobalPosition == position && boss.HpRatio == hp
                       && Read<double>(boss, "_phaseT", typeof(Enemy)) == phaseT
-                      && Read<double>(stage, "_stageElapsed") == elapsed
-                      && Read<double>(game, "_comboTimer") == comboTime,
+                      && Read<double>(stage, "_stageElapsed") == elapsed,
                     "report keeps movement, damage and all battle clocks frozen");
                 Check(!Read<bool>(boss, "_form2", typeof(Enemy)) && !Read<bool>(boss, "_relayFired")
                       && !Read<bool>(boss, "_accelerated"), "battle transitions wait until the choice is resolved");
@@ -270,17 +269,27 @@ public partial class StoryFilmQa : Node
                 .Any(activeFilm => Read<bool>(activeFilm, "_aftermath")));
             film = GetTree().GetFirstNodeInGroup("storyfilm") as StoryFilm;
             Check(film != null && Read<bool>(film, "_aftermath"), "clear dialogue starts next-day aftermath");
+            if (!koharu && !rei) stage.SetProcess(false);
             await Frames(90);
             await Shot("aftermath_start", grayscale: false);
             await AdvanceUntil(() => Read<int>(film!, "_line") == 7);
             await Frames(60);
             await Shot("aftermath_action", grayscale: false);
-            await AdvanceUntil(() => Read<int>(film!, "_shot") == (koharu || rei ? 7 : 5));
-            await Frames(60);
-            await Shot("aftermath_changed", grayscale: false);
+            if (koharu || rei)
+            {
+                await AdvanceUntil(() => Read<int>(film!, "_shot") == 7);
+                await Frames(60);
+                await Shot("aftermath_changed", grayscale: false);
+            }
+            else
+            {
+                await AdvanceUntil(() => film!.HasNode("ReplyVideo"));
+                Check(film!.GetNode<AkariReplyVideo>("ReplyVideo").Visible, "Akari aftermath ends with reply video");
+            }
             await AdvanceUntil(() => !IsInstanceValid(film));
             stage.SetProcess(false);
-            Check(!hud.CinematicMode && Read<int>(stage, "_clearPhase") == 2, "aftermath returns to clear dialogue");
+            Check(!hud.CinematicMode && (koharu || rei ? Read<int>(stage, "_clearPhase") == 2
+                : Read<int>(stage, "_step") == 15), "aftermath reaches the expected return step");
 
             bool ended = false;
             PlayFilm(false, () => ended = true);
@@ -295,7 +304,7 @@ public partial class StoryFilmQa : Node
             int autoLines = Read<Array>(autoFilm, "_lines").Length;
             for (int line = 0; line < autoLines; line++)
                 await WaitUntil(() => ended || Read<int>(autoFilm, "_line") > line, 600);
-            await WaitUntil(() => ended, 120);
+            await WaitUntil(() => ended, koharu || rei ? 120 : 900);
             game.AutoAdvanceDialog = false;
             Check(ended, "auto mode completes aftermath");
 
@@ -340,7 +349,6 @@ public partial class StoryFilmQa : Node
         float hp = boss.HpRatio;
         double phase = Read<double>(boss, "_phaseT", typeof(Enemy));
         double elapsed = Read<double>(stage, "_stageElapsed");
-        double combo = Read<double>(game, "_comboTimer");
         KeyEvent(Key.Right, true);
         KeyEvent(Key.X, true);
         await Frames(120);
@@ -350,8 +358,8 @@ public partial class StoryFilmQa : Node
         Check(player.GlobalPosition == position && player.Lives == lives && game.Bombs == bombs && boss.HpRatio == hp,
             "lead-in freezes movement, damage and bombs");
         Check(Read<double>(boss, "_phaseT", typeof(Enemy)) == phase
-              && Read<double>(stage, "_stageElapsed") == elapsed && Read<double>(game, "_comboTimer") == combo,
-            "lead-in freezes boss, stage and combo clocks");
+              && Read<double>(stage, "_stageElapsed") == elapsed,
+            "lead-in freezes boss and stage clocks");
         int firstEntry = Hud.Backlog.Count - 1;
         var args = OS.GetCmdlineUserArgs();
         bool auto = Array.IndexOf(args, "--auto") >= 0;
@@ -459,7 +467,7 @@ public partial class StoryFilmQa : Node
                     await Frames(30);
                     using (var shot = await Shot("memory", grayscale: false)) { }
                     // M2 の決めの二行（こはる「終わるまで。ぜんぶ終わるまで。」→ あかり「……あー。……その返事、
-                    //   あたし、八年してた。上司に。」）を画で残す（ユーザー要求のスクショ）。
+                    //   あたし、三年してた。上司に。」）を画で残す（ユーザー要求のスクショ）。
                     for (int want = 2; want <= 3; want++)
                     {
                         await AdvanceUntil(() => System.Linq.Enumerable.Any(Hud.Backlog, e => e.Text == lines[want].text));
@@ -637,10 +645,14 @@ public partial class StoryFilmQa : Node
         Check(texture != null && texture.ResourcePath == (fullFrame ? path : Read<string>(film, "_atlasPath", typeof(StoryFilm))),
             $"shot {shot}: intended illustration loaded");
         int rows = Read<int>(film, "_atlasRows", typeof(StoryFilm));
-        var expectedRegion = fullFrame ? new Vector4(0, 0, 1, 1)
+        var regions = Read<System.Collections.Generic.Dictionary<int, Vector4>>(film, "_shotRegions", typeof(StoryFilm));
+        var expectedRegion = fullFrame ? (regions.TryGetValue(shot, out var selectedRegion) ? selectedRegion : new Vector4(0, 0, 1, 1))
             : new Vector4((shot % 2) / 2f, (shot / 2) / (float)rows, 0.5f, 1f / rows);
         Check(region.IsEqualApprox(expectedRegion), $"shot {shot}: correct full-frame or atlas region");
         using var source = texture!.GetImage();
+        if (Read<bool>(film, "_aftermath", typeof(StoryFilm)))
+            Check(source.GetWidth() * region.Z >= 1152 && source.GetHeight() * region.W >= 648,
+                $"shot {shot}: aftermath illustration retains at least the default window resolution");
         float t = grade.GetShaderParameter("motion_time").AsSingle();
         bool grayscale = grade.GetShaderParameter("grayscale").AsBool();
         float error = 0;

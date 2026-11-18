@@ -11,7 +11,7 @@ public partial class Player : Area2D
     // 速度（2026-09-08 ユーザー指示で基本移動を半減：150→75）。
     //   ★低速移動（Shift / パッド L1）は 2026-09-13 ユーザー決定で廃止＝速度はこの1本だけ。
     //     基本移動そのものが既に遅く、低速は「遅いものをさらに遅くする」だけで手触りを損ねていた。
-    //     空いた L1 は集中モードへ回した（下の集中モード入力を参照）。
+    //     空いた L1 は必殺技へ回した。
     private const float NormalSpeed = 75f;
     public float MoveSpeed => NormalSpeed * (_game?.MoveSpeedMul ?? 1f)
         * (_game?.JobDef.MoveMul ?? 1f) * (LockedOn ? LockMoveMul : 1f) * PowerMoveMultiplier;
@@ -29,8 +29,9 @@ public partial class Player : Area2D
 
     // ボム入力のエッジ検出用
     private bool _bombHeld = false;
-    // 集中モード（C）入力のエッジ検出用。発動の可否は GameManager.TryFocusMode が持つ。
-    private bool _focusModeHeld = false;
+    private bool _specialHeld;
+    internal bool IsGameOver => _gameOver;
+    internal bool SpecialDashing => _game?.CurrentSpecial?.BlocksMovement ?? false;
 
     // 初回に HUD へ現在モードを通知したか（V の切替ローテは 2026-09-13 に廃止＝エッジ検出はもう要らない）。
     private bool _modeInit = false;
@@ -38,10 +39,6 @@ public partial class Player : Area2D
     // ── 溜め打ち：Z / パッドY を長押し ──
     //   ★Cキーは 2026-09-13 まで W0 専用のヒカゲスキルが握っていた（非正典＝正典導線からは到達しない）。
     //     戦闘側の配線（_specialCd・HUDチップ）を撤去し、このボタンを溜め打ちへ明け渡した。
-    //   ★2026-09-25 のユーザー決定で**最初から使える**（習得ゲートは撤廃）。ショップの段 #7 は同日
-    //     「溜め打ち 二段」＝2段階チャージの解禁になった（GameManager.HasChargeTier2 / ChargeTier）。
-    //   ★段の数え方：1段目は誰でも ChargeNeed 秒（0.60）。#7 を買っていると、そこで離さずさらに
-    //     押し続けると ChargeNeed2 秒（既定は倍の 1.20）で2段目が満ちる。1段で離せば従来どおりの弾。
     private float ChargeNeed => _game?.ChargeNeedSec ?? 0.60f;   // 1段目の充填に要する長押し秒
     private float ChargeNeed2 => _game?.ChargeTier2NeedSec ?? 0.60f; // 2段目（合計）。未所持なら1段目と同値
     private bool _chargeHeld;                   // 前フレームのボタン状態（離したエッジの検出用）
@@ -55,6 +52,7 @@ public partial class Player : Area2D
         : 0f;
     // いま離したら何段目の弾が出るか（0＝まだ出ない）。Bullet / 演出はこの値だけを見る。
     public int ChargeStage => ChargeFull2 ? ChargeTier.Second : ChargeFull ? ChargeTier.First : 0;
+    internal ulong ChargeVolleyId { get; private set; }
 
     // フォロワー（浄化した人＝味方オプション）
     private readonly List<Follower> _followers = new List<Follower>();
@@ -71,11 +69,6 @@ public partial class Player : Area2D
         new Vector2(-14, -11), new Vector2(-14, 11),
         new Vector2(-26, -5), new Vector2(-26, 5),
     };
-
-    // 拡散サブ（option_sub）＝追従オプション。上下の定位置に光球として浮かび、メイン射撃に同期して撃つ。
-    // フォロワー（被弾で離れる）と違い恒久強化＝ラン中ずっと付く。スロットはフォロワー位置と重ならない上下寄り。
-    private int _optionCount = 0;               // _Ready で GameManager.OptionSubCount を確定（ラン中不変）
-    private static readonly Vector2[] OptionSlots = { new Vector2(-4, -14), new Vector2(-4, 14) };
 
     // W0 専用・非正典。正典導線からは到達しない（2026-09-06 ユーザー決定: ヒカゲは使わない）。以後この系統への追加投資はしない。
     // ヒカゲを仲間に。フォロワーが満員(4)なら1体をヒカゲに強化、空きがあれば強化フォロワーとして追加。
@@ -111,9 +104,10 @@ public partial class Player : Area2D
 
     // プレイ領域（盤面の矩形の定義元は Field。ここは短い別名として残す）
     private const float MinX = Field.Left;
-    private const float MaxX = Field.Right;
+    private static float MaxX => Field.Right - (Field.BossArenaActive ? HitRadius : 0);
     private const float MinY = Field.Top;
     private const float MaxY = Field.Bottom;
+    internal Rect2? RallyMovementBounds { get; set; }
 
     // ───────── 初期位置と「仕切り直しで戻る」（2026-10-03 ユーザー指示）─────────
     // この自機の初期位置。各ルートが湧かせる場所（SnapToStart）と、場が仕切り直される瞬間に戻る先
@@ -142,7 +136,7 @@ public partial class Player : Area2D
     //     呼び出し側はどこも弾を掃いているが、滑っている最中に新しい弾・敵が湧く経路（ボス出現直後の開幕
     //     スペル／波頭の Spawner／ルナティックのミナ段替わり＝MinaPhaseScene を出さないので掃かない）がある。
     //     滑走ぶん＋HomeInvulTail 秒の無敵を重ねて、移動中〜直後の被弾を断つ。扱いはスポーン無敵と同じ
-    //     （_hitInvincible は立てない＝グレイズ経済に触らない／点滅も出る＝「いま無敵」が読める）。
+    //     （_hitInvincible は立てない＝グレイズ経済に触らない）。
     // 尺は既存の手触りに合わせる＝新しい速度感を一つも増やさない。
     //   HomeSpeed  … 自機の連射弾と同じ 360px/s（素の移動 NormalSpeed=75 の 4.8 倍）。「自分の弾と同じ速さで
     //                 戻る」＝盤面の中で既に見慣れた速さなので目で追える。
@@ -162,18 +156,28 @@ public partial class Player : Area2D
     // いま帰還中か（予約も含む）。QA（tools/PlayerHomeQa.cs）が「戻り切ったか」を待つのに読む。
     public bool ReturningToStart => _homePending || _homeT > 0f;
 
-    // 初期位置へ即座に置く＝各ルートがステージ開始で湧かせるときだけ使う（演出も無敵も足さない）。
     public void SnapToStart()
     {
+        _game?.CancelSpecial();
         _homePending = false;
         _homeT = 0f;
+        if (_dodgeTimer > 0f) EndDodge();
         GlobalPosition = StartPosition;
+        Pad.ReleaseMouseFollow();
+    }
+
+    internal void SetAsPreviewTarget()
+    {
+        ProcessMode = ProcessModeEnum.Disabled;
+        _invincible = true;
+        _invincibleTimer = 0f;
     }
 
     // 仕切り直しの帰還を予約する。実際に滑り出すのは TickReturnHome（上のコメント参照）。
     public void ReturnToStart()
     {
         if (_gameOver) return;
+        _game?.CancelSpecial();
         _homePending = true;
     }
 
@@ -191,6 +195,11 @@ public partial class Player : Area2D
     private float _invincibleTimer = 0f;
     private const float InvincibleDuration = 1.2f;
     private float _blinkPhase = 0f;
+    private bool _bombInvincible;
+    private float _invincibleDuration = 1.5f;
+    internal float InvincibleRemaining => _invincible && !_gameOver ? Mathf.Max(0f, _invincibleTimer) : 0f;
+    internal float InvincibleRatio => Mathf.Clamp(InvincibleRemaining / _invincibleDuration, 0f, 1f);
+    internal string InvincibleLabel => _hitInvincible ? "被弾後 無敵" : _bombInvincible ? "ボム無敵" : "無敵";
     // 「被弾直後の無敵」かどうか。被弾無敵の間だけ経済加算（グレイズ報酬）を止め、無敵を盾にした稼ぎ(farming)を断つ。
     // スポーン無敵・ボム無敵・回避無敵はこのフラグを立てない＝それらの最中は従来どおり稼げる。
     private bool _hitInvincible = false;
@@ -203,7 +212,7 @@ public partial class Player : Area2D
     // 自機の本体スプライトだけは 1/Tint を掛けて打ち消し、どのステージでも昼の素材そのままの明るさで見せる
     //（2026-09-27 作者指示「自キャラ／敵もどのステージでも明るくしてほしい」。強さは TintLift.PlayerBody=1）。
     // 置き先は _sprite.Modulate＝状態の色（汚染ティント・グレイズ残光・回避発光）が使う SelfModulate とは
-    // 別枠にして混ぜない。α は触らない＝被弾点滅は従来どおり Player 自身の Modulate が握る。
+    // 別枠にして混ぜない。
     private CanvasModulate? _worldTint;
 
     // ───────── マウス操作（キーボード/パッドへ純粋に追加）─────────
@@ -217,6 +226,7 @@ public partial class Player : Area2D
 
     // 「今かすった」を自機の絵の発光で一瞬返す残光（1→0 へ減衰）。FxLayer.Graze の閃光と併用。
     private float _grazeFlash = 0f;
+    private ulong _lastGrazeFeedbackFrame = ulong.MaxValue;
     private const float GrazeFlashDecay = 6f; // 約0.17秒で消える（即・短く＝テンポを殺さない）
 
     // ミナの汚染ティント（0=澄んだ光 → 1=黒く濁る）。スプライトの SelfModulate にのみ掛け、
@@ -287,7 +297,7 @@ public partial class Player : Area2D
     //   ウェーブの合間で敵が一体も居ない、のどれでも落とさず、次に現れた最寄りの敵へ自動で付く。
     //   落ちるのは解除入力（Shift を離す／ロック中の左クリック／R3）だけ。HUD のサイドパネルがこれを表示する。
     private bool _lockArmed;
-    public bool LockArmed => _lockArmed;
+    public bool LockArmed => RallyLockTarget != null || _lockArmed;
     private bool _lockHeld = true;            // シーン遷移の決定入力を対象送りに使わないよう、離すまで待つ。
     private bool _mouseLockLocked = false;    // 会話送りのクリックが会話明けにロック送りへ流れ込むのを止めるゲート（離すまで送らない）
 
@@ -304,13 +314,20 @@ public partial class Player : Area2D
     private bool _mouseChargeHold;            // このフレーム、左クリック長押しをチャージ入力として扱うか
     private bool _lockClearHeld = true;       // 解除（右クリック）のエッジ検出。回避と同じ理由で true 始まり
     private Node2D? _lockTarget;              // 現在のロック先（雑魚・中ボス・ボスのいずれか）
-    public bool LockedOn => _locked && IsInstanceValid(_lockTarget!) && _lockTarget != null;
-    public Node2D? LockTarget => LockedOn ? _lockTarget : null;
+    private Node2D? _rallyLockTarget;
+    internal Node2D? RallyLockTarget
+    {
+        get => IsInstanceValid(_rallyLockTarget) && !_rallyLockTarget!.IsQueuedForDeletion() ? _rallyLockTarget : null;
+        set => _rallyLockTarget = value;
+    }
+    public bool LockedOn => RallyLockTarget != null || _locked && IsInstanceValid(_lockTarget!) && _lockTarget != null;
+    public Node2D? LockTarget => RallyLockTarget ?? (LockedOn ? _lockTarget : null);
     private Panel? _lockUnfolder;
     public Panel? LockedUnfolder
     {
         get
         {
+            if (RallyLockTarget is { } target) return target as Panel;
             _lockUnfolder = LockTarget is Enemy enemy ? enemy.SelectUnfolder(GlobalPosition, _lockUnfolder) : null;
             return _lockUnfolder;
         }
@@ -376,7 +393,7 @@ public partial class Player : Area2D
         e = null!;
         if (n is not Enemy en || en.IsPurified || !IsInstanceValid(en)) return false;
         var p = en.GlobalPosition;
-        if (p.X < Field.Left - LockEdgeMargin || p.X > Field.Right + LockEdgeMargin) return false;
+        if (p.X < Field.Left - LockEdgeMargin || p.X > Field.WorldRight + LockEdgeMargin) return false;
         if (p.Y < Field.Top - LockEdgeMargin || p.Y > Field.Bottom + LockEdgeMargin) return false;
         e = en;
         return true;
@@ -404,8 +421,6 @@ public partial class Player : Area2D
         {
             // 離した（または途中で無効化された）エッジ。短押しだけがロック送りになる。
             // 長押しの解放は溜め打ち側（_chargeHeld の解放エッジ）が撃つので、ここでは何もしない。
-            //   ★溜め打ちは最初から使える（2026-09-25）＝長押しの行き先は常にある。以前あった
-            //     「未取得なら長さを問わずロック送り」の逃がしは要らなくなったので外した。
             bool tap = _mouseHoldT < MouseTapMax;
             if (tap && !Hud.BubblePaused && !_gameOver) _mouseTapFire = true;
             _mouseHoldValid = false;
@@ -537,7 +552,7 @@ public partial class Player : Area2D
 
         // ── 取得（未ロック→最寄り）と送り（前／次） ──
         //   取得：Shift を押した瞬間／未ロック時の左クリック。送り：S・RB＝次、A＝前、ロック中のホイール。
-        //   ホイールは集中モード（TryFocusMode）の入力でもあるので、ロック中に送りへ使ったぶんはここで消費する。
+        //   ホイールは必殺技（TrySpecial）の入力でもあるので、ロック中に送りへ使ったぶんはここで消費する。
         bool aKey = Input.IsKeyPressed(Key.A);
         bool nextKey = Input.IsKeyPressed(Key.S) || Pad.Pressed(JoyButton.RightShoulder);
         bool prevEdge = aKey && !_lockPrevHeld;
@@ -622,7 +637,6 @@ public partial class Player : Area2D
     private Vector2 _dodgeFrom = Vector2.Zero;  // 回避開始位置
     private float _dodgeDist = DodgeDistance;   // 今回の回避のダッシュ総変位（身のこなし強化込み。TryDodge で確定）
     private float _dodgeTrailAccum = 0f;        // 残像スポーン用タイマ
-    private bool _dodgeFlip = false;            // 回避中のスプライト左右反転（スピンの8ステップで真横以降のフレームを FlipH 流用するために使う）
 
     // 集中の光：敵/パネルの消費点から「この敵本体に1発当たった」を受け取る。
     // Lv0 は完全 no-op。対象が変わったら数え直し（ボーナスは Fire() 側で FocusFireBonus として乗る）。
@@ -682,8 +696,7 @@ public partial class Player : Area2D
     // 通常／回避フレームのテクスチャは _Ready で一度だけロードしてキャッシュ（毎フレームLoad禁止）。
     private Texture2D _idleTex = null!;
 
-    // 回転各アングルの差分イラスト（0/45/90/135/180°）。225/270/315° は FlipH で 03/02/01 を流用。
-    private readonly Texture2D[] _spinTex = new Texture2D[5];
+    private readonly Texture2D[] _spinTex = new Texture2D[PlayerArt.SpinFrames];
     private readonly List<Sprite2D> _trail = new List<Sprite2D>(); // 残像スプライトのプール
 
     // Pool 取得用キャッシュ
@@ -693,10 +706,12 @@ public partial class Player : Area2D
     private GameManager _game = null!;
     // 当たり判定の実効半径（回避域強化で縮小）。_Ready で確定。
     private float _hitR = HitRadius;
+    internal float CurrentHitRadius => _hitR;
 
     public override void _Ready()
     {
         AddToGroup("player");
+        PlayerSpecial.PrepareVisuals();
 
         // GameManager をキャッシュ（残機・恒久強化の効果取得）。
         _game = GetNodeOrNull<GameManager>("/root/Game")!;
@@ -706,9 +721,6 @@ public partial class Player : Area2D
 
         // 回避域強化で当たり判定を縮小。
         _hitR = HitRadius * (_game?.HitRadiusMul ?? 1f);
-
-        // 拡散サブ（追従オプション）の基数を確定（恒久強化＝ラン中は不変）。
-        _optionCount = Mathf.Clamp(_game?.OptionSubCount ?? 0, 0, OptionSlots.Length);
 
         // 衝突レイヤー: layer=1, mask=12（敵=4, 敵弾=8）
         CollisionLayer = 1;
@@ -784,17 +796,50 @@ public partial class Player : Area2D
         // ZAsRelative（既定 true）なので ZIndex=1 は「自機 10 に対し +1＝11」の意味になる。
         AddChild(new PlayerHitDot { Name = "HitDot", Radius = _hitR, ZIndex = 1, CharacterId = CharacterId });
 
-        // 開始/リスタート直後の被弾を防ぐスポーン無敵（点滅）
+        // 開始/リスタート直後の被弾を防ぐスポーン無敵
         _invincible = true;
         _invincibleTimer = 1.5f;
         _blinkPhase = 0f;
+    }
+
+    public bool TrySpecial()
+    {
+        if (_game == null || _gameOver || Hud.BubblePaused || ReturningToStart || Dodging || GetTree().Paused)
+            return false;
+        Vector2 direction = ShotDir;
+        if (_game.SelectedJob == Job.Melee)
+        {
+            Vector2 movement = Input.GetVector("ui_left", "ui_right", "ui_up", "ui_down");
+            if (movement.LengthSquared() > 0.01f) direction = movement.Normalized();
+            else if (Pad.UsingMouse && GlobalPosition.DistanceSquaredTo(GetGlobalMousePosition()) > 64f)
+                direction = (GetGlobalMousePosition() - GlobalPosition).Normalized();
+        }
+        return _game.TrySpecial(this, direction);
+    }
+
+    internal Vector2 MoveForSpecial(Vector2 target)
+    {
+        Rect2 bounds = RallyMovementBounds ?? Field.Rect;
+        target = target.Clamp(bounds.Position, bounds.End);
+        target.X = Mathf.Min(target.X, MaxX);
+        foreach (var node in GetTree().GetNodesInGroup("boss_character_techniques"))
+            if (node is BossCharacterTechnique { Finished: false } technique)
+                target = technique.ResolvePlayerMotion(GlobalPosition, target);
+        GlobalPosition = target;
+        SpawnTrail();
+        return target;
+    }
+
+    public override void _ExitTree()
+    {
+        if (_game?.CurrentSpecial?.Owner == this) _game.CancelSpecial();
     }
 
     public override void _Notification(int what)
     {
         if (what != NotificationUnpaused) return;
         // UI の閉じ押下は物理フレームまで残るため、再開時に既存の入力ラッチで吸収する。
-        _bombHeld = _dodgeHeld = true;
+        _bombHeld = _dodgeHeld = _specialHeld = true;
         _chargeKeyLocked = _dodgeKeyLocked = _mouseLockLocked = true;
         _chargeHeld = _mouseHoldValid = _mouseChargeHold = _mouseTapFire = false;
         _chargeT = _mouseHoldT = 0;
@@ -908,6 +953,10 @@ public partial class Player : Area2D
             }
             if (_dodgeTimer <= 0f) EndDodge();
         }
+        else if (SpecialDashing)
+        {
+            pos = GlobalPosition;
+        }
         else if (mouse && !Hud.BubblePaused && !_gameOver)
         {
             // マウス追従：カーソル（ワールド座標）へ指数補間で寄る。ゲームオーバー後は
@@ -931,8 +980,12 @@ public partial class Player : Area2D
         }
 
         // プレイ領域内にクランプ
-        pos.X = Mathf.Clamp(pos.X, MinX, MaxX);
-        pos.Y = Mathf.Clamp(pos.Y, MinY, MaxY);
+        Rect2 movementBounds = RallyMovementBounds ?? Field.Rect;
+        pos = pos.Clamp(movementBounds.Position, movementBounds.End);
+        pos.X = Mathf.Min(pos.X, MaxX);
+        foreach (var node in GetTree().GetNodesInGroup("boss_character_techniques"))
+            if (node is BossCharacterTechnique { Finished: false } technique)
+                pos = technique.ResolvePlayerMotion(GlobalPosition, pos);
         GlobalPosition = pos;
         // 残像は自機に追従しない独立座標なので、毎フレーム減衰させる。
         UpdateTrail(dt);
@@ -952,14 +1005,14 @@ public partial class Player : Area2D
             _modeInit = true;
         }
 
-        // 溜め打ちの入力は常時生きている（2026-09-25 のユーザー決定＝習得ゲート廃止）。
         //   キーボードは Z（2026-09-26 ユーザー指示。それまでは C）。Z は会話送りと同じキーなので、会話中に
         //   押された押下は離すまで溜めとして読まない（最後の一行を送った指がそのまま溜め始めるのを防ぐ）。
         bool chargeRawAny = Input.IsKeyPressed(Key.Z) || Pad.Pressed(JoyButton.Y);
         if (Hud.BubblePaused && chargeRawAny) _chargeKeyLocked = true;
         else if (!chargeRawAny) _chargeKeyLocked = false;
         bool chargeKeyRaw = chargeRawAny && !_chargeKeyLocked;
-        bool chargeKey = chargeKeyRaw || _mouseChargeHold;
+        bool canCharge = _game?.HasChargeShot == true;
+        bool chargeKey = canCharge && (chargeKeyRaw || _mouseChargeHold);
         bool shoot = !Hud.BubblePaused && _dodgeTimer <= 0f && !_gameOver && !chargeKey;
         if (shoot && _fireCooldown <= 0f)
         {
@@ -985,7 +1038,7 @@ public partial class Player : Area2D
             TryBomb();
         _bombHeld = bombKey;
 
-        // 溜め打ち（Z / パッドY 長押し、または左クリック長押し）：最初から常時使える。
+        // 溜め打ち（Z / パッドY 長押し、または左クリック長押し）。
         //   届く前に離した／会話に入った／被弾した場合は黙って捨てる（暴発させない）。
         //   左クリック（_mouseChargeHold）だけは充填の起点が違う：短押し判定の 0.25 秒が過ぎてから
         //   数え始めると、Cキーより 0.25 秒ぶん遅れて完了して手触りが噛み合わない。押下からの経過
@@ -1010,39 +1063,23 @@ public partial class Player : Area2D
         else if (_chargeHeld)
         {
             // 離したエッジ：充填できていれば撃つ。どちらにせよ充填はここで空にする。
-            if (ChargeFull && !chargeKey && !Hud.BubblePaused && !_gameOver && _dodgeTimer <= 0f) FireCharge(ChargeStage);
+            if (canCharge && ChargeFull && !chargeKey && !Hud.BubblePaused && !_gameOver && _dodgeTimer <= 0f) FireCharge(ChargeStage);
             _chargeT = 0f;
         }
         else _chargeT = 0f;
         _chargeHeld = chargeKey;
 
-        // 集中モード（C / マウスのホイール回転・サイドボタン / パッド L1）：#10「集中モード」。
-        //   キーボードは C（2026-09-27 作者指示。旧 V＝左手の定位置 Shift／Z／X／C／Space から外れていた）。
-        //   敵側の時間だけ ×0.35 に落とす（1.5秒・CD20秒）。
-        //   時計は実時間で送る＝自機側の delta。Engine.TimeScale は触らない（GameManager.EnemyTimeScale 参照）。
-        //   L1 は低速移動の廃止（2026-09-13）で空いた枠。ホイールは戦闘中これまで未使用だった
-        //   （ショット切替はジョブ導入で廃止済み）。サイドボタンは XButton1/2 の両方を拾う。
-        _game?.TickFocusMode(dt);
-        bool focusKey = Input.IsKeyPressed(Key.C) || Pad.Pressed(JoyButton.LeftShoulder)
+        if (!_gameOver) _game?.TickSpecial(dt);
+        bool specialKey = Input.IsKeyPressed(Key.C) || Pad.Pressed(JoyButton.LeftShoulder)
                         || Pad.MouseSideDown();
-        bool focusEdge = focusKey && !_focusModeHeld;
-        // ホイールは押下状態を持たない＝1回転ぶんのパルス。読んだ時点でラッチを落とす（連続発動しない）。
-        //   会話中／ゲームオーバー中も必ず消費して、溜めた回転が明けた瞬間に暴発するのを防ぐ。
+        bool specialEdge = specialKey && !_specialHeld;
+        // 会話中も消費し、再開直後にホイール入力を持ち越さない。
         bool wheelTurn = Pad.ConsumeWheelTurn();
-        if ((focusEdge || wheelTurn) && !Hud.BubblePaused && !_gameOver)
-        {
-            if (_game?.TryFocusMode() ?? false)
-            {
-                FxLayer.Instance?.PurifyBurst(GlobalPosition);
-                Audio.Instance?.PlayGraze();
-            }
-        }
-        _focusModeHeld = focusKey;
-        // HUD へ集中モードの状態を反映（旧ヒカゲスキルのチップ枠をそのまま使う）。
-        //   バーは 発動中＝残り持続 ／ それ以外＝CDの充填、で読ませる。
-        (GetTree().GetFirstNodeInGroup("hud") as Hud)?.SetFocusMode(
-            _game?.HasFocusMode ?? false, _game?.FocusModeReady ?? false, _game?.FocusModeActive ?? false,
-            (_game?.FocusModeActive ?? false) ? (_game?.FocusModeRatio ?? 0f) : 1f - (_game?.FocusModeCdRatio ?? 0f));
+        if (specialEdge || wheelTurn) TrySpecial();
+        _specialHeld = specialKey;
+        (GetTree().GetFirstNodeInGroup("hud") as Hud)?.SetSpecial(
+            _game?.HasSpecial ?? false, _game?.SpecialReady ?? false, _game?.SpecialActive ?? false,
+            (_game?.SpecialActive ?? false) ? (_game?.SpecialRatio ?? 0f) : 1f - (_game?.SpecialCooldownRatio ?? 0f));
         // 無敵・点滅更新
         if (_invincible)
         {
@@ -1051,13 +1088,13 @@ public partial class Player : Area2D
             if (_invincibleTimer <= 0f)
             {
                 _invincible = false;
+                _bombInvincible = false;
                 _hitInvincible = false; // 被弾無敵が明けたら経済加算を再開
                 SetSpriteVisible(true);
             }
             else
             {
-                // 約 20Hz で点滅
-                bool show = ((int)(_blinkPhase * 20f) % 2) == 0;
+                bool show = !_hitInvincible || ((int)(_blinkPhase * 20f) % 2) == 0;
                 SetSpriteVisible(show);
             }
         }
@@ -1073,7 +1110,7 @@ public partial class Player : Area2D
         {
             foreach (var area in GetOverlappingAreas())
             {
-                if (area is Enemy oe && !oe.IsPurified)
+                if (area is Enemy { BodyContactDamaging: true })
                 {
                     if (!QaPilot.GodActive) TakeHit();
                     break;
@@ -1091,7 +1128,11 @@ public partial class Player : Area2D
         // 体のリアクション各種の減衰（被弾のけぞり／発射反動／ボム解放）。
         if (_hitReact > 0f) _hitReact = Mathf.Max(0f, _hitReact - dt);
         if (_recoil > 0f) _recoil = Mathf.Max(0f, _recoil - RecoilDecay * dt);
-        if (_bombCast > 0f) _bombCast = Mathf.Max(0f, _bombCast - dt);
+        if (_bombCast > 0f)
+        {
+            if (!Hud.BubblePaused && !_gameOver) ConvertBombTargets();
+            _bombCast = Mathf.Max(0f, _bombCast - dt);
+        }
 
         // 常時ふわふわ浮遊＋移動バンク（スプライトのみ。当たり判定点は固定）
         _bobTime += dt;
@@ -1101,13 +1142,10 @@ public partial class Player : Area2D
         if (_hasTexture && _sprite != null)
         {
             float bobY = Mathf.Sin(_bobTime * BobSpeed) * BobAmp;
-            // 向き反転（★#4 改訂）：左向き(_facing<0)ならスプライトを左右反転して顔と銃口を射撃方向へ向ける。
-            // 回避スピン中は ApplySpinFrame が FlipH を「回転フレームの流用」として握るので、ここでは触らず、
-            // スピン側が _facing と XOR して合成する（EndDodge も _facing 基準へ戻す）。
-            if (_dodgeTimer <= 0f) _sprite.FlipH = _facing < 0;
             // ロック中は狙っている方向の絵に差し替える（弾がボスへ飛ぶのに絵が右向きのまま、を避ける）。
             if (_dodgeTimer <= 0f)
             {
+                _sprite.FlipH = _facing < 0;
                 var (aimDir, flip) = LockedOn ? AimSpriteFor(AimVec.Angle()) : ("", false);
                 if (aimDir != _aimNow)
                 {
@@ -1172,9 +1210,6 @@ public partial class Player : Area2D
                 _sprite.SelfModulate = new Color(_sprite.SelfModulate.R * g, _sprite.SelfModulate.G * g, _sprite.SelfModulate.B * g);
             }
 
-            // ── 回避中は「その場ピルエット」＝縦軸まわりの本物のスピン（回転各アングルの差分イラストを送る）──
-            // 旧実装の Scale.X=cos によるカードスピン擬似（紙っぽさの原因）は廃止し、5枚のフレーム＋FlipH 流用で
-            // 全周8ステップのフレームアニメにする。Rotation はスピン中 0（直立）を保つ。
             if (_dodgeTimer > 0f)
             {
                 float k = Mathf.Clamp(1f - _dodgeTimer / DodgeDuration, 0f, 1f); // 0→1
@@ -1194,7 +1229,6 @@ public partial class Player : Area2D
                     _sprite.SelfModulate = new Color(0.8f, 1.1f, 1.4f).Lerp(new Color(1.4f, 1.6f, 2.0f), gl);
                 }
             }
-            // 向き（FlipH）はこの1フレームの中で何度も決まり直す（_facing / 照準の左右 / スピンのコマ流用）。
             // 中身を中心に据える Offset は符号が向きに依るので、全部確定した最後にまとめて入れ直す。
             ApplyBodyOffset();
         }
@@ -1208,15 +1242,8 @@ public partial class Player : Area2D
         if (_pool == null)
             return;
 
-        // 銃口（中心からやや前方＝_facing 側）。
-        // フォロワー由来の火力バフ（FollowerPowerMul・上限+50%）をここで実配線＝拡散力(fol_gain)が“火力の遠回り投資”として生きる。
         Vector2 muzzle = GlobalPosition + ShotDir * 20f;
-        // 集中の光（focus_fire）：同じ敵に当て続けた集中ボーナス（+0〜+Lv）を基礎威力へ上乗せ。
-        // ジョブの基礎威力補正（JobDef.PowerMul）もここへ乗せる＝本体・パネル・雑魚の全経路に同じ係数が届く
-        // （祈り手だけ ×0.8＝4ジョブ最遅。他3ジョブは 1.0 で従来どおり）。下限1は据え置き。
-        int dmg = Mathf.Max(1, Mathf.RoundToInt(1f
-                                                * (_game?.FollowerPowerMul ?? 1f)
-                                                * (_game?.JobDef.PowerMul ?? 1f))) + FocusFireBonus;
+        int dmg = Mathf.Max(1, Mathf.RoundToInt(_game?.JobDef.PowerMul ?? 1f)) + FocusFireBonus;
 
         // 選択中のショットモードで発射パターンを分岐（設計書 §3）。
         switch (_game?.SelectedShotMode ?? GameManager.ShotMode.Rapid)
@@ -1233,15 +1260,6 @@ public partial class Player : Area2D
             foreach (var f in _followers)
                 f.Fire();
 
-        // 拡散サブ（option_sub・拡散幹の奥義）：上下の追従オプションがメインと毎ショット同期で
-        // 威力×0.5（下限1）の光弾を撃つ。全モード共通＝面の継続火力を底上げする。
-        for (int i = 0; i < _optionCount && i < OptionSlots.Length; i++)
-        {
-            Vector2 op = GlobalPosition + OptionSlots[i];
-            _pool.Spawn(op + ShotDir * 8f, ShotDir * 340f, isEnemy: false, 2.6f,
-                Mathf.Max(1, Mathf.RoundToInt(dmg * 0.5f))).ShotPowerPercent = ShotPowerPercent;
-        }
-
         // マズルフラッシュ＋発射音（画と同フレーム）＋体のキックバック（反動）
         FxLayer.Instance?.Muzzle(muzzle, _game?.SelectedShotMode ?? GameManager.ShotMode.Rapid,
                                  _game?.SpreadWays ?? 5, ShotDir);
@@ -1249,33 +1267,22 @@ public partial class Player : Area2D
         _recoil = 1f;
     }
 
-    // 連射：射撃方向（_facing）へ直線の高速ストリーム。線数 = 2 + ExtraLines（#8「ライン +1」）。
-    //   ★線数を火力から導出するのは 2026-09-13 にやめた（火力を買ったら勝手に線が増える＝どちらの段の
-    //     効果か読めなかった）。線数は線数の段だけが決める。
-    // 貫通（#12「貫通」）：全モード共通で敵を 1 体貫通（Bullet.Pierce。消費側が減算する）。
     private void FireRapid(Vector2 muzzle, int dmg)
     {
         Vector2 direction = ShotDir;
         Vector2 side = new(-direction.Y, direction.X);
         Vector2 vel = direction * Jobs.Get(Job.Tank).ShotSpeed;
-        int pierce = _game?.ShotPierceCount ?? 0;
         int rdmg = dmg + (_game?.RapidPowerBonus ?? 0); // 連射モード専用の威力上乗せ
-        int lines = 2 + (_game?.ExtraLines ?? 0);
-        float[] offs = lines <= 2 ? new[] { -4f, 4f }
-                     : lines == 3 ? new[] { -6f, 0f, 6f }
-                     : lines == 4 ? new[] { -9f, -3f, 3f, 9f }
-                                  : new[] { -12f, -6f, 0f, 6f, 12f };
-        foreach (float offset in offs)
+        foreach (float offset in new[] { -4f, 4f })
         {
             var b = _pool.Spawn(muzzle + side * offset, vel, isEnemy: false, Jobs.Get(Job.Tank).ShotRadius, rdmg, BulletShape.Dart);
-            b.Pierce = pierce;
             b.ShotPowerPercent = ShotPowerPercent;
         }
     }
 
     // 加速球：発射したら自機のすぐ前でほぼ静止して“タメ”を作り、タメ後にロケットのように急加速して発進する。
-    //   タメ速度=12px/s（ほぼその場・「タメている」のが分かる程度）。タメ時間/発進速度/威力は加速球系ノードで可変：
-    //   タメ 0.8→0.65→0.5s（速填）／発進 640→760px/s（推進強化）／威力 +1/+2（加速威力）。
+    //   タメ速度=12px/s（ほぼその場・「タメている」のが分かる程度）。タメ時間/発進速度は加速球系ノードで可変：
+    //   タメ 0.8→0.65→0.5s（速填）／発進 640→760px/s（推進強化）。
     //   数値は GameManager のアクセサを毎発射時に読む＝ショップ購入・トレーニングの付け外しで即反映。
     private void FireAccel(Vector2 muzzle, int dmg)
     {
@@ -1284,30 +1291,19 @@ public partial class Player : Area2D
         const float charge = 12f;
         float fast = _game?.AccelLaunchSpeed ?? Jobs.Get(Job.Melee).ShotSpeed;
         float delay = _game?.AccelChargeDelay ?? Jobs.Get(Job.Melee).AccelDelay;
-        int admg = dmg + (_game?.AccelPowerBonus ?? 0); // 加速球専用の威力軸（加速威力ノード）
 
         // 同時タメ中の弾数を上限化：無効化(非Active)/発進済み分を掃除してから残数を確認し、
         // 上限（AccelChargeCap）到達中は新規スポーンをスキップ＝タメ中弾の自弾グローが自機前方に積み上がるのを防ぐ。
         _accelCharging.RemoveAll(b => b == null || !b.Active || !b.AccelCharging);
-        int lines = 2 + (_game?.ExtraLines ?? 0);
-        if (_accelCharging.Count + lines > AccelChargeCap)
+        if (_accelCharging.Count + 2 > AccelChargeCap)
             return;
 
-        // 上下2本（連射と同じ正面集中の手触り）＋ #8「ライン +1」で1発増える。
-        //   発進方向は Spawn の vel（射撃方向）で確定し、MakeAccel が初速をタメへ落とす。
-        //   貫通（#12）は 2026-09-13 から全モード共通＝加速球にも乗せる。
-        int pierce = _game?.ShotPierceCount ?? 0;
-        float[] adys = lines <= 2 ? new[] { -4f, 4f }
-                     : lines == 3 ? new[] { -8f, 0f, 8f }
-                     : lines == 4 ? new[] { -9f, -3f, 3f, 9f }
-                                  : new[] { -12f, -6f, 0f, 6f, 12f };
-        foreach (float offset in adys)
+        foreach (float offset in new[] { -4f, 4f })
         {
-            var b = _pool.Spawn(muzzle + side * offset, direction * fast, isEnemy: false, Jobs.Get(Job.Melee).ShotRadius, admg);
+            var b = _pool.Spawn(muzzle + side * offset, direction * fast, isEnemy: false, Jobs.Get(Job.Melee).ShotRadius, dmg);
             b.ShotPowerPercent = ShotPowerPercent;
             b.MakeAccel(charge, fast, delay); // タメ(ほぼ静止)→delay秒後に発進
-            if (LockedOn) b.SetLaunchTarget(_lockTarget!, LockedUnfolder);
-            b.Pierce = pierce;
+            if (LockTarget is { } target) b.SetLaunchTarget(target, LockedUnfolder);
             _accelCharging.Add(b);
         }
     }
@@ -1319,7 +1315,6 @@ public partial class Player : Area2D
         int n = Mathf.Max(5, _game?.SpreadWays ?? 5);
         int sdmg = Mathf.Max(1, Mathf.RoundToInt(dmg * (_game?.SpreadPowerMul ?? 0.50f)));
         int chain = _game?.ChainLightBounces ?? 0;
-        int spierce = _game?.ShotPierceCount ?? 0; // 貫通（#12）は 2026-09-13 から全モード共通
         for (int i = 0; i < n; i++)
         {
             float t = n == 1 ? 0f : (float)i / (n - 1) - 0.5f;
@@ -1329,7 +1324,6 @@ public partial class Player : Area2D
             var sb = _pool.Spawn(muzzle, dir * shot.ShotSpeed, isEnemy: false, shot.ShotRadius, sdmg, shot.ShotShape);
             sb.ShotPowerPercent = ShotPowerPercent;
             sb.Chain = chain;
-            sb.Pierce = spierce;
         }
     }
 
@@ -1340,7 +1334,6 @@ public partial class Player : Area2D
         int shots = Mathf.Max(1, _game?.HomingShots ?? 2);
         int hdmg = Mathf.Max(1, Mathf.RoundToInt(dmg * (_game?.HomingPowerMul ?? 0.85f)));
         int turn = _game?.HomingTurnRateOverride ?? 0; // 0=Bullet 既定（150）を使う
-        int hpierce = _game?.ShotPierceCount ?? 0;     // 貫通（#12）は 2026-09-13 から全モード共通
         for (int i = 0; i < shots; i++)
         {
             float t = shots == 1 ? 0f : (float)i / (shots - 1) - 0.5f;
@@ -1349,8 +1342,8 @@ public partial class Player : Area2D
             var shot = Jobs.Get(Job.Heal);
             var hb = _pool.Spawn(muzzle, dir * shot.ShotSpeed, isEnemy: false, shot.ShotRadius, hdmg, shot.ShotShape, null, homing: true);
             hb.ShotPowerPercent = ShotPowerPercent;
+            hb.HomingTargetOverride = RallyLockTarget;
             if (turn > 0) hb.TurnRateOverride = turn;
-            hb.Pierce = hpierce;
         }
     }
 
@@ -1373,7 +1366,7 @@ public partial class Player : Area2D
         // ★回避は「1面クリアの物語報酬」（2026-09-13 ユーザー決定）。未取得のあいだは何も起きない。
         //   ロック解除（右クリック）は TickLockOn が別経路で拾うので、未取得でもそちらは生きる。
         if (!(_game?.HasDodge ?? true)) return;
-        if (_dodgeCd > 0f || _dodgeTimer > 0f || _gameOver) return;
+        if (_dodgeCd > 0f || _dodgeTimer > 0f || _gameOver || SpecialDashing) return;
 
         // 方向入力あり＝その方向へダッシュ。無し＝その場回避（変位ゼロ＝_dodgeDir を Zero に）。
         _dodgeInPlace = dir.LengthSquared() <= 0.01f;
@@ -1398,7 +1391,6 @@ public partial class Player : Area2D
         _counterParity = 0;   // 返し光（counter_light）の間引き・上限も回避ごとにリセット
         _counterCount = 0;
         _dodgeTrailAccum = 0f;
-        _dodgeFlip = false; // 開始は正面フレーム（00・FlipHなし）。ApplySpinFrame が毎フレーム更新する。
         // スピンの回り始めの向き：右/下回避=正、左/上回避=負。横成分があればそちらを優先。
         // 横成分が無い（真上/真下）回避は、上方向なら負・下方向なら正＝進行方向へ巻き込む自然な向き。
         // その場回避（方向入力なし）は既定で右回り（正）。
@@ -1418,27 +1410,12 @@ public partial class Player : Area2D
         SpawnTrail();
     }
 
-    // 位相 θ（0→2π*DodgeSpins）から全周8ステップのフレームを引いてスプライトに適用する。
-    // 8分割インデックス k=floor(frac(θ/2π)*8)。マッピング（正回り _dodgeSpinSign>=0）:
-    //   0→00,flip- / 1→01,flip- / 2→02,flip- / 3→03,flip- / 4→04,flip- / 5→03,flip+ / 6→02,flip+ / 7→01,flip+
-    // 逆回り（_dodgeSpinSign<0）は k を反転（00→07→06…相当）して左右逆に見せる＝(8-k)%8 を引く。
-    private static readonly int[]  SpinFrameIdx  = { 0, 1, 2, 3, 4, 3, 2, 1 };
-    private static readonly bool[] SpinFrameFlip = { false, false, false, false, false, true, true, true };
     private void ApplySpinFrame(float theta)
     {
-        float frac = theta / Mathf.Tau;
-        frac -= Mathf.Floor(frac);                 // 0..1（周回を畳む）
-        int k = (int)(frac * 8f);
-        if (k > 7) k = 7;                          // frac→1.0 の境界保険
-        if (_dodgeSpinSign < 0f) k = (8 - k) % 8;  // 逆回り＝たどり順を反転（00→07→06…）
-
-        var tex = _spinTex[SpinFrameIdx[k]];
-        _sprite.Texture = tex;
-        _dodgeFlip = SpinFrameFlip[k];
-        // スピンのフレーム流用反転と自機の向き(_facing)を XOR で合成＝左向きのままスピンしても
-        // 着地フレーム(00)がちゃんと左向きに戻る（向きが回避で壊れない）。
-        _sprite.FlipH = _dodgeFlip ^ (_facing < 0);
-        // これでコマが変わっても中身の高さ・水平中心・足元が動かない＝回避中に絵が横へ跳ねない。
+        int step = Mathf.FloorToInt(theta / Mathf.Tau * _spinTex.Length);
+        int frame = Mathf.PosMod(_dodgeSpinSign < 0 ? -step : step, _spinTex.Length);
+        _sprite.Texture = _spinTex[frame];
+        _sprite.FlipH = false;
         ApplyBodyFit();
     }
 
@@ -1446,7 +1423,6 @@ public partial class Player : Area2D
     private void EndDodge()
     {
         _dodgeTimer = 0f;
-        _dodgeFlip = false;
         _aimNow = "";
 
         // 祈りの帳（veil_light・支え側の奥義）：回避の終わり際、自機の周りに防護の光輪をまとう。
@@ -1489,7 +1465,7 @@ public partial class Player : Area2D
         }
         s.Texture = _sprite.Texture;   // その瞬間のスピンフレームを写す＝“回ってる残像”になる
         s.Scale = _sprite.Scale;
-        s.FlipH = _sprite.FlipH;       // フレームごとの左右反転も写す（真横以降の FlipH 流用フレームを正しく残す）
+        s.FlipH = _sprite.FlipH;
         s.Offset = _sprite.Offset;     // 中身を中心に据える Offset も写す（写さないと残像だけ余白ぶん横へずれる）
         s.Rotation = _sprite.Rotation; // 回避中は 0（直立）＝側転痕は残らない
         s.GlobalPosition = _sprite.GlobalPosition;
@@ -1522,7 +1498,7 @@ public partial class Player : Area2D
     {
         // 敵 or 敵弾との接触で TakeHit。
         // 弾側の damage 処理は敵側 / 弾側で行うため、ここでは被弾のみ扱う。
-        if (area is Enemy e && !e.IsPurified)
+        if (area is Enemy { BodyContactDamaging: true })
         {
             // QA(--god/--assist) 走行では敵本体との接触被弾もスキップ（god の GodClear は敵弾しか
             // 消せないため）。通常プレイでは QaPilot.GodActive は常に false（AreaStrike と同じ作法）。
@@ -1563,7 +1539,7 @@ public partial class Player : Area2D
                 _dodgeGrazeCount++;
                 game.AddDodgeGraze();
                 // 2026-09-22 ユーザー指示：回避よけの「+N」ポップアップは非表示。自機のすぐ上に数字が出ると
-                //   避けている最中の弾と重なって見落とす。報酬（スコア・インプレ・コンボ猶予）は従来どおり入る。
+                //   避けている最中の弾と重なって見落とす。報酬（スコア・インプレ）は従来どおり入る。
 
                 // 返し光（counter_light・ホーミング幹の奥義）：回避よけした弾そのものを追尾光弾へ変換して撃ち返す。
                 // Lv1=2発に1発・上限6/回避、Lv2=全弾・上限12(=DodgeGrazeCap)。報酬(AddDodgeGraze)はそのまま＝攻めの上乗せ。
@@ -1576,9 +1552,7 @@ public partial class Player : Area2D
                     {
                         _counterCount++;
                         Vector2 at = b.GlobalPosition;
-                        // 威力はホーミング射と同等（基礎×フォロワーバフ×追尾税0.7）。弾はその場で光弾に置き換える。
-                        int cdmg = Mathf.Max(1, Mathf.RoundToInt(game.FollowerPowerMul * 0.7f));
-                        _pool?.Spawn(at, ShotDir * 200f, isEnemy: false, 3f, cdmg, BulletShape.Orb, null, homing: true);
+                        _pool?.Spawn(at, ShotDir * 200f, isEnemy: false, 3f, 1, BulletShape.Orb, null, homing: true);
                         FxLayer.Instance?.Muzzle(at); // 変換の一閃（“返した”を短く見せる）
                     }
                 }
@@ -1588,13 +1562,18 @@ public partial class Player : Area2D
                 game?.AddGraze();
             }
 
-            FxLayer.Instance?.Graze(GlobalPosition); // グレイズ閃光（共通の手応え）
-            Audio.Instance?.PlayGraze();
+            // Same-frame grazes share feedback; scoring and collision remain per bullet.
+            ulong frame = Engine.GetPhysicsFrames();
+            if (_lastGrazeFeedbackFrame != frame)
+            {
+                _lastGrazeFeedbackFrame = frame;
+                FxLayer.Instance?.Graze(GlobalPosition);
+                Audio.Instance?.PlayGraze();
+            }
             _grazeFlash = 1f; // 自機の絵を一瞬光らせる（“今かすった”を強調。旧グレイズリングの代替）
         }
     }
 
-    // ボムは敵へダメージを与え、短時間の無敵で退避を助ける。
     private void TryBomb()
     {
         if (_gameOver) return;
@@ -1607,21 +1586,66 @@ public partial class Player : Area2D
         // ボム演出（魔法陣＋光の波）＋画面効果＋体の解放モーション（伸び上がり＝同フレーム）
         FxLayer.Instance?.Bomb(GlobalPosition);
         Audio.Instance?.PlayBomb(); // ③溜め→開放の二段。破壊でなく「鎮める／光が満ちる」
-        GameCamera.Instance?.Shake(4.5f, 0.15f);
-        GameCamera.Instance?.Hitstop(0.05);
         _bombCast = BombCastDur;
 
 
-        // 画面内の敵を浄化
-        foreach (Node node in GetTree().GetNodesInGroup("enemies"))
-        {
-            if (node is Enemy e)
-                e.Purify();
-        }
+        ConvertBombTargets(damageBosses: true);
 
         // 短時間無敵 ＋ 画面フラッシュ
         StartInvincible();
-        (GetTree().GetFirstNodeInGroup("hud") as Hud)?.Flash();
+        (GetTree().GetFirstNodeInGroup("hud") as Hud)?.BombFlash();
+    }
+
+    private void ConvertBombTargets(bool damageBosses = false)
+    {
+        var rallyProtected = new HashSet<Enemy>();
+        foreach (Node node in GetTree().GetNodesInGroup("enemies"))
+            if (node is Enemy { RallyGuarded: true } enemy) rallyProtected.Add(enemy);
+        var fx = FxLayer.Instance;
+        fx?.ScoreDrops.BeginRush(3.2f);
+        foreach (Node node in GetTree().GetNodesInGroup("enemy_bullets"))
+        {
+            if (node is not Bullet { Active: true } bullet) continue;
+            if (!Field.Rect.Grow(bullet.Radius).HasPoint(bullet.GlobalPosition)) continue;
+            fx?.BombShard(bullet.GlobalPosition.Clamp(Field.Rect.Position, Field.Rect.End));
+            _pool?.Despawn(bullet);
+        }
+        foreach (Node node in GetTree().GetNodesInGroup("aoe"))
+        {
+            if (node.IsQueuedForDeletion() || node is not IAoeHazard hazard) continue;
+            if (node is BossCharacterTechnique { Finished: true }) continue;
+            ConvertBombHazard(hazard);
+            if (node is BossCharacterTechnique technique) technique.Cancel();
+            else if (node is AreaStrike strike) strike.Cancel();
+        }
+        foreach (Node node in GetTree().GetNodesInGroup("boss_dodge_waves"))
+            if (node is BossDodgeWave { Finished: false } wave)
+            {
+                ConvertBombHazard(wave);
+                wave.Cancel();
+            }
+        foreach (Node node in GetTree().GetNodesInGroup("boss_edge_volleys"))
+            if (node is BossEdgeVolley volley) volley.Cancel();
+        foreach (Node node in GetTree().GetNodesInGroup("boss_animal_techniques"))
+            if (node is BossAnimalTechnique animal) animal.Cancel();
+        foreach (Node node in GetTree().GetNodesInGroup("enemies"))
+            if (node is Enemy enemy && !rallyProtected.Contains(enemy) && enemy.IsVisibleInTree()
+                && (Field.Rect.HasPoint(enemy.GlobalPosition) || Field.BossFrameActive && Field.BossFrameRect.HasPoint(enemy.GlobalPosition))
+                && (damageBosses || !enemy.HasHpBar && enemy is not TrainingDummy))
+                enemy.Purify();
+    }
+
+    private void ConvertBombHazard(IAoeHazard hazard)
+    {
+        for (float y = Field.Top + 6; y < Field.Bottom; y += 12)
+        for (float x = Field.Left + 6; x < Field.Right; x += 12)
+        {
+            var point = new Vector2(x, y);
+            bool covered = hazard is BossCharacterTechnique technique
+                ? technique.DangerDistance(point, includeWarnings: true) <= 6f
+                : hazard.CoversPoint(point);
+            if (covered) FxLayer.Instance?.BombShard(point);
+        }
     }
 
     // ★ヒカゲ専用スキル（TryHikageSpecial）は 2026-09-13 に撤去した。W0 専用・非正典の機能が
@@ -1634,12 +1658,11 @@ public partial class Player : Area2D
     {
         if (_pool == null || Hud.BubblePaused || _gameOver) return;
         var job = _game!.JobDef;
-        int baseDmg = Mathf.Max(1, Mathf.RoundToInt(1f
-                                                    * (_game?.FollowerPowerMul ?? 1f)
-                                                    * (_game?.JobDef.PowerMul ?? 1f)));
+        int baseDmg = Mathf.Max(1, Mathf.RoundToInt(job.PowerMul));
         int dmg = Mathf.Max(1, Mathf.RoundToInt(baseDmg * job.ChargePower * ChargeTier.PowerMulFor(stage)));
         float radius = job.ChargeRadius * ChargeTier.RadiusMulFor(stage);
         Vector2 muzzle = GlobalPosition + ShotDir * 20f;
+        ChargeVolleyId++;
         for (int i = 0; i < job.ChargeWays; i++)
         {
             float spread = job.ChargeWays == 1 ? 0 : (float)i / (job.ChargeWays - 1) - 0.5f;
@@ -1647,12 +1670,18 @@ public partial class Player : Area2D
             var b = _pool.Spawn(muzzle, dir * job.ChargeSpeed, isEnemy: false, radius, dmg,
                 homing: job.Mode == GameManager.ShotMode.Homing);
             b.ShotPowerPercent = ShotPowerPercent;
-            b.MakeCharged(job.Id, stage);
-            if (b.Homing) b.TurnRateOverride = 240;
+            b.MakeCharged(job.Id, stage, i == job.ChargeWays / 2);
+            b.ChargeVolleyId = ChargeVolleyId;
+            b.ChargeOrigin = GlobalPosition;
+            if (b.Homing)
+            {
+                b.TurnRateOverride = 300;
+                b.HomingTargetOverride = RallyLockTarget;
+            }
             if (job.Mode == GameManager.ShotMode.Accel)
             {
                 b.MakeAccel(240f, job.ChargeSpeed, 0.12f);
-                if (LockedOn) b.SetLaunchTarget(_lockTarget!, LockedUnfolder);
+                if (LockTarget is { } target) b.SetLaunchTarget(target, LockedUnfolder);
             }
         }
         GD.Print($"[charge] {job.CharacterId} fire t{stage} {job.ChargeWays}x{dmg} r={radius:0.0}");
@@ -1669,7 +1698,7 @@ public partial class Player : Area2D
     public void TakeHit()
     {
         // 無敵中・回避無敵中・ゲームオーバー中は無効（回避の主旨＝回避中は被弾しない）
-        if (_invincible || _dodgeInv > 0f || _veilT > 0f || _gameOver)
+        if (_invincible || _dodgeInv > 0f || _veilT > 0f || _gameOver || (_game?.CurrentSpecial?.ProtectsPlayer ?? false))
             return;
         _chargeT = 0;
         _chargeHeld = false;
@@ -1685,7 +1714,7 @@ public partial class Player : Area2D
         // QA走行だけ、ジョブの被弾まわりの補正が効いているかをログへ（のけぞり変位0／無敵秒）。
         if (QaPilot.Verbose && _game != null)
             GD.Print($"[JOB] {_game.JobDef.CharacterName} hit: knockback={( _game.JobDef.NoHitKnockback ? "0px(踏みとどまり)" : "-5px")} "
-                   + $"invul={_game.JobDef.HitInvulSec:0.0}s lives={Lives}->{Mathf.Max(0, Lives - 1)}/{_game.StartLives}");
+                   + $"invul={_game.HitInvulSec:0.0}s lives={Lives}->{Mathf.Max(0, Lives - 1)}/{_game.StartLives}");
 
         // 集中の光（focus_fire）は被弾で霧散＝積み上げた連続ヒットをリセット（練習モードでも同様）。
         _focusTarget = null;
@@ -1693,7 +1722,7 @@ public partial class Player : Area2D
 
         // チュートリアル練習モード：被弾演出は出すが、残機を減らさず・ゲームオーバーにせず・フォロワーも離さない（詰み防止）。
         // 短時間無敵だけ付けて先へ進める（同じ弾で連続被弾しない）。
-        if (_game?.TutorialNoConsume ?? false)
+        if ((_game?.TutorialNoConsume ?? false) && !GameManager.BossPracticeActive)
         {
             StartInvincible(fromHit: true);
             return;
@@ -1749,6 +1778,7 @@ public partial class Player : Area2D
     private void GameOver()
     {
         _gameOver = true;
+        _game?.CancelSpecial();
         _invincible = true;
         _invincibleTimer = 9999f; // 以降は無敵で待機
         // 2026-09-07: ゲームオーバーのバナー（ShowBanner）は出さない。
@@ -1764,13 +1794,13 @@ public partial class Player : Area2D
     private void StartInvincible(bool fromHit = false)
     {
         _invincible = true;
-        // 被弾由来の無敵だけジョブ補正を効かせる（結び手 1.2→1.8秒＝連鎖被弾を潰す）。
-        // ボム無敵（fromHit=false）はボム側の設計値なのでジョブでは動かさない。
-        _invincibleTimer = fromHit ? (_game?.JobDef.HitInvulSec ?? InvincibleDuration) : InvincibleDuration;
+        // 被弾用の補正はボムの無敵時間には加えない。
+        _invincibleTimer = fromHit ? (_game?.HitInvulSec ?? InvincibleDuration) : InvincibleDuration;
+        _invincibleDuration = _invincibleTimer;
         _blinkPhase = 0f;
         _hitInvincible = fromHit;
-        // 被弾フラッシュ（一瞬非表示にして点滅開始の合図）
-        SetSpriteVisible(false);
+        _bombInvincible = !fromHit;
+        SetSpriteVisible(!fromHit);
     }
 
     // 既存の無敵を縮めずに、少なくとも dur 秒は無敵にする（仕切り直しの帰還が使う）。
@@ -1778,7 +1808,11 @@ public partial class Player : Area2D
     //   _hitInvincible は立てない＝スポーン無敵・ボム無敵・回避無敵と同じ扱いでグレイズ経済に触らない。
     private void ExtendInvincible(float dur)
     {
-        if (_invincibleTimer < dur) _invincibleTimer = dur;
+        if (_invincibleTimer < dur)
+        {
+            _invincibleTimer = dur;
+            _invincibleDuration = dur;
+        }
         if (_invincible) return;
         _invincible = true;
         _blinkPhase = 0f;
@@ -1788,8 +1822,8 @@ public partial class Player : Area2D
     {
         if (_hasTexture && _sprite != null)
             _sprite.Visible = visible;
-        // _Draw フォールバック側は modulate ではなく可視フラグで制御
-        Modulate = new Color(1f, 1f, 1f, visible ? 1f : 0.35f);
+        // Keep the hit marker and protection indicator visible during damage blinking.
+        SelfModulate = new Color(1f, 1f, 1f, visible ? 1f : 0.35f);
     }
 
     public override void _Draw()
@@ -1805,15 +1839,6 @@ public partial class Player : Area2D
             var purple = new Color(0.6f, 0.2f, 0.8f);
             DrawLine(new Vector2(-4f, 0f), new Vector2(4f, 0f), purple, 1.5f);
             DrawLine(new Vector2(0f, -4f), new Vector2(0f, 4f), purple, 1.5f);
-        }
-
-        // ── 拡散サブ（追従オプション）の光球。ローカル定位置＋ふわふわ（当たり判定なし・見た目のみ）──
-        for (int i = 0; i < _optionCount && i < OptionSlots.Length; i++)
-        {
-            Vector2 p = OptionSlots[i] + new Vector2(0f, Mathf.Sin(_bobTime * 3.4f + i * Mathf.Pi) * 1.5f);
-            DrawCircle(p, 4.2f, new Color(0.42f, 0.74f, 0.85f, 0.35f));            // 外周グロー
-            DrawCircle(p, 2.6f, new Color(0.65f, 0.9f, 1f, 0.95f));                // 本体（浄化の水色）
-            DrawCircle(p + new Vector2(-0.8f, -0.8f), 1f, new Color(1f, 1f, 1f, 0.95f)); // ハイライト
         }
 
         // ── 祈りの帳（veil_light）の光輪：残り時間に応じてフェードする暖白のリング ──
@@ -1880,10 +1905,37 @@ public partial class PlayerHitDot : Node2D
         _emblem = LifeEmblem.Texture(CharacterId, player: true);
     }
 
-    public override void _Draw() => DrawTextureRect(_emblem, LifeEmblem.PlayerRect(CharacterId, Radius), false);
+    public override void _Draw()
+    {
+        DrawCircle(Vector2.Zero, Radius + 0.75f, new Color("121725"));
+        DrawTextureRect(_emblem, LifeEmblem.PlayerRect(CharacterId, Radius), false);
+        DrawArc(Vector2.Zero, Radius, 0f, Mathf.Tau, 48, Colors.White, 0.45f);
+        DrawCircle(Vector2.Zero, Radius * 0.32f, Colors.White);
+        if (GetParent() is not Player player) return;
+        float remaining = player.InvincibleRemaining;
+        if (remaining <= 0f || Hud.BubblePaused) return;
+
+        var color = new Color("89f2dd");
+        DrawArc(Vector2.Zero, 22f, -Mathf.Pi / 2f, Mathf.Tau - Mathf.Pi / 2f, 64,
+            new Color(color, 0.25f), 0.6f, true);
+        float end = -Mathf.Pi / 2f + Mathf.Tau * player.InvincibleRatio;
+        DrawArc(Vector2.Zero, 22f, -Mathf.Pi / 2f, end, 64, new Color("142f36"), 1.8f, true);
+        DrawArc(Vector2.Zero, 22f, -Mathf.Pi / 2f, end, 64, color, 0.85f, true);
+
+        string label = $"{player.InvincibleLabel} {Mathf.Ceil(remaining * 10f) / 10f:0.0}s";
+        float width = UiKit.TextW(UiKit.ZenBold, label, 17) + 14f;
+        float worldWidth = width * UiKit.Scale;
+        float x = Mathf.Clamp(GlobalPosition.X - worldWidth / 2f, Field.Left + 2f, Field.Right - worldWidth - 2f) - GlobalPosition.X;
+        float y = GlobalPosition.Y + 34f < Field.Bottom ? 25f : -41f;
+        DrawSetTransform(new Vector2(x, y), 0f, Vector2.One * UiKit.Scale);
+        UiKit.Box(this, new Rect2(0f, 0f, width, 27f), new Color(0.04f, 0.12f, 0.16f, 0.92f), 5f, color, 1f);
+        UiKit.Text(this, UiKit.ZenBold, new Vector2(7f, 2f), label, 17, color);
+        DrawSetTransform(Vector2.Zero);
+    }
 
     public override void _Process(double delta)
     {
         SelfModulate = TintLift.Of(_worldTint, TintLift.PlayerCore);
+        QueueRedraw();
     }
 }

@@ -19,7 +19,7 @@ public partial class BossTechniqueVideo
             public Rect2[] Bounds = Array.Empty<Rect2>();
             public Vector2 Size, Position, Prior, Card, CardReserved;
             public Vector2[] CardPath = Array.Empty<Vector2>();
-            public bool CurrentCard, CardVerified, CardInitialOverlap;
+            public bool CurrentCard, CardVerified, CardInitialOverlap, AcceptsReply;
             public double CardSeconds;
             public float Radius, Speed, Mass, Momentum;
             public bool Cancelled, Fired, Energized, Transferred, Exited;
@@ -33,6 +33,8 @@ public partial class BossTechniqueVideo
             public float PositionError, ShapeError, MomentumError, CardInitialDistance;
             public bool CardBodyClear, CardRouteClear;
             public double CardMeasuredSeconds;
+            public double? CardShownAt;
+            public int CardDraws, CheckedCardDraws;
         }
 
         private readonly record struct MinaShape(Vector2 A, Vector2 B, float Radius, bool Live, int Kind);
@@ -48,6 +50,9 @@ public partial class BossTechniqueVideo
         private double _minaPreviousTime = -1, _minaEndTime;
         private int _minaNaturalHazards = -1, _minaNaturalShots = -1;
         private float _minaWarningClipError;
+        private bool _minaReadabilityHooked;
+        private int _minaReadableDraws;
+        private readonly Dictionary<int, (double First, int Samples)> _minaOpeningCues = new();
 
         private static T MinaField<T>(object value, string field)
             => (T)value.GetType().GetField(field, BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)!.GetValue(value)!;
@@ -74,6 +79,7 @@ public partial class BossTechniqueVideo
             Card = MinaField<Vector2>(value, "Card"), CardReserved = MinaField<Vector2>(value, "CardReserved"),
             CardPath = MinaField<Vector2[]>(value, "CardAccessPath").ToArray(),
             CurrentCard = MinaField<bool>(value, "CurrentRowCard"), CardVerified = MinaField<bool>(value, "CardAccessVerified"),
+            AcceptsReply = MinaField<bool>(value, "AcceptsReply"),
             CardInitialOverlap = MinaField<bool>(value, "CardStartBodyOverlap"), CardSeconds = MinaField<double>(value, "CardTravelSeconds"),
         };
 
@@ -90,6 +96,90 @@ public partial class BossTechniqueVideo
         private static object MinaPoint(Vector2 point) => new { x = point.X, y = point.Y };
         private static object MinaRect(Rect2 rect) => new { x = rect.Position.X, y = rect.Position.Y, width = rect.Size.X, height = rect.Size.Y };
         private static float MinaProgress(double at, double start) => Mathf.Clamp((float)((at - start - .4) / .8), 0, 1);
+
+        private void MinaObserveReadableCues(BossCharacterTechnique attack)
+        {
+            if (attack.Finished) return;
+            _minaReadableDraws++;
+            var batch = Read<object>(attack, "_memoryWarnings");
+            var points = MinaField<List<Vector2>>(batch, "_points");
+            var colors = MinaField<List<Color>>(batch, "_colors");
+            bool DrawnLine(Vector2 a, Vector2 b, Color? ink = null)
+            {
+                for (int i = 0; i + 3 < points.Count; i += 4)
+                {
+                    if (colors[i].A < .1f || colors[i] != colors[i + 1] || colors[i] != colors[i + 2] || colors[i] != colors[i + 3]) continue;
+                    if (ink is Color expected && colors[i] != expected) continue;
+                    Vector2 from = (points[i] + points[i + 3]) * .5f, to = (points[i + 1] + points[i + 2]) * .5f;
+                    if (from.DistanceTo(a) < .02f && to.DistanceTo(b) < .02f
+                        || from.DistanceTo(b) < .02f && to.DistanceTo(a) < .02f) return true;
+                }
+                return false;
+            }
+            double at = attack.Elapsed;
+            var cues = MinaSnapshots(attack);
+            if (attack.TechniqueVariant == 1)
+            {
+                int rows = 4 + Read<int>(attack, "Tier") * 2;
+                for (int row = 1; row < rows; row++)
+                {
+                    float y = Field.Top + row * Field.Height / rows;
+                    if (!DrawnLine(new Vector2(Field.Left, y), new Vector2(Field.Right, y)))
+                        MinaFail("draft row has no neutral visible boundary");
+                }
+                foreach (var cue in cues.Where(cue => at >= cue.Start && at < cue.End))
+                {
+                    if (!_minaGeometry.TryGetValue(cue.Key, out var entry)) continue;
+                    Rect2 row = cue.Bounds[0];
+                    Vector2 mark = new(Field.Left + 8, row.GetCenter().Y);
+                    bool safe = DrawnLine(mark + new Vector2(-3, 0), mark + Vector2.Down * 2)
+                        && DrawnLine(mark + Vector2.Down * 2, mark + new Vector2(4, -3));
+                    bool danger = DrawnLine(mark - Vector2.One * 2.5f, mark + Vector2.One * 2.5f)
+                        && DrawnLine(mark + new Vector2(-2.5f, 2.5f), mark + new Vector2(2.5f, -2.5f));
+                    if (safe != cue.Cancelled || danger != (!cue.Cancelled && at < cue.Fire))
+                        MinaFail("draft row symbol disagrees with its strike: " + cue.Key);
+                    if (at >= cue.Fire && attack.CoversPoint(row.GetCenter()) == safe)
+                        MinaFail("displayed draft safety disagrees with live collision: " + cue.Key);
+                    bool offer = cue.AcceptsReply && !cue.Cancelled && at < cue.Fire
+                        && !cues.Any(c => c.Round == cue.Round && c.CancelledAt > c.Start);
+                    bool envelope = DrawnLine(cue.Card - new Vector2(5, 3.5f), cue.Card + new Vector2(5, -3.5f));
+                    if (envelope != offer) MinaFail("draft envelope disagrees with reply availability: " + cue.Key);
+                    if (at >= cue.Fire && !safe) continue;
+                    entry.CardShownAt ??= at;
+                    entry.CardDraws++;
+                    if (safe) entry.CheckedCardDraws++;
+                }
+            }
+            else
+            {
+                var room = cues.Single(cue => cue.Mode == 2);
+                var doors = MinaDoors(room);
+                for (int index = 0; index < doors.Length; index++)
+                {
+                    var door = doors[index];
+                    if (at < door.Open - 1.2 || at >= door.Open) continue;
+                    Vector2 direction = door.Entry.GetCenter().DirectionTo(door.Exit.GetCenter());
+                    Vector2 a, b;
+                    if (Math.Abs(direction.X) > Math.Abs(direction.Y))
+                    {
+                        float x = direction.X > 0 ? door.Entry.End.X : door.Entry.Position.X;
+                        a = new Vector2(x, door.Entry.Position.Y); b = new Vector2(x, door.Entry.End.Y);
+                    }
+                    else
+                    {
+                        float y = direction.Y > 0 ? door.Entry.End.Y : door.Entry.Position.Y;
+                        a = new Vector2(door.Entry.Position.X, y); b = new Vector2(door.Entry.End.X, y);
+                    }
+                    if (!DrawnLine(a, b, BulletArt.EnemyVisual("mina_eraser", "b5e6ae").Accent))
+                    {
+                        MinaFail($"next opening is not marked on the current room edge: {index} at={at:F6}, opens={door.Open:F6}, edge={a}->{b}");
+                        continue;
+                    }
+                    var observed = _minaOpeningCues.GetValueOrDefault(index, (at, 0));
+                    _minaOpeningCues[index] = (observed.Item1, observed.Item2 + 1);
+                }
+            }
+        }
 
         private void MinaCheckVisibleWarning(BossCharacterTechnique attack, MinaGeometrySample cue)
         {
@@ -134,7 +224,7 @@ public partial class BossTechniqueVideo
             using var probe = new CircleShape2D { Radius = Player.HitRadius };
             bool Hit(Vector2 point)
             {
-                if (boss.CollisionLayer == 0 || !boss.Monitorable) return false;
+                if (!boss.BodyContactDamaging || boss.CollisionLayer == 0 || !boss.Monitorable) return false;
                 foreach (uint owner in boss.GetShapeOwners())
                 {
                     if (boss.IsShapeOwnerDisabled(owner)) continue;
@@ -147,15 +237,21 @@ public partial class BossTechniqueVideo
             entry.CardBodyClear = !Hit(cue.Card);
             entry.CardInitialDistance = cue.Card.DistanceTo(cue.CardReserved);
             var row = cue.Bounds[0];
+            int rows = 4 + Read<int>(attack, "Tier") * 2;
+            float rowHeight = Field.Height / rows;
+            var expectedRow = new Rect2(Field.Left, Field.Top + cue.Index * rowHeight, Field.Width, rowHeight);
+            if (row.Position.DistanceTo(expectedRow.Position) > .001f || row.Size.DistanceTo(expectedRow.Size) > .001f
+                || Math.Abs(cue.Fire - cue.Start - 3.2) > .00001)
+                MinaFail("draft row footprint or reading deadline changed: " + cue.Key);
             if (!entry.CardBodyClear || entry.CardInitialDistance <= 16 || cue.Card.Y < row.Position.Y + 8
                 || cue.Card.Y > row.End.Y - 8 || cue.Card.X < Field.Left + 6 || cue.Card.X > Field.Right - 6)
                 MinaFail("draft card is body-blocked, initially readable or outside its row: " + cue.Key);
-            if (!cue.CurrentCard) return;
+            if (!cue.CurrentCard && cue.CancelledAt != cue.Start) return;
             if (cue.CardInitialOverlap != Hit(cue.CardReserved)) MinaFail("draft-card start/body diagnostic disagrees: " + cue.Key);
             if (cue.CardInitialOverlap) return;
             if (!cue.CardVerified || cue.CardPath.Length < 2 || cue.CardPath[0].DistanceTo(cue.CardReserved) > .01f
                 || cue.CardPath[^1].DistanceTo(cue.Card) > 13.01f)
-            { MinaFail("current-row acknowledgement has no reachable touch path: " + cue.Key); return; }
+            { MinaFail("draft row has no reachable touch path: " + cue.Key); return; }
             entry.CardRouteClear = true;
             float distance = 0;
             for (int segment = 1; segment < cue.CardPath.Length; segment++)
@@ -173,7 +269,7 @@ public partial class BossTechniqueVideo
             }
             entry.CardMeasuredSeconds = distance / Read<Player>(attack, "Player").SlowestMoveSpeed;
             if (!entry.CardRouteClear || entry.CardMeasuredSeconds > 2 || Math.Abs(entry.CardMeasuredSeconds - cue.CardSeconds) > .0001)
-                MinaFail("draft-card access crosses the body/boundary or exceeds the complete-warning window: " + cue.Key);
+                MinaFail("draft-card access crosses the body/boundary or exceeds the card-reading interval: " + cue.Key);
         }
 
         private static bool MinaSegmentEnded(MinaGeometrySample cue, MinaGeometrySample[] cues, double at)
@@ -220,6 +316,17 @@ public partial class BossTechniqueVideo
             => a.Kind != b.Kind || a.Live != b.Live ? float.PositiveInfinity
                 : Math.Max(Math.Max(a.A.DistanceTo(b.A), a.B.DistanceTo(b.B)), Math.Abs(a.Radius - b.Radius));
 
+        private static Vector2 MinaRoutePosition(Vector2[] points, float distance)
+        {
+            for (int i = 1; i < points.Length; i++)
+            {
+                float length = points[i - 1].DistanceTo(points[i]);
+                if (distance <= length) return points[i - 1].MoveToward(points[i], distance);
+                distance -= length;
+            }
+            return points[^1];
+        }
+
         private static IEnumerable<MinaShape> MinaPath(Vector2[] points, float radius, float progress, bool live)
         {
             float length = 0;
@@ -236,9 +343,9 @@ public partial class BossTechniqueVideo
         private static Rect2 MinaPage(MinaGeometrySample cue, double at)
         {
             float age = (float)(at - cue.Fire);
-            float progress = Mathf.Clamp((age - .45f) / 1.1f, 0, 1);
-            progress = progress * progress * (3 - 2 * progress);
-            Vector2 size = new(28 + (cue.Size.X - 28) * progress, 8 + (cue.Size.Y - 8) * progress);
+            float fraction = Mathf.Clamp((age - .45f) / 1.1f, 0, 1);
+            float fold = fraction * fraction * (3 - 2 * fraction);
+            Vector2 size = new(Mathf.Lerp(28, cue.Size.X, fold), Mathf.Lerp(8, cue.Size.Y, fold));
             Vector2 center = cue.Points[0].MoveToward(cue.Points[1], age * cue.Speed);
             return new Rect2(center - size * .5f, size);
         }
@@ -279,8 +386,8 @@ public partial class BossTechniqueVideo
             if (!cue.Energized && cue.Position.DistanceTo(cue.Points[0]) > .015f) MinaFail("resting receiver moved before contact: " + cue.Key);
             bool handedToRelease = cue.Mode == 4 && cue.Release >= 0 && cues[cue.Release].Energized;
             Vector2 expected = cue.Energized
-                ? cue.Points[0].MoveToward(cue.Points[1], (float)Math.Max(0, at - cue.Fire) * cue.Speed) : cue.Points[0];
-            if (cue.Transferred && !handedToRelease) expected = cue.Points[1];
+                ? MinaRoutePosition(cue.Points, (float)Math.Max(0, at - cue.Fire) * cue.Speed) : cue.Points[0];
+            if (cue.Transferred && !handedToRelease) expected = cue.Points[^1];
             if (handedToRelease) expected = cues[cue.Release].Position;
             float positionError = cue.Position.DistanceTo(expected);
             entry.PositionError = Math.Max(entry.PositionError, positionError);
@@ -303,7 +410,7 @@ public partial class BossTechniqueVideo
                 else
                 {
                     var receiver = cues[cue.Successor];
-                    float contact = Math.Abs(cue.Points[1].DistanceTo(receiver.Points[0]) - cue.Radius - receiver.Radius);
+                    float contact = Math.Abs(cue.Points[^1].DistanceTo(receiver.Points[0]) - cue.Radius - receiver.Radius);
                     if (contact > .015f) MinaFail($"sender does not physically touch its receiver: {cue.Key} error={contact}");
                 }
                 if (!handedToRelease && cue.Energized && !cue.Exited) entry.StaticSamples++;
@@ -313,7 +420,7 @@ public partial class BossTechniqueVideo
                 var held = cues[cue.Held];
                 bool drained = cues.Where(c => c.Mode == 4 && c.Successor < 0).All(c => c.Exited && c.ExitAt <= cue.ObservedFire);
                 if (!drained || !held.Transferred || held.Release < 0 || !ReferenceEquals(cues[held.Release], cue)
-                    || cue.Points[0].DistanceTo(held.Points[1]) > .015f || Math.Abs(cue.Radius - held.Radius) > .001f)
+                    || cue.Points[0].DistanceTo(held.Points[^1]) > .015f || Math.Abs(cue.Radius - held.Radius) > .001f)
                     MinaFail("recoil was not the same held body released after all terminal exits: " + cue.Key);
             }
             if (cue.Exited && (Field.Rect.Grow(cue.Radius).HasPoint(cue.Position) || cue.ExitAt == null))
@@ -332,6 +439,8 @@ public partial class BossTechniqueVideo
                 else if (!entry.Initial.Points.SequenceEqual(cue.Points) || !entry.Initial.Bounds.SequenceEqual(cue.Bounds)
                     || Math.Abs(entry.Initial.Radius - cue.Radius) > .001f)
                     MinaFail("geometry changed after its warning was exposed: " + cue.Key);
+                if (cue.Mode is 1 or 2 or 5 && (entry.Initial.Start != cue.Start || entry.Initial.Fire != cue.Fire || entry.Initial.End != cue.End))
+                    MinaFail("card/door attack timing changed after its cue appeared: " + cue.Key);
                 entry.Last = cue;
                 if (entry.Samples == 0 && cue.Mode == 1) MinaCheckDraftCard(attack, cue, entry);
                 entry.Samples++;
@@ -369,7 +478,7 @@ public partial class BossTechniqueVideo
 
         private void ObserveMinaGeometry(BossCharacterTechnique attack)
         {
-            if (attack is not MinaBossTechnique) return;
+            if (attack is not MinaBossTechnique { TechniqueKind: BossTechniqueKind.Area }) return;
             _minaChecked = true;
             _minaVariant = attack.TechniqueVariant;
             _minaFrames++;
@@ -377,6 +486,11 @@ public partial class BossTechniqueVideo
             var cues = MinaSnapshots(attack);
             if (cues.Select(cue => cue.Key).Distinct().Count() != cues.Length) MinaFail("two physical cues reuse one forecast identity");
             MinaObserveStates(attack, cues, false);
+            if (!_minaReadabilityHooked && attack.TechniqueVariant is 1 or 2)
+            {
+                _minaReadabilityHooked = true;
+                Read<Node2D>(attack, "_memoryWarningCanvas").Draw += () => MinaObserveReadableCues(attack);
+            }
             var hazards = Read<List<(Vector2 A, Vector2 B, float Radius, bool Live, float Progress, int Shape)>>(attack, "_hazards");
             var actual = hazards.Select(h => new MinaShape(h.A, h.B, h.Radius, h.Live, h.Shape)).ToArray();
             var used = new bool[actual.Length];
@@ -391,6 +505,7 @@ public partial class BossTechniqueVideo
                 var expected = new List<MinaShape>();
                 if (warning)
                 {
+                    if (cue.Mode == 1) continue;
                     if (progress <= 0) continue;
                     if (cue.Mode is 4 or 7) expected.AddRange(MinaPath(cue.Points, cue.Radius, progress, false));
                     else expected.AddRange(cue.Bounds.Select(b => MinaBox(new Rect2(b.Position,
@@ -419,8 +534,9 @@ public partial class BossTechniqueVideo
                         case 4:
                         case 7:
                             expected.Add(new MinaShape(cue.Prior, cue.Position, cue.Radius, true, 0));
-                            float error = Math.Max(cue.Prior.DistanceTo(Geometry2D.GetClosestPointToSegment(cue.Prior, cue.Points[0], cue.Points[1])),
-                                cue.Position.DistanceTo(Geometry2D.GetClosestPointToSegment(cue.Position, cue.Points[0], cue.Points[1])));
+                            float error = new[] { cue.Prior, cue.Position }.Max(point =>
+                                Enumerable.Range(1, cue.Points.Length - 1).Min(index =>
+                                    point.DistanceTo(Geometry2D.GetClosestPointToSegment(point, cue.Points[index - 1], cue.Points[index]))));
                             if (error > .025f) MinaFail("live memory left its fully warned centerline: " + cue.Key);
                             break;
                     }
@@ -437,8 +553,9 @@ public partial class BossTechniqueVideo
                 if (matched && !warning && expected.Count > 0 && entry.Physical == null)
                 {
                     entry.Physical = at;
-                    if (entry.Full == null || at - entry.Full.Value + 1d / 60 + .00001 < 2)
-                        MinaFail("actual complete geometry was not held for two seconds: " + cue.Key);
+                    double? readable = cue.Mode == 1 ? entry.CardShownAt : entry.Full;
+                    if (readable == null || at - readable.Value + 1d / 60 + .00001 < 2)
+                        MinaFail("complete card cue or promised geometry was not held for two seconds: " + cue.Key);
                 }
                 if (cue.Mode == 5 && !warning)
                 {
@@ -455,7 +572,7 @@ public partial class BossTechniqueVideo
 
         private void EndMinaGeometry(BossCharacterTechnique attack)
         {
-            if (attack is not MinaBossTechnique) return;
+            if (attack is not MinaBossTechnique { TechniqueKind: BossTechniqueKind.Area }) return;
             _minaChecked = true;
             _minaEnded = true;
             _minaVariant = attack.TechniqueVariant;
@@ -467,23 +584,33 @@ public partial class BossTechniqueVideo
             foreach (var cue in cues.Where(cue => !cue.Cancelled))
             {
                 var entry = _minaGeometry[cue.Key];
-                if (!cue.Fired || entry.Physical == null || entry.Full == null || entry.Live == 0 || entry.Warnings == 0 || entry.InField == 0)
+                if (!cue.Fired || entry.Physical == null || entry.Live == 0 || entry.InField == 0
+                    || (cue.Mode == 1 ? entry.CardDraws == 0 : entry.Full == null || entry.Warnings == 0))
                     MinaFail("planned cue lacks observed full warning and physical emission: " + cue.Key);
                 if (cue.Mode == 7 && entry.InitialFull == null)
                     MinaFail("recoil exit was absent from the initial complete route plan: " + cue.Key);
             }
             if (_minaNaturalHazards != 0 || _minaNaturalShots != 0) MinaFail("natural completion still owned live geometry or bullets");
+            if (_minaVariant is 1 or 2 && _minaReadableDraws == 0) MinaFail("card/door draw output was never observed");
             int tier = Read<int>(attack, "Tier");
-            int loads = (tier switch { 0 => 4, 1 => 6, 2 => 9, _ => 12 }) + (attack.IsEnhanced ? 2 : 0);
-            int chains = 3 + tier * 3 + (attack.IsEnhanced ? 1 : 0);
-            int[] required = _minaVariant switch { 0 => new[] { 3 * (3 + tier * 2) * loads }, 1 => new[] { (4 + tier * 2) * (3 + tier) }, 4 => new[] { chains * 4, chains * 3 }, _ => Array.Empty<int>() };
+            int loads = tier >= 2 ? 4 + tier * 2 : (tier == 0 ? 4 : 6) + (attack.IsEnhanced ? 2 : 0);
+            int chains = tier < 2 ? 7 : 8;
+            int rows = tier >= 2 ? tier + 2 : 3 + tier * 2;
+            int[] required = _minaVariant switch { 0 => new[] { (tier >= 2 ? 2 : 3) * rows * loads }, 1 => new[] { (4 + tier * 2) * (3 + tier) }, 4 => new[] { chains * 4, chains * 3 }, _ => Array.Empty<int>() };
             if (_minaVariant == 0 && (cues.Length != required[0] || cues.Any(cue => cue.Mode != 0)
                 || !cues.GroupBy(cue => (cue.Round, cue.Index)).All(group => group.Count() == loads)))
-                MinaFail("missing difficulty-scaled burden pages from the nine independently warned trains");
+                MinaFail("missing difficulty-scaled burden pages from the independently warned trains");
             if (_minaVariant == 1 && (cues.Length != required[0] || cues.Any(cue => cue.Mode != 1)
-                || cues.Count(cue => cue.Cancelled) < 3 + tier || cues.Count(cue => cue.Cancelled) > 2 * (3 + tier)
+                || cues.GroupBy(c => c.Round).Any(round => round.Count(c => c.CancelledAt == c.Start) != 1 || round.Count(c => c.Cancelled) > 2)
                 || !cues.GroupBy(cue => cue.Round).All(group => group.Select(cue => cue.Index).OrderBy(index => index).SequenceEqual(Enumerable.Range(0, 4 + tier * 2)))))
                 MinaFail("missing difficulty-scaled draft rounds or their pre-fire acknowledgements");
+            if (_minaVariant == 1)
+                foreach (var cue in cues)
+                {
+                    var entry = _minaGeometry[cue.Key];
+                    if (entry.CardShownAt == null || entry.CardShownAt - cue.Start > .10 || cue.Cancelled && entry.CheckedCardDraws == 0)
+                        MinaFail("draft row was not marked from the start of its wave: " + cue.Key);
+                }
             if (_minaVariant == 2)
             {
                 var room = cues.Single(cue => cue.Mode == 2);
@@ -495,6 +622,8 @@ public partial class BossTechniqueVideo
                 {
                     var closing = closures[i];
                     var door = doors[i];
+                    if (!_minaOpeningCues.TryGetValue(i, out var opening) || opening.First > door.Open - 1)
+                        MinaFail("airlock opening had no readable advance edge cue: " + i);
                     var expected = MinaPressure(door.Exit).Select(rect => rect.Intersection(door.Entry.Merge(door.Exit)))
                         .Where(rect => rect.Size.X > 0 && rect.Size.Y > 0).ToArray();
                     if (closing.Index != i || Math.Abs(closing.Fire - door.Close) > .00001
@@ -525,6 +654,9 @@ public partial class BossTechniqueVideo
                     var nodes = chain.OrderBy(cue => cue.Index).ToArray();
                     if (!nodes.Select(cue => cue.Index).SequenceEqual(new[] { 0, 1, 2, 3 }))
                     { MinaFail("relay chain does not contain four distinct consecutive receivers"); continue; }
+                    int direction = Math.Sign(nodes[^1].Points[^1].X - nodes[0].Points[0].X);
+                    if (direction == 0 || nodes.Any(cue => Math.Sign(cue.Points[^1].X - cue.Points[0].X) != direction))
+                        MinaFail("homeward handoffs doubled back instead of forming one readable traveling chain");
                     for (int node = 0; node < nodes.Length; node++)
                         if (nodes[node].Predecessor != (node == 0 ? -1 : Array.IndexOf(cues, nodes[node - 1]))
                             || nodes[node].Successor != (node == 3 ? -1 : Array.IndexOf(cues, nodes[node + 1])))
@@ -544,12 +676,14 @@ public partial class BossTechniqueVideo
             matched_shapes = _minaShapeMatches, matched_warning_shapes = _minaWarningMatches, matched_live_shapes = _minaLiveMatches,
             natural_end_live_hazards = _minaNaturalHazards, natural_end_owned_bullets = _minaNaturalShots,
             warning_field_intersections = _minaWarningClips, maximum_warning_boundary_error = _minaWarningClipError,
+            readable_cue_draws = _minaReadableDraws,
+            opening_cues = _minaOpeningCues.Select(pair => new { door = pair.Key, first_draw_at = pair.Value.First, samples = pair.Value.Samples }),
             errors = _minaErrors, state_transitions = _minaTransitions,
-            scope = "Every physics frame: drawn warning geometry versus live hazard multiset; actual receiver contact/momentum, held-danger continuity and terminal-triggered natural recoil exits. Rendered pixels and human difficulty require separate review.",
+            scope = "Every physics frame: promised geometry versus live hazards and unchanged card/door deadlines. Draw-batch checks cover safe and danger marks, envelope availability, row boundaries and the next opening edge. Text and human readability require visual review. Relay contact/momentum and natural exits are also audited.",
             cues = _minaGeometry.Select(pair => new
             {
                 key = pair.Key, mode = pair.Value.Last.Mode, round = pair.Value.Last.Round, index = pair.Value.Last.Index,
-                starts_at = pair.Value.Last.Start, completes_at = pair.Value.Last.Start + 1.2,
+                starts_at = pair.Value.Last.Start, completes_at = pair.Value.Last.Start + (pair.Value.Last.Mode == 1 ? 0 : 1.2),
                 planned_fire_at = pair.Value.Last.Fire, planned_end_at = pair.Value.Last.End,
                 full_geometry_observed_at = pair.Value.Full, initial_exit_forecast_full_at = pair.Value.InitialFull,
                 physical_geometry_observed_at = pair.Value.Physical,
@@ -573,8 +707,9 @@ public partial class BossTechniqueVideo
                     position = MinaPoint(pair.Value.Initial.Card), reserved_player = MinaPoint(pair.Value.Initial.CardReserved),
                     current_row = pair.Value.Initial.CurrentCard, initial_player_body_overlap = pair.Value.Initial.CardInitialOverlap,
                     initial_distance = pair.Value.CardInitialDistance, card_body_clear = pair.Value.CardBodyClear,
-                    access_checked = pair.Value.Initial.CurrentCard && !pair.Value.Initial.CardInitialOverlap,
+                    access_checked = (pair.Value.Initial.CurrentCard || pair.Value.Initial.CancelledAt == pair.Value.Initial.Start) && !pair.Value.Initial.CardInitialOverlap,
                     access_body_clear = pair.Value.CardRouteClear, one_way_seconds = pair.Value.CardMeasuredSeconds,
+                    first_draw_at = pair.Value.CardShownAt, card_draws = pair.Value.CardDraws, acknowledged_draws = pair.Value.CheckedCardDraws,
                     path = pair.Value.Initial.CardPath.Select(MinaPoint),
                 } : null,
             }),

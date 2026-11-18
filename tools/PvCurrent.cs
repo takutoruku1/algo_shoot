@@ -16,7 +16,7 @@ public partial class PvCurrent : Node2D
         DisplayServer.WindowSetSize(new Vector2I(1152, 648));
         _music = new AudioStreamPlayer
         {
-            Stream = ResourceLoader.Load<AudioStream>("res://audio/bgm_boss_mina.ogg"),
+            Stream = ResourceLoader.Load<AudioStream>("res://audio/bgm_boss_mina_instrumental.ogg"),
             Bus = "Music",
             VolumeDb = -4f,
         };

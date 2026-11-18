@@ -59,7 +59,7 @@ public partial class FuryDial : Node2D
     //   盤面（Field.Left=120..384）の中心・ボス徘徊ゾーンの中心高さ（第3稿の計器と同じ位置）。
     //   幅 180（盤面幅 264 の 68%）・高さ 52。3 行ぶんの本文＋見出し行が収まる。激情ではここから溢れる。
     private const float BoxW = 180f, BoxH = 52f;
-    private static readonly Rect2 Box = new Rect2(Field.CenterX - BoxW * 0.5f, H * 0.46f - BoxH * 0.5f, BoxW, BoxH);
+    private static Rect2 Box => new(Field.CenterX - BoxW * 0.5f, H * 0.46f - BoxH * 0.5f, BoxW, BoxH);
     private const float PadX = 8f;        // 本文の左余白
     private const float PadTop = 15f;     // 本文の上余白（見出し行のぶん）
     private const int BodySize = 7;       // 本文（384 系で読める最小に近い。6 だと弾幕の上で潰れた）

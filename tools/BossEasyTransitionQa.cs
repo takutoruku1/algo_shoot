@@ -84,6 +84,10 @@ public partial class BossTechniqueVideo
     private async Task EasyShieldTransition(int phase, bool triggerLive)
     {
         PrepareEasyTransition(phase);
+        var slots = BossAttackCycle.EasySlots(_boss, phase);
+        // 同じ技の予告中と発動中を比べるため、先頭の技が最も長く選ばれていない履歴から始める。
+        foreach (var slot in slots) _boss.TechniqueHistory.Complete(slot, _boss.HasEvolved);
+        _boss.TechniqueHistory.Start(slots[^1]);
         var danmaku = Read<BossDanmaku>(_boss, "_danmaku");
         BossCharacterTechnique? attack = null;
         for (int frame = 0; frame < 600 && attack == null; frame++)
@@ -93,11 +97,12 @@ public partial class BossTechniqueVideo
         }
         EasyRequire(attack != null, "Production EASY selection did not start before shield transition.");
         _easyAttack = attack!;
-        var expected = BossAttackCycle.EasySlots(_boss, phase)[0];
-        EasyRequire(attack!.TechniqueKind == expected.Kind && attack.TechniqueVariant == expected.Variant,
+        var expected = slots[0];
+        EasyRequire(danmaku.EasySlot == 0 && attack!.TechniqueKind == expected.Kind && attack.TechniqueVariant == expected.Variant,
             "Shield transition did not start the canonical first slot.");
         string name = attack.SpellName, key = attack.MechanicKey;
         int startSlot = danmaku.EasySlot, startRounds = danmaku.EasyRounds;
+        int startCompleted = Read<int>(danmaku, "_easyCompleted");
         int hp = Read<int>(_boss, "_hp"), lives = _player.Lives;
         var audit = new EasyAttackAudit(attack, _player, _boss, _easyStart);
         bool ended = false, completed = false;
@@ -149,17 +154,16 @@ public partial class BossTechniqueVideo
         EasyRequire(remainingAtEnd == 0 && hazardsAtEnd == 0,
             "Natural completion cleared active bullets or hazards during shield resolution.");
         audit.Validate();
-        int expectedSlot = (startSlot + 1) % BossAttackCycle.EasySlots(_boss, phase).Count;
-        int expectedRounds = startRounds + (expectedSlot == 0 ? 1 : 0);
-        EasyRequire(danmaku.EasySlot == expectedSlot && danmaku.EasyRounds == expectedRounds,
-            "Resolving technique did not advance its production slot exactly once.");
+        EasyRequire(Read<int>(danmaku, "_easyCompleted") == startCompleted + 1
+            && danmaku.EasyRounds == (startCompleted + 1) / slots.Count && slots[danmaku.EasySlot] != expected,
+            "Resolving technique did not complete exactly once and select a different attack.");
         bool sawBreak = false, exposed = false;
         ulong breakFrame = 0, exposedFrame = 0;
         for (int frame = 0; frame < 180 && !exposed; frame++)
         {
             await EasyTransitionFrame();
             if (_boss.GaugeBreaking && !sawBreak) { sawBreak = true; breakFrame = Engine.GetPhysicsFrames(); }
-            if (_boss.GaugeBodyExposed) { exposed = true; exposedFrame = Engine.GetPhysicsFrames(); }
+            if (_boss.GaugeVulnerable && _boss.GaugeBodyExposed) { exposed = true; exposedFrame = Engine.GetPhysicsFrames(); }
             EasyRequire(!GetTree().GetNodesInGroup("boss_character_techniques")
                 .OfType<BossCharacterTechnique>().Any(a => !a.Finished), "Another technique began during BREAK or EXPOSED.");
         }
@@ -269,8 +273,9 @@ public partial class BossTechniqueVideo
         }
         EasyRequire(resumed != null, "Canonical EASY slots did not resume after the threshold finale.");
         _easyAttack = resumed!;
-        var expected = BossAttackCycle.EasySlots(_boss, phase)[0];
-        EasyRequire(danmaku.EasySlot == 0 && resumed!.TechniqueKind == expected.Kind && resumed.TechniqueVariant == expected.Variant,
+        int resumedSlot = danmaku.EasySlot;
+        var expected = BossAttackCycle.EasySlots(_boss, phase)[resumedSlot];
+        EasyRequire(resumed!.TechniqueKind == expected.Kind && resumed.TechniqueVariant == expected.Variant,
             "External finale completion skipped or replaced the canonical EASY slot.");
         if (_boss is BossKoharu)
             EasyRequire(Read<int>(_boss, "_gotoPhase") == 0 && !caster.Suppressed,
@@ -280,7 +285,7 @@ public partial class BossTechniqueVideo
         string resumedKey = resumed!.MechanicKey;
         int livesAfter = _player.Lives;
         resumed.Cancel();
-        EasyRequire(danmaku.EasySlot == 0, "Cleanup cancellation advanced the resumed slot.");
+        EasyRequire(danmaku.EasySlot != resumedSlot, "Cleanup cancellation repeated the resumed slot.");
         _easyAttack = null;
         _easyTransitions.Add(new
         {
@@ -290,7 +295,7 @@ public partial class BossTechniqueVideo
             natural_end_owned_before_cleanup = remaining, natural_end_live_hazards_before_cleanup = hazards,
             native_finale_completion_acknowledged = caster.FinaleCompleted,
             canonical_slot_resumed = resumedKey, resumed_slot = danmaku.EasySlot,
-            resumed_cleanup_cancel_preserved_cursor = true,
+            resumed_cleanup_cancel_advances_cursor = true,
             lives_before = livesBefore, lives_after = livesAfter,
             execution = new { boss_physics_calls = _easyTransitionBossCalls, caster_process_calls = _easyTransitionCasterCalls,
                 direct_danmaku_tick_calls = 0, boss_native_physics_enabled = false, input = "stationary", invincible = true, shooting = false },

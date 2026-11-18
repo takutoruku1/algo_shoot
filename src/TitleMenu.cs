@@ -27,6 +27,7 @@ public partial class TitleMenu : Node2D
 
     private int _sel, _pick;
     private bool _navHeld, _zHeld, _backHeld, _hasSave, _picking;
+    private GameManager.SaveSlotInfo[] _slotInfos = System.Array.Empty<GameManager.SaveSlotInfo>();
     private double _t, _toastT;
     private string _toast = "";
     private bool _autoplay, _dived;
@@ -36,13 +37,11 @@ public partial class TitleMenu : Node2D
     private double _talkT, _idleTimer;
     private bool _idleTalkFired;
     private readonly RandomNumberGenerator _rng = new();
-    private FontFile _titleFont = null!, _menuFont = null!;
-    private float _selectionY;
-    private Sprite2D _illustration = null!;
-    private Sprite2D _photoPost = null!, _draftPost = null!;
+    private FontFile _titleFont = null!, _menuFont = null!, _talkFont = null!;
+    private TitleVisuals _visuals = null!;
+    private float _selectionY, _selectionWidth;
+    private Transform2D _illustrationTransform;
     private readonly Vector2[] _messageThread = new Vector2[49];
-    private ShaderMaterial _illustrationMaterial = null!;
-    private float _illustrationScale;
     private Vector2 _parallax;
 
     private static readonly Color Ink = new("15151e");
@@ -62,60 +61,28 @@ public partial class TitleMenu : Node2D
         // タイトルを眺めている間に、会話本文のかな・英数・約物の字形を作っておく（GlyphWarmer 冒頭のコメント）。
         GlyphWarmer.WarmBase(this);
         _titleFont = (FontFile)GD.Load<FontFile>("res://assets/fonts/CormorantGaramond-Italic.ttf").Duplicate();
-        _menuFont = (FontFile)GD.Load<FontFile>("res://assets/fonts/ShipporiMincho-SemiBold.ttf").Duplicate();
-        foreach (var font in new[] { _titleFont, _menuFont })
-        {
-            font.Oversampling = 2;
-            font.SubpixelPositioning = TextServer.SubpixelPositioning.Auto;
-        }
-        BuildKeyVisual();
+        _titleFont.Oversampling = 2;
+        _titleFont.SubpixelPositioning = TextServer.SubpixelPositioning.Auto;
+        _menuFont = (FontFile)GD.Load<FontFile>("res://assets/fonts/ZenKakuGothicNew-Regular.ttf").Duplicate();
+        _menuFont.Oversampling = 2;
+        _menuFont.SubpixelPositioning = TextServer.SubpixelPositioning.Auto;
+        _talkFont = (FontFile)GD.Load<FontFile>("res://assets/fonts/ShipporiMincho-SemiBold.ttf").Duplicate();
+        _talkFont.Oversampling = 2;
+        _talkFont.SubpixelPositioning = TextServer.SubpixelPositioning.Auto;
+        _visuals = new TitleVisuals { Name = "TitleVisuals", LogoWidth = UiKit.TextW(_titleFont, "Refrain", 176) };
+        AddChild(_visuals);
+        UpdateIllustration(0);
         _rng.Randomize();
         Audio.Instance?.Music(Audio.Instance.BgmTitle);
+        RefreshSlotInfos();
         _hasSave = _game.SlotExists(0) || _game.SlotExists(1) || _game.SlotExists(2) || _game.SlotExists(3);
         foreach (string arg in OS.GetCmdlineUserArgs())
             if (arg == "--demo" || arg == "--qa") _autoplay = true;
         _sel = _hasSave ? 1 : 0;
         _selectionY = MenuRowRect(_sel).GetCenter().Y;
+        _selectionWidth = UiKit.TrackedW(_menuFont, Items[_sel].jp, 25, 4);
         _talk = BootTalk[_rng.RandiRange(0, BootTalk.Length - 1)];
         _talkT = TalkShowSec;
-    }
-
-    private void BuildKeyVisual()
-    {
-        var texture = GD.Load<Texture2D>("res://char/bg2/title/title_mina_v3.png");
-        float cover = Mathf.Max(UiKit.DesignW / texture.GetWidth(), UiKit.DesignH / texture.GetHeight());
-        _illustrationScale = cover * UiKit.Scale;
-        _illustrationMaterial = new ShaderMaterial { Shader = GD.Load<Shader>("res://shaders/title_kv.gdshader") };
-        _illustrationMaterial.SetShaderParameter("clean_plate", GD.Load<Texture2D>("res://char/bg2/title/title_clean_v3.png"));
-        _illustration = new Sprite2D
-        {
-            Name = "TitleIllustration",
-            Texture = texture,
-            Material = _illustrationMaterial,
-            ZIndex = -10,
-            TextureFilter = CanvasItem.TextureFilterEnum.Linear,
-        };
-        AddChild(_illustration);
-        _photoPost = new Sprite2D
-        {
-            Name = "PhotoPost",
-            Texture = GD.Load<Texture2D>("res://char/bg2/title/title_photo_v3.png"),
-            RegionEnabled = true,
-            RegionRect = new Rect2(492, 42, 280, 421),
-            Scale = Vector2.One * 0.885f,
-            Modulate = new Color(0.88f, 0.88f, 0.88f),
-        };
-        _draftPost = new Sprite2D
-        {
-            Name = "DraftPost",
-            Texture = GD.Load<Texture2D>("res://char/bg2/title/title_draft_v3.png"),
-            RegionEnabled = true,
-            RegionRect = new Rect2(482, 341, 448, 334),
-            Scale = Vector2.One * 0.755f,
-        };
-        _illustration.AddChild(_photoPost);
-        _illustration.AddChild(_draftPost);
-        UpdateIllustration(0);
     }
 
     private void UpdateIllustration(double delta)
@@ -132,30 +99,22 @@ public partial class TitleMenu : Node2D
         // Top anchoring protects the headdress while overscan covers the moving edges.
         float zoom = 1.034f + 0.018f * (1 - Reveal(0, 4.2f)) + 0.002f * Mathf.Sin(time * 0.23f);
         Vector2 drift = new(Mathf.Sin(time * 0.19f) * 2.8f, Mathf.Sin(time * 0.27f) * 0.8f);
-        _illustration.Position = (new Vector2(640, 360 * zoom - 3.5f) + drift + _parallax * new Vector2(1, 0.55f)) * UiKit.Scale;
-        _illustration.Scale = Vector2.One * _illustrationScale * zoom;
-        _illustrationMaterial.SetShaderParameter("time_sec", time);
-        _illustrationMaterial.SetShaderParameter("ambient_time_sec", time);
-        _illustrationMaterial.SetShaderParameter("depth_offset", _parallax / new Vector2(UiKit.DesignW, UiKit.DesignH));
+        float cover = Mathf.Max(UiKit.DesignW / _visuals.ArtSize.X, UiKit.DesignH / _visuals.ArtSize.Y);
+        _illustrationTransform = new Transform2D(0, Vector2.One * cover * zoom, 0,
+            new Vector2(640, 360 * zoom - 3.5f) + drift + _parallax * new Vector2(1, .55f));
         UpdatePostMotion(time);
+        _visuals.AnimateMina(time);
     }
 
-    private void UpdatePostMotion(float time)
-    {
-        Vector2 center = _illustration.Texture.GetSize() / 2;
-        _photoPost.Position = new Vector2(617, 228) - center
-            + new Vector2(Mathf.Sin(time * 0.43f) * 10f, Mathf.Sin(time * 0.51f) * 16f) + _parallax * 1.2f;
-        _photoPost.Rotation = Mathf.Sin(time * 0.29f) * 0.009f;
-        _draftPost.Position = new Vector2(610, 491) - center
-            + new Vector2(-Mathf.Sin(time * 0.39f) * 8f, -Mathf.Sin(time * 0.64f) * 11f) + _parallax * 1.8f;
-        _draftPost.Rotation = -Mathf.Sin(time * 0.37f) * 0.007f;
-    }
+    private void UpdatePostMotion(float time) => _visuals.Update(_illustrationTransform, time, _parallax);
 
     public override void _Process(double delta)
     {
         _t += delta;
         UpdateIllustration(delta);
         _selectionY = Mathf.Lerp(_selectionY, MenuRowRect(_sel).GetCenter().Y, 1 - Mathf.Exp(-18 * (float)delta));
+        _selectionWidth = Mathf.Lerp(_selectionWidth, UiKit.TrackedW(_menuFont, Items[_sel].jp, 25, 4),
+            1 - Mathf.Exp(-18 * (float)delta));
         if (_toastT > 0) _toastT -= delta;
         if (_talkT > 0) _talkT -= delta;
         if (_dived) { QueueRedraw(); return; }
@@ -261,15 +220,11 @@ public partial class TitleMenu : Node2D
         QueueRedraw();
     }
 
-    private static Rect2 MenuRowRect(int i) => new(96, 355 + i * 53, 344, 47);
+    internal static Rect2 MenuRowRect(int i) => new(96, 360 + i * 61, 332, 47);
 
-    private static Rect2 SlotPickerRowRect(int i, int n)
-    {
-        float h = 100 + n * 56;
-        return new Rect2(388, (UiKit.DesignH - h) / 2 + 64 + i * 56, 504, 46);
-    }
+    private static Rect2 SlotPickerRowRect(int i, int n) => SaveSlotView.RowRect(i, n);
 
-    private static Rect2 SlotPickerCloseRect(int n) => new(864, (UiKit.DesignH - 100 - n * 56) / 2 + 10, 44, 44);
+    private static Rect2 SlotPickerCloseRect(int n) => SaveSlotView.CloseRect;
 
     private void Confirm()
     {
@@ -280,7 +235,12 @@ public partial class TitleMenu : Node2D
                 Go("res://Prologue.tscn");
                 break;
             case Item.Continue:
-                if (_hasSave) { _picking = true; _pick = FirstSlot(); }
+                if (_hasSave)
+                {
+                    RefreshSlotInfos();
+                    _picking = true;
+                    _pick = FirstSlot();
+                }
                 else Toast("セーブデータがありません");
                 break;
             case Item.Tutorial:
@@ -308,6 +268,7 @@ public partial class TitleMenu : Node2D
     public override void _Draw()
     {
         UiKit.BeginDesign(this);
+        _visuals.Draw(this);
         DrawMessageThread();
         UiKit.HGradient(this, new Rect2(0, 0, 900, UiKit.DesignH),
             new Color(Ink, 0.92f), new Color(Ink, 0));
@@ -318,7 +279,7 @@ public partial class TitleMenu : Node2D
         DrawTitleBlock();
         DrawMenu();
         DrawTalk();
-        UiKit.Text(this, UiKit.Mono, new Vector2(98, 679), "ver 2.081", UiKit.FontSmall, new Color(Muted, 0.7f * Reveal(0.6f, 0.7f)));
+        UiKit.Text(this, UiKit.Mono, new Vector2(98, 679), $"ver {Startup.ReleaseVersion}", UiKit.FontSmall, new Color(Muted, 0.7f * Reveal(0.6f, 0.7f)));
         DrawRect(new Rect2(0, 0, UiKit.DesignW, UiKit.DesignH), new Color(Ink, 0.8f * (1 - Reveal(0, 0.9f))));
         if (_picking) DrawSlotPicker();
         DrawToast();
@@ -327,8 +288,8 @@ public partial class TitleMenu : Node2D
 
     private void DrawMessageThread()
     {
-        Vector2 start = _draftPost.ToGlobal(new Vector2(737, 548) - _draftPost.RegionRect.GetCenter()) / UiKit.Scale;
-        Vector2 end = _illustration.ToGlobal(new Vector2(871, 619) - _illustration.Texture.GetSize() / 2) / UiKit.Scale;
+        Vector2 start = _visuals.ThreadStart;
+        Vector2 end = _illustrationTransform * (new Vector2(871, 619) - _visuals.ArtSize / 2);
         Vector2 span = end - start;
         Vector2 first = start + span * 0.34f + new Vector2(0, -14);
         Vector2 second = end - span * 0.32f + new Vector2(0, 12);
@@ -364,54 +325,39 @@ public partial class TitleMenu : Node2D
 
     private void DrawTitleBlock()
     {
-        float reveal = Reveal(0.12f, 1.25f);
-        float offset = 14 * (1 - reveal);
-        var position = new Vector2(88, 114 + offset);
-        UiKit.Text(this, _titleFont, position + new Vector2(1, 3), "Refrain", 184, new Color(Ink, 0.3f * reveal));
-        UiKit.Text(this, _titleFont, position, "Refrain", 184, new Color(Paper, reveal));
-
-        float trace = Reveal(0.38f, 1.4f);
-        DrawLine(new Vector2(102, 113), new Vector2(134, 113), new Color(Paper, 0.5f * trace), 1, true);
-        for (int i = 0; i < ShardColors.Length; i++)
-            DrawDiamond(new Vector2(149 + i * 17, 113), 3, 5, new Color(ShardColors[i], trace));
-        DrawLine(new Vector2(215, 113), new Vector2(215 + 48 * trace, 113), new Color(Paper, 0.3f * trace), 1, true);
-
-        float lineY = 308;
-        UiKit.HGradient(this, new Rect2(102, lineY, 406 * trace, 1), new Color(Accent, trace * 0.9f), new Color(Paper, 0));
-        DrawDiamond(new Vector2(98, lineY + 0.5f), 3, 4, new Color(Accent, trace));
-        float gleam = (float)(_t % 7) / 7;
-        float alpha = Mathf.Sin(gleam * Mathf.Pi) * 0.5f * trace;
-        DrawLine(new Vector2(102 + gleam * 380, lineY), new Vector2(114 + gleam * 380, lineY), new Color(Paper, alpha), 1, true);
+        float reveal = Reveal(.12f, 1.25f);
+        _visuals.DrawLogo(this, reveal);
+        float width = _visuals.LogoWidth;
+        float subtitleAlpha = Reveal(.4f, 1.1f);
+        float subtitleWidth = UiKit.TrackedW(_menuFont, "リフレイン", 16, 7);
+        float subtitleX = 88 + (width - subtitleWidth) / 2;
+        UiKit.Tracked(this, _menuFont, new Vector2(subtitleX, 320), "リフレイン", 16,
+            new Color(Muted, subtitleAlpha * .8f), 7);
+        var silver = new Color("c5dee7");
+        DrawLine(new Vector2(102, 332), new Vector2(subtitleX - 22, 332),
+            new Color(silver, subtitleAlpha * .2f), 1, true);
+        DrawLine(new Vector2(subtitleX + subtitleWidth + 22, 332), new Vector2(88 + width - 14, 332),
+            new Color(silver, subtitleAlpha * .2f), 1, true);
     }
 
     private void DrawMenu()
     {
-        float selectionAlpha = Reveal(0.2f, 0.65f);
-        UiKit.HGradient(this, new Rect2(96, _selectionY - 23, 330, 46), new Color(Accent, 0.11f * selectionAlpha), new Color(Accent, 0));
-        DrawDiamond(new Vector2(103, _selectionY), 4, 6, new Color(Accent, selectionAlpha));
-        DrawLine(new Vector2(103, _selectionY - 16), new Vector2(103, _selectionY - 10), new Color(Accent, 0.6f * selectionAlpha), 1, true);
-        DrawLine(new Vector2(103, _selectionY + 10), new Vector2(103, _selectionY + 16), new Color(Accent, 0.6f * selectionAlpha), 1, true);
+        float alpha = Reveal(.25f, .7f);
+        float lineY = _selectionY + 19.5f;
+        var silver = new Color("c5dee7");
+        UiKit.HGradient(this, new Rect2(129, lineY, _selectionWidth, 1),
+            new Color(silver, alpha * .75f), new Color(silver, alpha * .16f));
         for (int i = 0; i < Items.Length; i++)
         {
             Rect2 row = MenuRowRect(i);
             bool on = i == _sel;
             bool disabled = Items[i].item == Item.Continue && !_hasSave;
-            float reveal = Reveal(0.18f + i * 0.07f, 0.65f);
+            float reveal = Reveal(.18f + i * .07f, .65f);
             Color color = disabled ? Disabled : on ? Paper : Muted;
-            UiKit.Text(this, _menuFont, row.Position + new Vector2(33, 6), Items[i].jp, 27, new Color(color, reveal));
-            if (on)
-            {
-                float width = UiKit.TextW(_menuFont, Items[i].jp, 27);
-                UiKit.HGradient(this, new Rect2(row.Position.X + 33, row.End.Y - 3, 265, 1), new Color(Accent, reveal * 0.55f), new Color(Accent, 0));
-                float x = row.Position.X + 55 + width;
-                float y = row.GetCenter().Y + 1;
-                DrawLine(new Vector2(x, y), new Vector2(x + 19, y), new Color(Accent, reveal), 1, true);
-                DrawLine(new Vector2(x + 14, y - 4), new Vector2(x + 19, y), new Color(Accent, reveal), 1, true);
-                DrawLine(new Vector2(x + 14, y + 4), new Vector2(x + 19, y), new Color(Accent, reveal), 1, true);
-            }
+            Vector2 label = row.Position + new Vector2(33, 7);
+            UiKit.Tracked(this, _menuFont, label, Items[i].jp, 25, new Color(color, reveal), 4);
         }
     }
-
     private float Reveal(float delay, float duration)
     {
         float p = Mathf.Clamp(((float)_t - delay) / duration, 0, 1);
@@ -431,38 +377,21 @@ public partial class TitleMenu : Node2D
             float phase = Mathf.PosMod((float)_t * (0.035f + i % 3 * 0.006f) + i * 0.137f, 1);
             float x = 28 + (i * 97 % 605) + Mathf.Sin(phase * 4 + i) * 12;
             float y = 744 - phase * 580;
-            float alpha = Mathf.Sin(phase * Mathf.Pi) * 0.48f * Reveal(0.45f, 1.1f);
+            float alpha = Mathf.Sin(phase * Mathf.Pi) * 0.24f * Reveal(0.45f, 1.1f);
             DrawDiamond(new Vector2(x, y), 1.2f + i % 2 * 0.6f, 2.5f + i % 3, new Color(ShardColors[i % 4], alpha));
         }
     }
 
     private void DrawSlotPicker()
     {
-        DrawRect(new Rect2(0, 0, UiKit.DesignW, UiKit.DesignH), new Color(0, 0, 0, 0.65f));
-        int n = GameManager.SlotCount + 1;
-        float w = 560, h = 100 + n * 56, x = (UiKit.DesignW - w) / 2, y = (UiKit.DesignH - h) / 2;
-        UiKit.Box(this, new Rect2(x, y, w, h), new Color(Ink, 0.98f), 8, new Color(Accent, 0.6f), 1);
-        UiKit.Text(this, _menuFont, new Vector2(x + 28, y + 18), "つづきから", 27, Paper);
-        Rect2 close = SlotPickerCloseRect(n);
-        Color closeColor = close.HasPoint(Pad.MousePos()) ? Accent : Muted;
-        Vector2 c = close.GetCenter();
-        DrawLine(c + new Vector2(-6, -6), c + new Vector2(6, 6), closeColor, 2, true);
-        DrawLine(c + new Vector2(6, -6), c + new Vector2(-6, 6), closeColor, 2, true);
-        for (int i = 0; i < n; i++)
-        {
-            Rect2 row = SlotPickerRowRect(i, n);
-            bool on = i == _pick;
-            bool exists = _game.SlotExists(i);
-            if (on)
-            {
-                DrawRect(row, new Color(Accent, 0.12f));
-                DrawLine(row.Position + new Vector2(1, 10), row.Position + new Vector2(1, 36), Accent, 2, true);
-            }
-            UiKit.Text(this, _menuFont, row.Position + new Vector2(18, 10),
-                i == 0 ? "オートセーブ" : $"スロット {i}", 22, exists ? Paper : Disabled);
-            UiKit.Text(this, UiKit.Zen, row.Position + new Vector2(300, 13),
-                exists ? "セーブあり" : "空き", UiKit.FontBody, exists ? Accent : Disabled, HorizontalAlignment.Right, 184);
-        }
+        SaveSlotView.Draw(this, _slotInfos, 0, _pick, false,
+            Pad.UsingMouse && SaveSlotView.CloseRect.HasPoint(Pad.MousePos()));
+    }
+
+    private void RefreshSlotInfos()
+    {
+        _slotInfos = new GameManager.SaveSlotInfo[GameManager.SlotCount + 1];
+        for (int i = 0; i < _slotInfos.Length; i++) _slotInfos[i] = _game.ReadSlotInfo(i);
     }
 
     private void DrawTalk()
@@ -471,7 +400,7 @@ public partial class TitleMenu : Node2D
         float alpha = Mathf.Min(1, (float)_talkT / 0.6f) * Reveal(0.8f, 0.8f);
         DrawLine(new Vector2(642, 613), new Vector2(671, 613), new Color(Accent, alpha * 0.65f), 1, true);
         UiKit.Text(this, UiKit.ZenBold, new Vector2(683, 600), "ミナ", UiKit.FontLabel, new Color(Accent, alpha));
-        UiKit.Multi(this, _menuFont, new Vector2(642, 632), _talk, 19, new Color(Paper, alpha), 542);
+        UiKit.Multi(this, _talkFont, new Vector2(642, 632), _talk, 19, new Color(Paper, alpha), 542);
     }
 
     private void DrawToast()

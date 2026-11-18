@@ -79,7 +79,7 @@ public partial class CameoIntroScene : Node2D
         "akari" => "res://char/v3/akari_mid_conversation_v1.png",
         "koharu" => "res://char/v3/koharu_mid_conversation_v1.png",
         "rei" => CompanionDialogue.ReiAvatarPortrait,
-        "mina" => "res://char/mina_worried.png",
+        "mina" => "res://char/v3/mina_conversation_worried_v1.png",
         _ => throw new ArgumentOutOfRangeException(nameof(id)),
     };
 
@@ -92,7 +92,7 @@ public partial class CameoIntroScene : Node2D
         var (reply, resolve) = (job, id) switch
         {
             (Job.Tank, "akari") => ("見ております。ですが、その方の返事は、わたくしには。", "……消した言葉のほうも、聞かせてください。"),
-            (Job.Melee, "akari") => ("その返事を、誰からほしかったか。覚えてる。", "あたしも聞けなかったから。今度は、逃げない。"),
+            (Job.Melee, "akari") => ("誰から返事がほしかったのか、あたしは覚えてるよ。", "あたしも聞けなかったから。今度は、逃げない。"),
             (Job.Heal, "akari") => ("待ってる人の代わりには、なれないけど……。", "言えなかったほうも、聞きたいんだ。"),
             (Job.Magic, "akari") => ("欲しい返事だけじゃ、埋まらないでしょ。", "あんたが消した言葉を、聞きに来たの。"),
             (Job.Tank, "koharu") => ("席を取るために、ここへ来たのではありません。", "今は、あなたのお返事を。"),
@@ -113,7 +113,7 @@ public partial class CameoIntroScene : Node2D
         {
             "akari" => "じゃあ、どうしてここまで来たの。",
             "koharu" => "……じゃあ、あたしに何をしてほしいの？",
-            "rei" => "……退屈させたら、どうしよう。見てた人まで、いなくなったら。",
+            "rei" => "……退屈させて、今まで見てた人までいなくなったらどうしよう。",
             _ => "……返事をしたら、また、傷つけてしまう。",
         };
         string face = BossPortrait(id);
@@ -210,11 +210,12 @@ public partial class CameoIntroScene : Node2D
     public override void _Process(double delta)
     {
         if (Pad.UiBlocked(this)) { _held = true; return; }
+        bool skip = !_leaving && _skip.Update(delta);
         bool held = Pad.AdvanceHeld();
         bool edge = held && !_held;
         _held = held;
         QueueRedraw();
-        if (!_leaving && _skip.Update(delta))
+        if (skip)
         {
             if (!_arrived) Arrive();
             Leave();
@@ -223,7 +224,7 @@ public partial class CameoIntroScene : Node2D
         {
             _exitTime += delta;
             // Keep dialogue/skip presses out of the first combat frame.
-            if (_exitTime < 0.45 || held || Input.IsKeyPressed(Key.X) || Pad.Pressed(JoyButton.B)) return;
+            if (_exitTime < 0.45 || held || Pad.MouseDown() || Input.IsKeyPressed(Key.X) || Pad.Pressed(JoyButton.B)) return;
             Restore();
             _completed();
             QueueFree();
@@ -296,6 +297,7 @@ public partial class CameoIntroScene : Node2D
         _hud.SetCinematicMode(true);
         _backdrop = CutsceneBackdrop.Attach(_hud, ZIndex);
         _arriving();
+        Audio.Instance?.Music(Audio.Instance.StoryBgm(_id, false), 0.7f);
     }
 
     private void ShowLine()

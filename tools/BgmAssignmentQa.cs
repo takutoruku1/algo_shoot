@@ -30,11 +30,12 @@ public partial class BgmAssignmentQa : Node
     // 合成のままで正しいスロット（設計意図。BGM/acquisition_list.md §1 の #12）。
     private static readonly string[] SynthSlots = { "BgmStage", "BgmBoss" };
     // ループしない曲（.import が loop=false）。
-    private static readonly string[] OneShotSlots = { "BgmEndingFilm" };
+    private static readonly string[] OneShotSlots = { "BgmOpening", "BgmEndingFilm" };
 
     public override async void _Ready()
     {
         ProcessMode = ProcessModeEnum.Always;
+        Engine.MaxFps = 60;
         await Frames(2);
         var self = GetTree().CurrentScene;
         if (self == this) GetTree().CurrentScene = null;
@@ -43,8 +44,26 @@ public partial class BgmAssignmentQa : Node
         Check("Audio が常駐している", _audio != null, "オートロードが無い");
         Check("Audio.Muted=false（--qa を付けていない）", !_audio!.Muted, "Muted だと Music() が働かず判定できない");
 
-        StaticChecks();
-        await SceneChecks();
+        bool storyOnly = OS.GetCmdlineUserArgs().Contains("--story-themes-only");
+        bool encountersOnly = OS.GetCmdlineUserArgs().Contains("--encounters-only");
+        bool scenesOnly = OS.GetCmdlineUserArgs().Contains("--scenes-only");
+        if (!storyOnly && !encountersOnly && !scenesOnly)
+        {
+            StaticChecks();
+            await ThemePlaybackChecks();
+            await BossArrangementChecks();
+        }
+        if (!scenesOnly)
+        {
+            if (!encountersOnly) await CharacterThemeChecks();
+            await StageMusicChecks();
+            await EncounterMusicChecks();
+        }
+        if (!storyOnly && !encountersOnly && !OS.GetCmdlineUserArgs().Contains("--themes-only"))
+        {
+            if (!scenesOnly) await OpeningMusicChecks();
+            await SceneChecks();
+        }
 
         // 終了前に畳み切る（QueueFree の実処理は次フレーム。待たずに Quit すると解放漏れの警告が出る）。
         //   Audio は常駐なので、クロスフェード用の2つのプレイヤーが最後に鳴らした ogg を掴んだままになる。
@@ -96,12 +115,10 @@ public partial class BgmAssignmentQa : Node
             Check($"{f.Name}: ファイルが実在（{path}）", !string.IsNullOrEmpty(path) && ResourceLoader.Exists(path),
                   "ResourcePath が空か存在しない");
 
-            if (stream is AudioStreamOggVorbis ogg)
-            {
-                bool wantLoop = !OneShotSlots.Contains(f.Name);
-                Check($"{f.Name}: ループ設定 {(wantLoop ? "true" : "false")}", ogg.Loop == wantLoop,
-                      $"Loop={ogg.Loop}");
-            }
+            bool loop = stream is AudioStreamOggVorbis ogg ? ogg.Loop : ((AudioStreamMP3)stream).Loop;
+            bool wantLoop = !OneShotSlots.Contains(f.Name);
+            Check($"{f.Name}: ループ設定 {(wantLoop ? "true" : "false")}", loop == wantLoop,
+                  $"Loop={loop}");
 
             if (!string.IsNullOrEmpty(path))
             {
@@ -113,9 +130,10 @@ public partial class BgmAssignmentQa : Node
         var sharedThemes = new Dictionary<string, string[]>
         {
             ["res://audio/bgm_menu_mina.ogg"] = new[] { "BgmMenu", "BgmShop" },
-            ["res://audio/bgm_prologue.ogg"] = new[] { "BgmPrologue", "BgmFinalCutscene" },
-            ["res://audio/bgm_final_resolve.ogg"] = new[] { "BgmFinalResolve", "BgmStoryAkariAfter", "BgmStoryKoharuAfter", "BgmStoryReiAfter" },
-            ["res://audio/bgm_gameover.ogg"] = new[] { "BgmGameOver", "BgmStoryMina" },
+            ["res://audio/bgm_theme_mina.ogg"] = new[] { "BgmStoryMina", "BgmFinalCutscene" },
+            ["res://audio/bgm_theme_akari.ogg"] = new[] { "BgmStoryAkari", "BgmStoryAkariAfter" },
+            ["res://audio/bgm_theme_koharu.ogg"] = new[] { "BgmStoryKoharu", "BgmStoryKoharuAfter" },
+            ["res://audio/bgm_theme_rei.ogg"] = new[] { "BgmStoryRei", "BgmStoryReiAfter" },
             ["res://audio/bgm_stage_akari.ogg"] = new[] { "BgmStageAkari", "BgmTraining" },
         };
         foreach (var (path, users) in byPath.Where(kv => kv.Value.Count > 1))
@@ -148,7 +166,352 @@ public partial class BgmAssignmentQa : Node
         Check("StoryBgm(mina,after)＝意図的な無音", _audio.StoryBgm("mina", true) == null, "曲が入っている");
     }
 
+    private async Task ThemePlaybackChecks()
+    {
+        foreach (var (stream, path, length, once) in new[]
+        {
+            (_audio.BgmOpening, "res://audio/bgm_opening.mp3", 241.48, true),
+            (_audio.BgmBossAkari, "res://audio/bgm_boss_akari_instrumental.ogg", 223.408, false),
+            (_audio.BgmBossAkariRemix, "res://audio/bgm_boss_akari_remix.ogg", 202.768, false),
+            (_audio.BgmBossKoharu, "res://audio/bgm_boss_koharu_instrumental.ogg", 222.48, false),
+            (_audio.BgmBossKoharuRemix, "res://audio/bgm_boss_koharu_remix.ogg", 217.824, false),
+            (_audio.BgmBossRei, "res://audio/bgm_boss_rei_instrumental.ogg", 233.664, false),
+            (_audio.BgmBossReiRemix, "res://audio/bgm_boss_rei_remix.ogg", 197.968, false),
+            (_audio.BgmBossMina, "res://audio/bgm_boss_mina_instrumental.ogg", 169.856, false),
+            (_audio.BgmBossMinaRemix, "res://audio/bgm_boss_mina_remix.ogg", 170.576, false),
+        })
+        {
+            Check($"指定音源を読み込む: {path}", stream.ResourcePath == path,
+                  $"再生対象={stream.ResourcePath}");
+            Check($"指定音源の尺: {path}", Math.Abs(stream.GetLength() - length) < 0.1,
+                  $"期待={length}s 実際={stream.GetLength()}s");
+            if (once) _audio.MusicOnce(stream, 0);
+            else _audio.Music(stream, 0);
+            await Frames(4);
+            var player = ActiveMusicPlayer();
+            double loopOffset = stream is AudioStreamOggVorbis ogg ? ogg.LoopOffset : 0;
+            Check($"指定音源の再生が開始する: {path}", player.Playing && player.Stream == stream,
+                  "再生されていない");
+            player.Seek((float)stream.GetLength() - 0.15f);
+            await Task.Delay(500);
+            await Frames(2);
+            Check($"曲末の{(once ? "停止" : "ループ")}: {path}", once
+                  ? !player.Playing && Now() == null
+                  : player.Playing && player.GetPlaybackPosition() >= loopOffset
+                    && player.GetPlaybackPosition() < loopOffset + 1.0 && Now() == stream,
+                  $"playing={player.Playing} position={player.GetPlaybackPosition():0.000}");
+            _audio.StopMusic(0);
+            await Frames(4);
+        }
+    }
+
+    private async Task BossArrangementChecks()
+    {
+        var game = GetNode<GameManager>("/root/Game");
+        var difficultyBefore = game.Difficulty;
+        game.Difficulty = GameManager.Diff.Lunatic;
+        game.AutoAdvanceDialog = true;
+        Engine.TimeScale = 8;
+        var root = GD.Load<PackedScene>("res://MinaBattle.tscn").Instantiate<MinaRoot>();
+        GetTree().Root.AddChild(root);
+        GetTree().CurrentScene = root;
+        root.SetProcess(false);
+        root.Stage.SetProcess(false);
+        root.World.ProcessMode = ProcessModeEnum.Inherit;
+        root.Player.ProcessMode = ProcessModeEnum.Disabled;
+        root.Hud.HideBubble();
+        foreach (bool cinematic in new[] { true, false })
+        {
+            foreach (var id in new[] { "akari", "koharu", "rei", "mina" })
+            {
+                game.Difficulty = GameManager.Diff.Lunatic;
+                Enemy boss = id switch
+                {
+                    "akari" => new BossAkari(), "koharu" => new BossKoharu(),
+                    "rei" => new BossRei(), _ => new BossMina(),
+                };
+                boss.Position = new Vector2(300, 70);
+                root.World.AddChild(boss);
+                boss.ProcessMode = ProcessModeEnum.Disabled;
+                var posts = boss.GetNode<BossPostSequence>("PostSequence");
+                var normal = Now();
+                Check($"{id}: 初回はインスト", normal?.ResourcePath == $"res://audio/bgm_boss_{id}_instrumental.ogg", Describe(normal));
+                if (boss is BossMina)
+                {
+                    typeof(BossMina).GetMethod("BeginPhaseTransition", Priv)!.Invoke(boss, null);
+                    typeof(BossMina).GetMethod("CompletePhaseTransition", Priv)!.Invoke(boss, null);
+                    posts.ResumeMusic(0);
+                    CheckSame("mina: 人型の衣装変更では曲を変えない", Now(), normal);
+                    typeof(BossMina).GetMethod("BeginPhaseTransition", Priv)!.Invoke(boss, null);
+                }
+                game.Difficulty = cinematic ? GameManager.Diff.Normal : GameManager.Diff.Lunatic;
+                if (boss is BossMina)
+                    typeof(BossMina).GetMethod("CompletePhaseTransition", Priv)!.Invoke(boss, null);
+                else typeof(Enemy).GetMethod("AdvanceForm2", Priv)!.Invoke(boss, null);
+                if (cinematic) CheckSame($"{id}: 変身の予備動作中は通常曲", Now(), normal);
+                bool switched = await Until(() => Now()?.ResourcePath == $"res://audio/bgm_boss_{id}_remix.ogg", 1800);
+                Check($"{id}/{cinematic}: 変身の着地でREMIXへ切替", switched, Describe(Now()));
+                var remix = Now();
+                if (cinematic)
+                {
+                    bool ended = await Until(() => GetTree().GetNodesInGroup("boss_transform").Count == 0, 1800);
+                    Check($"{id}: 変身演出が終了する", ended, "終了しない");
+                }
+                else Check($"{id}: LUNATICは戦闘を止めない", !boss.Transforming, "演出が残っている");
+                await MusicFade();
+                Check($"{id}: 調整済み音源の再生音量", Math.Abs(ActiveMusicPlayer().VolumeDb) < 0.05,
+                      $"volume={ActiveMusicPlayer().VolumeDb}");
+                _audio.Music(_audio.StoryBgm(id, false), 0);
+                posts.ResumeMusic(0);
+                CheckSame($"{id}: 回想後もREMIXへ復帰", Now(), remix);
+                boss.QueueFree();
+                await Frames(6);
+            }
+        }
+        await CloseStage(root);
+        Engine.TimeScale = 1;
+        game.AutoAdvanceDialog = false;
+        game.Difficulty = difficultyBefore;
+
+        for (int index = 0; index < 4; index++)
+        {
+            var practice = GD.Load<PackedScene>(BossPracticeRoot.ScenePath).Instantiate<BossPracticeRoot>();
+            typeof(BossPracticeRoot).GetField("_bossIndex", Priv)!.SetValue(practice, index);
+            typeof(BossPracticeRoot).GetField("_phase", Priv)!.SetValue(practice, index == 3 ? 2 : 1);
+            GetTree().Root.AddChild(practice);
+            GetTree().CurrentScene = practice;
+            practice.StartPractice();
+            Check($"練習{index}: 変身後の技はREMIX", Now()?.ResourcePath.EndsWith("_remix.ogg") == true, Describe(Now()));
+            practice.RestartPractice();
+            Check($"練習{index}: 再試行もREMIX", Now()?.ResourcePath.EndsWith("_remix.ogg") == true, Describe(Now()));
+            await CloseStage(practice);
+        }
+    }
+
+    private async Task CharacterThemeChecks()
+    {
+        var game = GetNode<GameManager>("/root/Game");
+        var root = new Node2D();
+        GetTree().Root.AddChild(root);
+        GetTree().CurrentScene = root;
+        var world = new Node2D();
+        root.AddChild(world);
+        var hud = new Hud();
+        root.AddChild(hud);
+        root.AddChild(new BubbleLayer { Hud = hud });
+        var themes = new (string id, Action<Hud, Node, bool, Action> play)[]
+        {
+            ("mina", MinaStoryFilm.Play), ("akari", AkariStoryFilm.Play),
+            ("koharu", KoharuStoryFilm.Play), ("rei", ReiStoryFilm.Play),
+        };
+        foreach (var (id, play) in themes)
+        {
+            var stream = _audio.StoryBgm(id, false) as AudioStreamOggVorbis;
+            Check($"{id}: 専用テーマ", stream?.ResourcePath == $"res://audio/bgm_theme_{id}.ogg",
+                  Describe(stream));
+            if (stream == null) continue;
+            Check($"{id}: イントロの後へ戻る長いループ", stream.Loop && stream.LoopOffset > 5
+                  && stream.GetLength() - stream.LoopOffset >= 90, $"offset={stream.LoopOffset}");
+            int completed = 0;
+            play(hud, world, false, () => completed++);
+            await Frames(90);
+            await MusicFade();
+            CheckSame($"{id}: 実際の回想でテーマに切り替わる", Now(), stream);
+            var player = ActiveMusicPlayer();
+            Check($"{id}: 調整済み音源を余分に減衰させない", Math.Abs(player.VolumeDb) < 0.05,
+                  $"volume={player.VolumeDb}");
+            for (int repeat = 0; repeat < 3; repeat++)
+            {
+                player.Seek((float)stream.GetLength() - 0.15f);
+                await Task.Delay(500);
+                await Frames(2);
+                Check($"{id}: 反復 {repeat + 1} でイントロを飛ばす", player.Playing
+                      && player.GetPlaybackPosition() >= stream.LoopOffset
+                      && player.GetPlaybackPosition() < stream.LoopOffset + 1, $"position={player.GetPlaybackPosition()}");
+            }
+            GetTree().Paused = true;
+            await Frames(4);
+            double pausedPosition = player.GetPlaybackPosition();
+            await Task.Delay(200);
+            await Frames(2);
+            Check($"{id}: ポーズ中もループBGMを継続する", !player.StreamPaused && player.Playing
+                  && player.GetPlaybackPosition() > pausedPosition, "既存のBGM継続動作が変わった");
+            GetTree().Paused = false;
+            await Frames(4);
+            Check($"{id}: ポーズ解除で曲が巻き戻らない", !player.StreamPaused && player.Playing
+                  && player.GetPlaybackPosition() > pausedPosition, "再生位置が戻った");
+            string? capture = OS.GetCmdlineUserArgs().FirstOrDefault(arg => arg.StartsWith("--theme-captures="));
+            if (capture != null && DisplayServer.GetName() != "headless")
+            {
+                await ToSignal(RenderingServer.Singleton, RenderingServer.SignalName.FramePostDraw);
+                var path = capture.Substring("--theme-captures=".Length) + $"/{id}.png";
+                Check($"{id}: 回想の描画を保存", GetViewport().GetTexture().GetImage().SavePng(path) == Error.Ok, path);
+            }
+            game.AutoAdvanceDialog = true;
+            Engine.TimeScale = 8;
+            bool ended = await Until(() => completed == 1, 5000);
+            Check($"{id}: 回想を最後まで読んで自然終了する", ended, $"completed={completed}");
+            Engine.TimeScale = 1;
+            game.AutoAdvanceDialog = false;
+            await Frames(12);
+            _audio.Music(_audio.BgmBoss, 0.7f);
+            await MusicFade();
+            Check($"{id}: 回想後に古いテーマが残らない", !_audio.GetChildren().OfType<AudioStreamPlayer>()
+                  .Any(p => p.Stream == stream && p.Playing),
+                  $"current={Describe(Now())} scale={Engine.TimeScale} paused={GetTree().Paused} "
+                  + string.Join("; ", _audio.GetChildren().OfType<AudioStreamPlayer>()
+                      .Where(p => p.Playing && p.Stream is AudioStreamOggVorbis)
+                      .Select(p => $"{p.Stream.ResourcePath} volume={p.VolumeDb} paused={p.StreamPaused}")));
+        }
+        await CloseStage(root);
+    }
+
+    private async Task OpeningMusicChecks()
+    {
+        var prologue = GD.Load<PackedScene>("res://Prologue.tscn").Instantiate<Prologue>();
+        GetTree().Root.AddChild(prologue);
+        prologue.SetProcess(false);
+        GetTree().CurrentScene = prologue;
+        CheckSame("プロローグの会話は元の曲を使う", Now(), _audio.BgmPrologue);
+
+        int completed = 0;
+        var film = new OpeningFilm { Completed = () => completed++ };
+        prologue.AddChild(film);
+        await Frames(4);
+        CheckSame("OP開始で声の残響へ切り替わる", Now(), _audio.BgmOpening);
+        var player = ActiveMusicPlayer();
+        double elapsed = film.Elapsed;
+        GetTree().Paused = true;
+        await Frames(4);
+        Check("OPのポーズ中は映像と曲を一緒に止める", player.StreamPaused && film.Elapsed == elapsed,
+              "映像と曲が同期して止まらない");
+        GetTree().Paused = false;
+        await Frames(4);
+        Check("OPのポーズ解除で同じ曲を再開する", !player.StreamPaused && player.Playing
+              && ActiveMusicPlayer() == player, "再生が再開しない、または再生先が変わった");
+
+        Engine.TimeScale = 8;
+        bool continuous = true;
+        for (int i = 0; i < 1800 && completed == 0; i++)
+        {
+            if (film.Elapsed < OpeningFilm.Duration - 1.3)
+                continuous &= Now() == _audio.BgmOpening && ActiveMusicPlayer() == player && player.Playing;
+            await Frames(1);
+        }
+        Check("OP途中でボス曲へ変えず同じ演奏を継続する", continuous, $"再生中={Describe(Now())}");
+        Check("OP自然終了で曲をフェードアウトする", completed == 1 && Now() == null,
+              $"completed={completed} 再生中={Describe(Now())}");
+        Engine.TimeScale = 1;
+        await Frames(4);
+
+        film = new OpeningFilm { Completed = () => completed++ };
+        prologue.AddChild(film);
+        CheckSame("OPの再視聴でも専用曲を再生する", Now(), _audio.BgmOpening);
+        player = ActiveMusicPlayer();
+        await Until(() => film.Elapsed >= 0.7, 120);
+        film.RequestSkip();
+        await Until(() => completed == 2, 120);
+        Check("OPスキップで曲と終了通知を止める", completed == 2 && Now() == null
+              && Field(_audio, "_oncePlayer") == null, "曲または終了通知が残っている");
+        _audio.Music(_audio.BgmPrologue, 0);
+        await Frames(4);
+        player.EmitSignal(AudioStreamPlayer.SignalName.Finished);
+        CheckSame("OPの終了通知で次の場面を無音にしない", Now(), _audio.BgmPrologue);
+        await CloseStage(prologue);
+    }
+
     // ───────── ⑤ ⑥ 実際にシーンを立てて確かめるもの ─────────
+    private async Task StageMusicChecks()
+    {
+        Engine.TimeScale = 1;
+        var stageTracks = MusicLibrary.Load().Where(t => t.Category == "stage").ToArray();
+        Check("新しい道中5曲がSuno曲だけのライブラリにある", stageTracks.Length == 5, $"count={stageTracks.Length}");
+        foreach (var track in stageTracks)
+        {
+            var stream = GD.Load<AudioStreamMP3>(track.Audio);
+            Check($"{track.Title}: アプリ用はフル尺原曲", !stream.Loop && stream.GetLength() >= 175
+                && Math.Abs(stream.GetLength() - track.Duration) < .15, $"length={stream.GetLength()}");
+            bool ended = false;
+            var player = new AudioStreamPlayer { Stream = stream, Bus = "Music", VolumeDb = -60 };
+            AddChild(player);
+            player.Finished += () => ended = true;
+            player.Play((float)stream.GetLength() - .15f);
+            await Task.Delay(500);
+            await Frames(2);
+            Check($"{track.Title}: フル尺の末尾で自然終了", ended && !player.Playing, "最後まで再生できない、またはループする");
+            player.QueueFree();
+        }
+        foreach (string id in new[] { "tutorial", "akari", "koharu", "rei", "mina" })
+        {
+            _audio.SetStageMusic(id);
+            await MusicFade();
+            var stream = Now() as AudioStreamOggVorbis;
+            Check($"{id}: 道中に長いSunoループを読み込む", stream != null && stream.Loop
+                && stream.LoopOffset > 5 && stream.GetLength() - stream.LoopOffset >= 90, Describe(stream));
+            if (stream == null) continue;
+            var player = ActiveMusicPlayer();
+            Check($"{id}: 道中の音量補正が二重に掛からない", Math.Abs(player.VolumeDb) < .05,
+                $"volume={player.VolumeDb}");
+            for (int repeat = 0; repeat < 2; repeat++)
+            {
+                player.Seek((float)stream.GetLength() - .15f);
+                await Task.Delay(500);
+                await Frames(2);
+                Check($"{id}: 道中ループ {repeat + 1}", player.Playing
+                    && player.GetPlaybackPosition() >= stream.LoopOffset
+                    && player.GetPlaybackPosition() < stream.LoopOffset + 1, $"position={player.GetPlaybackPosition()}");
+            }
+        }
+    }
+
+    private async Task EncounterMusicChecks()
+    {
+        var game = GetNode<GameManager>("/root/Game");
+        var previousJob = game.SelectedJob;
+        game.AutoSaveEnabled = false;
+        game.AutoAdvanceDialog = true;
+        Engine.TimeScale = 8;
+        typeof(QaPilot).GetProperty("GodActive")!.SetValue(null, true);
+        foreach (var (id, scene) in new[] { ("akari", "Akari"), ("koharu", "Koharu"), ("rei", "Rei"), ("mina", "MinaBattle") })
+        {
+            foreach (var entry in id == "mina" ? new[] { GameManager.StageEntry.Boss }
+                : new[] { GameManager.StageEntry.MidBoss, GameManager.StageEntry.Boss })
+            {
+                game.SelectedJob = entry == GameManager.StageEntry.MidBoss ? Job.Magic : Job.Tank;
+                var (root, stage) = await OpenStage($"res://{scene}.tscn", game, GameManager.Diff.Normal, entry, true);
+                string group = entry == GameManager.StageEntry.Boss ? "boss_intro" : "cameo_intro";
+                bool arrived = await Until(() => GetTree().GetFirstNodeInGroup(group) is Node intro
+                    && Field(intro, "_talking") is true, 4000);
+                Check($"{id}/{entry}: 実際の登場会話まで進む", arrived, $"step={ReadInt(stage, "_step")}");
+                CheckSame($"{id}/{entry}: 相手のテーマ曲で会話する", Now(), _audio.StoryBgm(id, false));
+                await Frames(12);
+                CheckSame($"{id}/{entry}: ボス生成で会話曲を上書きしない", Now(), _audio.StoryBgm(id, false));
+                if (DisplayServer.GetName() != "headless" && entry == GameManager.StageEntry.Boss)
+                {
+                    await ToSignal(RenderingServer.Singleton, RenderingServer.SignalName.FramePostDraw);
+                    GetViewport().GetTexture().GetImage().SavePng($"res://build/qa_story/stage_music_20261104/{id}_conversation.png");
+                }
+                bool ended = await Until(() => GetTree().GetFirstNodeInGroup(group) == null, 6000);
+                Check($"{id}/{entry}: 会話が自然終了する", ended, "会話が終わらない");
+                var expected = id switch { "akari" => _audio.BgmBossAkari, "koharu" => _audio.BgmBossKoharu,
+                    "rei" => _audio.BgmBossRei, _ => _audio.BgmBossMina };
+                bool resumed = await Until(() => Now() == expected, 500);
+                Check($"{id}/{entry}: 戦闘曲に復帰する", resumed, Describe(Now()));
+                if (entry == GameManager.StageEntry.MidBoss && Field(stage, "_cameo") is CameoBoss cameo)
+                {
+                    typeof(CameoBoss).GetMethod("OnCryStart", Priv)!.Invoke(cameo, null);
+                    CheckSame($"{id}: 中ボス退場会話も専用テーマ", Now(), _audio.StoryBgm(id, false));
+                    typeof(CameoBoss).GetMethod("OnCryEnd", Priv)!.Invoke(cameo, null);
+                    CheckSame($"{id}: 中ボス退場後は道中の新曲へ復帰", Now(), _audio.StageBgm(id));
+                }
+                await CloseStage(root);
+            }
+        }
+        game.SelectedJob = previousJob;
+        game.AutoAdvanceDialog = false;
+        Engine.TimeScale = 1;
+    }
+
     private async Task SceneChecks()
     {
         var game = GetNode<GameManager>("/root/Game");
@@ -219,7 +582,13 @@ public partial class BgmAssignmentQa : Node
                 string scene = id == "koharu" ? "res://Koharu.tscn" : "res://Rei.tscn";
                 var (root, stage) = await OpenStage(scene, game, difficulty, GameManager.StageEntry.Boss, false);
                 bool spawned = await Until(() => Now() == expected, 4000);
-                Check($"{id}/{difficulty}: ボス曲に切り替わる", spawned, $"再生中={Describe(Now())}");
+                var intro = GetTree().GetFirstNodeInGroup("boss_intro");
+                var hud = GetTree().GetFirstNodeInGroup("hud") as Hud;
+                Check($"{id}/{difficulty}: ボス曲に切り替わる", spawned,
+                    $"再生中={Describe(Now())} job={game.SelectedJob} step={ReadInt(stage, "_step")}"
+                    + (intro == null ? " intro=none" : $" line={Field(intro, "_line")} talking={Field(intro, "_talking")}"
+                        + $" leaving={Field(intro, "_leaving")} lineTime={Field(intro, "_lineTime")} postTime={Field(intro, "_postTime")}"
+                        + $" blocked={Pad.UiBlocked(intro)} page={hud?.DialogPageIndex} revealed={hud?.DialogRevealed}"));
                 var boss = Field(stage, "_boss") as Node;
                 var posts = boss == null ? null : Field(boss, "_posts") as BossPostSequence;
                 Check($"{id}/{difficulty}: 投稿の音楽制御がある", posts != null, "BossPostSequence が無い");
@@ -425,6 +794,13 @@ public partial class BgmAssignmentQa : Node
     }
 
     private AudioStream? Now() => CurrentMusicField.GetValue(_audio) as AudioStream;
+
+    private async Task MusicFade()
+    {
+        if (Field(_audio, "_musicFadeTween") is Tween tween && tween.IsRunning())
+            await ToSignal(tween, Tween.SignalName.Finished);
+        await Frames(2);
+    }
 
     private static string Describe(AudioStream? s)
         => s == null ? "(無音)" : string.IsNullOrEmpty(s.ResourcePath) ? $"合成:{s.GetType().Name}" : s.ResourcePath;

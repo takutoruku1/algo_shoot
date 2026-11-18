@@ -82,7 +82,7 @@ public partial class PlayerJobQa : Node
                 var dummy = Read<TrainingDummy>(training, "_dummy");
                 Check(game.SelectedJob == id && player.CharacterId == character
                     && sprite.Texture.ResourcePath == job.PlayerTexturePath, $"training spawns {character}");
-                Check(Mathf.IsEqualApprox(sprite.Scale.Y * sprite.Texture.GetHeight(), 36f), $"{character} height is 36 world pixels");
+                CheckHeadSize(sprite, $"{character} idle head size");
                 Check(player.Lives == game.StartLives && game.SelectedShotMode == job.Mode,
                     $"{character} keeps job lives and shot mode");
                 Check(Mathf.IsEqualApprox(((CircleShape2D)player.GetNode<CollisionShape2D>("HitShape").Shape).Radius,
@@ -113,7 +113,7 @@ public partial class PlayerJobQa : Node
                     await Frames(3);
                     Check(player.LockedOn && sprite.Texture.ResourcePath == $"res://char/player/{character}/{character}_aim_v2_{pose}.png",
                         $"{character} uses the correct pose aiming {direction}");
-                    Check(Mathf.IsEqualApprox(sprite.Scale.Y * sprite.Texture.GetHeight(), 36f), $"{character} aim height is stable");
+                    CheckHeadSize(sprite, $"{character} aim head size");
                     Check(sprite.FlipH == (direction.X < 0), $"{character} faces the target");
                     CheckMarker(player, character);
                 }
@@ -127,7 +127,6 @@ public partial class PlayerJobQa : Node
                     $"{character} retains identity during dodge");
                 Check(sprite.Texture.ResourcePath.Contains("_spin_v2_") && Mathf.IsZeroApprox(sprite.Rotation),
                     $"{character} uses upright dodge frames");
-                int[] frames = { 0, 1, 2, 3, 4, 3, 2, 1 };
                 foreach (float sign in new[] { 1f, -1f })
                 foreach (int facing in new[] { 1, -1 })
                 {
@@ -137,10 +136,10 @@ public partial class PlayerJobQa : Node
                     {
                         Call(player, "ApplySpinFrame", Mathf.Tau * (i + 0.1f) / 8f);
                         int frame = sign > 0 ? i : (8 - i) % 8;
-                        Check(sprite.Texture.ResourcePath.EndsWith($"{character}_spin_v2_{frames[frame]:00}.png")
-                            && sprite.FlipH == ((frame >= 5) ^ (facing < 0))
-                            && Mathf.IsEqualApprox(sprite.Scale.Y * sprite.Texture.GetHeight(), 36f),
+                        Check(sprite.Texture.ResourcePath.EndsWith($"{character}_spin_v2_{frame:00}.png")
+                            && !sprite.FlipH,
                             $"{character} spin {i} direction {sign} facing {facing}");
+                        CheckHeadSize(sprite, $"{character} spin {i} head size");
                     }
                 }
                 Write(player, "_dodgeSpinSign", 1f);
@@ -246,11 +245,10 @@ public partial class PlayerJobQa : Node
             root.Hud.HideBubble();
             root.Hud.SetShotMode(job.Mode, false);
             root.Hud.SetElapsed(83.45f);
-            root.Hud.SetFocusMode(true, true, false, 1f);
+            root.Hud.SetSpecial(true, true, false, 1f);
             typeof(GameManager).GetProperty("Score")!.SetValue(game, 127840L);
             typeof(GameManager).GetProperty("Combo")!.SetValue(game, 12);
             typeof(GameManager).GetProperty("PurifiedCount")!.SetValue(game, game.StageTarget / 2);
-            Write(game, "_comboTimer", 1.6);
             var faces = Read<Dictionary<Job, Texture2D>>(root.Hud, "_accountFaces");
             Check(faces[job.Id].ResourcePath == CompanionDialogue.AccountPortrait(job.Id), "account portrait matches the playable character");
             string handle = (string)typeof(Hud).GetProperty("AccountHandle", Private)!.GetValue(root.Hud)!;
@@ -282,7 +280,7 @@ public partial class PlayerJobQa : Node
             await Frames(8);
             root.Player.ProcessMode = ProcessModeEnum.Inherit;
             root.Player.GlobalPosition = startPosition;
-            root.Hud.SetFocusMode(true, true, false, 1f);
+            root.Hud.SetSpecial(true, true, false, 1f);
             foreach (var size in new[] { new Vector2I(1280, 720), new Vector2I(960, 540) })
             {
                 DisplayServer.WindowSetSize(size);
@@ -356,16 +354,16 @@ public partial class PlayerJobQa : Node
                 using var packedBombs = await Capture("bomb_packed");
                 Check(Light(packedBombs, 11, 12, bomb: true) > 0.015f, "large bomb inventories fit inside the panel");
                 typeof(GameManager).GetProperty("Bombs")!.SetValue(game, bombs);
-                root.Hud.SetFocusMode(true, false, true, 0.6f);
-                using var focusActive = await Capture("focus_active");
-                root.Hud.SetFocusMode(true, false, false, 0.3f);
-                using var focusCharging = await Capture("focus_charging");
-                root.Hud.SetFocusMode(false, false, false, 0f);
+                root.Hud.SetSpecial(true, false, true, 0.6f);
+                using var specialActive = await Capture("special_active");
+                root.Hud.SetSpecial(true, false, false, 0.3f);
+                using var specialCharging = await Capture("special_charging");
+                root.Hud.SetSpecial(false, false, false, 0f);
                 typeof(GameManager).GetProperty("Combo")!.SetValue(game, 0);
                 using var noExtras = await Capture("no_extras");
                 Check(RegionDifference(full, noExtras, new Rect2I(18, 666, 172, 38)) > 0.01f
                     && RegionDifference(full, noExtras, new Rect2I(0, 490, 208, 58)) > 0.01f,
-                    "combo post updates to zero and unowned focus remains hidden");
+                    "combo post updates to zero and unowned special remains hidden");
                 Check(RegionDifference(full, noExtras, new Rect2I(0, 120, 208, 96)) < 0.001f,
                     "conditional rows do not shift the resource layout");
                 typeof(GameManager).GetProperty("Score")!.SetValue(game, long.MaxValue);
@@ -374,7 +372,7 @@ public partial class PlayerJobQa : Node
                     "maximum score fits before the sidebar edge");
                 typeof(GameManager).GetProperty("Score")!.SetValue(game, 127840L);
                 typeof(GameManager).GetProperty("Combo")!.SetValue(game, 12);
-                root.Hud.SetFocusMode(true, true, false, 1f);
+                root.Hud.SetSpecial(true, true, false, 1f);
                 typeof(GameManager).GetProperty("PurifiedCount")!.SetValue(game, 0);
                 using var purifyEmpty = await Capture("purify_empty");
                 typeof(GameManager).GetProperty("PurifiedCount")!.SetValue(game, game.StageTarget);
@@ -557,13 +555,23 @@ public partial class PlayerJobQa : Node
 
     private async Task CheckHitMarkers(GameManager game)
     {
-        string output = ProjectSettings.GlobalizePath("res://build/qa_story/hit_marker");
+        typeof(Settings).GetProperty(nameof(Settings.PauseWhenUnfocused))!.SetValue(null, false);
+        bool headless = DisplayServer.GetName() == "headless";
+        string output = ProjectSettings.GlobalizePath($"res://build/qa_story/hit_marker_{DateTime.Now:yyyyMMdd_HHmmss}");
         DirAccess.MakeDirRecursiveAbsolute(output);
         game.SetProcess(false);
         foreach (var job in Jobs.All)
         {
             game.SelectedJob = job.Id;
             game.TrainingSetAllUpgrades(false);
+            var unupgraded = new Player();
+            AddChild(unupgraded);
+            CheckMarker(unupgraded, job.CharacterId);
+            Check(Mathf.IsEqualApprox(unupgraded.GetNode<PlayerHitDot>("HitDot").Radius, 2f),
+                $"{job.CharacterId}: base collision radius stays at 2px");
+            unupgraded.QueueFree();
+            await Frames(2);
+            game.TrainingSetUpgrade("n_hitbox", true);
             var root = GD.Load<PackedScene>("res://Akari.tscn").Instantiate<AkariRoot>();
             GetTree().Root.AddChild(root);
             GetTree().CurrentScene = root;
@@ -580,6 +588,7 @@ public partial class PlayerJobQa : Node
             CheckMarker(root.Player, job.CharacterId);
             Check(root.Player.CollisionLayer == 1 && root.Player.CollisionMask == 12,
                 $"{job.CharacterId}: collision layers are unchanged");
+            if (!headless)
             foreach (var size in new[] { new Vector2I(1152, 648), new Vector2I(1920, 1080) })
             {
                 DisplayServer.WindowSetSize(size);
@@ -591,7 +600,7 @@ public partial class PlayerJobQa : Node
                 float scale = frame.GetWidth() / 384f;
                 Vector2 at = root.Player.GlobalPosition * scale;
                 var center = frame.GetPixel((int)at.X, (int)at.Y);
-                CheckMarkerColor(center, job.CharacterId);
+                CheckMarkerCore(center, job.CharacterId);
                 using var crop = frame.GetRegion(new Rect2I((int)at.X - 100, (int)at.Y - 120, 200, 240));
                 Check(crop.SavePng($"{output}/{job.CharacterId}_{size.X}_detail.png") == Error.Ok,
                     $"{job.CharacterId}: marker detail captured");
@@ -599,6 +608,7 @@ public partial class PlayerJobQa : Node
             root.QueueFree();
             await Frames(3);
 
+            if (!headless)
             using (var original = GD.Load<Texture2D>($"res://char/player/{job.CharacterId}/{job.CharacterId}_core_v1.png").GetImage())
             using (var ruby = LifeEmblem.Texture(job.CharacterId).GetImage())
             {
@@ -623,12 +633,13 @@ public partial class PlayerJobQa : Node
             AddChild(player);
             player.ProcessMode = ProcessModeEnum.Disabled;
             CheckMarker(player, job.CharacterId);
-            Check(Mathf.IsEqualApprox(player.GetNode<PlayerHitDot>("HitDot").Radius, 1f),
-                $"{job.CharacterId}: upgraded collision radius still halves");
+            Check(Mathf.IsEqualApprox(player.GetNode<PlayerHitDot>("HitDot").Radius, 1.5f),
+                $"{job.CharacterId}: upgraded collision radius is 1.5px");
             player.QueueFree();
             await Frames(2);
 
-            foreach (float radius in new[] { 1f, 2f })
+            if (headless) continue;
+            foreach (float radius in new[] { 1.5f, 2f })
             {
                 var viewport = new SubViewport { Size = new Vector2I(200, 200), TransparentBg = true, World2D = new World2D(),
                     RenderTargetUpdateMode = SubViewport.UpdateMode.Always };
@@ -644,11 +655,12 @@ public partial class PlayerJobQa : Node
                     "isolated marker captured");
                 var center = pixels.GetPixel(100, 100);
                 Check(center.A > 0.98f, $"{job.CharacterId}: marker has a solid center, not a hole");
-                CheckMarkerColor(center, job.CharacterId);
+                CheckMarkerCore(center, job.CharacterId);
                 var expectedBounds = LifeEmblem.PlayerRect(job.CharacterId, radius);
                 expectedBounds.Position *= LifeEmblem.DecorationScale;
                 expectedBounds.Size *= LifeEmblem.DecorationScale;
-                expectedBounds = expectedBounds.Merge(new Rect2(Vector2.One * (-radius * 1.25f), Vector2.One * (radius * 2.5f)));
+                float borderRadius = Mathf.Max(radius * 1.25f, radius + 0.75f);
+                expectedBounds = expectedBounds.Merge(new Rect2(Vector2.One * -borderRadius, Vector2.One * (borderRadius * 2f)));
                 expectedBounds.Position = expectedBounds.Position * 10f + new Vector2(100, 100);
                 expectedBounds.Size *= 10f;
                 bool compact = true, translucent = true;
@@ -660,7 +672,7 @@ public partial class PlayerJobQa : Node
                     if (c.A < 0.02f) continue;
                     filled++;
                     compact &= expectedBounds.Grow(1f).HasPoint(new Vector2(x + 0.5f, y + 0.5f));
-                    if (new Vector2(x + 0.5f - 100, y + 0.5f - 100).Length() > radius * 1.3f * 10f + 1f)
+                    if (new Vector2(x + 0.5f - 100, y + 0.5f - 100).Length() > Mathf.Max(radius * 1.3f, borderRadius) * 10f + 1f)
                     {
                         ornamentPixels++;
                         translucent &= c.A <= LifeEmblem.DecorationAlpha + 0.025f;
@@ -680,6 +692,12 @@ public partial class PlayerJobQa : Node
                 await Frames(2);
             }
         }
+    }
+
+    private static void CheckMarkerCore(Color color, string character)
+    {
+        Check(color.R > 0.9f && color.G > 0.9f && color.B > 0.9f,
+            $"{character}: hit point has a bright white center ({color})");
     }
 
     private static void CheckMarkerColor(Color color, string character)
@@ -714,7 +732,12 @@ public partial class PlayerJobQa : Node
     }
 
     private static readonly string[] Poses = { "idle_v2", "aim_v2_u", "aim_v2_ur", "aim_v2_r", "aim_v2_dr", "aim_v2_d",
-        "spin_v2_00", "spin_v2_01", "spin_v2_02", "spin_v2_03", "spin_v2_04" };
+        "spin_v2_00", "spin_v2_01", "spin_v2_02", "spin_v2_03", "spin_v2_04", "spin_v2_05", "spin_v2_06", "spin_v2_07" };
+    private static void CheckHeadSize(Sprite2D sprite, string label)
+    {
+        var fit = PlayerArt.Fit(sprite.Texture);
+        Check(Mathf.IsEqualApprox(sprite.Scale.Y * fit.HeadHeight, fit.GameHeadHeight), label);
+    }
     private static string PosePath(string id, string pose) => $"res://char/player/{id}/{id}_{pose}.png";
 
     private static void CheckAssets()
@@ -753,19 +776,19 @@ public partial class PlayerJobQa : Node
     {
         string path = ProjectSettings.GlobalizePath("res://build/qa_story/player_job/shots");
         DirAccess.MakeDirRecursiveAbsolute(path);
-        var viewport = new SubViewport { Size = new Vector2I(2040, 1136),
+        var viewport = new SubViewport { Size = new Vector2I(192 + 168 * Poses.Length, 1136),
             RenderTargetUpdateMode = SubViewport.UpdateMode.Always };
         AddChild(viewport);
         viewport.AddChild(new ColorRect { Size = viewport.Size, Color = new Color("25282e") });
         string[] labels = { "通常", "照準 上", "照準 右上", "照準 右", "照準 右下", "照準 下",
-            "回避 正面", "回避 45°", "回避 横", "回避 135°", "回避 後ろ" };
+            "回避 正面", "回避 45°", "回避 90°", "回避 135°", "回避 後ろ", "回避 225°", "回避 270°", "回避 315°" };
         for (int column = 0; column < Poses.Length; column++)
             LabelAt(labels[column], new Vector2(170 + column * 168, 22), 19);
         for (int row = 0; row < Jobs.All.Length; row++)
         {
             var job = Jobs.All[row];
             int y = 66 + row * 266;
-            if (row % 2 == 0) viewport.AddChild(new ColorRect { Position = new Vector2(0, y), Size = new Vector2(2040, 266),
+            if (row % 2 == 0) viewport.AddChild(new ColorRect { Position = new Vector2(0, y), Size = new Vector2(viewport.Size.X, 266),
                 Color = new Color("30343b") });
             LabelAt(job.CharacterName, new Vector2(22, y + 104), 26);
             // 2026-09-17：ジョブ名（結び手…）の表記は全廃したので、行の副題は撃ち方に差し替える。
@@ -779,7 +802,7 @@ public partial class PlayerJobQa : Node
         await Frames(3);
         await ToSignal(RenderingServer.Singleton, RenderingServer.SignalName.FramePostDraw);
         using var image = viewport.GetTexture().GetImage();
-        Check(image.SavePng($"{path}/all_poses.png") == Error.Ok, "44-pose contact sheet");
+        Check(image.SavePng($"{path}/all_poses.png") == Error.Ok, "all player poses on contact sheet");
         viewport.QueueFree();
         await Frames(2);
 

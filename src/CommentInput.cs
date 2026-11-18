@@ -44,7 +44,7 @@ public partial class CommentInput : Control
     //   （DialogueBox.Board）と同じ幅・同じ左端に揃えると、
     //   欄とバーが1本の縦線で並ぶ＝「同じ画面の下端に貼りついた欄」に見える。
     private const float BoxX = Field.DLeft + 20f;      // 420（会話バーと同じ左端）
-    private const float BoxW = Field.DWidth - 40f;     // 840（会話バーと同じ幅）
+    private static float BoxW => Field.DWidth - 40f;
     private const float BoxY = 424f, BoxH = 64f;
     private const float FadeIn = 0.35f;      // 枠の出現
     private const float TypeInterval = 0.075f;   // 1文字打つ間隔（会話のタイプ送りより少し遅い＝手で打っている）

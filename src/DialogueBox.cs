@@ -69,6 +69,39 @@ public static class DialogueBox
         return UiKit.Paginate(Body, string.Join("\n", lines), width, Hud.DlgMaxLines);
     }
 
+    public static List<string> PaginatePhone(string text, float width)
+    {
+        List<string> Layout(string part)
+        {
+            var pages = Paginate(part, width);
+            if (pages.Count == 1) return pages;
+            var lines = UiKit.WrapLines(Body.Font, part, Body.Size, width, preferPhrases: false);
+            return lines.Count <= Hud.DlgMaxLines ? new() { string.Join("\n", lines) } : pages;
+        }
+
+        var result = new List<string>();
+        var pending = new List<string> { "" };
+        int start = 0, previousEnd = 0;
+        var stops = System.Globalization.StringInfo.ParseCombiningCharacters(text);
+        for (int i = 1; i <= stops.Length; i++)
+        {
+            int end = i == stops.Length ? text.Length : stops[i];
+            if (end < text.Length && (!UiKit.IsSentenceEnd(text, end) || !UiKit.CanBreakLine(text, end)
+                || (UiKit.IsWordChar(text[end - 1]) && UiKit.IsWordChar(text[end])))) continue;
+            var next = Layout(text[start..end]);
+            if (next.Count > 1 && previousEnd > start)
+            {
+                result.AddRange(pending);
+                start = previousEnd;
+                next = Layout(text[start..end]);
+            }
+            pending = next;
+            previousEnd = end;
+        }
+        result.AddRange(pending);
+        return result;
+    }
+
     private static List<string> WrapDialogue(string text, float width)
     {
         var explicitBreaks = new HashSet<int>();
@@ -196,8 +229,32 @@ public static class DialogueBox
     public static float WrapWidth(Rect2 box) => box.Size.X - Padding * 2;
     public static Vector2 TextPosition(Rect2 box) => box.Position + new Vector2(Padding, 66);
 
+    private static readonly Dictionary<string, Texture2D> Portraits = new();
+
+    public static Texture2D LoadPortrait(string path)
+    {
+        if (!Portraits.TryGetValue(path, out var portrait))
+            Portraits[path] = portrait = GD.Load<Texture2D>(path);
+        return portrait;
+    }
+
+    private static Texture2D? SpeakerPortrait(string speaker)
+    {
+        string? path = speaker switch
+        {
+            "ミナ" or "ミナの下書き" => CompanionDialogue.Portrait(Job.Tank),
+            "あかり" => CompanionDialogue.Portrait(Job.Melee),
+            "こはる" => CompanionDialogue.Portrait(Job.Heal),
+            "レイ" => "res://char/v3/rei_face.png",
+            "レイ（配信）" => CompanionDialogue.ReiAvatarPortrait,
+            _ => null,
+        };
+        return path == null ? null : LoadPortrait(path);
+    }
+
     public static void DrawFrame(CanvasItem ci, Rect2 box, string speaker, Color accent,
-        Texture2D? portrait = null, bool draft = false, float alpha = 1, float faceTop = 0)
+        Texture2D? portrait = null, bool draft = false, float alpha = 1, float faceTop = 0,
+        float faceOffsetY = 0, Texture2D? previousPortrait = null, float previousAlpha = 0)
     {
         UiKit.Box(ci, new Rect2(box.Position + new Vector2(0, 4), box.Size), new Color("05090d", 0.24f * alpha), 8);
         UiKit.Box(ci, box, new Color(Surface, 0.96f * alpha), 8, new Color(Border, 0.7f * alpha), 1);
@@ -206,17 +263,25 @@ public static class DialogueBox
         ci.DrawLine(box.Position + new Vector2(Padding, 0), box.Position + new Vector2(Padding + 40, 0),
             new Color(accent, 0.9f * alpha), 2, true);
         var center = box.Position + new Vector2(40, 27);
-        if (portrait != null)
-            UiKit.FaceAvatar(ci, center, 17, portrait, accent, false, faceTop, alpha);
-        else if (draft)
-            DrawReader(ci, center, accent, alpha);
+        if (draft)
+            DrawReader(ci, center, alpha);
+        else if ((portrait ?? SpeakerPortrait(speaker)) is { } face)
+        {
+            center.Y += faceOffsetY;
+            UiKit.FaceAvatar(ci, center, 17, face, accent, false, faceTop, alpha * (1 - previousAlpha));
+            if (previousPortrait != null && previousAlpha > 0)
+                UiKit.FaceAvatar(ci, center, 17, previousPortrait, accent, false, faceTop, alpha * previousAlpha);
+        }
+        else if (speaker is "西野" or "母" or "同級生" or "隣の生徒" or "視聴者のコメント")
+            UiKit.Avatar(ci, center, 17, new Color(accent, alpha), speaker[..1]);
         else
             ci.DrawCircle(center, 3, new Color(accent, alpha));
         UiKit.Text(ci, UiKit.ZenBold, box.Position + new Vector2(70, 14), speaker, 18, new Color(accent, alpha));
     }
 
-    private static void DrawReader(CanvasItem ci, Vector2 center, Color accent, float alpha)
+    private static void DrawReader(CanvasItem ci, Vector2 center, float alpha)
     {
+        var accent = UiKit.CutWarm;
         ci.DrawCircle(center, 17, new Color(Surface.Lerp(accent, 0.16f), alpha), true, -1, true);
         ci.DrawArc(center, 16.5f, 0, Mathf.Tau, 48, new Color(accent, 0.8f * alpha), 1, true);
         var ink = new Color(accent.Lerp(Ink, 0.35f), alpha);
@@ -285,10 +350,10 @@ public static class DialogueBox
         }
     }
 
-    public static void DrawContinue(CanvasItem ci, Rect2 box, bool more)
+    public static void DrawContinue(CanvasItem ci, Rect2 box, bool more, Vector2? pointer = null)
     {
         var button = new Rect2(box.End.X - Padding - 100, box.End.Y - 32, 100, 24);
-        bool hover = button.HasPoint(Pad.MousePos());
+        bool hover = button.HasPoint(pointer ?? Pad.MousePos());
         UiKit.Box(ci, button, new Color(Ink, hover ? 0.12f : 0.04f), 4,
             new Color(Border, hover ? 0.9f : 0.55f), 1);
         UiKit.Text(ci, UiKit.ZenBold, button.Position + new Vector2(0, 2), more ? "つづき  ›" : "次へ  ›",

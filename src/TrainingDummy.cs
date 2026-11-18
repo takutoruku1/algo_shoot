@@ -73,6 +73,13 @@ public partial class TrainingDummy : Enemy
         ApplyDamage(damage, critical ? FxLayer.Gold : FxLayer.Sig2);
     }
 
+    internal override bool TakeSpecialHit(int damage, Vector2 source)
+    {
+        if (Hud.BubblePaused || damage <= 0) return false;
+        ApplyDamage(damage, BulletArt.PlayerColor(GameManager.Instance!.SelectedJob));
+        return true;
+    }
+
     public override void Purify()
     {
         int damage = Mathf.RoundToInt(BombStrikeBase * GameManager.Instance!.BombPowerMul);

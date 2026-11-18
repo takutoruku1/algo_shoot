@@ -9,6 +9,7 @@ public readonly record struct PlayerArtFit(Vector2 Crown, float HeadHeight, floa
 
 public static class PlayerArt
 {
+    public const int SpinFrames = 8;
     private static readonly Dictionary<string, PlayerArtFit> Fits = new();
 
     static PlayerArt()
@@ -27,6 +28,9 @@ public static class PlayerArt
             new(297f, 45f, 222f),
             new(261f, 45f, 222f),
             new(216f, 45f, 222f),
+            new(184.78f, 45f, 222f),
+            new(142.05f, 45f, 222f),
+            new(147.55f, 45f, 222f),
         });
         Add("mina_starway", 12.30f, new Vector3[]
         {
@@ -41,6 +45,9 @@ public static class PlayerArt
             new(420f, 6.21f, 260.69f),
             new(371.15f, 10.14f, 269.75f),
             new(246.1f, 4.07f, 268.47f),
+            new(167.11f, 12.02f, 267.54f),
+            new(157.35f, 9.11f, 258.92f),
+            new(207.35f, 10.2f, 261.73f),
         });
         Add("akari_default", 14.10f, new Vector3[]
         {
@@ -55,6 +62,9 @@ public static class PlayerArt
             new(234f, 0f, 282f),
             new(207f, 0f, 282f),
             new(198f, 0f, 294f),
+            new(191.26f, 0f, 282f),
+            new(152f, 0f, 282f),
+            new(198.23f, 0f, 282f),
         });
         Add("akari_dayoff", 14.10f, new Vector3[]
         {
@@ -67,8 +77,11 @@ public static class PlayerArt
             new(237.2f, 8.4f, 277.08f),
             new(258.78f, 8.35f, 285.91f),
             new(236.54f, 8.3f, 273.89f),
-            new(176.84f, 10.53f, 277.89f),
+            new(165.98f, 13.97f, 275.95f),
             new(182.65f, 8.5f, 280.35f),
+            new(176.84f, 10.53f, 277.89f),
+            new(151.21f, 11.83f, 271.91f),
+            new(188.05f, 10.87f, 283.86f),
         });
         Add("koharu_default", 15.30f, new Vector3[]
         {
@@ -83,6 +96,9 @@ public static class PlayerArt
             new(231f, 0f, 300f),
             new(210f, 0f, 297f),
             new(183f, 0f, 297f),
+            new(161.09f, 0f, 297.41f),
+            new(160.57f, 0f, 300.84f),
+            new(172.44f, 0f, 306.85f),
         });
         Add("koharu_rain", 15.30f, new Vector3[]
         {
@@ -97,24 +113,30 @@ public static class PlayerArt
             new(254.12f, 8.47f, 309.18f),
             new(209.1f, 10.78f, 293.17f),
             new(205.41f, 10.81f, 298.38f),
+            new(167.19f, 11.12f, 292.88f),
+            new(166.73f, 8.83f, 307.99f),
+            new(177.91f, 8.73f, 301.71f),
         });
         Add("rei_default", 13.50f, new Vector3[]
         {
-            new(354f, 0f, 270f),
+            new(272f, 0f, 250f),
             new(249f, 0f, 246f),
             new(312f, 0f, 258f),
-            new(345f, 0f, 255f),
+            new(274f, 0f, 240f),
             new(333f, 0f, 264f),
             new(243f, 42f, 255f),
             new(240f, 0f, 270f),
             new(327f, 0f, 270f),
-            new(372f, 0f, 270f),
+            new(287f, 0f, 237f),
             new(315f, 0f, 270f),
             new(216f, 0f, 270f),
+            new(167.43f, 0f, 270f),
+            new(158.42f, 0f, 270f),
+            new(168.56f, 0f, 270f),
         });
         Add("rei_encore", 13.50f, new Vector3[]
         {
-            new(402.95f, 8.18f, 278.18f),
+            new(379f, 8f, 252f),
             new(251.72f, 107.35f, 218.41f),
             new(306.06f, 13.21f, 264.22f),
             new(380.18f, 6.37f, 284.6f),
@@ -125,13 +147,16 @@ public static class PlayerArt
             new(381.79f, 8.3f, 286.34f),
             new(346.36f, 8.4f, 281.28f),
             new(268.44f, 8.32f, 278.84f),
+            new(166.73f, 11.83f, 278.93f),
+            new(172.45f, 10.81f, 284.3f),
+            new(174.88f, 12.96f, 289.02f),
         });
     }
 
     private static void Add(string id, float gameHeadHeight, Vector3[] landmarks)
     {
         var item = Cosmetics.Find(id)!;
-        string[] poses = { "idle", "aim_u", "aim_ur", "aim_r", "aim_dr", "aim_d", "spin_00", "spin_01", "spin_02", "spin_03", "spin_04" };
+        string[] poses = { "idle", "aim_u", "aim_ur", "aim_r", "aim_dr", "aim_d", "spin_00", "spin_01", "spin_02", "spin_03", "spin_04", "spin_05", "spin_06", "spin_07" };
         for (int i = 0; i < poses.Length; i++)
         {
             var head = landmarks[i];

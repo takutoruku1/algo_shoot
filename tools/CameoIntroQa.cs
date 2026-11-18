@@ -254,7 +254,7 @@ public partial class CameoIntroQa : Node
         }
         Hud.SkipLatched = false;
         _game.AutoAdvanceDialog = false;
-        Check(!talk.Active && !Hud.BubblePaused && !hud.HoldBubble && !hud.BattleMemoryTempo
+        Check(!talk.Active && !Hud.BubblePaused && !hud.HoldBubble
             && panels.All(p => !p.Invulnerable) && _game.IsIdleDialogSeen("once_midboss_shield"),
             "manual, AUTO or SKIP completion restores combat and records the one-time lesson");
         foreach (var panel in panels) panel.Shatter();
@@ -296,7 +296,7 @@ public partial class CameoIntroQa : Node
                 Check(Hud.BubblePaused, "unread lesson starts again after an interrupted encounter");
                 boss.QueueFree();
                 await Frames(3);
-                Check(!Hud.BubblePaused && !hud.HoldBubble && !hud.BattleMemoryTempo
+                Check(!Hud.BubblePaused && !hud.HoldBubble
                     && !_game.IsIdleDialogSeen("once_midboss_shield"),
                     "interrupted lesson releases its pause without marking the tutorial complete");
             }

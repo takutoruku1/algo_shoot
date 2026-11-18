@@ -11,42 +11,38 @@ public partial class Settings : Node2D
     public static float FlashScale => ReduceFlashes ? 0.15f : 1f;
     private Texture2D _background = null!;
 
-    private enum SType { Slider, Toggle, Segment, KeyBind }
+    public System.Action? Closed { get; set; }
+
+    private enum SType { Slider, Toggle, Segment }
 
     private sealed class Def
     {
         public string Key = "", Label = "", Sub = "";
         public SType Type;
         public string[] Options = System.Array.Empty<string>();
-        public string[] Keys = System.Array.Empty<string>();
         public float F; public bool B; public int I;
     }
     private sealed class Cat { public string Key = "", Name = "", Sub = ""; public List<Def> Items = new(); }
 
     private readonly List<Cat> _cats = new();
     private int _cat, _row;
-    private bool _navHeld, _lrHeld, _catHeld, _zHeld, _backHeld;
+    private bool _navHeld, _lrHeld, _catHeld, _zHeld, _backHeld, _helpHeld;
+    private int _dragRow = -1;
     private double _t;
     private bool _autoplay;
     // true の間は Apply() 内の "mode" が DisplayServer へ反映しない（_Ready の初回 ApplyAll 用）。
     // ユーザーが実際に操作するまで、開いただけではウィンドウを変えないため。
     private bool _initializing = true;
 
-    private const string SettingsPath = "user://settings.json";
+    private static string SettingsPath => Startup.DataPath("settings.json");
 
     public override void _Ready()
     {
-        _background = GD.Load<Texture2D>("res://char/ui/settings_room_v1.png");
+        _background = GD.Load<Texture2D>("res://char/bg2/title/L1_far.png");
+        TextureFilter = TextureFilterEnum.Linear;
         foreach (var a in OS.GetCmdlineUserArgs())
             if (a == "--demo" || a == "--qa") { _autoplay = true; break; }
-        // 設定は**親画面（タイトル）の曲を継続する**（2026-09-14 の設計方針「独立した画面は固有曲／
-        //   薄いサブ画面は親の曲を継続」。BGM/candidates.md ⑭〜⑲ の設計方針節）。
-        //   ここは以前 Music(BgmMenu) を決め打ちしていたが、設定へ入れるのはタイトルからだけなので
-        //   （TitleMenu.cs の Item.Settings が唯一の導線）、結果は「見上げた空 → 巡る思い出 → 見上げた空」
-        //   ＝開いて閉じるだけで曲が二度入れ替わっていた（2026-09-29 修正）。
-        //   単体起動（デバッグ／QA で Settings.tscn を直接開く）だけは無音になるので、そのときに限り
-        //   タイトル曲を立てる。
-        if (Audio.Instance is { HasMusic: false } audio) audio.Music(audio.BgmTitle);
+        if (Closed == null && Audio.Instance is { HasMusic: false } audio) audio.Music(audio.BgmTitle);
         BuildDefaults();
         LoadSettings();
         SyncModeFromWindow();
@@ -70,7 +66,6 @@ public partial class Settings : Node2D
         Def Slider(string k, string l, float v, string sub = "") => new() { Key = k, Label = l, Type = SType.Slider, F = v, Sub = sub };
         Def Toggle(string k, string l, bool v, string sub = "") => new() { Key = k, Label = l, Type = SType.Toggle, B = v, Sub = sub };
         Def Seg(string k, string l, string[] o, int v, string sub = "") => new() { Key = k, Label = l, Type = SType.Segment, Options = o, I = v, Sub = sub };
-        Def Keys(string k, string l, string[] keys, string sub = "") => new() { Key = k, Label = l, Type = SType.KeyBind, Keys = keys, Sub = sub };
 
         var disp = C("display", "表示", "Display");
         disp.Items.Add(Seg("mode", "画面モード", new[] { "ウィンドウ", "フルスクリーン" }, 1));
@@ -78,35 +73,16 @@ public partial class Settings : Node2D
         var audio = C("audio", "サウンド", "Audio");
         audio.Items.Add(Slider("master", "マスター音量", 80));
         audio.Items.Add(Slider("bgm", "BGM", 70));
-        audio.Items.Add(Slider("se", "効果音 (SE)", 85));
-        audio.Items.Add(Slider("voice", "ボイス", 90));
+        audio.Items.Add(Slider("se", "効果音", 85, "ショット・ボム・メニュー操作などの音"));
+        audio.Items.Add(Slider("alert", "被弾・警告音", 100, "被弾やボスの攻撃切り替えを知らせる音"));
+        audio.Items.Add(Slider("voice", "文字送り音", 90, "会話の文字が表示されるときの音"));
         audio.Items.Add(Slider("amb", "環境音", 55, "心象世界のノイズ"));
 
         var gp = C("game", "ゲームプレイ", "Gameplay");
         gp.Items.Add(Seg("msg", "メッセージ速度", new[] { "遅", "中", "速" }, 1));
         gp.Items.Add(Toggle("auto", "オート会話送り", false));
-        gp.Items.Add(Toggle("autosave", "オートセーブ", true, "クリア・帰還時に自動保存"));
+        gp.Items.Add(Toggle("autosave", "オートセーブ", true, "出撃・撃破・購入・帰還時に自動保存"));
         gp.Items.Add(Toggle("pauseunfocused", "画面を離れたら一時停止", true, "戦闘・物語中に他のウィンドウへ切り替えたとき"));
-
-        var ctrl = C("controls", "操作", "Controls");
-        // 操作表示モード：起動直後（まだ何も触っていない状態）にどちらの表記でヒントを出すかの初期値。
-        // 触った瞬間から直近デバイスへ自動追従する。パッド表記は Xbox 基準に一本化（2026-09-13）＝
-        // PlayStation の選択肢は廃止し、旧セーブの値(1)は「コントローラー」へ合流する。
-        ctrl.Items.Add(Seg("inputdisplay", "操作表示", new[] { "キーボード", "コントローラー" }, 0, "起動直後の表記（以降は自動切替）"));
-        ctrl.Items.Add(Keys("move", "移動", new[] { "↑", "↓", "←", "→" }));
-        // ★2026-09-26 作者決定のキーボード割り当て：Z＝溜め打ち（旧 C）／Shift 長押し＝ロックオン・離すと解除
-        //   （旧 F 送り／G 解除。F は「次の敵へ送り」として残る）／Ctrl＝回避（旧 Alt）／M＝メニュー（旧 Esc）。
-        //   パッド・マウスは変更なし。行数はパネルの高さ（8行）に収めるため、溜め打ちはショットの行に同居させる。
-        //   ★2026-09-27：メニューは Esc でも開く（PauseMenu.EscOpensHere）。スマホ系の画面の Esc は従来どおり「もどる」、
-        //     メニューの中の Esc は一段もどる。
-        //   ★2026-09-27：左手の定位置（小指 Shift／薬指 Z／中指 X／人差し指 C／親指 Space）に合わせ、
-        //     回避 Ctrl → Space、集中モード V → C。Ctrl は会話中の既読スキップだけに残る。
-        ctrl.Items.Add(Keys("shot", "ショット / 溜め打ち", new[] { "オート", "Z 長押し" }, "光は自動。Z を長押しして離すと溜め打ち"));
-        ctrl.Items.Add(Keys("lock", "ロックオン", new[] { "Shift" }, "押しているあいだ狙う。離すと外れる。A で前、S で次の敵へ"));
-        ctrl.Items.Add(Keys("bomb", "ボム", new[] { "X" }));
-        ctrl.Items.Add(Keys("dodge", "回避", new[] { "Space" }, "一瞬無敵で弾を抜ける"));
-        ctrl.Items.Add(Keys("focus", "集中モード", new[] { "C" }, "ホイール／サイドボタン／LB でも"));
-        ctrl.Items.Add(Keys("pause", "メニュー", new[] { "M", "Esc" }, "メニュー内の Esc は一段もどる（スマホの画面の Esc はもどる）"));
 
         var a11y = C("a11y", "アクセシビリティ", "Accessibility");
         a11y.Items.Add(Slider("shake", "画面振動", 100, "0で停止、100で通常の強さ"));
@@ -129,7 +105,9 @@ public partial class Settings : Node2D
     private const int IdSegBase = 3000;   // セグメントの各オプション（IdSegBase + row*100 + opt）
     // フッタの「もどる」。カード id（0..Cur.Count）より上・ナビ/セグメントの帯より下に置く
     //   ＝下のホバー追従（hov<Cur.Count／hov>=IdSegBase の分岐）のどちらにも誤って吸われない。
-    private const int IdBack    = 500;
+    private const int IdBack = 500, IdHelp = 501;
+    private static string HelpToken => Pad.ShowKeyboard ? "H" : Pad.Face(JoyButton.Back);
+    private static Rect2 HelpHintRect() => new(W - 240, H - 72, 200, 32);
 
     // フッタ「もどる」のクリック矩形。_Draw のフッタは FootHint を左から並べていくので、
     //   手前3つ（↑↓項目／←→調整／カテゴリ）の送り幅を同じ式で足して4つ目の左端を求める。
@@ -160,7 +138,15 @@ public partial class Settings : Node2D
         _t += delta;
         if (_autoplay) { GameManager.FadeToScene(this, "res://TitleMenu.tscn"); return; }
 
-        // マウス：フレーム頭でホットスポットをクリア。設定はポーズ対象外（CanOpenHere=false）＝唯一の登録者。
+        if (GetNode<HowToPlay>("/root/HowTo").IsOpen || Pad.UiBlocked(this))
+        {
+            _navHeld = _lrHeld = _catHeld = _zHeld = _backHeld = _helpHeld = true;
+            _dragRow = -1;
+            QueueRedraw();
+            return;
+        }
+        if (Closed != null) Pad.ConsumeUi(this);
+
         UiKit.BeginHotspots(Pad.MousePos());
         bool click = Pad.MouseClick();
 
@@ -171,6 +157,7 @@ public partial class Settings : Node2D
             if (cprev) _cat = (_cat - 1 + _cats.Count) % _cats.Count;
             if (cnext) _cat = (_cat + 1) % _cats.Count;
             _row = 0;
+            _dragRow = -1;
             Audio.Instance?.PlayUiMove();
         }
         _catHeld = cprev || cnext;
@@ -195,12 +182,25 @@ public partial class Settings : Node2D
         // ── マウス：カテゴリ／カード／セグメント各オプション／フッタ「もどる」の登録と処理 ──
         bool clickBack = MouseSettings(click);
 
+        bool help = Input.IsKeyPressed(Key.H) || Pad.Pressed(JoyButton.Back);
+        if ((help && !_helpHeld || click && UiKit.HoveredId() == IdHelp) && _t > 0.2)
+            GetNode<HowToPlay>("/root/HowTo").Open();
+        _helpHeld = help;
+
         bool back = Input.IsKeyPressed(Key.X) || Input.IsKeyPressed(Key.Escape) || Pad.Pressed(JoyButton.B)
                     || Pad.MouseRightClick(); // 右クリック＝もどる
         bool backEdge = back && !_backHeld; _backHeld = back;
-        if ((backEdge || clickBack) && _t > 0.2) { Audio.Instance?.PlayUiCancel(); Save(); GameManager.FadeToScene(this, "res://TitleMenu.tscn"); }
+        if ((backEdge || clickBack) && _t > 0.2) Close();
 
         QueueRedraw();
+    }
+
+    private void Close()
+    {
+        Audio.Instance?.PlayUiCancel();
+        Save();
+        if (Closed != null) Closed();
+        else GameManager.FadeToScene(this, "res://TitleMenu.tscn");
     }
 
     // マウス操作：左ナビでカテゴリ選択／右カードで項目選択＋値変更。
@@ -213,6 +213,7 @@ public partial class Settings : Node2D
         Vector2 m = Pad.MousePos();
         // フッタの「もどる」（他とは重ならない）。
         UiKit.Hotspot(BackHintRect(), IdBack);
+        UiKit.Hotspot(HelpHintRect(), IdHelp);
         // ナビ（カテゴリ）: id = IdNavBase + i。
         for (int i = 0; i < _cats.Count; i++) UiKit.Hotspot(NavRowRect(i), IdNavBase + i);
         // カード（項目）: id = i。セグメントは各オプション矩形も別 id で登録（後勝ち＝オプションが優先）。
@@ -225,7 +226,14 @@ public partial class Settings : Node2D
                     UiKit.Hotspot(SegmentOptRect(d, i, o), IdSegBase + i * 100 + o);
         }
 
-        // ホバー追従：マウス使用中はカーソル（カテゴリ/行）をホバー先へ寄せる（KBカーソルと同じ強調）。
+        if (!Pad.MouseDown()) _dragRow = -1;
+        if (_dragRow >= 0)
+        {
+            _row = _dragRow;
+            SetSliderFromMouse(Cur[_row], m.X);
+            return false;
+        }
+
         int hov = UiKit.HoveredId();
         if (Pad.UsingMouse && hov >= 0)
         {
@@ -252,7 +260,7 @@ public partial class Settings : Node2D
         if (clk >= IdNavBase && clk < IdNavBase + _cats.Count)
         {
             int ci = clk - IdNavBase;
-            if (ci != _cat) { _cat = ci; _row = 0; Audio.Instance?.PlayUiMove(); }
+            if (ci != _cat) { _cat = ci; _row = 0; _dragRow = -1; Audio.Instance?.PlayUiMove(); }
             return false;
         }
         // セグメントのオプションを直接クリック
@@ -283,16 +291,26 @@ public partial class Settings : Node2D
             {
                 // トラック矩形（DrawSlider と同一寸法）にクリックした X 比率で値を設定。
                 var (tx, trackW) = SliderTrack(_row);
-                float ratio = Mathf.Clamp((m.X - tx) / trackW, 0f, 1f);
-                d.F = Mathf.RoundToInt(ratio * 20f) * 5f; // 5刻みにスナップ（KB操作と粒度を揃える）
-                Apply(d); Save(); Audio.Instance?.PlayUiMove();
+                var track = new Rect2(tx - 8, CardRect(_row).GetCenter().Y - 14, trackW + 16, 28);
+                if (!track.HasPoint(m)) return;
+                _dragRow = _row;
+                SetSliderFromMouse(d, m.X);
                 break;
             }
             case SType.Toggle:
                 d.B = !d.B; Apply(d); Save(); Audio.Instance?.PlayUiConfirm();
                 break;
-            default: break; // Select/KeyBind は値変更なし（選択のみ）
+            default: break;
         }
+    }
+
+    private void SetSliderFromMouse(Def d, float x)
+    {
+        var (tx, trackW) = SliderTrack(_row);
+        float value = Mathf.RoundToInt(Mathf.Clamp((x - tx) / trackW, 0f, 1f) * 20f) * 5f;
+        if (d.F == value) return;
+        d.F = value;
+        Apply(d); Save(); Audio.Instance?.PlayUiMove();
     }
 
     // スライダーのトラック左端 x とトラック幅（DrawSlider と同一算出）。
@@ -350,10 +368,10 @@ public partial class Settings : Node2D
             case "reduceflash": ReduceFlashes = d.B; break;
             case "pauseunfocused": PauseWhenUnfocused = d.B; break;
             // 音量（バスは default_bus_layout.tres で定義）。
-            // Alert（被弾等の最優先音）は Master のみに従属させ、ここでは下げない。
             case "master": SetBusDb("Master", d.F); break;
             case "bgm":    SetBusDb("Music",  d.F); break;
             case "se":     SetBusDb("SE",     d.F); break;
+            case "alert":  SetBusDb("Alert",  d.F); break;
             case "voice":  SetBusDb("Voice",  d.F); break;
             case "amb":    SetBusDb("Amb",    d.F); break;
             // 会話：メッセージ速度（遅/中/速）とオート送り。GameManager へ反映。
@@ -380,11 +398,6 @@ public partial class Settings : Node2D
                 if (!_initializing)
                     DisplayServer.WindowSetMode(d.I == 1 ? DisplayServer.WindowMode.Fullscreen : DisplayServer.WindowMode.Windowed);
                 break;
-            // 操作表示モード。セグメントは 0=キーボード / 1=コントローラー の2値になった（Xbox 一本化）。
-            // 保存キー inputdisplay は 0=KB / 2=Xbox を書く（旧値 1=PS も読み込み側で Xbox 扱いに合流）。
-            case "inputdisplay":
-                Pad.Display = d.I <= 0 ? Pad.DisplayMode.Keyboard : Pad.DisplayMode.PadXbox;
-                break;
         }
     }
 
@@ -395,7 +408,7 @@ public partial class Settings : Node2D
         {
             if (d.Type == SType.Slider) data[d.Key] = d.F;
             else if (d.Type == SType.Toggle) data[d.Key] = d.B;
-            else if (d.Type == SType.Segment) data[d.Key] = d.Key == "inputdisplay" && d.I > 0 ? 2 : d.I;
+            else if (d.Type == SType.Segment) data[d.Key] = d.I;
         }
         using var f = FileAccess.Open(SettingsPath, FileAccess.ModeFlags.Write);
         f?.StoreString(Json.Stringify(data));
@@ -419,15 +432,6 @@ public partial class Settings : Node2D
             else if (d.Type == SType.Segment && value.VariantType is Variant.Type.Int or Variant.Type.Float)
                 d.I = Mathf.Clamp(value.AsInt32(), 0, d.Options.Length - 1);
         }
-        // 操作表示モードのセグメントは 0=キーボード / 1=コントローラー の2値。
-        //   ・未保存（旧データ）なら起動時に復元済みの Pad.Display から初期値を決める。
-        //   ・保存済みでも旧3値（1=PS / 2=Xbox）が入っていることがあるので 0/1 へ丸める＝
-        //     選択肢の範囲外を指したまま描かない（Xbox 一本化でどちらも「コントローラー」に合流）。
-        foreach (var c in _cats) foreach (var d in c.Items)
-            if (d.Key == "inputdisplay")
-                d.I = data.ContainsKey("inputdisplay")
-                    ? (d.I <= 0 ? 0 : 1)
-                    : (Pad.ShowKeyboard ? 0 : 1);
     }
 
     public static void ApplySaved(GameManager game)
@@ -458,7 +462,7 @@ public partial class Settings : Node2D
 
         DrawTextureRect(_background, new Rect2(0, 0, W, H), false);
         UiKit.VGradient(this, new Rect2(0, 0, W, H),
-            new[] { new Color(0.025f, 0.035f, 0.06f, 0.3f), new Color(0.025f, 0.035f, 0.06f, 0.15f), new Color(0.025f, 0.035f, 0.06f, 0.7f) }, new[] { 0f, 0.6f, 1f });
+            new[] { new Color(0.06f, 0.08f, 0.11f, 0.6f), new Color(0.06f, 0.08f, 0.11f, 0.35f), new Color(0.06f, 0.08f, 0.11f, 0.8f) }, new[] { 0f, 0.6f, 1f });
 
         float padX = 40f;
         // ── ヘッダ ──
@@ -482,7 +486,6 @@ public partial class Settings : Node2D
         float fy = H - 56f;
         DrawRect(new Rect2(padX, fy - 14, W - padX * 2, 1f), new Color(1, 1, 1, 0.08f));
         float fx = padX;
-        // ボタン表記は Pad 経由＝操作表示モードに追従。Q/E はパッドでは LB/RB(L1/R1)。
         string catTok = Pad.ShowKeyboard ? "Q E" : $"{Pad.Face(JoyButton.LeftShoulder)} {Pad.Face(JoyButton.RightShoulder)}";
         fx = FootHint(fx, fy, "↑↓", "項目");
         fx = FootHint(fx, fy, "←→", "調整");
@@ -492,6 +495,10 @@ public partial class Settings : Node2D
         bool backHov = UiKit.HoveredId() == IdBack;
         if (backHov) UiKit.Box(this, BackHintRect(), new Color(UiKit.Purify, 0.14f), 8f, new Color(UiKit.Info, 0.5f), 1f);
         FootHint(fx, fy, Pad.CancelToken, "もどる", backHov);
+        bool helpHov = UiKit.HoveredId() == IdHelp;
+        if (helpHov) UiKit.Box(this, HelpHintRect(), new Color(UiKit.Purify, 0.14f), 8f, new Color(UiKit.Info, 0.5f), 1f);
+        FootHint(W - 236, fy, HelpToken, "あそびかた", helpHov);
+        UiKit.Text(this, UiKit.Zen, new Vector2(W - 300, hy + 18), "変更は自動で保存されます", UiKit.FontLabel, UiKit.Text3);
 
         UiKit.EndDesign(this);
     }
@@ -525,7 +532,7 @@ public partial class Settings : Node2D
 
     private void DrawCard(Def d, float x, float y, float w, float h, bool sel)
     {
-        UiKit.Box(this, new Rect2(x, y, w, h), new Color(22 / 255f, 18 / 255f, 34 / 255f, 0.5f), 12f,
+        UiKit.Box(this, new Rect2(x, y, w, h), new Color(22 / 255f, 27 / 255f, 32 / 255f, 0.85f), 12f,
             sel ? new Color(UiKit.Info, 0.55f) : new Color(1, 1, 1, 0.07f), sel ? 1.5f : 1f);
 
         // 左：ラベル＋サブ
@@ -545,7 +552,6 @@ public partial class Settings : Node2D
             case SType.Slider: DrawSlider(d, right, cy); break;
             case SType.Toggle: DrawToggle(d, right, cy); break;
             case SType.Segment: DrawSegment(d, right, cy); break;
-            case SType.KeyBind: DrawKeys(d, right, cy); break;
         }
     }
 
@@ -565,6 +571,8 @@ public partial class Settings : Node2D
     {
         float pw = 48f, ph = 27f;
         float px = right - pw, py = cy - ph / 2f;
+        UiKit.Text(this, UiKit.Mono, new Vector2(px - 48, cy - 9), d.B ? "ON" : "OFF", UiKit.FontBody,
+            d.B ? UiKit.PurifyHi : UiKit.Text3);
         UiKit.Box(this, new Rect2(px, py, pw, ph), d.B ? UiKit.Purify : new Color(1, 1, 1, 0.14f), ph / 2f);
         float kx = d.B ? px + pw - 24 : px + 3;
         DrawCircle(new Vector2(kx + 10.5f, cy), 10.5f, UiKit.White);
@@ -588,56 +596,6 @@ public partial class Settings : Node2D
             UiKit.Text(this, UiKit.ZenBold, new Vector2(ox, textTop), d.Options[i], UiKit.FontLabel, on ? UiKit.BgDeep : UiKit.Text2, HorizontalAlignment.Center, ws[i]);
             ox += ws[i] + 4f;
         }
-    }
-
-    private void DrawKeys(Def d, float right, float cy)
-    {
-        // 2026-09-27：文字の枠から UiKit.KeyCapRow（押せる鍵の形・パッドは丸ボタン／ピル）へ。ハブのヒント帯・あそびかたと同じ表現。
-        float h = 26f, gap = 8f;
-        // 表記は Pad に集約：操作表示モード(KB/PS/Xbox)に応じて各操作のキー/ボタン表記を出し分ける。
-        // d.Keys（BuildDefaults の静的キーボード表記）は KB 表示時のフォールバックにのみ使う。
-        string[] toks = KeyTokens(d.Key);
-        // 右端から逆順に配置（1トークン＝キャップ＋添え文字の並び。「オート」「長押し」は添え文字）
-        float x = right;
-        for (int i = toks.Length - 1; i >= 0; i--)
-        {
-            float kw = UiKit.KeyCapRowW(toks[i], h);
-            x -= kw;
-            UiKit.KeyCapRow(this, new Vector2(x, cy - h / 2f), toks[i], h, ink: new Color("e8e2f0"));
-            x -= gap;
-        }
-    }
-
-    // 操作キーバインド行の表記を、直近デバイス（Pad.ShowKeyboard）に従って解決する。
-    // KB 表示時は従来どおりキーボードキー（移動=矢印、ショット=オート…）。
-    // パッド表示時は Pad.Face で物理 JoyButton を Xbox 表記へ（物理マッピングは不変・表記のみ）。
-    //   ※"slow"（低速移動）は 2026-09-13 に機能ごと廃止＝行が存在しない。
-    private static string[] KeyTokens(string rowKey)
-    {
-        if (Pad.ShowKeyboard)
-            return rowKey switch
-            {
-                "move"  => new[] { "↑↓←→" },
-                "shot"  => new[] { "オート", "Z 長押し" },   // 射撃ボタンは廃止（常時オート発射）。Z 長押し＝溜め打ち
-                "lock"  => new[] { "Shift" },                // 押しているあいだロック。A で前、S で次の敵へ
-                "bomb"  => new[] { "X" },
-                "dodge" => new[] { "Space" },
-                "focus" => new[] { "C" },
-                "pause" => new[] { "M", "Esc" },
-                _       => System.Array.Empty<string>(),
-            };
-        // パッド表記（Xbox 基準）。Player.cs の入力判定と一致させる。
-        return rowKey switch
-        {
-            "move"  => new[] { "L" },                                    // 左スティック
-            "shot"  => new[] { "オート", Pad.Face(JoyButton.Y) + " 長押し" }, // 射撃ボタンは廃止（常時オート発射）。Y 長押し＝溜め打ち
-            "lock"  => new[] { Pad.Face(JoyButton.RightShoulder) },
-            "bomb"  => new[] { Pad.Face(JoyButton.X) },
-            "dodge" => new[] { Pad.Face(JoyButton.LeftStick) },
-            "focus" => new[] { Pad.Face(JoyButton.LeftShoulder) },
-            "pause" => new[] { Pad.Face(JoyButton.Start) },
-            _       => System.Array.Empty<string>(),
-        };
     }
 
     // hot=true はマウスホバー中（クリックできるヒントだけが取りうる状態）＝キャップを沈め、文字を一段明るく。

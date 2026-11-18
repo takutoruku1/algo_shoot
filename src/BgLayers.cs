@@ -5,6 +5,7 @@ public partial class BgLayers : Node2D
 {
     private const float ScreenWidth = 384f;
     private const float ScreenHeight = 216f;
+    private const float PanoramaLoopPeriod = 0.88f;
 
     // 層の定義（Root から配列で注入する）。
     //   Path      : res:// のテクスチャ。読めない層は黙って飛ばす（他の層は敷かれる＝事故らない）。
@@ -13,7 +14,7 @@ public partial class BgLayers : Node2D
     //   Tint      : Modulate。無彩色素材への色掛けにも使う。
     //   Additive  : true で加算合成（光の層）。
     //   Loop      : true のとき横へループ。
-    //   Travel    : 道中の区間進行に沿って一度だけ横へ通過する。
+    //   Travel    : 道中パノラマ。通常は区間進行に沿って一度だけ横へ通過する。
     //   Offset    : FitToField=false の素材を置く画面座標。
     public readonly struct Layer
     {
@@ -48,6 +49,7 @@ public partial class BgLayers : Node2D
     // 基準スクロール速度（px/s）。StageBackground.MidScrollSpeed と同じ控えめな値に揃える。
     public float ScrollSpeed = 13f;
     public float TravelProgress;
+    public bool ContinuousTravel;
 
     // 非ループ層の視差スウェイ幅（px）と追従速度（px/s）。自機が左端→右端で最大この幅だけ左へ寄る。
     // 一枚物が画面外へ流れ去らないよう、非ループ層は「流す」のではなく「自機位置に紐づけて揺らす」。
@@ -141,17 +143,18 @@ public partial class BgLayers : Node2D
 
             // 部分素材は元の配置比率を保ち、盤面用の背景だけ表示範囲へフィットさせる。
             float scale = def.FitToField
-                ? Mathf.Max((Field.Width + 8f) / tex.GetWidth(), (ScreenHeight + 8f) / tex.GetHeight())
+                ? Mathf.Max((Field.WorldRight - Field.Left + 8f) / tex.GetWidth(), (ScreenHeight + 8f) / tex.GetHeight())
                 : ScreenHeight / 720f;
             float tileW = tex.GetWidth() * scale;
             var origin = def.FitToField
-                ? new Vector2(Field.CenterX, ScreenHeight * 0.5f) - tex.GetSize() * scale * 0.5f
+                ? new Vector2((Field.Left + Field.WorldRight) * .5f, ScreenHeight * 0.5f) - tex.GetSize() * scale * 0.5f
                 : def.Offset;
             ShaderMaterial? panorama = null;
             if (def.Travel)
             {
                 origin.X = Field.Left - 4f;
                 panorama = new ShaderMaterial { Shader = GD.Load<Shader>("res://shaders/route_panorama.gdshader") };
+                panorama.SetShaderParameter("loop_period", ContinuousTravel ? PanoramaLoopPeriod : 0f);
             }
 
             // ループ層は画面幅を覆う枚数＋1（巻き戻し用に最低2枚）。非ループは1枚。
@@ -179,7 +182,7 @@ public partial class BgLayers : Node2D
                 {
                     spr.Material = panorama;
                     spr.RegionEnabled = true;
-                    spr.RegionRect = new Rect2(0, 0, (Field.Width + 8f) / scale, tex.GetHeight());
+                    spr.RegionRect = new Rect2(0, 0, (Field.WorldRight - Field.Left + 8f) / scale, tex.GetHeight());
                 }
                 AddChild(spr);
                 tiles[i] = spr;
@@ -196,7 +199,7 @@ public partial class BgLayers : Node2D
                 // ループ層の X はループ用オフセット(0起点)、非ループ層の X は現在の画面X（初期位置＝配置位置）。
                 // 全画面の一枚物は「盤面の左端が素材の左端」を初期位置にする（_reveal は 0 から立ち上がる）
                 // ＝1フレーム目から視差の基準位置に居る（開幕に背景がガクッと寄らない）。
-                X = def.Loop ? 0f : def.FitToField ? origin.X : def.Offset.X + (IsFullWidth(tileW) ? RevealMax : 0f),
+                X = def.Loop || def.Travel ? 0f : def.FitToField ? origin.X : def.Offset.X + (IsFullWidth(tileW) ? RevealMax : 0f),
             });
         }
     }
@@ -306,11 +309,16 @@ public partial class BgLayers : Node2D
             {
                 if (!Hud.BubblePaused && !Pad.UiBlocked(this))
                 {
-                    // フェード中の旧景は通過地点を保ち、新景だけを先へ進める。
-                    if (!_fadingOut.Contains(l)) l.TravelProgress = TravelProgress;
-                    float span = Mathf.Max(0f, l.TileW - Field.Width - 8f);
-                    float depth = Mathf.Clamp(l.ScrollMul / 1.4f, 0f, 1f);
-                    l.X = span * Mathf.Clamp(l.TravelProgress, 0f, 1f) * depth;
+                    if (ContinuousTravel)
+                        l.X = Mathf.PosMod(l.X + ScrollSpeed * l.ScrollMul * posMul * dt, l.TileW * PanoramaLoopPeriod);
+                    else
+                    {
+                        // フェード中の旧景は通過地点を保ち、新景だけを先へ進める。
+                        if (!_fadingOut.Contains(l)) l.TravelProgress = TravelProgress;
+                        float span = Mathf.Max(0f, l.TileW - (Field.WorldRight - Field.Left) - 8f);
+                        float depth = Mathf.Clamp(l.ScrollMul / 1.4f, 0f, 1f);
+                        l.X = span * Mathf.Clamp(l.TravelProgress, 0f, 1f) * depth;
+                    }
                     l.PanoramaMaterial.SetShaderParameter("scroll_offset", l.X / l.TileW);
                 }
                 continue;

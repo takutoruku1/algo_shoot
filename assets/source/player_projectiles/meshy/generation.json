@@ -1,0 +1,78 @@
+{
+  "provider": "Meshy via Higgsfield",
+  "generated_at": "2026-11-18",
+  "models": {
+    "akari_shot": {
+      "reference": "char/player/akari/akari_shot_v1.png",
+      "job_id": "08728e20-7c67-444b-b3d3-5ef99ea68699",
+      "params": {
+        "model": "meshy_image_to_3d",
+        "count": 1,
+        "medias": [
+          {
+            "role": "image",
+            "value": "6967c5ae-4403-485f-99ed-ea91f9a9d2dd"
+          }
+        ],
+        "should_texture": true,
+        "enable_pbr": true,
+        "should_remesh": true,
+        "target_polycount": 60000,
+        "topology": "triangle",
+        "symmetry_mode": "auto",
+        "enable_rigging": false,
+        "enable_animation": false,
+        "texture_prompt": "Premium real physically based amber glass and polished gold flame projectile. Preserve the exact reference silhouette, golden flame tails, round amber gemstone in its raised gold bezel. Finely cut transparent amber gem, crisp polished edges, smooth metallic gold flame surfaces, warm orange recessed facets, realistic roughness and subtle fine imperfections. A single isolated game projectile, no pedestal, no additional objects, no text.",
+        "seed": 202611181
+      }
+    },
+    "koharu_shot": {
+      "reference": "char/player/koharu/koharu_shot_v1.png",
+      "job_id": "5056305a-66da-4bb7-a817-54d11e521df5",
+      "params": {
+        "model": "meshy_image_to_3d",
+        "count": 1,
+        "medias": [
+          {
+            "role": "image",
+            "value": "60e7e26c-f091-409b-a627-5a001f9df3e9"
+          }
+        ],
+        "should_texture": true,
+        "enable_pbr": true,
+        "should_remesh": true,
+        "target_polycount": 60000,
+        "topology": "triangle",
+        "symmetry_mode": "auto",
+        "enable_rigging": false,
+        "enable_animation": false,
+        "texture_prompt": "Premium real physically based mint and lilac heart jewel projectile. Preserve the exact reference heart silhouette and twin tapered mint ribbon tails. Transparent pale lavender heart gemstone in a translucent mint crystalline heart frame, polished beveled edges, subtle fine surface detail, realistic material roughness and highlights. A single isolated game projectile, no pedestal, no additional objects, no text.",
+        "seed": 202611182
+      }
+    },
+    "rei_shot": {
+      "reference": "char/player/rei/rei_shot_v1.png",
+      "job_id": "c2ca3a51-23d9-4340-9509-e5152a649743",
+      "params": {
+        "model": "meshy_image_to_3d",
+        "count": 1,
+        "medias": [
+          {
+            "role": "image",
+            "value": "0a6d81c7-914e-4ad9-a0f7-69aa2acf4bd1"
+          }
+        ],
+        "should_texture": true,
+        "enable_pbr": true,
+        "should_remesh": true,
+        "target_polycount": 60000,
+        "topology": "triangle",
+        "symmetry_mode": "auto",
+        "enable_rigging": false,
+        "enable_animation": false,
+        "texture_prompt": "Premium real physically based gold star and violet ribbon projectile. Preserve the exact reference five-pointed golden star, violet border and two trailing ribbons. Polished gold star with crisp bevels and engraved depth, translucent amethyst border, satin lavender and deep purple ribbon surfaces, realistic roughness and subtle fine imperfections. A single isolated game projectile, no pedestal, no additional objects, no text.",
+        "seed": 202611183
+      }
+    }
+  }
+}

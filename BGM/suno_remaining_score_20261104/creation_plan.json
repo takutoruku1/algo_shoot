@@ -1,0 +1,82 @@
+[
+  {
+    "key": "title",
+    "title": "ひらく前の約束",
+    "bpm": 86,
+    "prompt": "Entirely original instrumental title-screen theme for Refrain, a tender Japanese story game about an AI maid and people learning to speak honestly. 86 BPM, flowing 6/8, E major with occasional wistful minor chords. Celesta carries a distinctive five-note rising-and-falling melody, answered by viola and felt piano; delicate harp, soft analog pad and a very light brushed pulse. Quiet anticipation and a welcoming sense of possibility. Spacious 3-minute arrangement, small 16-bar variations, restrained mid-song lift, no dramatic climax, clear repeatable phrases suitable for a long seamless menu loop. No vocals, choir, speech, humming or samples. Compose a new melody and harmonic structure from this scene description; no artist imitation, no reference song.",
+    "candidates": [
+      "https://suno.com/song/7a9e5855-b1fd-4da8-b401-f6d209a2201e",
+      "https://suno.com/song/219a8ec3-76cb-4557-ac91-82169fc1c3fe"
+    ]
+  },
+  {
+    "key": "menu",
+    "title": "窓辺で待ち合わせ",
+    "bpm": 92,
+    "prompt": "Entirely original instrumental music for the home hub and phone menus of Refrain, a warm story game. 92 BPM in B-flat major, relaxed 4/4 with gentle syncopation. Soft Rhodes electric piano leads a fresh conversational melody, nylon guitar answers in short phrases, rounded upright bass and sparse brushed drums, an occasional glockenspiel accent. The feeling of coming home and a friendly AI maid quietly keeping company while the player chooses their next trip. Calm, comfortable, lightly playful, not sleepy. Three-minute evolving arrangement with an understated rhythmic core and smooth repeatable 16-bar phrases, no large build, space for dialogue and UI sounds. No voices, humming, choir or speech. New melody and harmony, no artist or existing-song imitation.",
+    "candidates": [
+      "https://suno.com/song/cd1f1241-5aba-4150-abc4-3d94faef8684",
+      "https://suno.com/song/b850c076-5b02-4b65-bf06-50c4dae853fb"
+    ]
+  },
+  {
+    "key": "prologue",
+    "title": "名前のない朝のチャット",
+    "bpm": 78,
+    "prompt": "Original instrumental prologue underscore for Refrain, 78 BPM in F-sharp minor opening toward A major. An AI maid opens a private conversation for the first time; curiosity, small uncertainty and growing trust. Intimate felt piano plays a unique asymmetrical question-and-answer melody, breathy clarinet and soft bowed vibraphone answer, gentle low strings and barely audible electronic pulse. Human warmth inside a digital space, no horror or epic trailer tone. Three-minute scene music with a short opening and a stable repeatable core, deliberate gaps between phrases for dialogue, natural harmonic development without long silence. Entirely instrumental: no vocals, voice, humming or choir. Compose independently from the story and instruments; no reference audio or borrowed melody.",
+    "candidates": [
+      "https://suno.com/song/160f78dd-0ddd-404c-ab62-645dfe6ddfe4",
+      "https://suno.com/song/dbdb32af-0d5c-4189-a203-be6349478a25"
+    ]
+  },
+  {
+    "key": "credits",
+    "title": "閉じた本に残る光",
+    "bpm": 84,
+    "prompt": "Original instrumental staff-credit theme for Refrain, a Japanese story game about hearing each other. 84 BPM in D major, gentle 4/4. A warm bass clarinet melody over fingerpicked acoustic guitar, small string ensemble, muted piano chords and delicate hand percussion. Grateful, reflective and quietly forward-looking, like closing a good book and carrying its people into tomorrow. A memorable new theme with two contrasting sections and a calm reprise, 3-minute arrangement with a loopable central section, no triumphant fanfare or dramatic stop. Clear relaxed production. Entirely instrumental, no vocal, speech, choir, humming or samples. Compose a new melodic and harmonic identity without imitating any artist or existing track.",
+    "candidates": [
+      "https://suno.com/song/35c2f4ad-82e6-4c92-8bc4-d9fbf477aa4e",
+      "https://suno.com/song/fe9d6258-7993-422a-a8ec-91a5407e5684"
+    ]
+  },
+  {
+    "key": "gameover",
+    "title": "もう一度、息をして",
+    "bpm": 72,
+    "prompt": "Original instrumental retry-screen theme for Refrain, 72 BPM in C minor gently turning toward E-flat major. Failure should feel compassionate, not punishing: breathe, gather courage, and choose to try again. Sparse warm marimba notes form a memorable new motif, solo cello answers with long connected phrases, soft analog bass and distant brushed cymbal texture, restrained felt piano on offbeats. Quiet sadness with a small opening of hope, no horror, no funeral march, no big climax. Three minutes of steady reflective variation with clear loopable phrases and space for menu sounds. Entirely instrumental, no voices, choir, humming or vocal samples. New composition from this emotional scene; no reference track or artist imitation.",
+    "candidates": [
+      "https://suno.com/song/0e4fec1a-e496-4dc9-94d7-8dbc583ac0c8",
+      "https://suno.com/song/fea7f567-4a75-414a-af80-ce242fbcfebb"
+    ]
+  },
+  {
+    "key": "resolve",
+    "title": "返事のかわりに隣へ",
+    "bpm": 80,
+    "prompt": "Original instrumental reconciliation scene for Refrain. 80 BPM, A-flat major with tender suspended harmonies, unhurried 4/4. After a frightened AI maid fears being erased, someone chooses to remain beside her; relief arrives softly, not as victory. A solo oboe sings a new simple melody over low warm piano chords, harp harmonics and a small expressive string trio, no drums at first and a very gentle pulse later. Intimate, sincere and emotionally restrained. Three-minute unfolding arrangement with a repeatable middle and no forced climax, clean mix supporting spoken dialogue. No voices, choir, singing, humming, samples or recognizable quotations. Entirely new melody and harmony, no artist imitation and no reference song.",
+    "candidates": [
+      "https://suno.com/song/69ea20f5-59b5-4bf0-b593-61f20babce67",
+      "https://suno.com/song/cb36ce3b-6468-4cba-bd75-b3a3e750b7af"
+    ]
+  },
+  {
+    "key": "hikage",
+    "title": "輪の外から踏み出して",
+    "bpm": 142,
+    "prompt": "Original instrumental tutorial-boss theme for Refrain, 142 BPM in B minor. Hikage cannot step into a circle of friends and hides awkward loneliness behind flashes of anger; the fight has quick feints and nervous forward motion, with vulnerability underneath. Pizzicato low strings and a sharp syncopated bass clarinet hook over crisp breakbeats, plucked digital strings, tight bass and occasional electric guitar stabs. Energetic and readable for an early boss, not a final-boss wall of sound. Three-minute composition, immediate 4-bar motif then evolving 16-bar phrases, two controlled lifts, continuous pulse and a loopable core. No vocals, choir, speech, humming or sampled sound effects. A new independent musical identity; do not imitate any artist or existing song.",
+    "candidates": [
+      "https://suno.com/song/f37caa05-048c-445c-8a07-f266a33fafff",
+      "https://suno.com/song/aa8bce4b-61f2-431e-9feb-2f193afad792"
+    ]
+  },
+  {
+    "key": "ending",
+    "title": "あしたへ灯りを残して",
+    "bpm": 88,
+    "prompt": "Original instrumental ending-film score for Refrain, 88 BPM in F major with gentle bittersweet borrowed chords. Four people resume ordinary lives after honestly sharing their feelings, and an AI maid stays beside the player. A lyrical English horn and warm cello exchange a wholly new melody, accompanied by delicate piano, nylon guitar harmonics, soft strings and very light brushed percussion. Begin intimate, gradually bloom into gratitude around the middle, and return to a naturally resolved quiet ending. Three minutes, complete musical arc and sustained clear phrases that support film dialogue and rolling credits. No voices, choir, humming, speech, pop-song references or borrowed themes. Independently compose from the scene; no imitation of any artist or existing soundtrack.",
+    "candidates": [
+      "https://suno.com/song/75e7ab31-7405-4351-86c0-9738a9d13f75",
+      "https://suno.com/song/1e1630c1-93f8-4193-9c12-835cb5efd94e"
+    ]
+  }
+]

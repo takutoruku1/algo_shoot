@@ -30,18 +30,26 @@ public partial class BossSpellQa : Node
             var game = GetNode<GameManager>("/root/Game");
             game.ResetPersistent();
             game.AutoSaveEnabled = false;
-            if (OS.GetCmdlineUserArgs().Contains("--unfolders")) game.MarkIdleDialogSeen("once_midboss_shield");
-            DisplayServer.WindowSetMode(DisplayServer.WindowMode.Windowed);
-            DisplayServer.WindowSetSize(new Vector2I(1280, 720));
+            if (OS.GetCmdlineUserArgs().Contains("--unfolders") || OS.GetCmdlineUserArgs().Contains("--break"))
+                game.MarkIdleDialogSeen("once_midboss_shield");
+            bool blenderUnfolders = OS.GetCmdlineUserArgs().Contains("--blender-unfolders")
+                || OS.GetCmdlineUserArgs().Contains("--unfolder-rotation");
+            if (!blenderUnfolders || DisplayServer.GetName() != "headless")
+            {
+                DisplayServer.WindowSetMode(DisplayServer.WindowMode.Windowed);
+                DisplayServer.WindowSetSize(new Vector2I(1280, 720));
+            }
             await Frames(1);
-            if (OS.GetCmdlineUserArgs().Contains("--aoe-pixels"))
+            if (blenderUnfolders)
+                await CheckBlenderUnfolders(game);
+            else if (OS.GetCmdlineUserArgs().Contains("--aoe-pixels"))
             {
                 await CheckSafeZonePixels();
                 GD.Print("[BossSpellQA] PIXELS ALL PASS");
                 GetTree().Quit();
                 return;
             }
-            if (OS.GetCmdlineUserArgs().Contains("--posts"))
+            else if (OS.GetCmdlineUserArgs().Contains("--posts"))
                 await CheckTechniquePosts(game);
             else if (OS.GetCmdlineUserArgs().Contains("--koharu-body"))
                 await CheckKoharuBody(game);
@@ -124,6 +132,306 @@ public partial class BossSpellQa : Node
             GetTree().Paused = false;
             GetTree().Quit(1);
         }
+    }
+
+    private async Task CheckBlenderUnfolders(GameManager game)
+    {
+        bool rendered = DisplayServer.GetName() != "headless";
+        bool rotation = OS.GetCmdlineUserArgs().Contains("--unfolder-rotation");
+        string output = ProjectSettings.GlobalizePath(rotation ? "res://build/qa_story/unfolder_rotation_20261030"
+            : "res://build/qa_story/unfolder_blender_20261030");
+        DirAccess.MakeDirRecursiveAbsolute(output + "/shots");
+        typeof(Settings).GetProperty(nameof(Settings.PauseWhenUnfocused))!.SetValue(null, false);
+        GetNode<Node>("/root/QaPilot").ProcessMode = ProcessModeEnum.Disabled;
+        GetNode<Node>("/root/DemoPilot").ProcessMode = ProcessModeEnum.Disabled;
+        game.MarkIdleDialogSeen("once_midboss_shield");
+        game.Difficulty = GameManager.Diff.Normal;
+        var results = new List<object>();
+        var atlasResults = new List<object>();
+        string[] scenes = { "Akari", "Koharu", "Rei", "MinaBattle" };
+        string[] ids = { "akari", "koharu", "rei", "mina" };
+        string[] names = { "あかり", "こはる", "レイ", "ミナ" };
+        StageTheme[] themes = { StageTheme.Akari, StageTheme.Koharu, StageTheme.Rei, StageTheme.Mina };
+        UnfolderKind[] kinds = { UnfolderKind.Akari, UnfolderKind.Koharu, UnfolderKind.Rei, UnfolderKind.Mina };
+        void BaseCall(Enemy enemy, string method, params object[] args) =>
+            typeof(Enemy).GetMethod(method, Private)!.Invoke(enemy, args);
+        for (int index = 0; index < scenes.Length; index++)
+        {
+            string scene = scenes[index], id = ids[index], roadId = id == "mina" ? "final" : id;
+            string oldBoss = $"res://char/ui/unfolder_{id}_v1.png", oldRoad = $"res://char/v3/panel_{roadId}.png";
+            string newBoss = $"res://char/ui/blender/unfolder_{id}.png", newRoad = $"res://char/ui/blender/panel_{roadId}.png";
+            Check(UnfolderMotion.TexturePath(kinds[index]) == newBoss && Panel.ResolveTexPath($"res://{scene}.tscn") == newRoad,
+                $"{id}: production boss and road texture selection uses the Blender assets");
+            foreach (var asset in new[] { (Path: newBoss, Original: oldBoss, Boss: true), (Path: newRoad, Original: oldRoad, Boss: false) })
+            {
+                Check(asset.Path != asset.Original && Godot.FileAccess.FileExists(asset.Original)
+                    && ResourceLoader.Exists(asset.Path), asset.Path + ": new resource and retained original are present");
+                using var pixels = GD.Load<Texture2D>(asset.Path).GetImage();
+                Check(pixels.GetWidth() == 256 && pixels.GetHeight() == 256
+                    && pixels.DetectAlpha() != Image.AlphaMode.None
+                    && pixels.GetPixel(0, 0).A == 0 && pixels.GetPixel(255, 255).A == 0
+                    && pixels.GetPixel(0, 255).A == 0 && pixels.GetPixel(255, 0).A == 0
+                    && pixels.GetPixel(128, 128).A > .5f,
+                    asset.Path + ": 256px artwork has real transparent surroundings and an opaque aiming core");
+                if (asset.Boss) Check(pixels.HasMipmaps(), asset.Path + ": mipmaps preserve the small rotating boss artwork");
+                if (rotation) atlasResults.Add(CheckUnfolderRotationAtlas(asset.Path));
+            }
+
+            Pool.DespawnAll();
+            GD.Seed(20261030);
+            game.SelectedEntry = GameManager.StageEntry.Start;
+            game.SelectedJob = id == "mina" ? Job.Magic : Job.Tank;
+            var root = GD.Load<PackedScene>($"res://{scene}.tscn").Instantiate<Node2D>();
+            GetTree().Root.AddChild(root);
+            GetTree().CurrentScene = root;
+            root.SetProcess(false);
+            ((Node)root.GetType().GetProperty("Stage")!.GetValue(root)!).SetProcess(false);
+            var world = root.GetNode<Node2D>("World");
+            world.ProcessMode = ProcessModeEnum.Disabled;
+            var player = world.GetNode<Player>("Player");
+            player.Position = new Vector2(Field.Left + 42, 152);
+            Write(player, "_invincible", true);
+            Write(player, "_invincibleTimer", 999f);
+            var hud = root.GetNode<Hud>("Hud");
+            hud.HoldBubble = false;
+            hud.HideBubble();
+            hud.SetCinematicMode(false);
+            foreach (string timer in new[] { "_bannerTimer", "_cutinTimer", "_bossLineTimer" }) Write(hud, timer, 0d);
+            Hud.BubblePaused = false;
+            Enemy boss = index switch { 0 => new BossAkari(), 1 => new BossKoharu(), 2 => new BossRei(), _ => new BossMina() };
+            boss.Position = new Vector2(Field.BossFrameCenterX, 118);
+            world.AddChild(boss);
+            BaseCall(boss, "TickEntrance", 0d);
+            BaseCall(boss, "TickEntrance", 2d);
+            BaseCall(boss, "TickSwapAnim", 1d);
+            BaseCall(boss, "TickBodyMotion", 0d);
+            BaseCall(boss, "TickIllustrationMotion", 0d);
+            boss.SetPanelsInvulnerable(false);
+            var road = new MidEnemy { Position = new Vector2(208, 145) };
+            road.Configure(EnemyTable.CharactersFor(themes[index])[0]);
+            world.AddChild(road);
+            Call(road, "TickLivingMotion", 0d);
+            var bossPanels = boss.GetChildren().OfType<Panel>().ToArray();
+            var roadPanels = road.GetChildren().OfType<Panel>().ToArray();
+            Check(bossPanels.Length > 0 && roadPanels.Length == 3, $"{id}: actual boss and road shields are instantiated");
+            foreach (var panel in bossPanels.Concat(roadPanels)) panel._PhysicsProcess(0);
+            foreach (var group in new[] { (Panels: bossPanels, Path: newBoss, Height: 16f, Radius: 3f),
+                (Panels: roadPanels, Path: newRoad, Height: 14f * .82f, Radius: 3f * .82f) })
+            {
+                Check(group.Panels.All(panel =>
+                {
+                    var sprite = panel.GetChildren().OfType<Sprite2D>().Single();
+                    var shape = (CircleShape2D)panel.GetChildren().OfType<CollisionShape2D>().Single().Shape;
+                    return MatchesUnfolderFrame(panel, group.Path) && sprite.Centered
+                        && Math.Abs(sprite.Texture.GetHeight() * sprite.Scale.Y - group.Height) < .001f
+                        && Math.Abs(shape.Radius - group.Radius) < .001f && panel.Scale.IsEqualApprox(Vector2.One)
+                        && panel.CollisionLayer == 16 && panel.CollisionMask == 2;
+                }), $"{group.Path}: real panels retain {group.Height:0.00}px height, {group.Radius:0.00}px circular collision, and shot-only collision layers");
+            }
+            var initialInk = bossPanels.Concat(roadPanels).Select(panel => panel.Ink).ToArray();
+            if (rotation && !rendered)
+                await CheckUnfolderRotationClock(id, bossPanels, roadPanels, newBoss, newRoad, hud);
+            if (rendered)
+            {
+                var canvas = new CanvasLayer { Layer = 30 };
+                root.AddChild(canvas);
+                canvas.AddChild(new ColorRect { Position = new Vector2(Field.Left + 4, 15), Size = new Vector2(248, 86),
+                    Color = new Color("111728", .94f), MouseFilter = Control.MouseFilterEnum.Ignore });
+                void LabelAt(string text, Vector2 position, Vector2 size, int fontSize)
+                {
+                    var label = new Label { Text = text, Position = position, Size = size,
+                        HorizontalAlignment = HorizontalAlignment.Center, MouseFilter = Control.MouseFilterEnum.Ignore };
+                    label.AddThemeFontOverride("font", UiKit.Zen);
+                    label.AddThemeFontSizeOverride("font_size", fontSize);
+                    label.AddThemeColorOverride("font_outline_color", new Color("101520"));
+                    label.AddThemeConstantOverride("outline_size", 2);
+                    canvas.AddChild(label);
+                }
+                LabelAt(names[index] + (rotation ? " / アンフォールダーの立体回転" : " / アンフォールダーの素材比較"),
+                    new Vector2(72, 3), new Vector2(238, 9), 7);
+                LabelAt("ボス・拡大", new Vector2(77, 18), new Vector2(108, 8), 6);
+                LabelAt("道中・拡大", new Vector2(205, 18), new Vector2(108, 8), 6);
+                string[] paths = rotation ? new[] { newBoss, newBoss, newRoad, newRoad } : new[] { oldBoss, newBoss, oldRoad, newRoad };
+                float[] x = { 102, 158, 230, 286 };
+                var comparisons = new Sprite2D[4];
+                for (int asset = 0; asset < paths.Length; asset++)
+                {
+                    var texture = GD.Load<Texture2D>(paths[asset]);
+                    comparisons[asset] = new Sprite2D { Texture = texture, Position = new Vector2(x[asset], 57),
+                        Scale = Vector2.One * (48f / texture.GetHeight()), TextureFilter = CanvasItem.TextureFilterEnum.LinearWithMipmaps };
+                    canvas.AddChild(comparisons[asset]);
+                    LabelAt(asset % 2 == 0 ? rotation ? "静止版" : "元絵" : "立体回転", new Vector2(x[asset] - 26, 86), new Vector2(52, 8), 6);
+                }
+                LabelAt("道中・実寸11.48px", new Vector2(151, 180), new Vector2(114, 8), 6);
+                LabelAt("ボス・16px", new Vector2(319, 193), new Vector2(64, 8), 5);
+                LabelAt("素材確認 / 自機固定・無敵 / 敵攻撃停止", new Vector2(72, 205), new Vector2(238, 8), 6);
+                var bossFrames = new HashSet<int>();
+                var roadFrames = new HashSet<int>();
+                for (int frame = 0; frame < (rotation ? 390 : 180); frame++)
+                {
+                    await ToSignal(GetTree(), SceneTree.SignalName.PhysicsFrame);
+                    foreach (var panel in bossPanels.Concat(roadPanels)) panel._PhysicsProcess(1d / 60);
+                    comparisons[1].Texture = bossPanels[0].GetChildren().OfType<Sprite2D>().Single().Texture;
+                    comparisons[3].Texture = roadPanels[0].GetChildren().OfType<Sprite2D>().Single().Texture;
+                    comparisons[1].Scale = Vector2.One * (48f / comparisons[1].Texture.GetHeight());
+                    comparisons[3].Scale = Vector2.One * (48f / comparisons[3].Texture.GetHeight());
+                    bossFrames.Add(bossPanels[0].CurrentArtFrame);
+                    roadFrames.Add(roadPanels[0].CurrentArtFrame);
+                    if (rotation ? frame is not (0 or 90 or 180 or 270 or 355) : frame != 90) continue;
+                    Check(bossPanels.Any(panel => panel.CanLock && panel.Modulate.A > .15f),
+                        $"{id}: at least one actual boss shield is visible and targetable in the portrait frame");
+                    await ToSignal(RenderingServer.Singleton, RenderingServer.SignalName.FramePostDraw);
+                    using var image = GetViewport().GetTexture().GetImage();
+                    string shot = rotation ? $"{id}_{frame:D3}" : id;
+                    Check(image.SavePng($"{output}/shots/{shot}.png") == Error.Ok, $"{id}: comparison and actual-size shields captured");
+                }
+                if (rotation) Check(bossFrames.Count >= 70 && roadFrames.Count >= 70,
+                    $"{id}: actual boss and road shields render a complete rotation ({bossFrames.Count}/{roadFrames.Count} distinct frames)");
+            }
+            Check(initialInk.SequenceEqual(bossPanels.Concat(roadPanels).Select(panel => panel.Ink)) && Bullets().Length == 0,
+                $"{id}: material inspection leaves shield durability unchanged and emits no enemy attacks");
+            results.Add(new { stage = id, boss_texture = newBoss, road_texture = newRoad, boss_height = 16,
+                road_height = 11.48, boss_collision_radius = 3, road_collision_radius = 2.46,
+                boss_count = bossPanels.Length, road_count = roadPanels.Length, rendered,
+                screenshot = rendered ? $"shots/{id}{(rotation ? "_090" : "")}.png" : null });
+            root.QueueFree();
+            await Frames(5);
+            Pool.DespawnAll();
+            Hud.BubblePaused = false;
+        }
+        System.IO.File.WriteAllText(output + (rendered ? "/preview_conditions.json" : "/validation.json"),
+            System.Text.Json.JsonSerializer.Serialize(new { player = "stationary and invincible", enemy_attacks = "disabled",
+                purpose = "Artwork, rotation, actual display size and collision inspection; not a combat difficulty evaluation.",
+                stages = results, rotation_atlases = atlasResults },
+                new System.Text.Json.JsonSerializerOptions { WriteIndented = true }));
+    }
+
+    private static bool MatchesUnfolderFrame(Panel panel, string frontPath)
+    {
+        var texture = panel.GetChildren().OfType<Sprite2D>().Single().Texture;
+        int frame = panel.CurrentArtFrame, size = UnfolderMotion.RotationFrameSize;
+        return frame >= 0 && frame < UnfolderMotion.RotationFrames && texture is AtlasTexture atlas
+            && atlas.Atlas.ResourcePath == UnfolderMotion.RotationPath(frontPath)
+            && atlas.Region == new Rect2(frame % 8 * size, frame / 8 * size, size, size)
+            && atlas.GetSize() == new Vector2(size, size);
+    }
+
+    private static object CheckUnfolderRotationAtlas(string frontPath)
+    {
+        string path = UnfolderMotion.RotationPath(frontPath);
+        Check(ResourceLoader.Exists(path), path + ": rotation atlas is imported");
+        using var image = GD.Load<Texture2D>(path).GetImage();
+        int size = UnfolderMotion.RotationFrameSize, width = size * 8;
+        Check(image.GetWidth() == width && image.GetHeight() == size * 9 && image.HasMipmaps(),
+            path + ": 8 by 9 rotation atlas retains mipmaps");
+        image.Convert(Image.Format.Rgba8);
+        byte[] data = image.GetData();
+        var coverage = new List<object>();
+        int minVisible = size * size, minCenter = size * size, minWidth = size, minHeight = size;
+        float maxCenterOffset = 0;
+        for (int frame = 0; frame < UnfolderMotion.RotationFrames; frame++)
+        {
+            var tile = UnfolderMotion.FrameTexture(frontPath, frame);
+            int left = frame % 8 * size, top = frame / 8 * size;
+            Check(tile.Atlas.ResourcePath == path && tile.Region == new Rect2(left, top, size, size)
+                && tile.GetSize() == new Vector2(size, size), $"{path}: frame {frame} uses one {size}px atlas region");
+            int xMin = size, yMin = size, xMax = -1, yMax = -1, visible = 0, core = 0;
+            float radiusSquared = 0;
+            for (int y = 0; y < size; y++)
+                for (int x = 0; x < size; x++)
+                {
+                    byte alpha = data[((top + y) * width + left + x) * 4 + 3];
+                    if (alpha > 0) radiusSquared = Math.Max(radiusSquared,
+                        new Vector2(x + .5f - size / 2, y + .5f - size / 2).LengthSquared());
+                    if (alpha >= 32)
+                    {
+                        visible++;
+                        xMin = Math.Min(xMin, x); xMax = Math.Max(xMax, x);
+                        yMin = Math.Min(yMin, y); yMax = Math.Max(yMax, y);
+                    }
+                    if (alpha >= 128 && x >= size * 3 / 8 && x < size * 5 / 8
+                        && y >= size * 3 / 8 && y < size * 5 / 8) core++;
+                }
+            int boundsWidth = xMax - xMin + 1, boundsHeight = yMax - yMin + 1;
+            if (frontPath.GetFile().StartsWith("unfolder_"))
+                Check(Mathf.Sqrt(radiusSquared) + 1 <= size * Panel.ArtRadius,
+                    $"{path}: frame {frame} fits the boss shield's visual bounds");
+            float offset = new Vector2((xMin + xMax + 1) * .5f, (yMin + yMax + 1) * .5f)
+                .DistanceTo(Vector2.One * size * .5f);
+            Check(visible >= 32 && core >= 4 && boundsWidth >= 2 && boundsHeight >= 12 && offset <= size / 4f,
+                $"{path}: frame {frame} retains visible centered volume ({visible} pixels, core {core}, bounds {boundsWidth}x{boundsHeight})");
+            minVisible = Math.Min(minVisible, visible); minCenter = Math.Min(minCenter, core);
+            minWidth = Math.Min(minWidth, boundsWidth); minHeight = Math.Min(minHeight, boundsHeight);
+            maxCenterOffset = Math.Max(maxCenterOffset, offset);
+            coverage.Add(new { frame, visible_pixels = visible, central_opaque_pixels = core,
+                alpha_bounds = new[] { xMin, yMin, boundsWidth, boundsHeight }, center_offset = offset });
+        }
+        int[] samples = { 0, 18, 36, 54, 71 };
+        int minChanged = size * size;
+        for (int a = 0; a < samples.Length; a++)
+            for (int b = a + 1; b < samples.Length; b++)
+            {
+                int changed = 0;
+                for (int y = 0; y < size; y++)
+                    for (int x = 0; x < size; x++)
+                    {
+                        int first = ((samples[a] / 8 * size + y) * width + samples[a] % 8 * size + x) * 4;
+                        int second = ((samples[b] / 8 * size + y) * width + samples[b] % 8 * size + x) * 4;
+                        bool visibleDifference = Math.Abs(data[first + 3] - data[second + 3]) >= 8;
+                        if (data[first + 3] >= 32 || data[second + 3] >= 32)
+                            for (int channel = 0; channel < 3; channel++)
+                                visibleDifference |= Math.Abs(data[first + channel] - data[second + channel]) >= 8;
+                        if (visibleDifference) changed++;
+                    }
+                minChanged = Math.Min(minChanged, changed);
+                Check(changed >= 32, $"{path}: frames {samples[a]} and {samples[b]} differ visibly ({changed} pixels)");
+            }
+        return new { path, frames = UnfolderMotion.RotationFrames, frame_size = size, mipmaps = true,
+            min_visible_pixels = minVisible, min_central_opaque_pixels = minCenter,
+            min_bounds_width = minWidth, min_bounds_height = minHeight, max_center_offset = maxCenterOffset,
+            min_sample_changed_pixels = minChanged, coverage };
+    }
+
+    private async Task CheckUnfolderRotationClock(string id, Panel[] bossPanels, Panel[] roadPanels,
+        string bossFront, string roadFront, Hud hud)
+    {
+        var panels = bossPanels.Concat(roadPanels).ToArray();
+        var radii = panels.Select(panel => ((CircleShape2D)panel.GetChildren()
+            .OfType<CollisionShape2D>().Single().Shape).Radius).ToArray();
+        var ink = panels.Select(panel => panel.Ink).ToArray();
+        var seen = panels.Select(_ => new HashSet<int>()).ToArray();
+        async Task Advance(int count)
+        {
+            for (int tick = 0; tick < count; tick++)
+            {
+                await ToSignal(GetTree(), SceneTree.SignalName.PhysicsFrame);
+                foreach (var panel in panels) panel._PhysicsProcess(1d / 60);
+                for (int index = 0; index < panels.Length; index++) seen[index].Add(panels[index].CurrentArtFrame);
+            }
+        }
+        await Advance(24);
+        Check(seen.All(frames => frames.Count >= 3), $"{id}: actual boss and road panels advance their rotation frames");
+        var beforePause = panels.Select(panel => panel.CurrentArtFrame).ToArray();
+        hud.SetCinematicMode(true, dialogueBubble: true);
+        await Advance(12);
+        Check(beforePause.SequenceEqual(panels.Select(panel => panel.CurrentArtFrame)),
+            $"{id}: dialogue pauses every actual shield artwork frame");
+        hud.SetCinematicMode(false);
+        foreach (var panel in panels) panel.Invulnerable = true;
+        await Advance(12);
+        Check(beforePause.SequenceEqual(panels.Select(panel => panel.CurrentArtFrame)),
+            $"{id}: invulnerability pauses every actual shield artwork frame");
+        foreach (var panel in panels) panel.Invulnerable = false;
+        await Advance(24);
+        Check(panels.Select((panel, index) => panel.CurrentArtFrame != beforePause[index]).All(changed => changed),
+            $"{id}: all artwork resumes after dialogue and invulnerability end");
+        Check(bossPanels.All(panel => MatchesUnfolderFrame(panel, bossFront))
+            && roadPanels.All(panel => MatchesUnfolderFrame(panel, roadFront)),
+            $"{id}: displayed texture regions agree with actual frame state after resume");
+        Check(ink.SequenceEqual(panels.Select(panel => panel.Ink))
+            && radii.SequenceEqual(panels.Select(panel => ((CircleShape2D)panel.GetChildren()
+                .OfType<CollisionShape2D>().Single().Shape).Radius)),
+            $"{id}: rotation and pause transitions preserve durability and collision radii");
     }
 
     private async Task CheckTechniquePosts(GameManager game)
@@ -567,8 +875,7 @@ public partial class BossSpellQa : Node
         DirAccess.MakeDirRecursiveAbsolute(output);
         void BaseCall(Enemy boss, string method, params object[] args) =>
             typeof(Enemy).GetMethod(method, Private)!.Invoke(boss, args);
-        // The label lives in World (FxLayer's parent) so that it draws after the boss body; see FxLayer.BossBreak.
-        BossBreakFx[] Effects() => FxLayer.Instance.GetParent().GetChildren().OfType<BossBreakFx>().ToArray();
+        static BossBreakFx[] Effects(Enemy boss) => boss.GetChildren().OfType<BossBreakFx>().ToArray();
         async Task<Image> Render(BossBreakFx effect, bool visible)
         {
             effect.Visible = visible;
@@ -586,10 +893,12 @@ public partial class BossSpellQa : Node
             float scale = image.GetWidth() / 384f;
             var advances = Read<float[]>(effect, "_advances");
             var white = new int[advances.Length];
-            float left = effect.Position.X - Read<float>(effect, "_textWidth") * 0.5f;
-            for (int i = 0; i < advances.Length; left += advances[i], i++)
-                for (int y = (int)((effect.Position.Y - 14) * scale); y < (effect.Position.Y + 14) * scale; y++)
-                    for (int x = (int)(left * scale); x < (left + advances[i]) * scale; x++)
+            float cueScale = effect.GlobalScale.X;
+            var center = effect.GlobalPosition;
+            float left = center.X - Read<float>(effect, "_textWidth") * cueScale * 0.5f;
+            for (int i = 0; i < advances.Length; left += advances[i] * cueScale, i++)
+                for (int y = (int)((center.Y - 14 * cueScale) * scale); y < (center.Y + 14 * cueScale) * scale; y++)
+                    for (int x = (int)(left * scale); x < (left + advances[i] * cueScale) * scale; x++)
                     {
                         if (image.GetPixel(x, y).Luminance > 0.82f
                             && (background == null || background.GetPixel(x, y).Luminance <= 0.82f)) white[i]++;
@@ -657,44 +966,57 @@ public partial class BossSpellQa : Node
             float hp = boss.HpRatio;
             var panels = boss.GetChildren().OfType<Panel>().ToArray();
             foreach (var panel in panels) panel.Shatter();
-            var effect = Effects().Single();
+            var effect = Effects(boss).Single();
             effect.SetProcess(false);
             Check(Phase(boss) == "Break" && boss.HpRatio == hp, $"{scene}: real panel break starts one effect without body damage");
             Check(game.Bombs == Mathf.Min(game.StartBombs, bombs + 1) && game.Score == score + panels.Length * 5,
                 "break reward and original panel scores are unchanged");
             Check(!Hud.BubblePaused && Read<float>(hud, "_flashAlpha") == 0f, "no dialogue pause or full-screen flash");
-            Check(effect.ZIndex < 0 && !effect.ZAsRelative, "enemy bullets stay above the entire effect");
             var body = Read<Sprite2D>(boss, "_bodySprite", typeof(Enemy));
-            int bodyZ = body.ZAsRelative ? boss.ZIndex + body.ZIndex : body.ZIndex;
-            Check(effect.ZIndex == bodyZ && effect.GetParent() == world && effect.GetIndex() > boss.GetIndex(),
-                "BREAK label shares the body sprite layer and follows the boss in World, so it draws over the body");
             var shieldLayer = boss.GetNode<Node2D>("Shield");
-            Check(shieldLayer.ZIndex == body.ZIndex && shieldLayer.GetIndex() > body.GetIndex(),
-                "shield is above its body, below the BREAK label and enemy bullets");
+            Check(effect.ZAsRelative && effect.ZIndex == body.ZIndex && effect.ZIndex == shieldLayer.ZIndex
+                && effect.GetIndex() > shieldLayer.GetIndex() && shieldLayer.GetIndex() > body.GetIndex()
+                && (boss.FadingBody == null || effect.GetIndex() > boss.FadingBody.GetIndex()),
+                "BREAK draws over the body and shield on the boss's current layer");
             Check(!Read<System.Collections.Generic.List<FxLayer.P>>(FxLayer.Instance, "_p").Any(p => p.Text == "BREAK!"),
                 "old floating damage-number label is not duplicated");
             boss.Purify();
-            Check(Effects().Length == 1, "repeated purify does not stack announcements");
-            foreach (var position in new[] { new Vector2(Field.Left, 51), new Vector2(Field.Right, 51),
-                new Vector2(Field.Left, 148), new Vector2(Field.Right, 148) })
+            Check(Effects(boss).Length == 1, "repeated purify does not stack announcements");
+            var original = boss.GlobalPosition;
+            Check(effect.GlobalPosition.IsEqualApprox(original), scene + ": BREAK starts on the boss body");
+            if (boss.BodyShotJob.HasValue)
             {
-                effect.PlaceOn(position, 56);
-                Check(effect.Position.X - 76 >= Field.Left && effect.Position.X + 76 <= Field.Right
-                    && effect.Position.Y - 25 >= Field.Top && effect.Position.Y + 25 <= Field.Bottom,
-                    "edge placement keeps letters inside the field");
+                var frame = Field.BossFrameRect;
+                Check(frame.HasPoint(original) && effect.GlobalPosition.X - 76 * effect.Scale.X >= frame.Position.X
+                    && effect.GlobalPosition.X + 76 * effect.Scale.X <= frame.End.X, scene + ": BREAK fits the boss frame");
+                boss.GlobalPosition += new Vector2(-12, 9);
+                Check(effect.GlobalPosition.IsEqualApprox(boss.GlobalPosition), scene + ": BREAK follows the moving boss");
             }
-            effect.PlaceOn(boss.Position, Read<float>(boss, "BodyDisplayH", typeof(Enemy)));
-            Check(Mathf.Abs(effect.Position.Y - Mathf.Clamp(boss.Position.Y, Field.Top + 25f, Field.Bottom - 25f)) < 0.5f,
-                "BREAK label sits on the boss body, not above it");
+            else
+            {
+                foreach (var position in new[] { new Vector2(Field.Left, 51), new Vector2(Field.Right, 148) })
+                {
+                    boss.GlobalPosition = position;
+                    effect._Process(0);
+                    Check(effect.GlobalPosition.X - 76 * effect.Scale.X >= Field.Left
+                        && effect.GlobalPosition.X + 76 * effect.Scale.X <= Field.Right,
+                        "edge placement keeps letters inside the field");
+                }
+            }
+            boss.GlobalPosition = original;
+            effect._Process(0);
             var renderMode = root.ProcessMode;
             root.ProcessMode = ProcessModeEnum.Disabled;
             var particles = Read<System.Collections.Generic.List<FxLayer.P>>(FxLayer.Instance, "_p");
             var initialParticles = particles.Select(CloneParticle).ToArray();
-            foreach (var size in new[] { new Vector2I(1280, 720), new Vector2I(960, 540), new Vector2I(540, 960) })
+            float previousTime = 0;
+            foreach (float time in new[] { 0.07f, 0.22f, 0.48f })
             {
-                DisplayServer.WindowSetSize(size);
-                foreach (float time in new[] { 0.07f, 0.22f, 0.48f })
+                BaseCall(boss, "TickSwapAnim", (double)(time - previousTime));
+                previousTime = time;
+                foreach (var size in new[] { new Vector2I(1280, 720), new Vector2I(960, 540), new Vector2I(540, 960) })
                 {
+                    DisplayServer.WindowSetSize(size);
                     Write(effect, "_age", time);
                     // The frozen boss and the BREAK label must render the same point in the shatter animation.
                     typeof(Enemy).GetField("_phaseT", Private)!.SetValue(boss, (double)time);
@@ -710,7 +1032,7 @@ public partial class BossSpellQa : Node
                     Check(image.SavePng($"{output}/{scene}_{size.X}_{time:0.00}.png") == Error.Ok, "rendered animation keyframe");
                     if (time == 0.22f)
                     {
-                        float scale = image.GetWidth() / 384f;
+                        float scale = image.GetWidth() / 384f * effect.GlobalScale.X;
                         int[] letters = WhitePixels(image, effect, background);
                         int total = letters.Sum();
                         GD.Print($"[BossSpellQA] {scene}/{size.X}: BREAK white pixels {total} = {string.Join("+", letters)}");
@@ -718,13 +1040,13 @@ public partial class BossSpellQa : Node
                             $"{scene}/{size}: all five BREAK letters are drawn over the boss body, not buried in it");
                         if (scene == "Akari" && size.X == 1280)
                         {
-                            effect.ZIndex = bodyZ - 1;
+                            effect.ZIndex = body.ZIndex - 2;
                             using var buried = await Render(effect, true);
                             int[] hidden = WhitePixels(buried, effect, background);
                             int hiddenTotal = hidden.Sum();
                             Check(hiddenTotal <= 550 * scale * scale || hidden.Min() <= hiddenTotal * 0.3f / hidden.Length,
                                 "negative control detects BREAK text buried behind the body");
-                            effect.ZIndex = bodyZ;
+                            effect.ZIndex = body.ZIndex;
                         }
                     }
                 }
@@ -747,8 +1069,8 @@ public partial class BossSpellQa : Node
             Check(effect.IsQueuedForDeletion() && !effect.Visible, "effect removes itself within 0.72 seconds");
             await Frames(2);
             FxLayer.Instance.BossBreak(boss.Position, 56);
-            FxLayer.Instance.BossBreakCue(boss.Position, 56);
-            var interrupted = Effects().Single();
+            boss.AddChild(new BossBreakFx());
+            var interrupted = Effects(boss).Single();
             hud.HoldBubble = true;
             hud.ShowMessage("QA");
             interrupted._Process(0.01);
@@ -795,8 +1117,8 @@ public partial class BossSpellQa : Node
         using (var art = GD.Load<Texture2D>(UnfolderMotion.TexturePath(boss.UnfolderStyle)).GetImage())
             Check(art.GetWidth() == 256 && art.GetHeight() == 256 && art.HasMipmaps() && art.GetPixel(0, 0).A == 0
                 && art.GetPixel(128, 128).A > 0.5f, $"{scene}: real alpha and an opaque target core");
-        Check(panels.All(p => p.GetChildren().OfType<Sprite2D>().Single().Texture.ResourcePath
-            == UnfolderMotion.TexturePath(boss.UnfolderStyle)), $"{scene}: dedicated artwork is live");
+        Check(panels.All(p => MatchesUnfolderFrame(p, UnfolderMotion.TexturePath(boss.UnfolderStyle))),
+            $"{scene}: dedicated artwork is live");
         Check(panels.All(p => ((CircleShape2D)p.GetChildren().OfType<CollisionShape2D>().Single().Shape).Radius == 3f),
             $"{scene}: decoration does not enlarge the collision shape");
         foreach (int tier in new[] { -1, 0, ChargeTier.First, ChargeTier.Second })
@@ -1157,15 +1479,6 @@ public partial class BossSpellQa : Node
         zone.SetProcess(false);
         zone._Process(0.95);
         Check(zone.ZIndex == -2 && !zone.ZAsRelative, "all area attacks are below bullets and above atmosphere");
-        if (scene != "MinaBattle")
-        {
-            var rect = new Rect2(-28, -28, 56, 56);
-            Check(zone.HatchSegments(rect).All(s => s.from.Length() <= 26.01f && s.to.Length() <= 26.01f),
-                "circular warning stripes do not extend outside the footprint");
-        }
-        else
-            Check(zone.HatchSegments(Field.Rect).All(s => Geometry2D.GetClosestPointToSegment(new Vector2(185, 150), s.from, s.to)
-                .DistanceTo(new Vector2(185, 150)) >= 25.99f), "fullscreen stripes never enter the safe hole");
         string art = scene switch { "Akari" => "akari_envelope", "Koharu" => "koharu_star_pin",
             "Rei" => "rei_comment", _ => "mina_memory" };
         var texture = BulletArt.Get(art);

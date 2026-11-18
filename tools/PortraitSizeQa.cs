@@ -14,12 +14,9 @@ public partial class PortraitSizeQa : Node2D
     private static void Write(object o, string n, object v) => o.GetType().GetField(n, IPriv)!.SetValue(o, v);
     private static object? Call(object o, string n, params object[] a) => o.GetType().GetMethod(n, IPriv)!.Invoke(o, a);
 
-    // カスタマイズ画面が出すポーズ（通常＝idle／照準＝aim_ur／回避＝spin_00..04 をコマ送り）。
-    private static readonly string[] Poses = { "idle", "aim_ur", "spin_00", "spin_01", "spin_02", "spin_03", "spin_04" };
-    // 撮る3ポーズ（回避は3コマ目で止める）。_time は「そのコマの先頭」に置き、撮影の数フレームぶん進んでもコマが変わらないようにする。
-    //   dodge_flip は回避の7コマ目（spin_02 を左右反転して出すコマ）。反転しても足元と中心が動かないかを見る。
+    private static readonly string[] Poses = { "idle", "aim_ur", "spin_00", "spin_01", "spin_02", "spin_03", "spin_04", "spin_05", "spin_06", "spin_07" };
     private static readonly (string Tag, int Pose, double Time)[] ShotPoses =
-        { ("idle", 0, 0.3), ("aim", 1, 0.3), ("dodge", 2, 2.0 / 6.0 + 0.005), ("dodge_flip", 2, 1.0 + 0.005) };
+        { ("idle", 0, 0.3), ("aim", 1, 0.3), ("dodge", 2, 2.0 / 6.0 + 0.005), ("dodge_left", 2, 1.0 + 0.005) };
     private static CosmeticItem[] Costumes => Array.FindAll(Cosmetics.All, i => i.Kind == CosmeticKind.Costume);
 
     private int _fail;
@@ -128,8 +125,9 @@ public partial class PortraitSizeQa : Node2D
                 float diff = used.Size.Y - content.Size.Y;
                 if (diff > worst) { worst = diff; worstAt = $"{item.Id}/{pose}（{used.Size.Y} → {content.Size.Y}）"; }
                 if (item.Price == 0)
-                    Check($"{item.Id}/{pose} 既定衣装の素材は切り詰め済み（中身＝テクスチャ全体）",
-                        content == new Rect2I(0, 0, tex.GetWidth(), tex.GetHeight()));
+                    Check($"{item.Id}/{pose} 既定衣装の外周はリサンプリングの1px以内",
+                        content.Position.X <= 1 && content.Position.Y <= 1
+                        && content.End.X >= tex.GetWidth() - 1 && content.End.Y >= tex.GetHeight() - 1);
                 else
                     Check($"{item.Id}/{pose} 追加衣装の素材は余白つき（中身 {content.Size.X}x{content.Size.Y} ／ tex {tex.GetWidth()}x{tex.GetHeight()}）",
                         content.Size.X < tex.GetWidth() || content.Size.Y < tex.GetHeight());
@@ -169,7 +167,7 @@ public partial class PortraitSizeQa : Node2D
         GetTree().Root.AddChild(menu);
         GetTree().CurrentScene = menu;
         await Frames(4);
-        Write(menu, "_tab", 1);
+        Write(menu, "_tab", 0);
         Call(menu, "RefreshItems");   // 段を切り替えたら必ず一覧も作り直す（画面側と同じ順）
         foreach (var job in Jobs.All)
         {
@@ -188,7 +186,7 @@ public partial class PortraitSizeQa : Node2D
             }
         }
         // カーソルは立ち絵ではないので枠フィットのまま（中身の高さでそろえると 34x40 の矢印が枠からはみ出す）。
-        Write(menu, "_tab", 0);
+        Write(menu, "_tab", 1);
         Call(menu, "RefreshItems");
         var cursors = Read<CosmeticItem[]>(menu, "_items");
         for (int i = 0; i < cursors.Length; i++)
@@ -263,7 +261,7 @@ public partial class PortraitSizeQa : Node2D
         GetTree().Root.AddChild(menu);
         GetTree().CurrentScene = menu;
         await Frames(4);
-        Write(menu, "_tab", 1);
+        Write(menu, "_tab", 0);
         Call(menu, "RefreshItems");
         foreach (var job in Jobs.All)
         {
@@ -291,7 +289,7 @@ public partial class PortraitSizeQa : Node2D
         var ids = Jobs.All.Select(j => j.CharacterId).ToArray();
         SaveStrip("compare_idle", ids.Select(id => tiles[$"{id}_idle"]).ToList(), 4, previewFootRow);
         SaveStrip("compare_dodge",
-            ids.Select(id => tiles[$"{id}_dodge"]).Concat(ids.Select(id => tiles[$"{id}_dodge_flip"])).ToList(), 4, previewFootRow);
+            ids.Select(id => tiles[$"{id}_dodge"]).Concat(ids.Select(id => tiles[$"{id}_dodge_left"])).ToList(), 4, previewFootRow);
         SaveStrip("compare_costume",
             ids.Select(id => tiles[$"{id}_default"]).Concat(ids.Select(id => tiles[$"{id}_idle"])).ToList(), 4, previewFootRow);
         foreach (string id in ids)
@@ -330,7 +328,7 @@ public partial class PortraitSizeQa : Node2D
     {
         Visible = true;
         foreach (var item in Costumes)
-            foreach (var (pose, flip) in new[] { ("idle", false), ("spin_02", false), ("spin_02", true) })
+            foreach (var (pose, flip) in new[] { ("idle", false), ("spin_02", false), ("spin_06", false) })
             {
                 _probeTex = GD.Load<Texture2D>(item.PosePath(pose));
                 _probeCenter = foot;

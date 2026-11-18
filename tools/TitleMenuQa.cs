@@ -9,6 +9,7 @@ public partial class TitleMenuQa : Node
     private const BindingFlags Private = BindingFlags.Instance | BindingFlags.NonPublic;
     private const BindingFlags Static = BindingFlags.Static | BindingFlags.NonPublic;
     private string _out = "";
+    private bool _visual;
     private static T Read<T>(object obj, string field) => (T)obj.GetType().GetField(field, Private)!.GetValue(obj)!;
     private static void Set(object obj, string field, object value) => obj.GetType().GetField(field, Private)!.SetValue(obj, value);
     private static Rect2 Row(int i) => (Rect2)typeof(TitleMenu).GetMethod("MenuRowRect", Static)!.Invoke(null, new object[] { i })!;
@@ -24,30 +25,58 @@ public partial class TitleMenuQa : Node
         try
         {
             Check(OS.GetUserDataDir().Replace('\\', '/').Contains("/build/qa_story/"), "isolated save data");
-            _out = ProjectSettings.GlobalizePath("res://build/qa_story/title");
+            _out = ProjectSettings.GlobalizePath("user://title_shots");
+            _visual = DisplayServer.GetName() != "headless";
             DirAccess.MakeDirRecursiveAbsolute(_out);
-            DisplayServer.WindowSetMode(DisplayServer.WindowMode.Windowed);
+            if (_visual) DisplayServer.WindowSetMode(DisplayServer.WindowMode.Windowed);
             await Frames(2);
             var game = GetNode<GameManager>("/root/Game");
             for (int i = 0; i <= GameManager.SlotCount; i++) Check(!game.SlotExists(i), "fresh test save directory");
             var title = await OpenTitle();
             Check(!Read<bool>(title, "_hasSave") && Read<int>(title, "_sel") == 0, "new player starts on new game");
-            var illustration = title.GetNode<Sprite2D>("TitleIllustration");
-            Check(illustration.Texture.GetWidth() >= 1280 && illustration.Texture.ResourcePath.EndsWith("title_mina_v3.png"), "SNS key visual is loaded at full resolution");
-            Check(illustration.Material is ShaderMaterial && ((ShaderMaterial)illustration.Material).Shader.ResourcePath == "res://shaders/title_kv.gdshader",
-                "key visual uses the localized wind shader");
-            foreach (string layer in new[] { "PhotoPost", "DraftPost" })
+            var models = title.GetNode<TitleVisuals>("TitleVisuals");
+            var background = models.GetNode<TitleBackground>("TitleBackground");
+            var depthView = Read<SubViewport>(background, "_view");
+            var camera = Read<Camera3D>(background, "_camera");
+            Check(camera.Projection == Camera3D.ProjectionType.Perspective, "background uses a perspective camera");
+            var timeline = depthView.GetChild<Node3D>(4);
+            var nearPost = timeline.GetChild<Node3D>(0);
+            var farPost = timeline.GetChild<Node3D>(22);
+            Check(nearPost.Position.Z - farPost.Position.Z > 30, "Blender posts span foreground, middle and distant layers");
+            Check(nearPost.GetChild<MeshInstance3D>(0).Mesh.GetAabb().Size.Z > .04f, "background cards have beveled physical thickness");
+            background.Update(0, Vector2.Zero);
+            Vector2 nearBefore = camera.UnprojectPosition(nearPost.GlobalPosition);
+            Vector2 farBefore = camera.UnprojectPosition(farPost.GlobalPosition);
+            background.Update(0, new Vector2(3.5f, 2));
+            Check(camera.UnprojectPosition(nearPost.GlobalPosition).DistanceTo(nearBefore)
+                > camera.UnprojectPosition(farPost.GlobalPosition).DistanceTo(farBefore) * 4,
+                "near posts shift more than distant posts under perspective parallax");
+            background.Update(0, Vector2.Zero);
+            var minaParts = Read<MeshInstance3D[]>(models, "_minaParts");
+            Check(minaParts.Length == 5, "Mina has five Blender deformation parts");
+            foreach (var part in minaParts)
+                Check(Array.TrueForAll(TitleVisuals.MinaShapes, name => part.FindBlendShapeByName(name) >= 0),
+                    $"{part.Name} contains all breathing and hair morph targets");
+            var minaMaterial = Read<ShaderMaterial>(models, "_minaMaterial");
+            Check(minaMaterial.GetShaderParameter("original_art").As<Texture2D>().ResourcePath.EndsWith("title_clean_v3.png"),
+                "Mina keeps original illustration pixels");
+            foreach (var (field, center) in new[] { ("_photo", new Vector2I(632, 252)), ("_draft", new Vector2I(706, 508)) })
             {
-                var part = illustration.GetNode<Sprite2D>(layer);
-                using var pixels = part.Texture.GetImage();
-                Check(part.RegionEnabled && pixels.GetPixel(0, 0).A == 0 && pixels.GetPixel(1100, 400).A == 0,
-                    $"{layer} is a separate transparent sprite without Mina or background");
-                Check(pixels.GetPixel((int)part.RegionRect.GetCenter().X, (int)part.RegionRect.GetCenter().Y).A > 0.9f,
-                    $"{layer} has an opaque post surface");
+                var card = Read<Node3D>(models, field);
+                var face = card.GetNode<MeshInstance3D>($"{card.Name}Artwork");
+                using var pixels = ((StandardMaterial3D)face.GetActiveMaterial(0)).AlbedoTexture.GetImage();
+                Check(pixels.GetPixel(0, 0).A == 0 && pixels.GetPixel(1100, 400).A == 0,
+                    $"{card.Name} texture excludes Mina and background");
+                Check(pixels.GetPixel(center.X, center.Y).A > 0.9f, $"{card.Name} has an opaque post surface");
+                Check(card.GetNode<MeshInstance3D>($"{card.Name}Edge").Mesh.GetAabb().Size.Z > 0,
+                    $"{card.Name} uses Blender geometry with physical depth");
             }
-            var titleFont = Read<FontFile>(title, "_titleFont");
             var menuFont = Read<FontFile>(title, "_menuFont");
-            Check(UiKit.TextW(titleFont, "Refrain", 184) + 88 < 620, "wordmark stays clear of Mina");
+            var titleFont = Read<FontFile>(title, "_titleFont");
+            var talkFont = Read<FontFile>(title, "_talkFont");
+            Check(UiKit.TextW(titleFont, "Refrain", 176) + 88 < 620, "original italic title fits the left composition");
+            Check(Read<SubViewport>(models, "_logoView").GetChildCount() >= 5, "Blender logo has its own lighting and foreground viewport");
+            Check(Read<SubViewport>(models, "_view").TransparentBg, "2.5D illustration renders over the SNS background");
             await Shot("title_entrance");
             await Frames(100);
             var items = (Array)typeof(TitleMenu).GetField("Items", Static)!.GetValue(null)!;
@@ -56,7 +85,7 @@ public partial class TitleMenuQa : Node
             {
                 string text = (string)((ITuple)items.GetValue(i)!)[1]!;
                 labels[i] = text;
-                Check(UiKit.TextW(menuFont, text, 27) + 74 < Row(i).Size.X, $"menu label and selection arrow fit: {text}");
+                Check(UiKit.TrackedW(menuFont, text, 25, 4) + 64 < Row(i).Size.X, $"spaced menu label fits: {text}");
                 Check(Row(i).End.Y <= 674 && (i == 0 || Row(i - 1).End.Y < Row(i).Position.Y), "rows do not overlap footer or each other");
             }
             Check(string.Join("|", labels) == (GameManager.TutorialEnabled
@@ -65,23 +94,27 @@ public partial class TitleMenuQa : Node
             int creditsIndex = Array.IndexOf(labels, "クレジット");
             foreach (string field in new[] { "BootTalk", "IdleTalk" })
                 foreach (string line in (string[])typeof(TitleMenu).GetField(field, Static)!.GetValue(null)!)
-                    Check(UiKit.Paginate(menuFont, line, 19, 542, 2).Count == 1, "Mina remark fits two lines");
+                    Check(UiKit.Paginate(talkFont, line, 19, 542, 2).Count == 1, "Mina remark fits two lines");
 
-            foreach (Vector2I size in new[] { new Vector2I(1280, 720), new Vector2I(960, 540), new Vector2I(540, 960), new Vector2I(1920, 1080) })
+            if (_visual)
             {
-                DisplayServer.WindowSetSize(size);
+                foreach (Vector2I size in new[] { new Vector2I(1280, 720), new Vector2I(960, 540), new Vector2I(540, 960), new Vector2I(1920, 1080) })
+                {
+                    DisplayServer.WindowSetSize(size);
+                    await Frames(10);
+                    Set(title, "_talk", "……お迷いですか。急がなくて結構ですよ。");
+                    Set(title, "_talkT", 6.0);
+                    title.QueueRedraw();
+                    await Shot($"title_{size.X}x{size.Y}");
+                }
+                DisplayServer.WindowSetSize(new Vector2I(1280, 720));
                 await Frames(10);
-                Set(title, "_talk", "……お迷いですか。急がなくて結構ですよ。");
-                Set(title, "_talkT", 6.0);
-                title.QueueRedraw();
-                await Shot($"title_{size.X}x{size.Y}");
+                await VerifyIllustrationMotion(title);
+                await VerifyTimelineMotion(title);
+                if (Array.IndexOf(OS.GetCmdlineUserArgs(), "--motion") >= 0) await CaptureMotion(title);
             }
-            DisplayServer.WindowSetSize(new Vector2I(1280, 720));
-            await Frames(10);
-            await VerifyIllustrationMotion(title, illustration);
-            await VerifyTimelineMotion(title, illustration);
-            if (Array.IndexOf(OS.GetCmdlineUserArgs(), "--motion") >= 0) await CaptureMotion(title);
             // Window resizing can move the real pointer across menu rows before the input tests.
+            Pad.ReleaseMouseFollow();
             Set(title, "_sel", 0);
             await KeyPress(Key.Down);
             Check(Read<int>(title, "_sel") == 1, "keyboard changes menu selection");
@@ -91,6 +124,8 @@ public partial class TitleMenuQa : Node
             await KeyPress(Key.Up);
             await KeyPress(Key.Up);
             Check(Read<int>(title, "_sel") == items.Length - 1, "navigation wraps at the top");
+            await Frames(20);
+            await Shot("credits_selected");
             typeof(Pad).GetField("_usingMouse", Static)!.SetValue(null, true);
             typeof(Pad).GetField("_mousePos", Static)!.SetValue(null, Row(settingsIndex).GetCenter());
             title._Process(1.0 / 60);
@@ -119,26 +154,27 @@ public partial class TitleMenuQa : Node
             await Frames(3);
             var slot = (Rect2)typeof(TitleMenu).GetMethod("SlotPickerRowRect", Static)!.Invoke(null, new object[] { 1, 4 })!;
             Click(title, slot.GetCenter());
-            await Frames(12);
+            Check(LoadingScreen.IsActive, "pointer starts loading the occupied slot");
+            await QaSceneTransition.Wait(this);
             Check(GetTree().CurrentScene.SceneFilePath == "res://Hub.tscn", "pointer loads occupied slot into the hub");
 
             foreach (var (index, scene) in new[] { (settingsIndex, "res://Settings.tscn"), (creditsIndex, "res://Credits.tscn"), (0, "res://Prologue.tscn") })
             {
                 title = await OpenTitle();
                 Click(title, Row(index).GetCenter());
-                await Frames(12);
+                await QaSceneTransition.Wait(this);
                 Check(GetTree().CurrentScene.SceneFilePath == scene, $"menu routes to {scene}");
                 if (index != 0)
                 {
+                    await ToSignal(GetTree().CreateTimer(.3), SceneTreeTimer.SignalName.Timeout);
                     await KeyPress(Key.Escape);
-                    await Frames(12);
-                    Check(GetTree().CurrentScene is TitleMenu && GetTree().CurrentScene.HasNode("TitleIllustration"), "back returns to the redesigned title");
+                    await QaSceneTransition.Wait(this);
+                    Check(GetTree().CurrentScene is TitleMenu && GetTree().CurrentScene.HasNode("TitleVisuals/TitleBackground"), "back returns to the redesigned title");
                 }
             }
             GetTree().CurrentScene.QueueFree();
             title = null!;
-            illustration = null!;
-            titleFont = menuFont = null!;
+            menuFont = titleFont = talkFont = null!;
             Audio.Instance?.StopMusic(0);
             foreach (var child in GetNode<Audio>("/root/Audio").GetChildren())
                 if (child is AudioStreamPlayer player) { player.Stop(); player.Stream = null; }
@@ -156,34 +192,80 @@ public partial class TitleMenuQa : Node
         }
     }
 
-    private async Task VerifyIllustrationMotion(TitleMenu title, Sprite2D illustration)
+    private async Task VerifyIllustrationMotion(TitleMenu title)
     {
         title.SetProcess(false);
         Set(title, "_t", 8.0);
+        Set(title, "_talkT", 0.0);
+        Set(title, "_parallax", Vector2.Zero);
         title._Process(0);
-        var material = (ShaderMaterial)illustration.Material;
-        material.SetShaderParameter("time_sec", 0f);
+        var models = title.GetNode<TitleVisuals>("TitleVisuals");
+        foreach (string name in TitleVisuals.MinaShapes) models.SetMinaShape(name, 0);
+        models.SetMinaExpression(0, 0);
+        await Shot("mina_neutral");
         using (var still = await Capture())
         {
-            foreach (float time in new[] { 1.5f, 3.2f, 5.6f })
+            foreach (float weight in new[] { -.9f, .5f, 1f })
             {
-                material.SetShaderParameter("time_sec", time);
+                foreach (string name in new[] { "HairUpperSin", "HairLowerCos", "HairFrontSin", "Ribbon" })
+                    models.SetMinaShape(name, weight);
                 using var later = await Capture();
-                Check(Difference(still, later, new Rect2I(755, 130, 170, 130)) < 0.0001f, "wind does not deform the face");
-                Check(Difference(still, later, new Rect2I(680, 450, 100, 85)) < 0.0001f, "wind does not deform the extended hand");
-                Check(Difference(still, later, new Rect2I(890, 350, 90, 60)) < 0.0001f, "wind does not deform the hand on her chest");
-                Check(Difference(still, later, new Rect2I(430, 395, 140, 120)) < 0.0001f, "wind does not bend the timeline posts");
+                later.SavePng($"{_out}/mina_wind_{weight:F1}.png");
+                float faceDifference = Difference(still, later, new Rect2I(755, 130, 170, 130));
+                Check(faceDifference < 0.0001f, $"wind does not deform the face ({faceDifference:F6})");
+                Check(HandDifference(still, later, new Rect2I(680, 450, 100, 85)) < 0.0001f, "wind does not deform the extended hand");
+                Check(HandDifference(still, later, new Rect2I(947, 344, 105, 80)) < 0.0001f, "wind does not deform the hand on her chest");
+                Check(Difference(still, later, new Rect2I(540, 398, 24, 30)) < 0.0001f, "wind does not bend the timeline posts");
                 Check(Difference(still, later, new Rect2I(1120, 330, 140, 150)) > 0.0005f, "upper hair strands move");
                 Check(Difference(still, later, new Rect2I(1160, 570, 100, 80)) > 0.0005f, "trailing hair and ribbon move");
-                Check(Difference(still, later, new Rect2I(840, 625, 100, 70)) > 0.0001f, "apron hem moves gently");
             }
+            await Shot("mina_wind");
+            foreach (string name in TitleVisuals.MinaShapes) models.SetMinaShape(name, 0);
+            models.SetMinaShape("Breath", 1);
+            using (var breathing = await Capture())
+                Check(Difference(still, breathing, new Rect2I(830, 320, 220, 230)) > .001f, "chest and shoulders breathe visibly");
+            await Shot("mina_breath");
+            models.SetMinaShape("Breath", 0);
+            models.SetMinaExpression(.5f, 0);
+            await Shot("mina_half_blink");
+            models.SetMinaExpression(1, 0);
+            using (var closed = await Capture())
+            {
+                Check(Difference(still, closed, new Rect2I(790, 145, 145, 80)) > .005f, "both eyes close");
+                Check(Difference(still, closed, new Rect2I(680, 450, 100, 85)) < .0001f, "blinking preserves hands and pose");
+            }
+            await Shot("mina_blink");
+            models.SetMinaExpression(0, 1);
+            using (var smiling = await Capture())
+            {
+                Check(Difference(still, smiling, new Rect2I(875, 210, 55, 40)) > .0005f, "Mina changes to a subtle smile");
+                Check(Difference(still, smiling, new Rect2I(790, 145, 145, 60)) < .0001f, "smile does not replace the eyes");
+            }
+            await Shot("mina_smile");
+            models.SetMinaExpression(0, 0);
+            using var restored = await Capture();
+            Check(Difference(still, restored, new Rect2I(750, 120, 190, 160)) < .0001f, "expression returns to the original face");
         }
+        int closedSamples = 0;
+        float maximumBlink = 0, maximumSmile = 0;
+        var expression = Read<ShaderMaterial>(models, "_minaMaterial");
+        for (int i = 0; i < 1200; i++)
+        {
+            models.AnimateMina(i / 60f);
+            float blink = expression.GetShaderParameter("blink").AsSingle();
+            maximumBlink = Mathf.Max(maximumBlink, blink);
+            maximumSmile = Mathf.Max(maximumSmile, expression.GetShaderParameter("smile").AsSingle());
+            if (blink > .8f) closedSamples++;
+        }
+        Check(maximumBlink > .98f && closedSamples is > 10 and < 100 && maximumSmile > .98f,
+            "idle animation includes gentle blinks and a gradual smile");
         using (var before = await Capture())
         {
             title._Process(2);
             using var after = await Capture();
             Check(Difference(before, after, new Rect2I(755, 130, 170, 130)) > 0.0005f, "camera movement is visible on the illustration");
-            Check(illustration.Scale.X == illustration.Scale.Y, "camera preserves the illustration aspect ratio");
+            var transform = Read<Transform2D>(title, "_illustrationTransform");
+            Check(transform.Scale.X == transform.Scale.Y, "camera preserves the illustration aspect ratio");
         }
         var row = Row(0);
         bool covered = true, framed = true;
@@ -194,10 +276,10 @@ public partial class TitleMenuQa : Node
             for (int i = 0; i < 300; i++)
             {
                 title._Process(0.1);
-                Rect2 local = illustration.GetRect();
-                var bounds = new Rect2(local.Position * illustration.Scale + illustration.Position, local.Size * illustration.Scale);
+                var transform = Read<Transform2D>(title, "_illustrationTransform");
+                var bounds = new Rect2(transform * (-models.ArtSize / 2), models.ArtSize * transform.Scale);
                 covered &= bounds.Position.X < 0 && bounds.Position.Y < 0
-                    && bounds.End.X > UiKit.DesignW * UiKit.Scale && bounds.End.Y > UiKit.DesignH * UiKit.Scale;
+                    && bounds.End.X > UiKit.DesignW && bounds.End.Y > UiKit.DesignH;
                 framed &= bounds.Position.Y + bounds.Size.Y * 0.008f > 0;
             }
         }
@@ -209,7 +291,7 @@ public partial class TitleMenuQa : Node
         title.SetProcess(true);
     }
 
-    private async Task VerifyTimelineMotion(TitleMenu title, Sprite2D illustration)
+    private async Task VerifyTimelineMotion(TitleMenu title)
     {
         title.SetProcess(false);
         Set(title, "_t", 8.0);
@@ -218,28 +300,22 @@ public partial class TitleMenuQa : Node
         Set(title, "_sel", 0);
         Set(title, "_selectionY", Row(0).GetCenter().Y);
         title._Process(0);
-        var material = (ShaderMaterial)illustration.Material;
-        material.SetShaderParameter("ambient_time_sec", 0f);
         typeof(TitleMenu).GetMethod("UpdatePostMotion", Private)!.Invoke(title, new object[] { 0f });
         title.QueueRedraw();
         using var still = await Capture();
         foreach (float time in new[] { 2.2f, 4.6f, 8.1f })
         {
-            material.SetShaderParameter("ambient_time_sec", time);
             typeof(TitleMenu).GetMethod("UpdatePostMotion", Private)!.Invoke(title, new object[] { time });
             title.QueueRedraw();
             using var later = await Capture();
             Check(Difference(still, later, new Rect2I(755, 130, 170, 130)) < 0.0001f, "timeline motion preserves Mina's face");
-            Check(Difference(still, later, new Rect2I(680, 450, 100, 85)) < 0.0001f, "timeline motion preserves the extended hand");
-            Check(Difference(still, later, new Rect2I(890, 350, 90, 60)) < 0.0001f, "timeline motion preserves the hand on her chest");
+            Check(HandDifference(still, later, new Rect2I(680, 450, 100, 85)) < 0.0001f, "timeline motion preserves the extended hand");
+            Check(HandDifference(still, later, new Rect2I(947, 344, 105, 80)) < 0.0001f, "timeline motion preserves the hand on her chest");
             Check(Difference(still, later, new Rect2I(395, 80, 150, 215)) > 0.0005f, "photo post floats independently");
             Check(Difference(still, later, new Rect2I(350, 330, 215, 105)) > 0.0005f, "unsent draft floats independently");
             Check(Difference(still, later, new Rect2I(470, 510, 145, 90)) > 0.0002f, "distant timeline has a slower drift");
         }
-        material.SetShaderParameter("ambient_time_sec", 3.2f);
         await Shot("title_ambient_motion");
-        material.SetShaderParameter("ambient_time_sec", 0f);
-        material.SetShaderParameter("depth_offset", new Vector2(3.5f / 1280, 2f / 720));
         Set(title, "_parallax", new Vector2(3.5f, 2f));
         typeof(TitleMenu).GetMethod("UpdatePostMotion", Private)!.Invoke(title, new object[] { 0f });
         title.QueueRedraw();
@@ -248,8 +324,8 @@ public partial class TitleMenuQa : Node
             Check(Difference(still, shifted, new Rect2I(395, 80, 150, 215)) > 0.0005f, "pointer adds relative depth to the posts");
             Check(Difference(still, shifted, new Rect2I(755, 130, 170, 130)) < 0.0001f, "depth parallax does not warp Mina's face");
             int labelPixels = 0, changedPixels = 0;
-            for (int y = 369; y < 393; y++)
-                for (int x = 130; x < 260; x++)
+            for (int y = (int)Row(0).Position.Y + 15; y < Row(0).Position.Y + 40; y++)
+                for (int x = (int)Row(0).Position.X + 34; x < Row(0).Position.X + 164; x++)
                 {
                     Color p = still.GetPixel(x, y), q = shifted.GetPixel(x, y);
                     if (p.R < 0.95f || p.G < 0.92f || p.B < 0.90f) continue;
@@ -258,7 +334,6 @@ public partial class TitleMenuQa : Node
                 }
             Check(labelPixels > 50 && changedPixels == 0, "menu lettering stays fixed over the moving background");
         }
-        material.SetShaderParameter("depth_offset", Vector2.Zero);
         Set(title, "_parallax", Vector2.Zero);
         title.SetProcess(true);
     }
@@ -271,14 +346,13 @@ public partial class TitleMenuQa : Node
         DisplayServer.WindowSetSize(new Vector2I(960, 540));
         await Frames(10);
         bool saved = true;
-        for (int i = 0; i < 180; i++)
+        for (int i = 0; i < 360; i++)
         {
             typeof(Pad).GetField("_usingMouse", Static)!.SetValue(null, false);
-            Set(title, "_t", 8.0 + i / 15.0);
+            Set(title, "_t", 1.5 + i / 30.0);
             Set(title, "_talkT", 0.0);
-            Set(title, "_sel", 0);
-            Set(title, "_selectionY", Row(0).GetCenter().Y);
-            title._Process(0);
+            Set(title, "_sel", i < 120 ? 0 : i < 240 ? 2 : 3);
+            title._Process(1.0 / 30);
             using var frame = await Capture();
             saved &= frame.SavePng($"{folder}/frame_{i:D3}.png") == Error.Ok;
         }
@@ -293,10 +367,11 @@ public partial class TitleMenuQa : Node
         var current = GetTree().CurrentScene;
         if (current != this) current.QueueFree();
         await Frames(3);
+        Pad.ReleaseMouseFollow();
         var title = GD.Load<PackedScene>("res://TitleMenu.tscn").Instantiate<TitleMenu>();
         GetTree().Root.AddChild(title);
         GetTree().CurrentScene = title;
-        await Frames(20);
+        await ToSignal(GetTree().CreateTimer(.3), SceneTreeTimer.SignalName.Timeout);
         return title;
     }
 
@@ -332,8 +407,15 @@ public partial class TitleMenuQa : Node
 
     private async Task Shot(string name)
     {
+        if (!_visual) return;
         using var image = await Capture();
         Check(image.SavePng($"{_out}/{name}.png") == Error.Ok, $"screenshot {name}");
+        if (name.StartsWith("mina_"))
+        {
+            using var face = image.GetRegion(new Rect2I(755, 110, 210, 180));
+            face.Resize(630, 540, Image.Interpolation.Cubic);
+            face.SavePng($"{_out}/{name}_face.png");
+        }
         Color center = image.GetPixel(image.GetWidth() / 2, image.GetHeight() / 2);
         int varied = 0;
         for (int y = image.GetHeight() * 4 / 10; y < image.GetHeight() * 6 / 10; y += 5)
@@ -343,6 +425,23 @@ public partial class TitleMenuQa : Node
                 if (Mathf.Abs(p.R - center.R) + Mathf.Abs(p.G - center.G) + Mathf.Abs(p.B - center.B) > 0.1f) varied++;
             }
         Check(varied > 50, "canvas is nonblank");
+    }
+
+    private static float HandDifference(Image a, Image b, Rect2I rect)
+    {
+        float difference = 0;
+        int samples = 0;
+        for (int y = rect.Position.Y; y < rect.End.Y; y += 2)
+            for (int x = rect.Position.X; x < rect.End.X; x += 2)
+            {
+                Color p = a.GetPixel(x, y), q = b.GetPixel(x, y);
+                // Exclude the animated background visible between the fingers.
+                if (p.R < .45f || p.R - p.G < .035f || p.G - p.B < .015f) continue;
+                samples++;
+                difference += Mathf.Abs(p.R - q.R) + Mathf.Abs(p.G - q.G) + Mathf.Abs(p.B - q.B);
+            }
+        if (samples < 100) throw new Exception("Hand comparison must cover visible skin");
+        return difference / samples;
     }
 
     private static float Difference(Image a, Image b, Rect2I rect)

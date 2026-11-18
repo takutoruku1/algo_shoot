@@ -1,6 +1,6 @@
 using Godot;
 
-// Shop : 強化ショップ（一本道の強化リスト＋詳細パネル）。
+// Shop : 強化ショップ（キャラクター別の強化リスト＋詳細パネル）。
 //   操作（2026-09-27 に統一）：↑↓ で段を選び、←→ で詳細パネルの [強化する] [ためし撃ち] を切り替えて Z。Esc／X でもどる。
 //   旧 T（トレーニングへ）の文字キーは廃止＝ためし撃ちは詳細パネルのボタンから行く。キーの案内は右下のヒント帯だけ。
 //   マウスは従来どおり：段クリックで選択／同じ段の再クリックで購入、ボタンはクリックで即発火。
@@ -11,21 +11,22 @@ public partial class Shop : Node2D
 
     private const float FooterY = 664f;
     private const float ColX = 48f, ColW = 444f;
-    private const float RowTop = 134f, RowH = 30f, RowBigH = 38f, RowGap = 4f;
+    private const float RowTop = 142f, RowH = 32f, RowBigH = 38f, RowGap = 7f;
     private const float DetailX = 562f, DetailW = 670f;
-    private static readonly Color Surface = new("141719");
-    private static readonly Color Raised = new("202628");
-    private static readonly Color Owned = new("98dec6");
-    private static readonly Color Ink = new("edf3ef");
-    private static readonly Color Muted = new("a1afaa");
-    private static readonly Color Line = new("303a38");
+    private static readonly Color Surface = new("142c2b");
+    private static readonly Color Raised = new("29413c");
+    private static readonly Color Owned = new("bad6b6");
+    private static readonly Color Ink = new("f8edd6");
+    private static readonly Color Muted = new("b9c2ad");
+    private static readonly Color Line = new("526650");
     private static readonly Color Deny = new("f1a798");
+    private static readonly Color Brass = new("d4ad70"), Paper = new("f1e3c4"), Wood = new("503c2c");
     private Texture2D? _accountIcon;
 
     // 小話3（ショップの一言）：入店・購入時・退店でミナがぽつりと零す台詞。既存の Toast() で表示するだけ＝
     //   買い物のテンポを邪魔しない短時間表示（1.8秒）。docs/小話集_v1.md §3 の文面をそのまま採用。
     private static readonly string[] ShopEnterTalk =
-    { "いらっしゃいませ。……冗談です、ご主人様しかいらっしゃいませんもの。", "さあ、わたくしを研いでくださいまし。", "お財布の中身、ちゃんと確認なさいました?", "本日の心の残高、しかとご報告いたします。", "急がなくて結構ですよ。ここは、時間が減りませんので。", "眺めているだけでも構いません。……買い物は、選んでいる時間がいちばん楽しいので。", "一段ずつ、でしたね。先の段まで見ていると、少し欲張りたくなります。", "ああ、これ。前もそこで迷っておられました。" };
+    { "いらっしゃいませ。……冗談です、ご主人様しかいらっしゃいませんもの。", "さあ、わたくしを研いでくださいまし。", "お財布の中身、ちゃんと確認なさいました?", "本日の心の残高、しかとご報告いたします。", "急がなくて結構ですよ。ここは、時間が減りませんので。", "眺めているだけでも構いません。……買い物は、選んでいる時間がいちばん楽しいので。", "今日はどれにしましょう。わたくし、少し欲張りたくなります。", "ああ、これ。前もそこで迷っておられました。" };
 
     private static readonly string[] ShopBuyTalk =
     { "はい、たしかに。……染みますね、これは。", "また一つ、できることが増えました。……あとで、一緒に試しましょう。", "お買い上げ、ありがとうございます。領収書はご入用で?", "重くなった気がします。……気のせいですね。", "ご主人様、いい買い物です。わたくしが言うのですから間違いありません。", "これで、また一歩、遠くまで行けます。", "……一緒に強くなれるのは、うれしいですね。", "ありがとうございます。ちゃんと使いますので。" };
@@ -41,7 +42,8 @@ public partial class Shop : Node2D
     public int Action => _act;
 
     // 入力エッジ
-    private bool _navHeld, _zHeld, _backHeld, _lrHeld;
+    private bool _navHeld, _zHeld, _backHeld, _lrHeld, _jobHeld;
+    private JobTuning[] _customers = System.Array.Empty<JobTuning>();
     private double _t, _toastT;
     private string _toast = "";
     private Color _toastCol = UiKit.Info;
@@ -57,6 +59,8 @@ public partial class Shop : Node2D
     private const int HsBack = -100;  // フッタ もどる
     private const int HsBuy = -101;   // 詳細パネルの「買う」ボタン
     private const int HsTrain = -102;
+    private const int HsCustomer = -103;
+    private static readonly Rect2 CustomerButton = new(373, 31, 177, 38);
     private Rect2 _backBtnRect, _buyBtnRect, _trainBtnRect;
     private bool _buyBtnActive;
 
@@ -74,12 +78,9 @@ public partial class Shop : Node2D
         _game = GetNodeOrNull<GameManager>("/root/Game")!;
         // ハブから買い物へ移っても拠点の主題を途切れさせない。
         if (Audio.Instance != null) Audio.Instance.Music(Audio.Instance.BgmShop);
-        _playerShot = ResourceLoader.Load<Texture2D>(_game.JobDef.PlayerTexturePath);
-        _accountIcon = ResourceLoader.Load<Texture2D>(CompanionDialogue.AccountPortrait(_game.SelectedJob));
-
-        // 起動時のカーソルは「次に買える段」に置く＝開いた瞬間に手が届くところを指している。
-        //   全部買い切っていれば最終段（読み返す用）。
-        _sel = NextIndex();
+        _customers = System.Array.FindAll(Jobs.All, j => _game.IsJobUnlocked(j.Id));
+        LoadCustomerArt();
+        _sel = System.Array.FindIndex(GameManager.Upgrades, def => !_game.Has(def.Id));
         if (_sel < 0) _sel = Steps - 1;
 
         foreach (var a in OS.GetCmdlineUserArgs())
@@ -92,14 +93,27 @@ public partial class Shop : Node2D
             ShowShopTalk(CompanionDialogue.Menu.ShopEnter, ShopEnterTalk);
     }
 
-    // 次に買える段のインデックス（全部所持なら -1）。
-    private int NextIndex()
+    private bool CanSwitchCustomer => _customers.Length > 1 && !_game.JobForcedByCmdline && string.IsNullOrEmpty(_game.PendingResumeScene);
+
+    private void LoadCustomerArt()
     {
-        for (int i = 0; i < Steps; i++)
-            if ((_game?.GetUpgradeLevel(Def(i).Id) ?? 0) < 1) return i;
-        return -1;
+        _playerShot = ResourceLoader.Load<Texture2D>(_game.JobDef.PlayerTexturePath);
+        _accountIcon = ResourceLoader.Load<Texture2D>(CompanionDialogue.AccountPortrait(_game.SelectedJob));
     }
-    private bool IsOwned(int i) => (_game?.GetUpgradeLevel(Def(i).Id) ?? 0) >= 1;
+
+    private void NextCustomer()
+    {
+        if (!CanSwitchCustomer) return;
+        int index = System.Array.FindIndex(_customers, j => j.Id == _game.SelectedJob);
+        _game.SelectedJob = _customers[(index + 1) % _customers.Length].Id;
+        _game.AutoSave();
+        LoadCustomerArt();
+        _buyFxT = 0;
+        Audio.Instance?.PlayUiMove();
+        ShowShopTalk(CompanionDialogue.Menu.ShopEnter, ShopEnterTalk);
+    }
+
+    private bool IsOwned(int i) => _game.Has(Def(i).Id);
 
     public override void _Process(double delta)
     {
@@ -123,7 +137,7 @@ public partial class Shop : Node2D
         // 「もどる＝ショップごと閉じる」「購入」が誤発火しないよう、ゲート中は全キーを既押し扱いで食う。
         if (Pad.UiBlocked(this))
         {
-            _navHeld = _zHeld = _backHeld = _lrHeld = true;
+            _navHeld = _zHeld = _backHeld = _lrHeld = _jobHeld = true;
             QueueRedraw();
             return;
         }
@@ -136,6 +150,10 @@ public partial class Shop : Node2D
             return;
         }
 
+        bool changeCustomer = Input.IsKeyPressed(Key.Tab) || Pad.Pressed(JoyButton.Y);
+        if (changeCustomer && !_jobHeld) NextCustomer();
+        _jobHeld = changeCustomer;
+
         // ── マウス クリック（キーボード/パッドへ純粋に追加）──
         //   段のカードは「クリックで選ぶ」。既に選んでいる段をもう一度クリックしたら確定（＝買う）。
         //   ボタン類（買う／もどる／トレーニング）は1クリックで即発火。
@@ -143,6 +161,7 @@ public partial class Shop : Node2D
         {
             int hit = UiKit.ClickedId(true);
             if (hit == HsBack) { Audio.Instance?.PlayUiCancel(); ExitShop(); }
+            else if (hit == HsCustomer) NextCustomer();
             else if (hit == HsTrain) EnterTraining();
             else if (hit == HsBuy) OnConfirm();
             else if (hit >= 0 && hit < Steps)
@@ -152,7 +171,7 @@ public partial class Shop : Node2D
             }
         }
 
-        // カーソル移動：↑↓ で段（一本道）。
+        // カーソル移動：↑↓ で商品を選ぶ。
         bool up = Input.IsActionPressed("ui_up");
         bool down = Input.IsActionPressed("ui_down");
         bool any = up || down;
@@ -220,12 +239,11 @@ public partial class Shop : Node2D
         if (_game == null) return;
         var d = Def(_sel);
         if (IsOwned(_sel)) { Audio.Instance?.PlayUiDeny(); Toast("もう持っています", UiKit.Text4); return; }
-        // 一本道：直前の段を持っていないと買えない。何が足りないかを名前で返す（番号や記号で言わない）。
-        if (!_game.IsParentMet(d.Id))
+        var prerequisite = _game.GetMissingUpgradePrerequisite(d.Id);
+        if (prerequisite != null)
         {
-            var prev = GameManager.GetUpgradeDef(d.ParentId);
             Audio.Instance?.PlayUiDeny();
-            Toast($"さきに「{prev?.Name ?? "ひとつ上"}」から", Deny);
+            Toast($"先に「{prerequisite.Name}」を習得してください", Deny);
             return;
         }
         long cost = _game.GetUpgradeCost(d.Id);
@@ -242,10 +260,6 @@ public partial class Shop : Node2D
         if (GD.Randf() < 0.25f) ShowShopTalk(CompanionDialogue.Menu.ShopBuy, ShopBuyTalk);
         else Toast($"{d.Name}", UiKit.Info);
         _buyFxT = 0.7; _walletPopT = 0.5; _buyFxId = d.Id;
-
-        // 買ったら、そのまま次の段へカーソルを送る＝一本道の「つぎ」が指先に来る。
-        int nx = NextIndex();
-        if (nx >= 0) _sel = nx;
     }
 
     private void Toast(string msg, Color col)
@@ -302,139 +316,183 @@ public partial class Shop : Node2D
 
     private void DrawBg()
     {
-        DrawRect(new Rect2(0, 0, W, H), Surface);
-        DrawRect(new Rect2(0, 0, W, 88), new Color("191e20"));
-        DrawRect(new Rect2(0, 88, W, 1), Line);
-        DrawLine(new Vector2(526, 110), new Vector2(526, 638), Line, 1);
-        DrawRect(new Rect2(0, 650, W, 70), new Color("191e20"));
-        DrawRect(new Rect2(0, 650, W, 1), Line);
+        UiKit.VGradient(this, new Rect2(0, 0, W, H), new[] { new Color("143a39"), new Color("0b2225") }, new[] { 0f, 1f });
+        for (int x = 16; x < W; x += 48)
+            DrawLine(new Vector2(x, 0), new Vector2(x, H), new Color(Brass, .045f), 1);
+        DrawRect(new Rect2(0, 0, W, 8), Wood);
+        DrawLine(new Vector2(0, 8), new Vector2(W, 8), Brass, 2);
+        UiKit.Box(this, new Rect2(28, 98, 484, 548), Wood, 4, new Color("856343"), 2);
+        UiKit.Box(this, new Rect2(38, 108, 464, 526), new Color("1a302a"), 2, new Color("9a7850"), 1);
+        DrawRect(new Rect2(28, 635, 484, 12), new Color("77583b"));
+        UiKit.Box(this, new Rect2(536, 99, 716, 453), Wood, 4, new Color("856343"), 2);
+        UiKit.Box(this, new Rect2(546, 109, 696, 434), new Color("1a3734"), 2, new Color(Brass, .3f), 1);
+        for (int x = 560; x < 1240; x += 24)
+            for (int y = 120; y < 354; y += 24)
+                DrawCircle(new Vector2(x, y), 1, new Color(Brass, .08f));
+        DrawRect(new Rect2(542, 350, 704, 10), new Color("8d6843"));
+        DrawLine(new Vector2(546, 350), new Vector2(1240, 350), Brass, 2);
+        UiKit.Box(this, new Rect2(540, 562, 708, 76), new Color("122b28"), 3, new Color("766747"), 1);
+        for (int x = 550; x <= 1238; x += 688)
+            for (int y = 572; y <= 628; y += 56)
+                DrawCircle(new Vector2(x, y), 2, Brass);
+        DrawRect(new Rect2(0, 653, W, 67), new Color("2c3026"));
+        DrawLine(new Vector2(0, 653), new Vector2(W, 653), new Color("9c7951"), 3);
     }
 
     private static string Money(long value) => value.ToString("N0", System.Globalization.CultureInfo.InvariantCulture);
 
     private void DrawHeader()
     {
-        UiKit.Box(this, new Rect2(48, 22, 44, 44), Owned, 8);
-        DrawUpgradeMark("n_charge", new Vector2(70, 44), Surface, 1.3f);
-        UiKit.Text(this, UiKit.ZenBlack, new Vector2(108, 25), "強化ショップ", 28, Ink);
-
-        UiKit.FaceAvatar(this, new Vector2(600, 44), 20, _accountIcon,
+        DrawLine(new Vector2(74, 8), new Vector2(74, 28), Brass, 2);
+        UiKit.Box(this, new Rect2(48, 26, 48, 48), Paper, 4, Brass, 2);
+        UiKit.Heart(this, new Vector2(72, 48), 11, new Color("8b4f49"));
+        UiKit.Tracked(this, UiKit.Mono, new Vector2(112, 20), "REFRAIN / HEART WORKSHOP", 11, Brass, .8f);
+        UiKit.Text(this, UiKit.KaiseiDecol, new Vector2(110, 39), "心の工房", 30, Ink);
+        UiKit.Text(this, UiKit.Zen, new Vector2(258, 53), "強化ショップ", 14, Muted);
+        if (CanSwitchCustomer)
+        {
+            bool hover = UiKit.Hotspot(CustomerButton, HsCustomer);
+            UiKit.Box(this, CustomerButton, hover ? Raised : Surface, 3, Brass, 1);
+            string key = Pad.UsingPad ? Pad.Face(JoyButton.Y) : "Tab";
+            UiKit.Text(this, UiKit.ZenBold, CustomerButton.Position + new Vector2(0, 7),
+                $"キャラ切替  {key}", 16, Ink, HorizontalAlignment.Center, CustomerButton.Size.X);
+        }
+        UiKit.FaceAvatar(this, new Vector2(600, 48), 20, _accountIcon,
             CompanionDialogue.Accent(_game.SelectedJob), false, 0, 1, _t);
-        UiKit.Text(this, UiKit.ZenBold, new Vector2(634, 31), _game.JobDef.CharacterName, 19, Ink);
+        UiKit.Text(this, UiKit.Zen, new Vector2(634, 24), "強化するキャラ", 11, Muted);
+        UiKit.Text(this, UiKit.ZenBold, new Vector2(634, 44), _game.JobDef.CharacterName, 18, Ink);
         string money = Money(_game.Impression);
         int size = UiKit.TextW(UiKit.Mono, money, 28) > 280 ? 22 : 28;
         float moneyW = UiKit.TextW(UiKit.Mono, money, size);
-        UiKit.Text(this, UiKit.Zen, new Vector2(1232 - moneyW - 122, 36), "浄化した心", 14, Muted);
-        UiKit.Heart(this, new Vector2(1232 - moneyW - 20, 45), 8, Owned);
-        UiKit.Text(this, UiKit.Mono, new Vector2(1232 - moneyW, 27), money, size,
-            _walletPopT > 0 ? Owned : Ink);
+        float walletX = Mathf.Min(788, 1212 - moneyW - 142);
+        UiKit.Box(this, new Rect2(walletX, 21, 1232 - walletX, 54), new Color("203d35"), 3, Brass, 1);
+        DrawLine(new Vector2(walletX + 7, 27), new Vector2(1225, 27), new Color(Brass, .3f), 1);
+        UiKit.Text(this, UiKit.Zen, new Vector2(1212 - moneyW - 122, 39), "浄化した心", 14, Muted);
+        UiKit.Heart(this, new Vector2(1212 - moneyW - 20, 48), 8, Brass);
+        UiKit.Text(this, UiKit.Mono, new Vector2(1212 - moneyW, 30), money, size,
+            _walletPopT > 0 ? Brass : Ink);
     }
 
     private void DrawColumn()
     {
-        int next = NextIndex();
-        UiKit.Text(this, UiKit.ZenBold, new Vector2(ColX, 103), "強化リスト", 15, Muted);
-        UiKit.Text(this, UiKit.Mono, new Vector2(ColX + ColW - 96, 103),
-            $"{(next < 0 ? Steps : next):00} / {Steps:00}", 15, Owned, HorizontalAlignment.Right, 96);
+        UiKit.Text(this, UiKit.ZenBold, new Vector2(ColX + 8, 112), "工房の品書き", 15, Ink);
+        UiKit.Text(this, UiKit.Mono, new Vector2(ColX + ColW - 96, 112),
+            $"{_game.OwnedUpgradeCount:00} / {Steps:00}", 15, Owned, HorizontalAlignment.Right, 96);
 
         for (int i = 0; i < Steps; i++)
         {
             var r = RowRect(i);
             bool owned = IsOwned(i), focus = i == _sel;
             bool hover = UiKit.Hotspot(r, i);
-            if (i < Steps - 1)
-                DrawLine(new Vector2(ColX + 17, r.GetCenter().Y),
-                    new Vector2(ColX + 17, RowRect(i + 1).GetCenter().Y),
-                    owned ? new Color(Owned, 0.7f) : Line, 2);
-            DrawRow(i, r, owned, i == next, focus, hover);
+            DrawRow(i, r, owned, focus, hover);
+        }
+        float shelfY = RowRect(Steps - 1).End.Y + 24;
+        if (shelfY + 88 < 634)
+        {
+            for (int jar = 0; jar < 3; jar++)
+            {
+                float x = 80 + jar * 78;
+                UiKit.Box(this, new Rect2(x, shelfY + 12, 44, 47), new Color("2e5148"), 9, new Color(Owned, .45f), 1);
+                DrawRect(new Rect2(x + 10, shelfY + 6, 24, 10), new Color("b18b5a"));
+                DrawLine(new Vector2(x + 7, shelfY + 24), new Vector2(x + 7, shelfY + 43), new Color(1, 1, 1, .2f), 2);
+                UiKit.Heart(this, new Vector2(x + 22, shelfY + 37), 7, new Color(Brass, .8f));
+            }
+            DrawRect(new Rect2(60, shelfY + 60, 430, 7), new Color("78573b"));
+            DrawLine(new Vector2(60, shelfY + 60), new Vector2(490, shelfY + 60), Brass, 1);
+            UiKit.Box(this, new Rect2(320, shelfY + 18, 158, 39), Paper, 2);
+            UiKit.Text(this, UiKit.KleeOne, new Vector2(329, shelfY + 23), "お好きな品から。", 16, Wood);
         }
     }
 
-    private void DrawRow(int i, Rect2 r, bool owned, bool next, bool focus, bool hover)
+    private void DrawRow(int i, Rect2 r, bool owned, bool focus, bool hover)
     {
         var d = Def(i);
-        Color accent = UpgradeColor(d.Id);
-        if (focus)
-        {
-            UiKit.Box(this, r, Raised, 6, new Color(Owned, 0.75f), 1);
-            DrawRect(new Rect2(r.Position.X, r.Position.Y + 6, 3, r.Size.Y - 12), Owned);
-        }
-        else if (hover) UiKit.Box(this, r, new Color("1c2224"), 6);
-        else DrawLine(new Vector2(r.Position.X + 40, r.End.Y), r.End, new Color(Line, 0.5f), 1);
-
+        bool locked = !owned && _game.GetMissingUpgradePrerequisite(d.Id) != null;
+        Color accent = locked ? Muted : UpgradeColor(d.Id);
+        UiKit.Box(this, new Rect2(r.Position + new Vector2(0, 3), r.Size), new Color("101c19"), 2);
+        UiKit.Box(this, r, focus || hover ? new Color("4a5140") : new Color("2d3c30"), 2,
+            focus ? Brass : new Color("756346"), focus ? 2 : 1);
+        DrawLine(r.Position + new Vector2(5, 3), new Vector2(r.End.X - 5, r.Position.Y + 3), new Color(Brass, .15f), 1);
         var node = new Vector2(r.Position.X + 17, r.GetCenter().Y);
-        DrawCircle(node, 10, Surface);
-        if (owned)
-        {
-            DrawCircle(node, 6, new Color(Owned, 0.13f));
-            DrawCheck(node, Owned, 0.65f);
-        }
-        else
-        {
-            DrawArc(node, next ? 6 : 4, 0, Mathf.Tau, 24, next ? Owned : Muted, next ? 2 : 1, true);
-            if (next) DrawCircle(node, 2, Owned);
-        }
-
-        DrawUpgradeMark(d.Id, new Vector2(r.Position.X + 53, r.GetCenter().Y),
-            owned || focus || next ? accent : Muted, 0.75f);
+        if (owned) DrawCheck(node, Owned, .65f);
+        else UiKit.Text(this, UiKit.Mono, node - new Vector2(10, 8), $"{i + 1:00}", 11, Muted);
+        UiKit.Box(this, new Rect2(r.Position.X + 38, r.GetCenter().Y - 13, 30, 26), new Color("1b2d25"), 2, new Color(Brass, .4f), 1);
+        DrawUpgradeMark(d.Id, new Vector2(r.Position.X + 53, r.GetCenter().Y), accent, .75f);
         float textY = r.GetCenter().Y - UiKit.ZenBold.GetHeight(17) / 2;
-        UiKit.Text(this, UiKit.ZenBold, new Vector2(r.Position.X + 78, textY),
-            d.Name, 17, owned || focus || next ? Ink : Muted);
-        if (owned)
-            UiKit.Text(this, UiKit.Zen, new Vector2(r.End.X - 86, r.GetCenter().Y - 10),
-                "購入済み", 13, Owned, HorizontalAlignment.Right, 72);
-        else
-            UiKit.Text(this, UiKit.Mono, new Vector2(r.End.X - 92, r.GetCenter().Y - 10),
-                Money(d.BaseCost), 14, next && _game.Impression < d.BaseCost ? Deny : next ? Ink : Muted,
-                HorizontalAlignment.Right, 78);
-
+        UiKit.Text(this, UiKit.ZenBold, new Vector2(r.Position.X + 78, textY), d.Name, 17, locked ? Muted : Ink);
+        var tag = new Rect2(r.End.X - 99, r.Position.Y + 4, 92, r.Size.Y - 8);
+        UiKit.Box(this, tag, owned ? new Color("a9c0a0") : locked ? new Color("b5baa6") : Paper, 2, Brass, 1);
+        DrawCircle(tag.Position + new Vector2(5, tag.Size.Y / 2), 1.5f, Wood);
+        UiKit.Text(this, owned || locked ? UiKit.ZenBold : UiKit.Mono, new Vector2(r.End.X - 87, r.GetCenter().Y - 10),
+            owned ? "購入済み" : locked ? "未解放" : Money(d.BaseCost), owned || locked ? 12 : 14,
+            !owned && !locked && _game.Impression < d.BaseCost ? new Color("8e3f36") : Wood, HorizontalAlignment.Right, 73);
         if (_buyFxId == d.Id && _buyFxT > 0)
         {
-            float k = (float)(_buyFxT / 0.7);
-            DrawRect(new Rect2(r.Position.X + 39, r.End.Y - 2, (r.Size.X - 39) * (1 - k), 2),
-                new Color(Owned, k));
+            float k = (float)(_buyFxT / .7);
+            DrawRect(new Rect2(r.Position.X + 39, r.End.Y - 2, (r.Size.X - 39) * (1 - k), 2), new Color(Brass, k));
         }
     }
 
     private void DrawDetail()
     {
         var d = Def(_sel);
-        bool owned = IsOwned(_sel), unlocked = _game.IsParentMet(d.Id);
+        bool owned = IsOwned(_sel);
+        var prerequisite = _game.GetMissingUpgradePrerequisite(d.Id);
+        bool locked = !owned && prerequisite != null;
         Color accent = UpgradeColor(d.Id);
-        UiKit.Text(this, UiKit.Mono, new Vector2(DetailX, 112), $"UPGRADE / {_sel + 1:00}", 14, Muted);
-        UiKit.Text(this, UiKit.ZenBold, new Vector2(DetailX, 154), d.Name, 34, Ink);
+        UiKit.Text(this, UiKit.Mono, new Vector2(DetailX, 119), $"ORDER No. {_sel + 1:00} / 強化のご案内", 14, new Color("e8ce96"));
+        UiKit.Text(this, UiKit.ZenBold, new Vector2(DetailX, 154),
+            d.Id == "n_slow" ? PlayerSpecial.NameFor(_game.SelectedJob) : d.Name, 32, Ink);
+        UiKit.Text(this, UiKit.Zen, new Vector2(DetailX, 209), "強化評価", 13, Muted);
+        UiKit.Text(this, UiKit.ZenBold, new Vector2(DetailX + 66, 204),
+            new string('★', d.Rating) + new string('☆', 5 - d.Rating), 19, Brass);
+        UiKit.Text(this, UiKit.Mono, new Vector2(DetailX + 176, 208), $"{d.Rating} / 5", 14, Ink);
         if (GameManager.IsAbilityNode(d.Id))
-            UiKit.Text(this, UiKit.Mono, new Vector2(DetailX, 209), "ABILITY", 13, accent);
-        UiKit.Multi(this, UiKit.Zen, new Vector2(DetailX, 241), d.Desc, 18, Muted, 330, 2);
+            UiKit.Text(this, UiKit.Zen, new Vector2(DetailX + 240, 209),
+                d.Id == "n_slow" ? $"必殺技 / {_game.JobDef.CharacterName}" : "ABILITY", 13, accent);
+        UiKit.Multi(this, UiKit.Zen, new Vector2(DetailX, 241),
+            d.Id == "n_slow" ? PlayerSpecial.DescriptionFor(_game.SelectedJob) : d.Desc, 18, Muted, 330, 2);
 
-        DrawUpgradeMark(d.Id, new Vector2(DetailX + 22, 319), accent, 1.4f);
-        UiKit.Text(this, UiKit.ZenBold, new Vector2(DetailX + 55, 306),
-            owned ? "購入済み" : unlocked ? "次の強化" : "未解放", 17, owned || unlocked ? Owned : Muted);
+        UiKit.Box(this, new Rect2(DetailX + 8, 340, 60, 8), Brass, 2);
+        DrawCircle(new Vector2(DetailX + 38, 322), 23, new Color("0c1b25"));
+        DrawArc(new Vector2(DetailX + 38, 322), 23, 0, Mathf.Tau, 48, new Color(accent, .65f), 1.5f, true);
+        DrawUpgradeMark(d.Id, new Vector2(DetailX + 38, 322), accent, 1.5f);
+        UiKit.Text(this, UiKit.ZenBold, new Vector2(DetailX + 88, 317),
+            owned ? "購入済み" : locked ? "未解放" : "未購入", 17, owned ? Owned : Muted);
+        if (prerequisite != null)
+            UiKit.Text(this, UiKit.Zen, new Vector2(DetailX + 168, 320),
+                $"「{prerequisite.Name}」習得で{(owned ? "有効" : "解放")}", 14, Deny);
         DrawCharacter();
 
         var (now, after) = EffectPair(_sel);
-        DrawLine(new Vector2(DetailX, 364), new Vector2(DetailX + DetailW, 364), Line, 1);
+        UiKit.Box(this, new Rect2(DetailX, 370, 302, 98), Paper, 3, Brass, 1);
+        UiKit.Box(this, new Rect2(DetailX + 348, 370, 322, 98), new Color("304d3c"), 3, Brass, 1);
         float afterX = DetailX + 358;
-        UiKit.Text(this, UiKit.Zen, new Vector2(DetailX, 380), "強化前", 13, Muted);
-        UiKit.Text(this, UiKit.Zen, new Vector2(afterX, 380), "強化後", 13, Owned);
-        UiKit.Multi(this, UiKit.ZenBold, new Vector2(DetailX, 407), now, 18, Ink, 284, 2);
-        UiKit.Multi(this, UiKit.ZenBold, new Vector2(afterX, 407), after, 18, Owned, 284, 2);
+        UiKit.Text(this, UiKit.Zen, new Vector2(DetailX + 14, 380), "強化前", 13, Wood);
+        UiKit.Text(this, UiKit.Zen, new Vector2(afterX + 4, 380), "強化後", 13, Owned);
+        UiKit.Multi(this, UiKit.ZenBold, new Vector2(DetailX + 14, 407), now, 18, Surface, 284, 2);
+        UiKit.Multi(this, UiKit.ZenBold, new Vector2(afterX + 4, 407), after, 18, Owned, 284, 2);
         DrawArrow(new Vector2(DetailX + 322, 421), Muted, 1);
 
         long cost = _game.GetUpgradeCost(d.Id);
         bool enough = _game.Impression >= cost;
-        _buyBtnActive = !owned && unlocked && enough;
+        _buyBtnActive = _game.CanPurchase(d.Id);
         // [強化する] と [ためし撃ち] を横に並べる（←→ で切り替えて Z。2026-09-27 に旧フッタの「ためし撃ち」をここへ移した）。
         const float TrainW = 176f, BtnGap = 12f;
         _buyBtnRect = new Rect2(DetailX, 486, DetailW - TrainW - BtnGap, 56);
         _trainBtnRect = new Rect2(DetailX + DetailW - TrainW, 486, TrainW, 56);
         float buyW = _buyBtnRect.Size.X;
         bool hover = _buyBtnActive && UiKit.Hotspot(_buyBtnRect, HsBuy);
-        Color fill = _buyBtnActive ? (hover ? new Color("c2f3e1") : Owned) : Raised;
+        Color fill = _buyBtnActive ? (hover ? new Color("eed4a2") : Brass) : Raised;
         Color foreground = _buyBtnActive ? Surface : Muted;
-        UiKit.Box(this, _buyBtnRect, fill, 8, _buyBtnActive ? null : Line, 1);
+        UiKit.Box(this, _buyBtnRect, Raised, 4, _buyBtnActive ? Brass : Line, 1);
+        if (_buyBtnActive)
+        {
+            UiKit.Box(this, _buyBtnRect.Grow(-2), fill, 6);
+            DrawLine(_buyBtnRect.Position + new Vector2(10, 3), new Vector2(_buyBtnRect.End.X - 10, _buyBtnRect.Position.Y + 3), new Color("fff0cb"), 2);
+        }
         string label = owned ? "購入済み"
-            : !unlocked ? $"「{GameManager.GetUpgradeDef(d.ParentId)!.Name}」の購入で解放"
+            : locked ? $"「{prerequisite!.Name}」の習得が必要"
             : !enough ? $"あと {Money(cost - _game.Impression)}"
             : "強化する";
         if (_buyBtnActive)
@@ -449,13 +507,13 @@ public partial class Shop : Node2D
         else
         {
             UiKit.Text(this, UiKit.ZenBold, new Vector2(DetailX + 20, 502), label, 17,
-                unlocked && !owned ? Deny : Muted, HorizontalAlignment.Center, buyW - 40);
+                !owned ? Deny : Muted, HorizontalAlignment.Center, buyW - 40);
         }
 
         // ためし撃ち（トレーニングへ）。枠だけの控えめなボタン＝主役は [強化する]。
         bool trainHover = UiKit.Hotspot(_trainBtnRect, HsTrain);
         bool trainOn = trainHover || (!Pad.UsingMouse && _act == 1);
-        UiKit.Box(this, _trainBtnRect, trainOn ? new Color("26302f") : Raised, 8, trainOn ? Owned : Line, 1);
+        UiKit.Box(this, _trainBtnRect, trainOn ? Raised : Surface, 4, Brass, trainOn ? 2 : 1);
         DrawUpgradeMark("n_hitbox", new Vector2(_trainBtnRect.Position.X + 30, 514), trainOn ? Ink : Muted, 0.8f);
         UiKit.Text(this, UiKit.ZenBold, new Vector2(_trainBtnRect.Position.X + 52, 502), "ためし撃ち", 17, trainOn ? Ink : Muted);
 
@@ -463,13 +521,11 @@ public partial class Shop : Node2D
         if (!Pad.UsingMouse)
             UiKit.Box(this, (_act == 0 ? _buyBtnRect : _trainBtnRect).Grow(4), Colors.Transparent, 10, Ink, 1.5f);
 
-        int count = 0;
-        for (int i = 0; i < Steps; i++) if (IsOwned(i)) count++;
         if (_toastT <= 0)
         {
-            UiKit.Text(this, UiKit.Zen, new Vector2(DetailX, 574), "強化進行", 13, Muted);
+            UiKit.Text(this, UiKit.Zen, new Vector2(DetailX, 574), $"{_game.JobDef.CharacterName}の購入記録", 13, Muted);
             UiKit.Text(this, UiKit.Mono, new Vector2(DetailX + DetailW - 110, 572),
-                $"{count:00} / {Steps:00}", 16, Owned, HorizontalAlignment.Right, 110);
+                $"{_game.OwnedUpgradeCount:00} / {Steps:00}", 16, Owned, HorizontalAlignment.Right, 110);
             float segment = (DetailW - (Steps - 1) * 5) / Steps;
             for (int i = 0; i < Steps; i++)
                 UiKit.Box(this, new Rect2(DetailX + (segment + 5) * i, 610, segment, 4),
@@ -477,37 +533,40 @@ public partial class Shop : Node2D
         }
     }
 
-    // 自機の立ち絵の枠と、中身（不透明部分）の高さ・足元の基準線（2026-09-27）。
-    //   枠いっぱいにテクスチャを合わせるのではなく「中身の高さ」を CharContentH にそろえ、足元を枠の
-    //   下端の 2px 上に置く＝素材の透明余白の量が違ってもキャラの見かけの大きさが変わらない。
+    // 素材ごとの透明余白に左右されないよう、不透明部分を基準に展示台へ揃える。
     private static readonly Rect2 CharArea = new(948, 110, 284, 244);
-    private const float CharContentH = 240f;
-    private static Vector2 CharFoot => new(CharArea.GetCenter().X, CharArea.End.Y - 2);
+    private const float CharContentH = 188f;
+    private static Vector2 CharFoot => new(CharArea.GetCenter().X, CharArea.End.Y - 22);
 
     private void DrawCharacter()
     {
         var area = CharArea;
         Color accent = CompanionDialogue.Accent(_game.SelectedJob);
-        DrawLine(new Vector2(964, 134), new Vector2(980, 134), new Color(accent, 0.65f), 1);
-        DrawLine(new Vector2(964, 134), new Vector2(964, 150), new Color(accent, 0.65f), 1);
-        DrawLine(new Vector2(1216, 330), new Vector2(1200, 330), new Color(accent, 0.65f), 1);
-        DrawLine(new Vector2(1216, 330), new Vector2(1216, 314), new Color(accent, 0.65f), 1);
+        DrawLine(new Vector2(area.GetCenter().X, 110), new Vector2(area.GetCenter().X, 130), Brass, 2);
+        DrawColoredPolygon(new[] { new Vector2(1060, 129), new Vector2(1120, 129),
+            new Vector2(1190, 334), new Vector2(990, 334) }, new Color(Brass, .07f));
+        DrawColoredPolygon(new[] { new Vector2(1076, 121), new Vector2(1104, 121),
+            new Vector2(1118, 136), new Vector2(1062, 136) }, Brass);
+        UiKit.RadialGlow(this, new Vector2(area.GetCenter().X, 240), 110, accent, .1f);
+        var oval = new Vector2[48];
+        for (int i = 0; i < oval.Length; i++)
+            oval[i] = new Vector2(area.GetCenter().X, 333) + Vector2.FromAngle(i * Mathf.Tau / oval.Length) * new Vector2(109, 13);
+        DrawColoredPolygon(oval, new Color("826044"));
         if (_playerShot == null) return;
-        // カスタマイズ画面と同じ直し方（UiKit.DrawPortrait 参照）。
         UiKit.DrawPortrait(this, _playerShot, CharFoot, CharContentH);
         if (_buyFxT > 0)
         {
-            float k = 1 - (float)(_buyFxT / 0.7);
+            float k = 1 - (float)(_buyFxT / .7);
             float y = area.End.Y - area.Size.Y * k;
-            DrawLine(new Vector2(area.Position.X + 28, y), new Vector2(area.End.X - 28, y),
-                new Color(Owned, 0.65f * (1 - k)), 2, true);
+            DrawLine(new Vector2(area.Position.X + 28, y), new Vector2(area.End.X - 28, y), new Color(Brass, .65f * (1 - k)), 2, true);
         }
     }
 
     private static Color UpgradeColor(string id) => id switch
     {
-        "n_life_1" or "n_life_2" or "n_hitbox" => new Color("efa1b6"),
-        "n_bomb_1" or "n_charge" or "n_lines" or "n_pierce" => new Color("e8ce96"),
+        "n_life_1" or "n_life_2" or "n_hitbox" or "n_heart_magnet" => new Color("efa1b6"),
+        "n_hit_invul" => new Color("a9cfe8"),
+        "n_bomb_1" or "n_charge_shot" or "n_charge" => new Color("e8ce96"),
         _ => Owned,
     };
 
@@ -529,6 +588,18 @@ public partial class Shop : Node2D
         Vector2 P(float x, float y) => c + new Vector2(x, y) * scale;
         void L(float x, float y, float xx, float yy) => DrawLine(P(x, y), P(xx, yy), color, 1.8f, true);
         if (id is "n_life_1" or "n_life_2") UiKit.Heart(this, c, 9 * scale, color);
+        else if (id == "n_heart_magnet")
+        {
+            UiKit.Heart(this, c, 6 * scale, color);
+            L(-13, -5, -9, 0); L(-9, 0, -13, 5);
+            L(13, -5, 9, 0); L(9, 0, 13, 5);
+        }
+        else if (id == "n_hit_invul")
+        {
+            DrawPolyline(new[] { P(0, -12), P(10, -8), P(8, 5), P(0, 12),
+                P(-8, 5), P(-10, -8), P(0, -12) }, color, 1.8f, true);
+            L(0, -6, 0, 1); L(0, 1, 4, 3);
+        }
         else if (id is "n_dodge" or "n_dodge_cd" or "n_move_15x")
         {
             L(-10, -7, -3, 0); L(-3, 0, -10, 7); L(1, -7, 8, 0); L(8, 0, 1, 7);
@@ -538,22 +609,16 @@ public partial class Shop : Node2D
             DrawArc(c, 7 * scale, 0, Mathf.Tau, 24, color, 1.8f, true);
             L(5, -5, 10, -10); L(8, -13, 8, -10); L(11, -8, 14, -8);
         }
-        else if (id is "n_hitbox" or "n_slow")
+        else if (id == "n_slow")
+        {
+            DrawPolyline(new[] { P(0, -11), P(3, -3), P(11, 0), P(3, 3), P(0, 11),
+                P(-3, 3), P(-11, 0), P(-3, -3), P(0, -11) }, color, 1.8f, true);
+        }
+        else if (id == "n_hitbox")
         {
             DrawArc(c, 9 * scale, 0, Mathf.Tau, 32, color, 1.8f, true);
-            if (id == "n_slow") { L(0, -5, 0, 0); L(0, 0, 4, 2); }
-            else { L(-13, 0, -6, 0); L(6, 0, 13, 0); L(0, -13, 0, -6); L(0, 6, 0, 13); }
+            L(-13, 0, -6, 0); L(6, 0, 13, 0); L(0, -13, 0, -6); L(0, 6, 0, 13);
         }
-        else if (id == "n_lines")
-        {
-            L(-8, -8, 8, -8); L(-8, 0, 8, 0); L(-8, 8, 8, 8);
-        }
-        else if (id == "n_option")
-        {
-            DrawArc(c, 5 * scale, 0, Mathf.Tau, 20, color, 1.8f, true);
-            DrawCircle(P(-11, 0), 2 * scale, color); DrawCircle(P(11, 0), 2 * scale, color);
-        }
-        else if (id == "n_pierce") { DrawArrow(c, color, scale); L(3, -10, 3, 10); }
         else
             DrawPolyline(new[] { P(2, -11), P(-7, 2), P(0, 2), P(-2, 11), P(8, -2), P(1, -2), P(2, -11) }, color, 1.8f, true);
     }
@@ -568,7 +633,7 @@ public partial class Shop : Node2D
             case "n_life_1":
             case "n_life_2":
             {
-                int before = g.StartLives - g.MaxLifeBonus + (id == "n_life_2" ? 1 : 0);
+                int before = g.StartLives - (owned ? 1 : 0);
                 return ($"LIFE  {before}", $"LIFE  {before + 1}");
             }
             case "n_dodge":     return ("未習得", "回避を習得\n無敵時間 0.45秒");
@@ -580,20 +645,16 @@ public partial class Shop : Node2D
                 int cur = g?.StartBombs ?? 4;
                 return (owned ? $"ボム {cur - 1}" : $"ボム {cur}", $"ボム {(owned ? cur : cur + 1)}");
             }
-            // 効果の文面に「→」を混ぜない（表示側が値と値を矢印でつなぐので、二重の矢印になって読めなくなる）。
-            // 溜め打ちは最初から使える（2026-09-25）＝この段が売るのは「もう一段」。
-            //   左右とも「何秒ためて、どれだけの一発が出るか」を並べる（秒と倍率は ChargeTier が正典）。
+            case "n_charge_shot": return ("未習得", $"{g.ChargeNeedSec:0.00}秒で充填\n{g.JobDef.ChargeDescription}");
             case "n_charge":    return ($"1段目 {g.ChargeNeedSec:0.00}秒",
                                         $"2段目 {g.ChargeNeedSec * ChargeTier.HoldMul:0.00}秒\n威力×{ChargeTier.PowerMul:0.0}・大きさ×{ChargeTier.RadiusMul:0.0}");
-            case "n_hitbox":    return ("当たり判定 2.0px", "当たり判定 1.0px");
-            case "n_lines":
-            {
-                return g.SelectedJob == Job.Magic ? ("同時発射 5発", "同時発射 7発") : ("同時発射 2発", "同時発射 3発");
-            }
+            case "n_hitbox":    return ("判定半径 2.0px", "判定半径 1.5px");
+            case "n_heart_magnet": return ($"回収半径 {ScoreShards.MagnetRadius:0}px",
+                $"回収半径 {ScoreShards.MagnetRadius * GameManager.HeartMagnetUpgradeMul:0}px");
+            case "n_hit_invul": return ($"被弾後 {g.JobDef.HitInvulSec:0.0}秒",
+                $"被弾後 {g.JobDef.HitInvulSec + GameManager.HitInvulUpgradeBonus:0.0}秒");
             case "n_move_15x":  return ($"移動速度 {75 * g.JobDef.MoveMul:0.0}", $"移動速度 {112.5f * g.JobDef.MoveMul:0.0}");
-            case "n_slow":      return ("未習得", "敵の時間 ×0.35 / 1.5秒\n再使用 20秒");
-            case "n_pierce":    return ("通常弾は命中すると消える", "通常弾が1回貫通する");
-            case "n_option":    return ("オプション なし", "オプション 1基\n威力 ×0.5 で同時射撃");
+            case "n_slow":      return ("未習得", $"{PlayerSpecial.NameFor(g.SelectedJob)}\n再使用 {PlayerSpecial.Cooldown:0}秒");
             default:            return ("—", Def(i).Desc);
         }
     }

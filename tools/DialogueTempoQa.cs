@@ -127,12 +127,14 @@ public partial class DialogueTempoQa : Node
             GetTree().Root.AddChild(epilogue);
             epilogue.SetProcess(false);
             var gaze = Read<System.Collections.IList>(epilogue, "_gaze");
+            const string skyLine = "今夜は画面越しに一緒に星を見たくて、背景を星空にしてみました。";
+            var skyPages = DialogueBox.Paginate(skyLine, width);
             Set(epilogue, "_line", Enumerable.Range(0, gaze.Count).Single(i =>
-                (string)gaze[i]!.GetType().GetField("Text")!.GetValue(gaze[i])! == text));
+                (string)gaze[i]!.GetType().GetField("Text")!.GetValue(gaze[i])! == skyLine));
             Set(epilogue, "_zHeld", Pad.AdvanceHeld());
             for (int i = 0; i < 24; i++) epilogue._Process(1.0 / 60);
-            Check(Read<double>(epilogue, "_reveal") < pages[0].Length, "epilogue uses the same gradual reveal");
-            Check(Read<List<string>>(epilogue, "_pages").SequenceEqual(pages), "epilogue uses punctuation pagination");
+            Check(Read<double>(epilogue, "_reveal") < skyPages[0].Length, "epilogue uses the same gradual reveal");
+            Check(Read<List<string>>(epilogue, "_pages").SequenceEqual(skyPages), "epilogue uses punctuation pagination");
             await Shot(epilogue, "epilogue_typing");
             for (int i = 0; i < 180; i++) epilogue._Process(1.0 / 60);
             await Shot(epilogue, "epilogue_page");
@@ -370,20 +372,20 @@ public partial class DialogueTempoQa : Node
                 hud._Process(0.4);
                 hud.RevealDialogNow();
                 Check(Read<string>(hud, "_dlgText") == "僕もだ。ミナ、君と一緒に、もう一度会いに行きたい。"
-                    && Read<bool>(hud, "_dlgReadBefore"), "reported midboss line is recognised as read on replay");
+                    && game.IsLineRead(Read<string>(hud, "_dlgText")), "reported midboss line is recognised as read on replay");
                 await Shot(root, "midboss_read_skip");
                 const BindingFlags stat = BindingFlags.Static | BindingFlags.NonPublic;
                 typeof(Pad).GetField("_mousePos", stat)!.SetValue(null, hud.ToolbarRect(DialogToolbar.Skip).GetCenter());
                 typeof(Pad).GetField("_mL", stat)!.SetValue(null, true);
                 typeof(Pad).GetField("_mLPrev", stat)!.SetValue(null, false);
                 hud._Process(0.01);
-                Check(Hud.SkipLatched && hud.FastForwarding, "clicking the reported scene's read-skip icon activates fast forward");
+                Check(Hud.SkipLatched && hud.FastForwarding, "clicking the reported scene's skip icon activates fast forward");
                 stage._Process(0.2);
                 typeof(Pad).GetField("_mL", stat)!.SetValue(null, false);
                 stage._Process(0.01);
                 hud._Process(0.01);
                 Check(Read<int>(stage, "_choicePhase") == 1 && !Hud.SkipLatched,
-                    "read skip advances the reported line and stops at the choice");
+                    "skip advances the reported line and stops at the choice");
             }
             else
             {

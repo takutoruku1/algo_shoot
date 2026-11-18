@@ -4,13 +4,13 @@ using System.Linq;
 
 public partial class ScoreShards : Node2D
 {
-    public const float Lifetime = 5f;
+    public const float Lifetime = 7f;
     public const float MagnetRadius = 48f;
-    // 散りの慣性が効いている時間。これを過ぎると velocity が exp(-5dt) で急ブレーキし、粒はその場に
-    // 留まる＝「散り終わり」。道中ザコは従来どおり 0.24s（すぐ止まって拾いやすい位置に残る）。
-    // ボス/中ボス撃破の粒は Shard.Fly に長い値を入れて盤面の端まで飛ばす（下の Add 参照）。
+    // ボス級は盤面へ広く散らすため、Shard.Fly で慣性を長く保つ。
     private const float ScatterTime = 0.24f;
+    private const float DriftSpeed = 24f;
     private const float CollectRadius = 6f;
+    private const float PowerIconSize = 12f;
     // 256→640：ボス撃破で 104〜128 粒が一度に入る（+道中の取り残し）。上限に当たると
     // Add が false を返して「ただのパーティクル＝拾えない花びら」に落ちるため、格の差を
     // 出すには容量が先に要る。描画は 1粒 2〜6 DrawCall の単純ループで、640 でも実測余裕（下の _Draw 参照）。
@@ -25,9 +25,6 @@ public partial class ScoreShards : Node2D
         // ボス/中ボス撃破では 0.5〜0.9s を入れて盤面いっぱいまで広げる（2026-09-22）。
         public float Fly = ScatterTime;
         public int Points;
-        // 2026-09-17 経済改修：欠片はスコア(Points)とショップ通貨の基礎額(Imp)を別々に運ぶ。
-        //   Imp は GameManager.AddScoreShard 経由で GainImpression の倍率を通る（難易度倍率は経済側の1本だけ）。
-        public int Imp;
         public bool Attracted;
         public PowerKind? Power;
     }
@@ -74,9 +71,10 @@ public partial class ScoreShards : Node2D
 
     // fly : 慣性で飛び続ける秒数（0以下＝既定の ScatterTime）。吸引が始まるまでの Delay も
     //   これに追従する＝「散り切ってから吸い込まれる」。ボス/中ボスの全方位バーストだけが指定する。
-    public bool Add(FxLayer.P particle, int points, int imp = 0, float fly = 0f, PowerKind? power = null)
+    public bool Add(FxLayer.P particle, int points, float fly = 0f, PowerKind? power = null, bool autoCollect = false)
     {
-        if (_shards.Count == Capacity) return false;
+        // Bomb conversions must remain collectible even when a dense barrage exceeds the normal drop limit.
+        if (_shards.Count >= Capacity && !autoCollect) return false;
         float flyTime = fly > 0f ? fly : ScatterTime;
         _shards.Add(new Shard
         {
@@ -86,8 +84,8 @@ public partial class ScoreShards : Node2D
             Delay = flyTime + particle.Ttl * 0.08f,
             Fly = flyTime,
             Points = points,
-            Imp = imp,
             Power = power,
+            Attracted = autoCollect,
         });
         QueueRedraw();
         return true;
@@ -119,7 +117,7 @@ public partial class ScoreShards : Node2D
         _collectIdle += dt;
         if (_collectIdle > 0.3f) _chain = 0;
         Vector2 target = ToLocal(_player.GlobalPosition);
-        int collected = 0, collectedImp = 0, collectedCount = 0;
+        int collected = 0, collectedCount = 0;
         Color pickupColor = FxLayer.Heart;
         for (int i = _shards.Count - 1; i >= 0; i--)
         {
@@ -132,7 +130,8 @@ public partial class ScoreShards : Node2D
             // ただしボス級の長い散り(Fly>ScatterTime)は 0.8 までしか詰めない：ここを半分にすると
             // 盤面の端まで届く前に吸引が始まり、「全体に散る」が見えないまま終わる（2026-09-22）。
             float delay = _rush > 0 ? shard.Delay * (shard.Fly > ScatterTime ? 0.8f : 0.5f) : shard.Delay;
-            if (shard.Age >= delay && (sweep || distance <= MagnetRadius))
+            float magnetRadius = MagnetRadius * (shard.Power.HasValue ? 1f : _game.HeartMagnetMul);
+            if (shard.Age >= delay && (sweep || distance <= magnetRadius))
                 shard.Attracted = true;
 
             if (shard.Attracted)
@@ -144,7 +143,6 @@ public partial class ScoreShards : Node2D
                 if (distance <= CollectRadius + speed * dt)
                 {
                     collected += shard.Points;
-                    collectedImp += shard.Imp;
                     collectedCount++;
                     pickupColor = shard.Particle.Col;
                     if (shard.Power is { } kind && _player.ApplyPowerup(kind))
@@ -170,18 +168,23 @@ public partial class ScoreShards : Node2D
                     shard.Velocity.Y += shard.Particle.Grav * dt;
                     shard.Velocity *= Mathf.Max(0f, 1f - shard.Particle.Drag * dt);
                 }
-                else shard.Velocity *= Mathf.Exp(-5f * dt);
+                else shard.Velocity = shard.Velocity.Lerp(Vector2.Left * DriftSpeed, 1f - Mathf.Exp(-5f * dt));
                 shard.Position += shard.Velocity * dt;
-                if (shard.Age > 0.5f) shard.Position.X -= 5f * dt;
                 var global = ToGlobal(shard.Position);
-                global.X = Mathf.Clamp(global.X, Field.Left + 5f, Field.Right - 5f);
+                float margin = shard.Power.HasValue ? PowerIconSize * (0.5f + 1f / 16f) : 5f;
+                if (!sweep && global.X < Field.Left - margin)
+                {
+                    _shards.RemoveAt(i);
+                    continue;
+                }
+                global.X = Mathf.Min(global.X, Field.Right - margin);
                 global.Y = Mathf.Clamp(global.Y, Field.Top + 19f, Field.Bottom - 9f);
                 shard.Position = ToLocal(global);
             }
         }
         if (collectedCount > 0)
         {
-            _game.AddScoreShard(collected, collectedImp);
+            _game.AddScoreShard(collected);
             _collectIdle = 0;
             if (_soundCooldown <= 0)
             {
@@ -233,7 +236,7 @@ public partial class ScoreShards : Node2D
             FxLayer.DrawP(this, particle, null);
             if (shard.Power is { } kind)
             {
-                float size = particle.Size * 1.35f;
+                const float size = PowerIconSize;
                 PowerPickupArt.Draw(this, new Rect2(position - Vector2.One * size * 0.5f, Vector2.One * size), kind, alpha);
             }
         }

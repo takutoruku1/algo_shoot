@@ -3,11 +3,12 @@ using System;
 
 public partial class MinaStoryFilm : StoryFilm
 {
+    internal const string PhoneDraftsArt = "res://char/bg2/story/cg_mina_phone_drafts.png";
     private static Line[] Memory(GameManager game) => new Line[]
     {
         new(0, "あかりの帰還後", "", game.ClearedWithCompanion("akari")
             ? "帰ってきた仲間から、あかりさんのお話を聞きました。あの方を傷つけていた言葉が、聞き終えたあとにも残りました。"
-            : "手のひらに、濁りが残りました。あかりさんの『好き』ではなく、それを傷つけていた言葉が。"),
+            : "あかりさんの『好き』を傷つけていた言葉が、手のひらに濁りとして残りました。"),
         new(0, "あかりの帰還後", "ミナ", game.ClearedWithCompanion("akari")
             ? "このくらいなら。次の方のお話も、聞けます。" : "このくらいなら。次の方のところへ、行けます。"),
         new(1, "こはるの帰還後・返信欄", "", game.ClearedWithCompanion("koharu")
@@ -18,7 +19,9 @@ public partial class MinaStoryFilm : StoryFilm
         new(2, game.ClearedWithCompanion("rei") ? "レイの帰還を待つ間" : "レイのところへ潜る前", "ミナ", game.ClearedWithCompanion("rei")
             ? "お話を聞けます。……聞ける、はずです。" : "潜れます。……潜れる、はずです。"),
         new(3, "三人の帰還後・あなたへの下書き", "ミナの下書き", "ご主人様。今日は、もう、休んでもよろしいですか。"),
-        new(3, "三人の帰還後・あなたへの下書き", "ミナ", "……何もできなくなったら。わたくしは、何を話せばよいのでしょう。"),
+        new(3, "三人の帰還後・あなたへの下書き", "ミナ", game.ChosenAt("s3_7") == "ミナまで傷つくのは嫌だ。少し休もう"
+            ? "待っていただけたことは、覚えています。……もう一度、頼んでもよいのに。"
+            : "……何もできなくなったら。わたくしは、何を話せばよいのでしょう。"),
         new(3, "三人の帰還後・あなたへの下書き", "", "送信には、触れませんでした。入力欄を閉じると、いつもの報告だけが残りました。"),
         new(3, "三人の帰還後・あなたへの下書き", "ミナ", "……この重さくらい、わたくしが、持ちます。"),
     };
@@ -41,7 +44,9 @@ public partial class MinaStoryFilm : StoryFilm
             _atlasPath = "res://char/v3/mina_story_atlas.png", _storyName = "Mina",
             _shotImages = new()
             {
-                [5] = $"res://char/bg2/story/cg_mina_rescue_{rescuer}_v1.png",
+                [1] = PhoneDraftsArt,
+                [5] = game.SelectedJob == Job.Tank ? Prologue.FirstTouchArt
+                    : $"res://char/bg2/story/cg_mina_rescue_{rescuer}_v1.png",
             },
             _hud = hud, _world = world, _aftermath = aftermath,
             _lines = aftermath ? Aftermath : Memory(game), _completed = completed,

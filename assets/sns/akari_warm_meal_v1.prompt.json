@@ -1,0 +1,9 @@
+{
+  "tool": "built-in image_gen",
+  "intent": "Akari's own SNS photograph of her warm meal",
+  "reference": "char/v3/akari_story_atlas.png",
+  "reference_region": "bottom-right panel: setting and food, not the film camera's point of view",
+  "output": "assets/sns/akari_warm_meal_v1.png",
+  "prompt": "Take the shot from Akari's phone at the table in the reference eatery. Frame the steaming blue-striped oyakodon bowl, spoon, water and pickles; preserve the amber shop light and yellow umbrella. No phone anywhere in the photograph. Single 2:1 anime illustration, no people, captions or overlay.",
+  "final_edit_prompt": "precise-object-edit. Edit target: the supplied finished illustration. This is the actual photo Akari took with her own phone to post on SNS, not a third-person film still. Remove the dark navy smartphone on the right completely; continue the same wooden tabletop and grain naturally in its place. Keep everything else as close to the target as possible: framing, striped oyakodon bowl and steam, spoon, pickles, water and umbrella, lighting and anime style. No other phone, no camera, reflection, hands, writing or overlay. One wide 2:1 picture."
+}

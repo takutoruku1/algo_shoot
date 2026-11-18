@@ -12,6 +12,9 @@ public partial class MidEnemy : Enemy
     private int _repeatRemaining;
     private double _repeatT;
     internal bool SalvoActive => _telegraphT > 0 || _salvoRemaining > 0 || _burstLeft > 0 || _repeatRemaining > 0;
+    internal BulletArt.PlayerVisual? RoadVisual { get; private set; }
+    internal RoadProjectileArt? RoadAnimation { get; private set; }
+    private Node2D? _roadCueCanvas;
     private bool DenseRoad => GameManager.Instance?.Difficulty >= GameManager.Diff.Normal;
     private bool HighPressure => GameManager.Instance?.Difficulty is GameManager.Diff.Hard or GameManager.Diff.Lunatic;
     private int RoadCount(int count) => Mathf.Max(1, Mathf.RoundToInt(count
@@ -53,6 +56,7 @@ public partial class MidEnemy : Enemy
     private bool _entryConfigured;
     // Spawner から AddChild 前に呼ぶ：場内のどこへ進入して居座るか。
     public void SetEntry(Vector2 campTarget) { _campTarget = campTarget; _entryConfigured = true; }
+    internal bool RequiresFrontEntry => _spec.Pattern is AttackPattern.AkariVacant or AttackPattern.KoharuParcel;
     // 回り込み（FlankAim）用の経由点：上下端の走行レーン終端。ここを通ってから着座点へ折れる
     //（＝右から出現→端を走って自機の後方へ回り込む、が2区間の直進で読める形になる）。
     private Vector2 _viaTarget;
@@ -76,6 +80,7 @@ public partial class MidEnemy : Enemy
     //   ＝予告どおりの場所に来る（§7 理不尽の排除）。2026-10-03「棒立ちが安全であってはならない」。
     private Vector2 _burstTarget;
     private double _telegraphT;  // 予告中の残り秒（>0 で予告表示中＝まだ撃たない）
+    private double _roadCueDuration, _roadCueRemaining;
     private Vector2 _characterOrigin;
     private int _characterAttackIndex;
     private int _salvoRemaining;
@@ -191,7 +196,7 @@ public partial class MidEnemy : Enemy
     private MoveStyle _move;
     private MoveVariant _moveVariant;
     private float _movePhase;      // 個体ごとの位相ずらし（群れが同じ軌道で重ならないように）
-    private double _moveT;         // 移動用の経過秒（装飾用 _motionT とは独立）
+    private double _moveT;
     private float _approachTotal;  // 進入開始時の目標点までの距離（進捗 p の分母。0 除算は下で回避）
     private float _arcSign;         // 弧の向き（±1・個体ごとにランダム＝群れが同じ側へ膨らまない）
     private double _campPatrolT;    // 着座後の巡回位相
@@ -263,52 +268,13 @@ public partial class MidEnemy : Enemy
         _ => 1.0,
     });
 
-    // ─── “自走している生命感”モーション（吉田演出：1枚絵をtransformだけで生かす）───
-    // _bodySprite(=子ノード"Body")の Position/Rotation/Scale だけを毎フレーム合成する。
-    // 当たり判定（本体 Area2D／_bodyShape）と進行ロジック・SwayAmp は一切触らない（純・装飾）。
-    // 種別＝_spec.Pattern からモチーフを判別し、特徴的な周期モーションを与える。
-    private LivingMotion _motion;     // モチーフ別の動きの型（OnEnemyReady で確定）
-    private float _motionPhase;       // 個体ごとの位相ずらし（群れの同期を防ぐ）
-    private double _motionT;          // 生命感モーションの経過秒（_swayT とは独立に積む）
-    private Sprite2D? _body;          // 子ノード"Body"のキャッシュ（毎フレーム探さない）
-    private float _bodyBaseScale = 1f;// _bodySprite の素のスケール（Scale演出はこれに係数を掛ける）
-    private float _gaze;              // 監視カメラの“ギョロッ”用：目標ヨー(rad)。たまに切り替える
-    private double _gazeT;            // 次に視線を変えるまでの残り秒
-    private float _spin;             // こはるペンライトの“クルッ”用：余韻回転(rad)。撃つ瞬間に蹴って減衰
-    private float _kick;             // 予告/発射の溜め：一瞬の縦スカッシュ量（0で平常、減衰）
-    private float _startle;
-    private double _startleT;        // 次の身じろぎまでの残り秒
-    private int _gesture;
-    private Vector2 _motionPrevious;
-    private Vector2 _motionVelocity;
-
-    // 1枚絵の transform で“生きてる感”を出す周期モーションの型（種＝モチーフごと）。
-    // ─── 2026-09-17 差別化 ───
-    //   以前は人型12種が Humanoid 1種類（±0.6px / ±0.025rad）に全員集約されていて、
-    //   基底6種が 1:1 の専用モーションを持つのと対照的に「12人が同じ呼吸をしている」状態だった。
-    //   ここを12種へ割り、各キャラの“意味”が動きで読めるようにする（§11 キャラは挙動で立てる）。
-    //   全種とも当たり判定・進行・SwayAmp には一切触らない純・装飾レイヤ（従来どおり）。
-    private enum LivingMotion
-    {
-        None, ReiDrone, ReiEye, AkariDesk, AkariNote, KoharuPenlight, KoharuBox,
-        Humanoid,          // 人型の既定（未割当の人型が出たときの保険。現在どの種も使わない）
-        // あかり面
-        AkDeadline,        // 締切の人：急いで小走り。速い前後の詰め＋時計を見る前傾。息が上がっている
-        AkUnsent,          // 送信取消の人：送ろうとして手が止まる。前へ出かけて引き戻す往復＋うつむき
-        AkVacant,          // 空席の人：いない人。ほとんど動かず、時々すーっと薄れるように沈む
-        // こはる面
-        KoComparison,      // 比較の人：左右をきょろきょろ見比べる。首振りが主体
-        KoCheer,           // 声援の人：腕を振って応援。大きく弾む上下＋左右の振り
-        KoParcel,          // 荷物の人：抱えて耐える。沈んだまま細かく震え、たまに持ち直す
-        // レイ面
-        ReiAnon,           // 匿名の人：顔が無い。輪郭が細かくぶれ続ける（誰でもない揺らぎ）
-        ReiClip,           // 切り抜きの人：切り取る。横方向に鋭くカクッと刻む（フレーム送りの動き）
-        ReiMetrics,        // 数字の人：数字を追う。視線が下から上へゆっくり登り、ぱっと戻る（スクロール）
-        // FINAL（ミナの内側）
-        MinaEraserM,       // 消しゴムの残響：横にごしごし擦る往復
-        MinaMemoryM,       // 記憶の残響：残像のように遅れて揺れる。輪郭が明滅して定まらない
-        MinaUnansweredM,   // 未応答の残響：待っている。ほぼ静止＋長い周期で一度だけ小さく期待して浮く
-    }
+    private bool HasCutout => _spec.Humanoid || _spec.PreTexPath is
+        "res://char/v3/enemy_akari_desk_pre.png" or "res://char/v3/enemy_akari_undo_pre.png"
+        or "res://char/v3/enemy_koharu_penlight_pre.png" or "res://char/v3/enemy_koharu_box_pre.png"
+        or "res://char/v3/enemy_rei_icon_pre.png" or "res://char/v3/enemy_rei_bubble_pre.png";
+    private float _motionPhase;
+    private Sprite2D? _body;
+    private EnemyCutout? _cutout;
 
     // Spawner から AddChild 前に呼ぶ（OnEnemy Ready/_Ready より先に値を渡しておく）。
     public void Configure(in EnemySpec spec) => _spec = spec;
@@ -321,7 +287,15 @@ public partial class MidEnemy : Enemy
         bool fromCenter = true)
     {
         var bullet = base.FireBullet(pool, pos, vel, radius, dmg, fromCenter);
-        if (bullet.Active) bullet.PrepareRoadShot(this);
+        if (_spec.Pattern is AttackPattern.AkariScatter or AttackPattern.KoharuSharp3
+            || _spec.Pattern == AttackPattern.FlankAim && _spec.PreTexPath == "res://char/v3/enemy_koharu_penlight_pre.png")
+            bullet.Rotation = bullet.Velocity.Angle();
+        if (bullet.Active)
+        {
+            bullet.PrepareRoadShot(this, fromCenter);
+            if (_cutout?.ActionName != "recoil" || _cutout.ActionTime >= 0.05)
+                PlayBodyAction("recoil");
+        }
         return bullet;
     }
 
@@ -368,14 +342,18 @@ public partial class MidEnemy : Enemy
 
         // 種ごとの弾形・色を1回だけ設定（FireBullet がこれを反映）。
         ApplySpellVisual();
+        if (CurSprite != null)
+        {
+            RoadAnimation = RoadProjectileArt.Get(CurSprite);
+            RoadVisual = RoadAnimation.Visual(CurTint);
+            _roadCueCanvas = new Node2D { TopLevel = true, ZAsRelative = false, ZIndex = -1,
+                Material = new CanvasItemMaterial { LightMode = CanvasItemMaterial.LightModeEnum.Unshaded } };
+            AddChild(_roadCueCanvas);
+            _roadCueCanvas.GlobalPosition = Vector2.Zero;
+            _roadCueCanvas.Draw += DrawRoadCue;
+        }
 
-        // 生命感モーション：モチーフ＝_spec.Pattern から動きの型を決め、位相を個体ごとにずらす。
-        // ★人型も Pattern から 1:1 で引く（2026-09-17）。以前は Humanoid 一括で12種が同じ動きだった。
-        _motion = MotionFor(_spec.Pattern);
-        if (_motion == LivingMotion.None && _spec.Humanoid) _motion = LivingMotion.Humanoid; // 未割当の人型の保険
-        _motionPhase = GD.Randf() * Mathf.Tau;   // 0〜2π：群れが同期しないよう全位相を散らす
-        _gazeT = GD.RandRange(1.2, 2.6);         // 監視カメラ：最初の視線変更までの間
-        _startleT = GD.RandRange(2.0, 5.0);      // 人型の“ビクッ”：最初の身じろぎまでの間
+        _motionPhase = GD.Randf() * Mathf.Tau;
 
         // 移動の型（2026-09-17）。装飾モーションと 1:1 で対応させ、見た目と実際の動きの性格を揃える。
         _move = MoveFor(_spec.Pattern);
@@ -386,12 +364,10 @@ public partial class MidEnemy : Enemy
         // 着座後の上下往復は種ごとの速さに（従来は全種 ±14px/s 固定）。向きは従来どおりランダム。
         _vy = (GD.Randf() < 0.5f ? -1f : 1f) * CampPatrolSpeed(_move);
 
-        // 生命感モーション持ちは姿勢(Rotation)を自前で握る＝基底の移動バンクと競合させない。
-        // None（アンチくん系＝素のまま）だけ基底 AutoBank に任せ、移動方向への傾きを得る。
-        AutoBank = _motion == LivingMotion.None;
+        AutoBank = !HasCutout;
     }
 
-    // 弾幕パターン → 移動の型。装飾（MotionFor）と同じ並びで 1:1 に対応させる。
+    // 弾幕パターン → 移動の型。
     private static MoveStyle MoveFor(AttackPattern p) => p switch
     {
         // 基底6種（道具）：それぞれの装飾モーション（ドローン/目/机/ノート/ペンライト/箱）と性格を揃える。
@@ -653,89 +629,69 @@ public partial class MidEnemy : Enemy
     };
 
     // モチーフ別の動きの型を弾幕パターンから引く（種が動きでも見分けられるように1:1）。
-    private static LivingMotion MotionFor(AttackPattern p) => p switch
-    {
-        AttackPattern.ReiLockBurst => LivingMotion.ReiDrone,   // 偵察ドローン
-        AttackPattern.ReiPulseRing => LivingMotion.ReiEye,     // 監視カメラの目
-        AttackPattern.AkariScatter => LivingMotion.AkariDesk,  // 机・椅子
-        AttackPattern.AkariDrop    => LivingMotion.AkariNote,  // ノート・教科書
-        AttackPattern.KoharuSharp3 => LivingMotion.KoharuPenlight, // ペンライト
-        AttackPattern.KoharuSimmer => LivingMotion.KoharuBox,  // グッズの箱
-        // ─── 人型12種（2026-09-17 個別化）───
-        AttackPattern.AkariDeadline => LivingMotion.AkDeadline,
-        AttackPattern.AkariUnsent   => LivingMotion.AkUnsent,
-        AttackPattern.AkariVacant   => LivingMotion.AkVacant,
-        AttackPattern.KoharuComparison => LivingMotion.KoComparison,
-        AttackPattern.KoharuCheer      => LivingMotion.KoCheer,
-        AttackPattern.KoharuParcel     => LivingMotion.KoParcel,
-        AttackPattern.ReiAnonymous => LivingMotion.ReiAnon,
-        AttackPattern.ReiClipper   => LivingMotion.ReiClip,
-        AttackPattern.ReiMetrics   => LivingMotion.ReiMetrics,
-        AttackPattern.MinaEraser      => LivingMotion.MinaEraserM,
-        AttackPattern.MinaMemory      => LivingMotion.MinaMemoryM,
-        AttackPattern.MinaUnanswered  => LivingMotion.MinaUnansweredM,
-        _ => LivingMotion.None,                                 // Default/アンチくん・スキン流用種：素のまま
-    };
-
     // パターンごとの弾形・色を確定（spec 仕様の弾形・色）。
     private void ApplySpellVisual()
     {
         switch (_spec.Pattern)
         {
             case AttackPattern.ReiLockBurst:
-                SetSpellVisual(BulletShape.Diamond, new Color(0.85f, 0.55f, 0.80f), BulletArt.Get("rei_subscriber"), 12f); break;
+                SetSpellVisual(BulletShape.Diamond, new Color("e4b747"), BulletArt.Get("rei_subscriber"), 12f); break;
             case AttackPattern.ReiPulseRing:
-                SetSpellVisual(BulletShape.Ring, new Color(0.80f, 0.45f, 0.62f), BulletArt.Get("rei_comment"), -16f); break;
+                SetSpellVisual(BulletShape.Ring, new Color("c2df45"), BulletArt.Get("rei_comment"), -16f); break;
             case AttackPattern.AkariScatter:
-                SetSpellVisual(BulletShape.Orb, EnemyKegare, BulletArt.AkariDocs, 24f); break;
+                SetSpellVisual(BulletShape.Orb, new Color("73c997"), GD.Load<Texture2D>("res://assets/fx/akari_reply_plane.svg"), 0); break;
             case AttackPattern.AkariDrop:
-                SetSpellVisual(BulletShape.Rice, new Color(0.72f, 0.62f, 0.85f), BulletArt.AkariEnvelope, -18f); break;
+                SetSpellVisual(BulletShape.Rice, new Color("ffbd70"), BulletArt.AkariDocs, -18f); break;
             case AttackPattern.KoharuSharp3:
-                SetSpellVisual(BulletShape.Needle, new Color(0.95f, 0.50f, 0.70f), BulletArt.KoharuPenlight, 16f); break;
+                SetSpellVisual(BulletShape.Needle, new Color("ee9b45"), GD.Load<Texture2D>("res://assets/fx/koharu_glow_arrow.svg"), 0); break;
             case AttackPattern.KoharuSimmer:
-                SetSpellVisual(BulletShape.Orb, new Color(0.88f, 0.55f, 0.45f), BulletArt.KoharuAcrylic, -20f); break;
+                SetSpellVisual(BulletShape.Orb, new Color("ffe48a"), BulletArt.KoharuTicket, -20f); break;
             case AttackPattern.DefaultAim:
-                SetSpellVisual(BulletShape.Orb, EnemyKegare, BulletArt.Get("enemy_rei_anonymous"), -12f); break;
+                SetSpellVisual(BulletShape.Orb, new Color("e9a23b"), BulletArt.Get("enemy_rei_anonymous"), -12f); break;
             case AttackPattern.FlankAim:
                 var flankArt = _spec.PreTexPath switch
                 {
-                    "res://char/v3/enemy_akari_desk_pre.png" => BulletArt.AkariDocs,
-                    "res://char/v3/enemy_koharu_penlight_pre.png" => BulletArt.KoharuPenlight,
-                    "res://char/v3/enemy_rei_icon_pre.png" => BulletArt.Get("rei_subscriber"),
+                    "res://char/v3/enemy_akari_desk_pre.png" => BulletArt.Get("akari_sticky"),
+                    "res://char/v3/enemy_koharu_penlight_pre.png" => GD.Load<Texture2D>("res://assets/fx/koharu_glow_arrow.svg"),
+                    "res://char/v3/enemy_rei_icon_pre.png" => BulletArt.Get("enemy_rei_anonymous"),
                     _ => BulletArt.Get("enemy_rei_anonymous"),
                 };
-                SetSpellVisual(BulletShape.Orb, EnemyKegare, flankArt, 12f); break;
+                var flankInk = _spec.PreTexPath switch
+                {
+                    "res://char/v3/enemy_akari_desk_pre.png" => new Color("b1e58c"),
+                    "res://char/v3/enemy_koharu_penlight_pre.png" => new Color("ee9b45"),
+                    _ => new Color("e9a23b"),
+                };
+                SetSpellVisual(BulletShape.Orb, flankInk, flankArt,
+                    _spec.PreTexPath == "res://char/v3/enemy_koharu_penlight_pre.png" ? 0 : 12f); break;
             case AttackPattern.KoharuPrayerCarry:
-                SetSpellVisual(BulletShape.Orb, new Color(0.98f, 0.82f, 0.55f), BulletArt.KoharuTicket, 15f); break;
+                SetSpellVisual(BulletShape.Orb, new Color("78c879"), GD.Load<Texture2D>("res://assets/fx/koharu_prayer_tag.svg"), 15f); break;
             case AttackPattern.AkariDeadline:
-                SetSpellVisual(BulletShape.Orb, new Color("ef8095"), BulletArt.Get("enemy_akari_deadline"), 24f); break;
+                SetSpellVisual(BulletShape.Orb, new Color("f09b38"), BulletArt.Get("enemy_akari_deadline"), 24f); break;
             case AttackPattern.AkariUnsent:
-                SetSpellVisual(BulletShape.Rice, new Color("f2b7c8"), BulletArt.Get("enemy_akari_unsent"), -18f); break;
+                SetSpellVisual(BulletShape.Rice, new Color("a4c852"), BulletArt.Get("enemy_akari_unsent"), -18f); break;
             case AttackPattern.AkariVacant:
-                SetSpellVisual(BulletShape.Diamond, new Color("a6d9ee"), BulletArt.Get("enemy_akari_vacant"), 12f); break;
+                SetSpellVisual(BulletShape.Diamond, new Color("b7e892"), BulletArt.Get("enemy_akari_vacant"), 12f); break;
             case AttackPattern.KoharuComparison:
-                SetSpellVisual(BulletShape.Rice, new Color("f29baf"), BulletArt.Get("enemy_koharu_comparison"), -28f); break;
+                SetSpellVisual(BulletShape.Rice, new Color("e5b83c"), BulletArt.Get("enemy_koharu_comparison"), -28f); break;
             case AttackPattern.KoharuCheer:
-                SetSpellVisual(BulletShape.Star, new Color("d1b3f5"), BulletArt.Get("enemy_koharu_cheer"), 32f); break;
+                SetSpellVisual(BulletShape.Star, new Color("86ce55"), BulletArt.Get("enemy_koharu_cheer"), 32f); break;
             case AttackPattern.KoharuParcel:
-                SetSpellVisual(BulletShape.Diamond, new Color("efcbb2"), BulletArt.Get("enemy_koharu_parcel"), 15f); break;
+                SetSpellVisual(BulletShape.Diamond, new Color("f5da88"), BulletArt.Get("enemy_koharu_parcel"), 15f); break;
             case AttackPattern.ReiAnonymous:
-                SetSpellVisual(BulletShape.Diamond, new Color("f2a2b9"), BulletArt.Get("enemy_rei_anonymous"), -12f); break;
+                SetSpellVisual(BulletShape.Diamond, new Color("e9a23b"), BulletArt.Get("enemy_rei_anonymous"), -12f); break;
             case AttackPattern.ReiClipper:
-                SetSpellVisual(BulletShape.Rice, new Color("d3c2f3"), BulletArt.Get("enemy_rei_clipper"), 38f); break;
+                SetSpellVisual(BulletShape.Rice, new Color("77c98e"), BulletArt.Get("enemy_rei_clipper"), 38f); break;
             case AttackPattern.ReiMetrics:
                 SetSpellVisual(BulletShape.Diamond, new Color("f2d480"), BulletArt.Get("enemy_rei_metrics"), 0f); break;
             case AttackPattern.MinaEraser:
-                SetSpellVisual(BulletShape.Needle, new Color(0.80f, 0.74f, 0.94f), BulletArt.Get("mina_eraser"), 12f); break;
+                SetSpellVisual(BulletShape.Needle, new Color("b5e6ae"), BulletArt.Get("mina_eraser"), 12f); break;
             case AttackPattern.MinaMemory:
-                SetSpellVisual(BulletShape.Ring, new Color(0.62f, 0.50f, 0.82f), BulletArt.Get("mina_memory"), -16f); break;
+                SetSpellVisual(BulletShape.Ring, new Color("ffbf8b"), GD.Load<Texture2D>("res://assets/fx/mina_folded_note.svg"), -16f); break;
             case AttackPattern.MinaUnanswered:
-                SetSpellVisual(BulletShape.Orb, new Color(0.78f, 0.62f, 0.90f), BulletArt.Get("mina_unanswered"), 10f); break;
+                SetSpellVisual(BulletShape.Orb, new Color("f4d389"), BulletArt.Get("mina_unanswered"), 10f); break;
         }
     }
-    // 既定の穢れ色（Bullet.EnemyMid #e072ac 相当）。Orb 種はこれで撒く。
-    private static readonly Color EnemyKegare = new Color(0.882f, 0.447f, 0.675f);
-
     // 左へ進入 → _campX に着いたら居座る。倒すまで画面外へ出ない（攻撃を当てる時間を確保）。
     // SwayAmp>0 の種は居座り中の上下動に“うねり”を載せて種ごとの差を残す。
     protected override void UpdateMovement(double delta)
@@ -939,6 +895,7 @@ public partial class MidEnemy : Enemy
     // ─── 固有弾幕の駆動 ───
     private void TickFire(double delta)
     {
+        _roadCueRemaining = System.Math.Max(0, _roadCueRemaining - delta);
         if (_repeatRemaining > 0)
         {
             _repeatT -= delta;
@@ -982,6 +939,7 @@ public partial class MidEnemy : Enemy
 
         _fireT += delta;
         if (_fireT < AttackInterval()) return;
+        if (RequiresFrontEntry && GlobalPosition.X - AimPoint().X < 52f) return;
         if (GlobalPosition.DistanceTo(AimPoint()) < 52f) return;
         if (IsInstanceValid(RoadDirector) && !RoadDirector!.TryBeginAttack(this)) return;
         _fireT = 0;
@@ -1023,6 +981,33 @@ public partial class MidEnemy : Enemy
             case AttackPattern.DefaultAim: FireDefaultAim(); break;
             case AttackPattern.FlankAim: FireFlank(); break;
         }
+    }
+
+    private void DrawRoadCue()
+    {
+        if (_roadCueRemaining <= 0 || IsPurified || !GameManager.ShowAttackTelegraphs || RoadVisual == null) return;
+        float elapsed = (float)(_roadCueDuration + .18 - _roadCueRemaining);
+        float progress = Mathf.Clamp((float)(1 - _telegraphT / _roadCueDuration), 0, 1);
+        float fade = (.55f + .45f * Mathf.SmoothStep(0, 1, Mathf.Clamp(elapsed / .10f, 0, 1)))
+            * Mathf.SmoothStep(0, 1, Mathf.Clamp((float)_roadCueRemaining / .18f, 0, 1));
+        Vector2 source = ShotCenter;
+        foreach (var origin in MemoryOrigins())
+        {
+            var direction = _spec.Pattern switch
+            {
+                AttackPattern.AkariVacant or AttackPattern.KoharuParcel => Vector2.Left,
+                AttackPattern.ReiMetrics => MetricsDir(),
+                _ => DirTo(origin, _burstTarget),
+            };
+            if (source.DistanceTo(origin) >= Bullet.LeadMinDist) direction = source.DirectionTo(origin);
+            AttackTelegraph.RoadCharge(_roadCueCanvas!, source, source, direction, RoadVisual, progress, fade);
+        }
+    }
+
+    public override void _PhysicsProcess(double delta)
+    {
+        base._PhysicsProcess(delta);
+        _roadCueCanvas?.QueueRedraw();
     }
 
     private BulletPool? Pool => GetNodeOrNull<BulletPool>("/root/Pool");
@@ -1098,7 +1083,7 @@ public partial class MidEnemy : Enemy
     //   ★2026-10-03：240px だった旧値は盤面の幅(318px)にも足りず、離れて立っている自機には
     //     予告線が伸びてこなかった＝「自機を狙うと宣言した攻撃なのに、棒立ちの自機に届かない」。
     //     自機を狙う弾の最たるものなので、宣言どおり必ず届く長さにする（避けは線から退くこと）。
-    private static readonly float BeamLen = Mathf.Sqrt(Field.Width * Field.Width + Field.Height * Field.Height);
+    private static float BeamLen => Mathf.Sqrt(Field.Width * Field.Width + Field.Height * Field.Height);
     private const float BeamHalfThick = 5.5f;  // ビームの半太さ(px)。細長＝判定は線分への最短距離で取る。
     private void BeginLockBurst()
     {
@@ -1109,12 +1094,10 @@ public partial class MidEnemy : Enemy
         // ＝道中ドローンの予兆もボス予兆と同系統に見え、危険色の意味（金＝レイの裁き）が一貫する。
         z.ConfigureBeam(dir, BeamLen, BeamHalfThick, warn,
             new Color("e8c45a"), new Color("ffe39a"));
-        // World（親）へぶら下げて発射源の Transform に依存させない。ただし発生源（このドローン）を
-        // owner に渡し、予兆中に倒されたら予測線ごとキャンセルさせる（倒せば攻撃も消える＝理不尽回避）。
         var host = GetParent() ?? this;
         host.AddChild(z);
         z.SetOwner(this);
-        z.GlobalPosition = GlobalPosition; // 発射源＝この瞬間のドローン位置（以降は固定＝避けられる）。
+        z.GlobalPosition = ShotCenter;
         SquishBody(); // 撃つ前の溜め（縦スカッシュ）で“来る”を本体でも示す。
     }
     private void FireAfterTelegraph()
@@ -1128,9 +1111,7 @@ public partial class MidEnemy : Enemy
 
     private void BeginCharacterAttack()
     {
-        _characterOrigin = GlobalPosition;
-        if (_spec.Pattern is AttackPattern.KoharuParcel or AttackPattern.ReiClipper)
-            _characterOrigin.Y = Mathf.Clamp(_characterOrigin.Y, Field.Top + 40f, Field.Bottom - 40f);
+        _characterOrigin = ShotCenter;
         _burstDir = AimDir();
         _burstTarget = AimPoint();
         _salvoIndex = 0;
@@ -1165,8 +1146,9 @@ public partial class MidEnemy : Enemy
             _ => 0.60,
         };
         _telegraphT = Mathf.Max(0.30, Di(warn));
-        // 溜めの「深さ」も質に合わせる（長く沈む攻撃ほど深く潰れる）。_kick は TickLivingMotion が減衰させる。
-        _kick = Mathf.Max(_kick, (float)Mathf.Clamp(warn / 0.6, 0.6, 1.4));
+        _roadCueDuration = _telegraphT;
+        _roadCueRemaining = _telegraphT + .18;
+        PlayBodyAction("anticipate", (float)_telegraphT);
         // 記憶の残響だけは「どこへ置くか」を予告の時点で確定して焼く（以降 _trail が伸びても動かさない）。
         if (_spec.Pattern == AttackPattern.MinaMemory)
         {
@@ -1178,12 +1160,6 @@ public partial class MidEnemy : Enemy
             }
             _salvoRemaining = Mathf.Max(3, _memoryTraceCount);
         }
-        // 予兆は「体」と「弾が並ぶ点」の両方に出す。弾は必ず体の中心から出て、光った点へ飛んでいく
-        //（＝光り方と弾の出方が一致する。体だけが光って離れた場所に湧く、が起きない）。
-        FxLayer.Instance?.AimFlash(ShotCenter, CurTint);
-        if (GameManager.ShowAttackTelegraphs)
-            foreach (var origin in MemoryOrigins())
-                if (origin.DistanceTo(ShotCenter) >= Bullet.LeadMinDist) FxLayer.Instance?.AimFlash(origin, CurTint);
     }
 
     private System.Collections.Generic.IEnumerable<Vector2> CharacterShotOrigins()
@@ -1331,6 +1307,7 @@ public partial class MidEnemy : Enemy
     private void FireCharacterSalvo()
     {
         var pool = GetNode<BulletPool>("/root/Pool");
+        _characterOrigin = ShotCenter;
         switch (_spec.Pattern)
         {
             case AttackPattern.AkariDeadline:
@@ -1505,7 +1482,7 @@ public partial class MidEnemy : Enemy
         var dir = AimDir();
         CharacterFan(pool, GlobalPosition, dir, 3, 22f, 110f, 2.8f);
         // 発射の解放に合わせ“クルッ”と一回転の余韻を蹴る（たまに見せる切れ味＝ペンライトを振り切る性格）。
-        if (GD.Randf() < 0.5f) _spin = 1f;
+        if (GD.Randf() < 0.5f) PlayBodyAction("spin");
     }
 
     private void FireSimmer()
@@ -1599,277 +1576,41 @@ public partial class MidEnemy : Enemy
     protected override void GrantFollower()
     {
         if (_spec.Pattern == AttackPattern.KoharuPrayerCarry) ReleaseCarriedPrayers();
-        _motion = LivingMotion.None;
-        _spin = 0f; _kick = 0f; _startle = 0f;
         if (_body != null) _body.Rotation = 0f; // Scale/Position は SwapBody/TickSwapAnim が素へ戻す
         base.GrantFollower();
     }
 
-    // こはる短予告の“溜め”：立ち絵を一瞬ギュッと縮める（当たり判定は不変）。
-    // 生命感モーションと所有権を一本化するため、Tween でなく _kick に蹴り込み、
-    // TickLivingMotion が縦スカッシュとして毎フレーム合成・減衰させる（予告終了で自然に戻る）。
-    private void SquishBody() => _kick = Mathf.Max(_kick, 1f);
+    private void SquishBody() => PlayBodyAction("anticipate");
 
-    // ─── 生命感モーション本体 ───
-    // _bodySprite(子"Body")の Position/Rotation/Scale を毎フレーム“合成”する。
-    // 進行（GlobalPosition）も SwayAmp も当たり判定も触らない＝1枚絵に乗っかる装飾レイヤ。
-    // 各種パラメータ（px・rad・Hz）はモチーフで性格が動きでも見分けられるよう調律。位相は _motionPhase で個体ずらし。
+    private void SetupBodyAnimations()
+    {
+        _body = GetNodeOrNull<Sprite2D>("Body");
+        if (_body == null) return;
+        string id = System.IO.Path.GetFileNameWithoutExtension(_spec.PreTexPath)
+            .Replace("enemy_", "").Replace("_pre", "");
+        _cutout = GD.Load<PackedScene>($"res://char/v3/enemies/cutout/{id}.tscn").Instantiate<EnemyCutout>();
+        _body.AddChild(_cutout);
+        _cutout.Bind(_body, _motionPhase);
+    }
+
+    protected override void OnBodyTextureSwapped(Sprite2D? fadingBody)
+    {
+        if (_cutout == null || fadingBody == null) return;
+        _cutout.TransferToFade(fadingBody);
+        _cutout = null;
+    }
+
+    private void PlayBodyAction(string name, float duration = 0f)
+    {
+        if (!HasCutout || !BodyMotionReady) return;
+        if (_cutout == null) SetupBodyAnimations();
+        _cutout?.PlayAction(name, duration);
+    }
+
     private void TickLivingMotion(double delta)
     {
-        if (_motion == LivingMotion.None) return;
-        if (_body == null)
-        {
-            _body = GetNodeOrNull<Sprite2D>("Body");
-            if (_body == null) return;            // まだ立ち絵が無い（プレースホルダ種）
-            _bodyBaseScale = _body.Scale.Y;       // SetupBodySprite が決めた素のスケールを基準に保持
-            _motionPrevious = GlobalPosition;
-        }
-
-        _motionT += delta;
-        float t = (float)_motionT + _motionPhase; // 個体位相込みの時刻（群れの非同期化）
-        float dt = (float)delta;
-        if (dt > 0f)
-            _motionVelocity = _motionVelocity.Lerp(((GlobalPosition - _motionPrevious) / dt).LimitLength(SpeedCeil),
-                1f - Mathf.Exp(-7f * dt));
-        _motionPrevious = GlobalPosition;
-
-        // 共通の溜め減衰（予告/発射キック）。0へ向けて速やかに抜ける＝予告の“戻し”の余韻。
-        if (_kick > 0f) _kick = Mathf.Max(0f, _kick - dt * 3.2f);
-
-        float ox = 0f, oy = 0f;   // 位置オフセット(px)
-        float rot = 0f;           // 回転(rad)
-        float sx = 1f, sy = 1f;   // スケール係数（基準スケールに掛ける）
-
-        const float Tau = Mathf.Tau;
-        switch (_motion)
-        {
-            // 人型の既定（未割当の保険）。旧 Humanoid の値そのまま＝静かな呼吸。
-            case LivingMotion.Humanoid:
-                oy = Mathf.Sin(t * 2.2f) * 0.6f;
-                rot = Mathf.Sin(t * 1.8f) * 0.025f;
-                break;
-
-            // ── あかり面（退勤後のフロア）──
-            // 締切の人：急いでいる。速い小走りの上下＋前のめり。呼吸も速い（縦の伸縮＝息が上がっている）。
-            case LivingMotion.AkDeadline:
-                oy = -Mathf.Abs(Mathf.Sin(t * 5.6f)) * 1.9f;      // 小走りの接地バウンド（速い・倍周期）
-                ox = Mathf.Sin(t * 5.6f) * 0.9f;                  // 前後の詰め
-                rot = -0.055f + Mathf.Sin(t * 5.6f) * 0.030f;     // 前傾 -3.2°（急ぐ姿勢）＋歩の揺れ
-                sy = 1f + 0.035f * Mathf.Sin(t * 7.4f);           // 速い呼吸
-                break;
-
-            // 送信取消の人：送ろうとして手が止まる。前へ出かけて引き戻す非対称な往復＋うつむき。
-            //   sin を三乗して「ゆっくり出て、すっと引っ込む」非対称カーブにする＝迷いの質感。
-            case LivingMotion.AkUnsent:
-            {
-                float reach = Mathf.Sin(t * 1.25f);
-                reach = reach * reach * reach;                    // 端で粘り、中央を速く通る＝ためらい
-                ox = -reach * 2.4f;                               // 左（自機側）へ出しかけて戻す
-                oy = 0.9f + Mathf.Sin(t * 2.0f) * 0.5f;           // うつむいて少し沈む
-                rot = 0.045f + reach * 0.030f;                    // 俯き +2.6°。出るときだけ起き上がる
-                break;
-            }
-
-            // 空席の人：いない人。ほとんど動かず、長い周期で薄れるように沈んでまた戻る。
-            //   「動かなさ」そのものを個性にする＝他11種の中で一目で浮く（§3 だまし・誘導の逆用）。
-            case LivingMotion.AkVacant:
-            {
-                float fade = 0.5f + 0.5f * Mathf.Sin(t * 0.55f);  // 0〜1 の超低周波
-                oy = fade * 1.6f;                                 // すーっと沈む
-                sy = 1f - 0.035f * fade;                          // 沈むぶん縦が縮む＝存在が薄れる
-                sx = 1f + 0.018f * fade;
-                rot = Mathf.Sin(t * 0.9f) * 0.012f;               // ほぼ静止（±0.7°）
-                break;
-            }
-
-            // ── こはる面（推し活の部屋）──
-            // 比較の人：左右をきょろきょろ見比べる。首振り（ロール）が主体で、体は動かない。
-            case LivingMotion.KoComparison:
-            {
-                // 三角波に近い往復＝「見て、止めて、反対を見る」の刻み（正弦だと常に動いて落ち着かない）。
-                float look = HoldWave(t * 2.6f);
-                rot = look * 0.105f;                              // 首振り ±6.0°
-                ox = look * 1.5f;                                 // 首の動きに体がわずかに連れられる
-                oy = Mathf.Sin(t * 2.0f) * 0.5f;
-                break;
-            }
-
-            // 声援の人：腕を振って応援。12種で最も大きく弾む＝賑やかさで一目で分かる。
-            case LivingMotion.KoCheer:
-                oy = -Mathf.Abs(Mathf.Sin(t * 3.1f)) * 3.0f;      // 大きく弾む（跳ねる応援）
-                ox = Mathf.Sin(t * 1.55f) * 1.8f;                 // 倍周期の左右振り＝腕の振り
-                rot = Mathf.Sin(t * 1.55f) * 0.085f;              // ±4.9° 体ごと振る
-                sy = 1f + 0.05f * Mathf.Abs(Mathf.Sin(t * 3.1f)); // 頂点で伸び上がる
-                break;
-
-            // 荷物の人：抱えて耐える。沈んだまま細かく震え、長い周期で一度だけ「持ち直す」。
-            case LivingMotion.KoParcel:
-            {
-                float hoist = Mathf.Max(0f, Mathf.Sin(t * 0.7f));
-                hoist *= hoist;                                   // 持ち直しは短く鋭い（ずっと持ち上げていない）
-                oy = 1.4f - hoist * 2.2f                          // 常に沈んでいて、たまに持ち上げる
-                     + Mathf.Sin(t * 17.0f) * 0.35f;              // 抱えきれない細かい震え
-                sy = 1f - 0.045f + 0.05f * hoist;                 // 潰れている（重さ）
-                sx = 1f + 0.030f - 0.03f * hoist;
-                rot = 0.030f;                                     // 前かがみ +1.7° 固定
-                break;
-            }
-
-            // ── レイ面（配信枠）──
-            // 匿名の人：顔が無い。輪郭が細かくぶれ続ける＝誰でもない揺らぎ（周期の違う2波を重ねて非周期に見せる）。
-            case LivingMotion.ReiAnon:
-                ox = Mathf.Sin(t * 13.0f) * 0.55f + Mathf.Sin(t * 5.3f) * 0.75f;
-                oy = Mathf.Sin(t * 11.7f) * 0.45f + Mathf.Sin(t * 4.1f) * 0.65f;
-                rot = Mathf.Sin(t * 9.1f) * 0.022f + Mathf.Sin(t * 3.7f) * 0.028f; // 合計 ±2.9°
-                sx = 1f + 0.020f * Mathf.Sin(t * 7.9f);           // 輪郭そのものが定まらない
-                break;
-
-            case LivingMotion.ReiClip:
-            {
-                float step = HoldWave(t * 2.3f);
-                ox = step * 2.2f;
-                rot = step * 0.055f;
-                oy = HoldWave(t * 1.7f);
-                break;
-            }
-
-            case LivingMotion.ReiMetrics:
-            {
-                float scroll = 0.5f + 0.5f * ScrollWave(t * 0.42f);
-                oy = 1.8f - scroll * 3.6f;
-                rot = -0.020f + scroll * 0.040f;                  // 見上げる角度も一緒に登る
-                sy = 1f + 0.018f * scroll;
-                break;
-            }
-
-            // ── FINAL（ミナの内側）の残響3種 ──
-            // 消しゴムの残響：横にごしごし擦る往復。擦る向きへ体が倒れ、戻りで縦が潰れる。
-            case LivingMotion.MinaEraserM:
-            {
-                float rub = Mathf.Sin(t * 4.4f);
-                ox = rub * 2.8f;                                  // 大きめの横擦り ±2.8px
-                rot = rub * 0.075f;                               // 擦る向きへ倒れる ±4.3°
-                oy = -Mathf.Abs(rub) * 0.8f;
-                sx = 1f + 0.035f * Mathf.Abs(rub);                // 力を込めた瞬間に横へ広がる
-                sy = 1f - 0.030f * Mathf.Abs(rub);
-                break;
-            }
-
-            // 記憶の残響：残像。本体より遅れて揺れ、輪郭（縦横スケール）が明滅して定まらない。
-            //   ゆっくり大きく漂う低周波＋位相のずれた縦横の伸縮＝「像が結ばない」画。
-            case LivingMotion.MinaMemoryM:
-                ox = Mathf.Sin(t * 0.85f) * 2.6f;
-                oy = Mathf.Sin(t * 0.62f + 1.1f) * 2.4f;          // 横と縦で周期も位相もずらす＝漂う
-                rot = Mathf.Sin(t * 0.47f) * 0.065f;              // ±3.7° ゆっくり傾ぐ
-                sx = 1f + 0.055f * Mathf.Sin(t * 1.9f);           // 輪郭の明滅（像がぶれる）
-                sy = 1f + 0.055f * Mathf.Sin(t * 1.9f + 2.1f);    // 縦横を別位相で伸縮＝面積が脈動する
-                break;
-
-            // 未応答の残響：待っている。ほぼ静止し、長い周期で一度だけ小さく「期待して」浮いて、また落ちる。
-            //   12種で最も動かない＝「返事を待つ時間」そのものを静止で語る（§4 余韻／§3 緩急）。
-            case LivingMotion.MinaUnansweredM:
-            {
-                float hope = Mathf.Max(0f, Mathf.Sin(t * 0.55f));
-                hope = hope * hope * hope;                        // 期待は短く、落胆は長い
-                oy = 0.8f - hope * 2.4f;                          // ふっと浮いて、ゆっくり沈む
-                rot = 0.030f - hope * 0.055f;                     // 俯き +1.7° → 顔を上げる -1.5°
-                sy = 1f + 0.030f * hope;
-                break;
-            }
-
-            // 偵察ドローン：ホバリング。速い小刻み上下ブレ＋進行(左)へわずか前傾＋ローター示唆の速い微小ロール。
-            case LivingMotion.ReiDrone:
-                oy = Mathf.Sin(t * 7.5f) * 1.4f;                 // 上下ブレ ±1.4px / ~1.2Hz
-                rot = -0.05f + Mathf.Sin(t * 11.0f) * 0.035f;    // 前傾 -2.9°＋ローター微ロール ±2°/速い
-                break;
-
-            // 監視カメラの目：ふわふわ大きめ浮遊＋たまにギョロッと向きを変える（タメ→戻し）。
-            case LivingMotion.ReiEye:
-                oy = Mathf.Sin(t * 1.7f) * 2.6f;                 // ゆっくり大きめ上下 ±2.6px / ~0.27Hz
-                _gazeT -= delta;
-                if (_gazeT <= 0)
-                {
-                    _gaze = (GD.Randf() < 0.5f ? -1f : 1f) * (float)GD.RandRange(0.16, 0.26); // ±9〜15°
-                    _gazeT = GD.RandRange(1.4, 3.0);             // 次のギョロッまでの間
-                }
-                rot = Mathf.Lerp(_body.Rotation, _gaze, dt * 6.5f); // タメつつ目標ヨーへ寄せ、また戻す
-                break;
-
-            // 机・椅子：脚で歩く。左右によじよじ傾く（ロール）＋一歩ごとの上下バウンド（接地リズム）。
-            case LivingMotion.AkariDesk:
-                rot = Mathf.Sin(t * 3.4f) * 0.10f;               // よじよじロール ±5.7° / ~0.54Hz
-                oy = -Mathf.Abs(Mathf.Sin(t * 3.4f)) * 1.8f;     // 一歩ごと（倍周期）に持ち上がるバウンド
-                ox = Mathf.Sin(t * 3.4f) * 0.6f;                 // 重心の左右ゆれを少し
-                break;
-
-            // ノート・教科書：羽ばたき。Scale.x を周期的に縮め広げ（ページ/羽の開閉）＋ふわっと上下。
-            case LivingMotion.AkariNote:
-                sx = 1f - 0.12f * (0.5f + 0.5f * Mathf.Sin(t * 6.2f)); // 横幅 1.0→0.88 開閉 / ~1Hz
-                sy = 1f + 0.05f * (0.5f + 0.5f * Mathf.Sin(t * 6.2f)); // 閉じる時わずかに縦伸び（紙の張り）
-                oy = Mathf.Sin(t * 2.0f) * 2.2f;                 // ふわっと上下 ±2.2px
-                break;
-
-            // ペンライト：振っている手の小刻みな振動（じりじり）＋進行(左)へ鋭い前傾＋たまにクルッと一回転の余韻。
-            case LivingMotion.KoharuPenlight:
-                ox = Mathf.Sin(t * 26.0f) * 0.7f;                // じりじり高速横振動 ±0.7px
-                oy = Mathf.Sin(t * 23.0f) * 0.5f;
-                rot = -0.12f;                                    // 鋭い前傾 -6.9°（攻め）
-                if (_spin > 0f)                                   // 撃つ瞬間に蹴られた“クルッ”を減衰させて余韻に
-                {
-                    rot += _spin * Tau;                          // 余韻一回転（_spin:1→0）
-                    _spin = Mathf.Max(0f, _spin - dt * 1.6f);
-                }
-                break;
-
-            // グッズの箱：抱えて運ぶ重さ。上下に小バウンド＋ぷるぷる横揺れ（重いものを持つ揺れ＝低周波＋微振動）。
-            case LivingMotion.KoharuBox:
-                oy = -Mathf.Abs(Mathf.Sin(t * 2.6f)) * 1.6f      // よいしょ、と持ち上がるバウンド
-                     + Mathf.Sin(t * 14.0f) * 0.4f;              // 抱えきれない微振動を重ねる
-                ox = Mathf.Sin(t * 1.5f) * 0.9f;                 // 重い横揺れ（ゆっくり）
-                sy = 1f + 0.04f * Mathf.Abs(Mathf.Sin(t * 2.6f));// バウンド頂点でわずかに縦伸び
-                break;
-        }
-
-        // 予告/発射の溜め：縦に潰す（_kick:1→0）。攻撃の直前に“ためてる”を全種共通で足す。
-        //   人型は 0.025 と極小で、AimFlash が消えた後に「本体が身構えている」が読めなかった（2026-09-17）。
-        //   0.075 へ引き上げる＝立ち絵が明確に沈むが、道具種(0.18)ほど潰れない＝人と物の質感差は残す。
-        //   BeginCharacterAttack が溜めの長さに比例して _kick を 0.6〜1.4 で蹴るので、
-        //   「長く構える攻撃ほど深く沈む」＝予告の強さが危険度と一致する（§4 予備動作）。
-        if (_kick > 0f)
-        {
-            sy *= 1f - (_spec.Humanoid ? 0.075f : 0.18f) * _kick;
-            sx *= 1f + (_spec.Humanoid ? 0.040f : 0.08f) * _kick;
-        }
-
-        if (_spec.Humanoid)
-        {
-            _startleT -= delta;
-            if (_startleT <= 0)
-            {
-                _startle = 1f;
-                _gesture = (int)(GD.Randi() % 4);
-                _startleT = GD.RandRange(2.6, 6.4);
-            }
-            if (_startle > 0f)
-            {
-                _startle = Mathf.Max(0f, _startle - dt * 1.25f);
-                float s = Mathf.Pow(Mathf.Sin(_startle * Mathf.Pi), 2f);
-                switch (_gesture)
-                {
-                    case 0: oy -= s * 1.4f; sy *= 1f + 0.035f * s; break;
-                    case 1: ox += s * 1.6f * _arcSign; rot += s * 0.045f * _arcSign; break;
-                    case 2: oy += s * 0.9f; rot -= s * 0.04f; sy *= 1f - 0.025f * s; break;
-                    case 3: ox -= s * 1.2f * _arcSign; oy -= s * 0.6f; rot -= s * 0.03f * _arcSign; break;
-                }
-            }
-        }
-
-        rot += Mathf.Clamp(_motionVelocity.X / SpeedCeil, -1f, 1f) * 0.035f
-            - Mathf.Clamp(_motionVelocity.Y / SpeedCeil, -1f, 1f) * 0.025f;
-        if (_spec.Humanoid) rot = Mathf.Clamp(rot, -0.15f, 0.15f);
-        float follow = 1f - Mathf.Exp(-14f * dt);
-        _body.Position = _body.Position.Lerp(new Vector2(ox, oy), follow);
-        _body.Rotation = Mathf.LerpAngle(_body.Rotation, rot, follow);
-        _body.Scale = _body.Scale.Lerp(new Vector2(_bodyBaseScale * sx, _bodyBaseScale * sy), follow);
+        if (!HasCutout || !BodyMotionReady) return;
+        if (_cutout == null) SetupBodyAnimations();
+        _cutout?.Advance(delta);
     }
 }

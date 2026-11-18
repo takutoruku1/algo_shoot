@@ -1,0 +1,25 @@
+{
+  "tool": "image_gen",
+  "rest": {
+    "neutral": "../mina_conversation_v1.png",
+    "smile": "../mina_conversation_smile_v1.png",
+    "worried": "../mina_conversation_worried_v1.png"
+  },
+  "frames": [
+    {
+      "output": "{expression}_talk.png",
+      "reference": "rest[expression]",
+      "prompt": "Use case: precise-object-edit. Single complete transparent game sprite cel, exact edit of supplied current official MINA portrait, in-place animation counterpart to switch directly frame to frame. She is softly saying an audible Japanese 'ah' syllable: change only the mouth from resting into a clearly readable open mouth, approximately 54–64 pixels wide and 28–34 pixels tall on the original 1024x1536 canvas. The inside is muted warm rose with a natural inner lip line. Keep her original emotion: neutral remains quiet, smiling still looks gently smiling, worried still looks worried. Her eyes and eyebrows must be IDENTICAL to the reference. Same 1024x1536 portrait, framing, same silhouettes all the way to edges. Preserve every other pixel/line shape, palette, shading, proportions, hair strands, headdress, collar, brooch, dress, buttons, hands, and original alpha. No head or body motion, no new highlights, no displacement, no second character, no text, no side by side. Output the entire bust artwork in the original canvas registration with genuinely transparent background."
+    },
+    {
+      "output": "{expression}_blink.png",
+      "reference": "rest[expression]",
+      "prompt": "Use case: precise-object-edit. Single complete transparent game sprite cel, exact edit of supplied current official MINA portrait, in-place animation counterpart to switch directly frame to frame. She is in the single fully closed moment of a natural relaxed blink. Close BOTH eyes completely in their exact sockets with delicate dark downward-curving upper lash lines and original lash tips, following her existing head angle. No visible iris or sclera. Keep mouth, cheeks, eyebrows and emotion exactly as the original. Same 1024x1536 portrait, framing, same silhouettes all the way to edges. Preserve every other pixel/line shape, palette, shading, proportions, hair strands, headdress, collar, brooch, dress, buttons, hands, and original alpha. No head or body motion, no new highlights, no displacement, no second character, no text, no side by side. Output the entire bust artwork in the original canvas registration with genuinely transparent background."
+    },
+    {
+      "output": "{expression}_talk_blink.png",
+      "reference": "{expression}_talk.png",
+      "prompt": "Use case: precise-object-edit. Make exactly one new full game animation cel from the provided image, a transparent 1024 by 1536 portrait of MINA. Close BOTH eyes in a brief relaxed natural blink. Delicate downward curved lash lines. The opening and position of her speaking mouth are especially important: KEEP the original OPEN mouth absolutely unchanged in size, interior shape and color, even while her eyes are fully closed. Keep her existing {expression} expression, brow, all clothing, silhouette, head position, hat, pose, canvas scale, hairstyle, lighting, skin color, palette, and original transparent background exactly registered to the original. No movements, no extra highlights. Output the same entire portrait on alpha."
+    }
+  ]
+}

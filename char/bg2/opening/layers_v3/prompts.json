@@ -1,0 +1,41 @@
+{
+  "generator": "Built-in image_gen, transparent reference-based illustration layers",
+  "assets": [
+    {
+      "id": "akari_daily_layer",
+      "refs": [
+        "D:/dev/algo_shoot/char/bg2/opening/anime_v2/akari_unsent.png"
+      ],
+      "prompt": "Use case: illustration-story / identity-preserve. Create ONE new isolated 2D anime character illustration layer for a Japanese visual-novel opening movie. The supplied reference is the canonical identity, clothing and drawing style; preserve those exactly, but use the new pose specified below. Portrait canvas 2:3, head to upper thighs, FULL head and both hands inside frame with 7 percent safety margins. Fine confident anime lines, refined soft cel shading, matching reference hair/eye colors, fabric detail and anatomy. TRUE TRANSPARENT RGBA background, fully transparent between hair strands and around body, no environment, no solid backdrop, no checkerboard, no fog, no halo, no shadow behind subject, no particles, no text, no title, no logo. No 3D, no chibi, no extra characters, no ending/reunion/rescue. Character must be one coherent figure suitable for compositing over moving CG backgrounds. Akari: orange hair tied in short side ponytail, purple eyes, exact ivory knit cardigan over white blouse, blue lanyard and badge, dark skirt. New standing three-quarter pose facing slightly LEFT, looking toward viewer with a quietly hesitant expression, mouth gently closed. She holds the same lavender phone loosely in her RIGHT hand at waist level, phone back visible. Her LEFT hand lightly gathers the cardigan fabric at her own chest, natural fingers. A light sideways breeze moves a few loose hair strands and cardigan hem. Her shoulders are not hunched at a desk. Preserve adult proportions and modest clothing. Full upper thighs, no huge foreshortened hand, no victory smile.",
+      "file": "akari_daily_layer.png",
+      "transparent_background": true
+    },
+    {
+      "id": "koharu_daily_layer",
+      "refs": [
+        "D:/dev/algo_shoot/char/bg2/opening/anime_v2/koharu_late.png"
+      ],
+      "prompt": "Use case: illustration-story / identity-preserve. Create ONE new isolated 2D anime character illustration layer for a Japanese visual-novel opening movie. The supplied reference is the canonical identity, clothing and drawing style; preserve those exactly, but use the new pose specified below. Portrait canvas 2:3, head to upper thighs, FULL head and both hands inside frame with 7 percent safety margins. Fine confident anime lines, refined soft cel shading, matching reference hair/eye colors, fabric detail and anatomy. TRUE TRANSPARENT RGBA background, fully transparent between hair strands and around body, no environment, no solid backdrop, no checkerboard, no fog, no halo, no shadow behind subject, no particles, no text, no title, no logo. No 3D, no chibi, no extra characters, no ending/reunion/rescue. Character must be one coherent figure suitable for compositing over moving CG backgrounds. Koharu: dark charcoal-teal hair in low side ties with burgundy bands, TWO small pink hairclips on the same side as reference, amber eyes, exact lavender long-sleeved floral pajama set, modest loose fit. New standing torso turned slightly RIGHT while her eyes look back LEFT over her shoulder; expression attentive and a little uncertain, mouth softly parted. Hold exactly ONE lavender penlight upright against her own chest, gently with both hands around its handle, natural grip and all fingers. This is her quiet real-world self, NOT black stage outfit. Hair ends softly lifted, no new accessories, no copied desk pose, no triumphant smile. Keep penlight and hands completely visible.",
+      "file": "koharu_daily_layer.png",
+      "transparent_background": true
+    },
+    {
+      "id": "rei_daily_layer",
+      "refs": [
+        "D:/dev/algo_shoot/char/bg2/opening/anime_v2/rei_before_onair.png"
+      ],
+      "prompt": "Use case: illustration-story / identity-preserve. Create ONE new isolated 2D anime character illustration layer for a Japanese visual-novel opening movie. The supplied reference is the canonical identity, clothing and drawing style; preserve those exactly, but use the new pose specified below. Portrait canvas 2:3, head to upper thighs, FULL head and both hands inside frame with 7 percent safety margins. Fine confident anime lines, refined soft cel shading, matching reference hair/eye colors, fabric detail and anatomy. TRUE TRANSPARENT RGBA background, fully transparent between hair strands and around body, no environment, no solid backdrop, no checkerboard, no fog, no halo, no shadow behind subject, no particles, no text, no title, no logo. No 3D, no chibi, no extra characters, no ending/reunion/rescue. Character must be one coherent figure suitable for compositing over moving CG backgrounds. Rei's REAL self, NOT the avatar: short dark-purple bob, purple eyes, NO star hairclip, exact gray cardigan over white shirt. New standing three-quarter side view angled slightly LEFT, her face gently turned toward the viewer, thoughtful composed expression with a trace of fatigue. Hold the existing plain blue ceramic mug from the reference with BOTH hands near her waist, relaxed shoulders. The mug is upright and naturally gripped; no liquid splashing. Gray clothing fabric hangs naturally. No headphones, no microphone, no new props, no long avatar hair, no smile of triumph. Slightly diagonal silhouette suitable for a visual-novel character reveal.",
+      "file": "rei_daily_layer.png",
+      "transparent_background": true
+    },
+    {
+      "id": "mina_profile_layer",
+      "refs": [
+        "D:/dev/algo_shoot/char/bg2/opening/op_mina_cutin_v1.png"
+      ],
+      "prompt": "Use case: illustration-story / identity-preserve. Create ONE new isolated 2D anime character illustration layer for a Japanese visual-novel opening movie. The supplied reference is the canonical identity, clothing and drawing style; preserve those exactly, but use the new pose specified below. Portrait canvas 2:3, head to upper thighs, FULL head and both hands inside frame with 7 percent safety margins. Fine confident anime lines, refined soft cel shading, matching reference hair/eye colors, fabric detail and anatomy. TRUE TRANSPARENT RGBA background, fully transparent between hair strands and around body, no environment, no solid backdrop, no checkerboard, no fog, no halo, no shadow behind subject, no particles, no text, no title, no logo. No 3D, no chibi, no extra characters, no ending/reunion/rescue. Character must be one coherent figure suitable for compositing over moving CG backgrounds. Mina: very long silver-white hair, blue eyes, white frilled headband with navy trim, exact navy long-sleeved maid dress with white ruffled apron and collar, navy bow with rectangular cyan gem. NEW pose is a quiet three-quarter profile facing LEFT, head slightly turned up as if noticing a faint distant voice. One hand relaxed over her own chest below the gem, other hand gently holding a little apron fabric at hip. NO hand reaching toward the viewer. Neutral reserved expression, mouth closed. Long hair flows behind her toward RIGHT in clearly separated elegant locks, contained entirely within canvas, same outfit and colors. Preserve quiet mysterious opening mood, no rescue or outcome.",
+      "file": "mina_profile_layer.png",
+      "transparent_background": true
+    }
+  ]
+}

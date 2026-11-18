@@ -260,17 +260,7 @@ public partial class FxLayer : Node2D
     // そこで飛散物（花びら・ハート・光の粒・リング）は Deep=true で弾より奥(-6/-5)へ沈める。
     //   手応えは殺さない：芯の白熱グローだけは手前(ZIndex21)に残す＝「当たった」は一目で判る。
     //   散る向きも上→右上寄りへ振る。敵弾は自機のいる左へ飛ぶので、右上に散らすと重なりが減る。
-    // impBase : この撃破が欠片に積んで運ぶ「ショップ通貨（インプレ）」の基礎額（2026-09-17 経済改修）。
-    //   ★スコア(points)と違い、難易度シャード倍率(DifficultyShardMul) は掛けない。
-    //     インプレ側は GameManager.GainImpression が DifficultyImpressionMul(0.7/1.0/1.6/3.0) を
-    //     掛けるので、ここでも掛けると 0.8〜1.6 と 0.7〜3.0 の二重適用になり Lunatic が 4.8倍に跳ねる。
-    //     「粒の数・スコアは難易度で増える／お金の倍率は経済側の1本だけ」と軸を分ける。
-    //   分配は points と同じ総和保存（impBase/n ＋ 余りを先頭から1ずつ）。拾い切れば必ず全額入る。
-    // countMul : 種ごとの粒数倍率（EnemySpec.ShardWeight → Enemy.ShardMul、2026-09-17）。
-    //   ★経済には影響しない。impBase も points も「総和保存」で n 粒へ割るので、n をいくつに変えても
-    //     拾い切ったときの合計は同じ。変わるのは撒かれる粒の数＝見た目の量と拾う回数だけ。
-    //     （ボス/中ボスは種の概念が無いので既定 1f のまま＝従来値を一切動かさない。）
-    public void PurifyBurst(Vector2 pos, int basePoints = 0, PurifyTier tier = PurifyTier.Zako, int impBase = 0, float countMul = 1f, PowerKind? power = null)
+    public void PurifyBurst(Vector2 pos, int basePoints = 0, PurifyTier tier = PurifyTier.Zako, float countMul = 1f, PowerKind? power = null, bool autoCollect = false)
     {
         bool boss = tier != PurifyTier.Zako;
         // 芯の一拍だけ手前。小さく短命（16→11px / 0.45→0.28s）＝弾を覆う面積と時間を削る。
@@ -286,7 +276,6 @@ public partial class FxLayer : Node2D
 
         // 難易度倍率（Easy0.8 / Normal1.0 / Hard1.3 / Lunatic1.6）。粒数とスコア総量の両方に同じ係数を
         // 掛ける＝「粒1個あたりの価値」を難易度に依らずほぼ一定に保ち、見た目の量と得点が食い違わない。
-        // ★インプレ(impBase)にだけは掛けない（上の引数コメント＝二重適用の回避）。
         float diffMul = GameManager.Instance?.DifficultyShardMul ?? 1f;
         int n = tier switch
         {
@@ -326,10 +315,7 @@ public partial class FxLayer : Node2D
         // 0.24s で急ブレーキが掛かって 25px しか進まない＝「全体に散る」にならない。ボス級だけ
         // 伸ばして盤面（264×216）の端まで届かせる。0＝ザコ（従来の ScatterTime 0.24s）。
         float flyBase = tier == PurifyTier.Boss ? 0.78f : tier == PurifyTier.MidBoss ? 0.58f : 0f;
-        // 報酬を持つ撃破か（＝散った粒を全部「拾える欠片」にするか）。点も通貨も無い呼び出し
-        // （Player の演出転用など）は従来どおり丸ごと装飾のまま＝拾って点が入る事故を防ぐ。
-        bool reward = points > 0 || impBase > 0;
-        int overflowImp = 0;
+        bool reward = points > 0;
         for (int i = 0; i < n; i++)
         {
             // ザコは右上(-π/4 中心)±1.0rad の扇。ボス級は spread=π＝全方位へ均等に散る。
@@ -340,25 +326,19 @@ public partial class FxLayer : Node2D
             bool heart = _rng.Randf() < heartRate;
             var particle = new P { Type = heart ? T.HeartP : T.Petal, X = pos.X, Y = pos.Y, Vx = Mathf.Cos(a) * sp, Vy = Mathf.Sin(a) * sp, Size = R(2.2f, 4f), Rot = R(0, Mathf.Tau), Spin = R(-5, 5), Grav = grav, Drag = drag, Ttl = R(ttlLo, ttlHi), Col = heart ? Heart : (_rng.Randf() < 0.5f ? PetalA : PetalB), Deep = true };
             int pt = points > 0 ? points / n + (i < points % n ? 1 : 0) : 0;
-            int im = impBase > 0 ? impBase / n + (i < impBase % n ? 1 : 0) : 0;
             // ★拾える／拾えないの判定は「この撃破が報酬を持つか(reward)」だけで決める。粒ごとの取り分
-            //   (pt/im) で弾いてはいけない：総和保存の分配は余りを先頭から配るので、n=13・points=10 なら
+            //   pt で弾いてはいけない：総和保存の分配は余りを先頭から配るので、n=13・points=10 なら
             //   末尾3粒の取り分が0になり、その3粒だけ拾えない装飾に落ちる＝「散った粒より拾える数が少ない」。
             //   総額は変わらないので気づかれにくいが、手触りとしては明確な退行（2026-09-17 QA検出）。
             // 飛行時間を粒ごとに散らす（±25%）＝全部が同時に止まらず、外周へ届く粒と途中で
             // ふわっと止まる粒が混ざって「面」で散って見える。
             float fly = flyBase > 0f ? flyBase * R(0.75f, 1.25f) : 0f;
-            if (!reward || !ScoreDrops.Add(particle, pt, im, fly, power))
+            if (!reward || !ScoreDrops.Add(particle, pt, fly, power, autoCollect))
             {
-                // 容量(640)超過で欠片になれなかったぶん。演出粒としては出すが、通貨まで
-                // 消すと「画面の都合でお金が減った」＝気づけない損になるので、取りこぼし分は
-                // その場で入金して帳尻を合わせる（スコアは従来どおり演出扱いで捨てる）。
-                overflowImp += im;
                 Add0(particle);
             }
             else power = null;
         }
-        if (overflowImp > 0) GameManager.Instance?.AddScoreShard(0, overflowImp);
         int motes = tier == PurifyTier.Boss ? 22 : tier == PurifyTier.MidBoss ? 13 : 6;
         for (int i = 0; i < motes; i++)
         {
@@ -369,10 +349,23 @@ public partial class FxLayer : Node2D
         // 寿命(5s)で消え、拾えずに損をする。撃破の瞬間だけ全欠片を強制吸引に切り替えて、
         // 会話が始まっても「チャリチャリ」と吸い込まれ切るまで回収を走らせる（§2-3 リターンは即・明確に）。
         // 全方位へ広く散らしたぶん帰り道も長くなるので、ラッシュ尺も少し伸ばす（2.6→3.2 / 1.9→2.2）。
-        if (boss) ScoreDrops.BeginRush(tier == PurifyTier.Boss ? 3.2f : 2.2f);
+        if (boss || autoCollect) ScoreDrops.BeginRush(tier == PurifyTier.MidBoss ? 2.2f : 3.2f);
         // 回収の見せ場（2026-09-22）。ボスは「全部拾い切った瞬間の締め」まで出す。中ボスは戦闘が
         // 続くので段階演出だけに抑える＝画面を覆う締めのフラッシュ／大リングは出さない。
         if (boss) ScoreDrops.BeginHarvest(tier == PurifyTier.Boss);
+    }
+
+    public void BombShard(Vector2 pos)
+    {
+        bool heart = _rng.Randf() < 0.18f;
+        var particle = new P
+        {
+            Type = heart ? T.HeartP : T.Petal, X = pos.X, Y = pos.Y,
+            Vx = R(-35, 35), Vy = R(-35, 35), Size = R(2.2f, 3.2f),
+            Rot = R(0, Mathf.Tau), Spin = R(-5, 5), Ttl = 0.8f,
+            Col = heart ? Heart : (_rng.Randf() < 0.5f ? PetalA : PetalB), Deep = true,
+        };
+        ScoreDrops.Add(particle, 1, autoCollect: true);
     }
 
     public void ScorePickup(Vector2 pos, Color color)
@@ -469,14 +462,6 @@ public partial class FxLayer : Node2D
         }
     }
 
-    public void BossBreakCue(Vector2 pos, float bodyHeight)
-    {
-        var burst = new BossBreakFx();
-        // The World tail keeps the cue over the boss body while hostile bullets stay in front.
-        (GetParent() ?? this).AddChild(burst);
-        burst.PlaceOn(pos, bodyHeight);
-    }
-
     public void BossExpose(Vector2 pos, float bodyHeight)
     {
         float h = Mathf.Max(34f, bodyHeight);
@@ -556,8 +541,8 @@ public partial class FxLayer : Node2D
     // ボム：魔法陣 + 光の波（弾→花びら変換と画面効果は Player.TryBomb 側）
     public void Bomb(Vector2 pos)
     {
-        Add0(new P { Type = T.Sigil, X = pos.X, Y = pos.Y, Ttl = 0.45f, Col = Sig });
-        Add0(new P { Type = T.BombRing, X = pos.X, Y = pos.Y, R0 = 6, Sp = 520, Ttl = 1.1f, Col = Sig2 });
+        Add0(new P { Type = T.Sigil, X = pos.X, Y = pos.Y, Ttl = 0.45f, Col = Sig, Deep = true });
+        Add0(new P { Type = T.BombRing, X = pos.X, Y = pos.Y, R0 = 6, Sp = 520, Ttl = 1.1f, Col = Sig2, Deep = true });
     }
 
     public void EmitBossAura(BossAura kind, Vector2 c, float dt, float radius = 30f)

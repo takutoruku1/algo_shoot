@@ -1,6 +1,5 @@
 using Godot;
 
-// 通常の難易度選択は Hub が担当し、このシーンは単体起動と --diff の撮影検証で使う。
 public partial class DiffSelect : Node2D
 {
     private GameManager _game = null!;
@@ -16,13 +15,13 @@ public partial class DiffSelect : Node2D
     {
         // 名前はハブの投稿詳細と同じ 浅く／いつも通り／深く／底まで（3-1）。説明はミナの観測の言い方に寄せる。
         new() { Name = "浅く",       Desc = "弾は少なく、ゆっくり。",             Diff = GameManager.Diff.Easy,    Density = 2,
-                Face = "res://char/mina_smile.png",   Quip = "ゆっくりで、いいんですよ。" },
+                Face = CompanionDialogue.MinaSmilePortrait,   Quip = "ゆっくりで、いいんですよ。" },
         new() { Name = "いつも通り", Desc = "標準の弾幕。慣れてきたらここから。", Diff = GameManager.Diff.Normal,  Density = 2,
-                Face = "res://char/mina_face.png",    Quip = "では、いつも通りに。" },
+                Face = CompanionDialogue.MinaPortrait,    Quip = "では、いつも通りに。" },
         new() { Name = "深く",       Desc = "弾が増え、密度が上がる。",           Diff = GameManager.Diff.Hard,    Density = 3,
-                Face = "res://char/mina_worried.png", Quip = "……無理は、しないでくださいね。" },
+                Face = CompanionDialogue.MinaWorriedPortrait, Quip = "……無理は、しないでくださいね。" },
         new() { Name = "底まで",     Desc = "弾が最も多く、攻撃の間隔も短い。",   Diff = GameManager.Diff.Lunatic, Density = 5,
-                Face = "res://char/mina_tears.png",   Quip = "……覚悟は、できていますか。" },
+                Face = CompanionDialogue.MinaTearsPortrait,   Quip = "……覚悟は、できていますか。" },
     };
 
     private int _sel;
@@ -31,6 +30,9 @@ public partial class DiffSelect : Node2D
     private bool _autoplay;
     private string _stageTag = "STAGE 1", _diveName = "あかり";
     private bool IsBossRush => _game?.PendingStageScene == BossRushRoot.ScenePath;
+    private bool IsBossSolo => _game?.PendingStageScene == BossRushRoot.SingleScenePath;
+    private bool IsBossMode => IsBossRush || IsBossSolo;
+    private readonly Texture2D[] _bossPortraits = new Texture2D[4];
 
     // ── チェックポイント入口について（2026-09-07 に画面を廃止）──
     //   以前は難易度を確定したあと「どこから始めますか?（最初から／中ボスから／ボスから）」の
@@ -51,6 +53,8 @@ public partial class DiffSelect : Node2D
     public override void _Ready()
     {
         _game = GetNodeOrNull<GameManager>("/root/Game")!;
+        if (IsBossMode)
+            for (int i = 0; i < _bossPortraits.Length; i++) _bossPortraits[i] = i == 3 && !_game.FinalBossRevealed ? FinalAccount.CreateIcon() : GD.Load<Texture2D>(BossSelectRoot.PortraitPaths[i]);
         if (Audio.Instance != null) Audio.Instance.Music(Audio.Instance.BgmMenu);
         foreach (var a in OS.GetCmdlineUserArgs())
             if (a == "--demo" || a == "--qa") { _autoplay = true; break; }
@@ -58,7 +62,8 @@ public partial class DiffSelect : Node2D
         // FINAL は GameManager.Stages に持たない（AllStoryCleared/NextUnclearedStageId が本編3ステージを
         // 数えるため）。ここだけ明示に見出しを与える。未登録シーンでも既定の "STAGE 1 — あかり" を出さない。
         if (IsBossRush) { _stageTag = "BOSS RUSH"; _diveName = "4連戦"; }
-        else if (_game?.PendingStageScene == "res://MinaBattle.tscn") { _stageTag = "FINAL"; _diveName = "ミナ"; }
+        else if (IsBossSolo) { _stageTag = "BOSS SINGLE"; _diveName = BossRushRoot.DisplayName(_game.PendingBossIndex, _game); }
+        else if (_game?.PendingStageScene == "res://MinaBattle.tscn") { _stageTag = "FINAL"; _diveName = _game.FinalBossRevealed ? "ミナ" : "最後の投稿"; }
         else
             foreach (var s in GameManager.Stages)
                 if (s.Scene == _game?.PendingStageScene)
@@ -123,6 +128,8 @@ public partial class DiffSelect : Node2D
 
     // 帯の「もどる」項目のクリック矩形（旧フッタの BackHintRect と同じ名前で QA が読む）。
     private const int IdBack = 100;
+    private const int IdBossStart = 101;
+    private static Rect2 BossStartRect => new(56, 584, 780, 52);
     private static Rect2 BackHintRect() => UiKit.HintItemRect(UiKit.HintAnchor, HintItems(), "もどる");
 
     public override void _Process(double delta)
@@ -165,17 +172,20 @@ public partial class DiffSelect : Node2D
         // マウス：ティア行にホバー＝カーソル移動（選択可の行のみ・表情もクロスフェード）、クリック＝決定。
         //   フッタの「もどる」も同じレジストリに載せる（ティア行とは重ならない）。
         UiKit.Hotspot(BackHintRect(), IdBack);
+        if (IsBossMode) UiKit.Hotspot(BossStartRect, IdBossStart);
         for (int i = 0; i < Tiers.Length; i++) UiKit.Hotspot(TierRect(i), i);
         int hov = UiKit.HoveredId();
         if (Pad.UsingMouse && hov >= 0 && hov < Tiers.Length && hov != _sel && Selectable(hov))
         { _sel = hov; StartFaceSwap(_sel); Audio.Instance?.PlayUiMove(); }
         int clk = UiKit.ClickedId(click);
         bool clickBack = clk == IdBack;
-        if (clickBack) clk = -1;
+        bool clickStart = clk == IdBossStart;
+        if (clickBack || clickStart) clk = -1;
 
         bool z = Input.IsKeyPressed(Key.Z) || Input.IsActionPressed("ui_accept") || Pad.Pressed(JoyButton.A);
         bool zEdge = z && !_zHeld; _zHeld = z;
-        bool confirm = zEdge && _t > 0.2 && Selectable(_sel);
+        bool confirm = (zEdge || clickStart) && _t > 0.2 && Selectable(_sel);
+        if (clickStart && !Selectable(_sel)) Audio.Instance?.PlayUiDeny();
         if (clk >= 0 && _t > 0.2)
         {
             if (Selectable(clk)) { _sel = clk; confirm = true; }
@@ -193,19 +203,23 @@ public partial class DiffSelect : Node2D
         bool back = Input.IsKeyPressed(Key.X) || Input.IsKeyPressed(Key.Escape) || Pad.Pressed(JoyButton.B)
                     || Pad.MouseRightClick();
         bool backEdge = back && !_backHeld; _backHeld = back;
-        if ((backEdge || clickBack) && _t > 0.2) { Audio.Instance?.PlayUiCancel(); GameManager.FadeToScene(this, "res://Hub.tscn"); }
+        if ((backEdge || clickBack) && _t > 0.2)
+        {
+            Audio.Instance?.PlayUiCancel();
+            GameManager.FadeToScene(this, IsBossSolo ? BossSelectRoot.ScenePath : "res://Hub.tscn");
+        }
 
         QueueRedraw();
     }
 
     private void Dive()
     {
-        if (IsBossRush && !_game.BossRushUnlocked) return;
         if (_game != null && Selectable(_sel)) _game.Difficulty = Tiers[_sel].Diff;
         // 入口は常に「最初から」（2026-09-07 に入口ダイアログを廃止＝通常プレイで中ボス/ボスから
         // 始める導線は無い）。`--boss` は GameManager が起動時に SelectedEntry を立て、Stage 側は
         // DebugAlwaysBoss を見て毎ランそれを復元するので、ここで潰しても壊れない。
         if (_game != null && !_game.DebugAlwaysBoss) _game.SelectedEntry = GameManager.StageEntry.Start;
+        _game?.AutoSave();
         string scene = _game?.PendingStageScene ?? "res://Rei.tscn";
         GetNodeOrNull<BulletPool>("/root/Pool")?.DespawnAll();
         GameManager.FadeToScene(this, scene);
@@ -215,24 +229,31 @@ public partial class DiffSelect : Node2D
     {
         UiKit.BeginDesign(this);
 
+        if (IsBossMode) UiKit.ExhibitBackdrop(this, UiKit.Info);
+        else
+        {
+
         UiKit.VGradient(this, new Rect2(0, 0, W, H),
             new[] { new Color("0c142a"), new Color("0a1022"), new Color("070a16") }, new[] { 0f, 0.55f, 1f });
         UiKit.RadialGlow(this, new Vector2(W * 0.5f, 0), 460f, new Color(120 / 255f, 150 / 255f, 210 / 255f), 0.14f);
         for (float y = 0; y < H; y += 6f) DrawRect(new Rect2(0, y, W, 1f), new Color(0, 0, 0, 0.05f));
+        }
 
         float padX = 56f, top = 40f;
         // ── ヘッダ ──
         UiKit.Text(this, UiKit.Mono, new Vector2(padX, top + 8), _stageTag, UiKit.FontLabel, UiKit.Info);
         float tagW = UiKit.TextW(UiKit.Mono, _stageTag, UiKit.FontLabel);
-        UiKit.Text(this, UiKit.ZenBlack, new Vector2(padX + tagW + 16, top), IsBossRush ? _diveName : $"{_diveName} へ潜る", UiKit.FontTitle, UiKit.White);
+        UiKit.Text(this, UiKit.ZenBlack, new Vector2(padX + tagW + 16, top), IsBossMode ? _diveName : $"{_diveName} へ潜る", UiKit.FontTitle, UiKit.White);
         UiKit.Text(this, UiKit.Zen, new Vector2(padX, top + 4), "難易度で弾幕とスコア倍率が変わります", UiKit.FontBody, UiKit.Text3,
             HorizontalAlignment.Right, W - padX * 2);
-        DrawRect(new Rect2(padX, top + 44, W - padX * 2, 1f), new Color(1, 1, 1, 0.1f));
+        if (!IsBossMode) DrawRect(new Rect2(padX, top + 44, W - padX * 2, 1f), new Color(1, 1, 1, 0.1f));
 
         // ── 右カラム：MINA 立ち絵（選択難易度の表情）。先に描いて、ティア行は左へ寄せる ──
         float colW = 360f;                       // 右の立ち絵カラム幅
         float colX = W - padX - colW;            // 左端
-        if (IsBossRush) DrawRushColumn(colX, top + 66f, colW);
+        if (IsBossMode) DrawBossColumn(colX, top + 66f, colW);
+        else if (_stageTag == "FINAL" && !_game.IsFinalCleared)
+            UiKit.Text(this, UiKit.Zen, new Vector2(colX, H / 2), "ミナからの応答がない。", UiKit.FontBody, UiKit.Text3, HorizontalAlignment.Center, colW);
         else DrawMinaColumn(colX, top + 66f, colW, H - 56f - (top + 66f) - 18f);
 
         // ── ティア行（左カラムへ寄せる）──
@@ -248,12 +269,23 @@ public partial class DiffSelect : Node2D
             string record = bestTime.HasValue
                 ? $"BEST  {UiKit.FormatTime(bestTime.Value)}    SCORE  {UiKit.FormatScore(bestScore ?? 0)}"
                 : "この難易度は未クリア";
-            UiKit.Text(this, UiKit.Zen, new Vector2(padX + 24, rowTop + 400), record, UiKit.FontBody, UiKit.Text2);
+            UiKit.ExhibitPanel(this, new Rect2(padX, rowTop + 400, rowW, 60), UiKit.Info, false, 4);
+            UiKit.Text(this, UiKit.Zen, new Vector2(padX + 24, rowTop + 419), record, UiKit.FontBody, UiKit.Text2);
+        }
+        if (IsBossMode)
+        {
+            bool ready = Selectable(_sel);
+            bool hover = Pad.UsingMouse && BossStartRect.HasPoint(Pad.MousePos());
+            UiKit.ExhibitPanel(this, BossStartRect, ready ? UiKit.Info : UiKit.Text4, ready, 5);
+            if (ready) UiKit.Box(this, BossStartRect.Grow(-2), new Color(hover ? "c5eaf4" : "9bcede"), 6);
+            UiKit.Text(this, UiKit.ZenBold, BossStartRect.Position + new Vector2(16, 12),
+                ready ? $"{Tiers[_sel].Diff.ToString().ToUpperInvariant()} で挑戦する  →" : GameManager.LunaticUnlockHint,
+                20, ready ? new Color("112a39") : UiKit.Text2, HorizontalAlignment.Center, BossStartRect.Size.X - 32);
         }
 
         // ── フッタ（区切り線だけ。キーの案内は右下のヒント帯）──
         float fy = H - 56f;
-        DrawRect(new Rect2(padX, fy - 14, W - padX * 2, 1f), new Color(1, 1, 1, 0.08f));
+        if (!IsBossMode) DrawRect(new Rect2(padX, fy - 14, W - padX * 2, 1f), new Color(1, 1, 1, 0.08f));
         UiKit.HintBarPlate(this, UiKit.HintAnchor, HintItems(), "もどる", "メニュー");
 
         UiKit.EndDesign(this);
@@ -266,7 +298,9 @@ public partial class DiffSelect : Node2D
         bool luna = tr.Diff == GameManager.Diff.Lunatic;
         bool locked = luna && !(_game?.IsLunaticUnlocked ?? false);
 
-        if (locked)
+        if (IsBossMode)
+            UiKit.ExhibitPanel(this, new Rect2(x, y, w, h), locked ? UiKit.Text4 : luna ? UiKit.Kegare : tr.Diff == GameManager.Diff.Hard ? new Color("e89460") : UiKit.Info, sel && !locked, sel ? 7 : 4);
+        else if (locked)
             UiKit.Box(this, new Rect2(x, y, w, h), new Color(16 / 255f, 14 / 255f, 24 / 255f, 0.5f), 14f, new Color(1, 1, 1, 0.05f), 1f);
         else if (sel)
             UiKit.Box(this, new Rect2(x, y, w, h), new Color(20 / 255f, 30 / 255f, 40 / 255f, 0.6f), 14f, new Color(UiKit.Purify, 0.85f), 1.5f);
@@ -276,10 +310,8 @@ public partial class DiffSelect : Node2D
         float tx = x + 24f;
         if (locked)
         {
-            UiKit.Text(this, UiKit.ZenBold, new Vector2(tx, y + 22), IsBossRush ? tr.Diff.ToString().ToUpperInvariant() : tr.Name, UiKit.FontHeading, UiKit.Text4);
-            // 解禁条件は GameManager の定数から引く（旧実装は 300 とハードコードされており、実際の解禁値 200 と
-            //   食い違っていた＝プレイヤーが「まだ100足りない」と誤解する。ショップ側 Shop.cs:1167 は元から定数参照）。
-            UiKit.Text(this, UiKit.Zen, new Vector2(tx, y + 54), $"解禁：フォロワー {GameManager.LunaticFollowerReq}", UiKit.FontBody, UiKit.Mina);
+            UiKit.Text(this, UiKit.ZenBold, new Vector2(tx, y + 22), IsBossMode ? tr.Diff.ToString().ToUpperInvariant() : tr.Name, UiKit.FontHeading, UiKit.Text4);
+            UiKit.Text(this, UiKit.Zen, new Vector2(tx, y + 54), GameManager.LunaticUnlockHint, UiKit.FontBody, UiKit.Mina);
             // ロックの段はピル無し（ハブのカードと同じ作法。「LOCKED」の英語ステータスは画面から消す）。
             return;
         }
@@ -288,12 +320,12 @@ public partial class DiffSelect : Node2D
         if (sel)
         {
             UiKit.Text(this, UiKit.Mono, new Vector2(tx, y + 24), "▸", UiKit.FontBody, UiKit.Purify);
-            UiKit.Text(this, UiKit.ZenBold, new Vector2(tx + 22, y + 20), IsBossRush ? tr.Diff.ToString().ToUpperInvariant() : tr.Name, UiKit.FontHeading, UiKit.White);
+            UiKit.Text(this, UiKit.ZenBold, new Vector2(tx + 22, y + 20), IsBossMode ? tr.Diff.ToString().ToUpperInvariant() : tr.Name, UiKit.FontHeading, UiKit.White);
             UiKit.Text(this, UiKit.Zen, new Vector2(tx + 22, y + 54), tr.Desc, UiKit.FontBody, new Color(166 / 255f, 196 / 255f, 212 / 255f));
         }
         else
         {
-            UiKit.Text(this, UiKit.ZenBold, new Vector2(tx, y + 20), IsBossRush ? tr.Diff.ToString().ToUpperInvariant() : tr.Name, UiKit.FontHeading, UiKit.White);
+            UiKit.Text(this, UiKit.ZenBold, new Vector2(tx, y + 20), IsBossMode ? tr.Diff.ToString().ToUpperInvariant() : tr.Name, UiKit.FontHeading, UiKit.White);
             UiKit.Text(this, UiKit.Zen, new Vector2(tx, y + 54), tr.Desc, UiKit.FontBody, UiKit.Text3);
         }
 
@@ -316,18 +348,32 @@ public partial class DiffSelect : Node2D
         UiKit.Text(this, UiKit.Zen, new Vector2(x + w - 24f - UiKit.TextW(UiKit.Zen, stake, UiKit.FontSmall), y + 66), stake, UiKit.FontSmall, UiKit.Text3);
     }
 
-    // ── 右カラム：MINA 立ち絵 ＋ 一言（選択難易度の表情をクロスフェードで反映）──
-    private void DrawRushColumn(float x, float y, float w)
+    private void DrawBossColumn(float x, float y, float w)
     {
-        UiKit.Box(this, new Rect2(x, y, w, 450f), new Color("121827"), 16f, new Color(UiKit.Info, 0.3f), 1f);
-        UiKit.Text(this, UiKit.ZenBold, new Vector2(x + 24, y + 20), "対戦順", UiKit.FontHeading, UiKit.White);
-        for (int i = 0; i < BossRushRoot.BossNames.Length; i++)
-            UiKit.Text(this, UiKit.ZenBold, new Vector2(x + 28, y + 74 + i * 52),
-                $"{i + 1:00}   {BossRushRoot.BossNames[i]}", UiKit.FontHeading, UiKit.Text2);
-        UiKit.Text(this, UiKit.Zen, new Vector2(x + 24, y + 300), $"操作：{_game.JobDef.CharacterName}", UiKit.FontBody, UiKit.Info);
-        UiKit.Text(this, UiKit.Zen, new Vector2(x + 24, y + 337), "ライフ・ボムは連戦中に引き継ぎ", UiKit.FontSmall, UiKit.Text2);
-        UiKit.Text(this, UiKit.Zen, new Vector2(x + 24, y + 369), "ショップの強化を反映／会話なし", UiKit.FontSmall, UiKit.Text2);
-        UiKit.Text(this, UiKit.Zen, new Vector2(x + 24, y + 401), "リトライはあかり戦から", UiKit.FontSmall, UiKit.Text3);
+        UiKit.ExhibitPanel(this, new Rect2(x, y, w, 516), UiKit.Info, false, 8);
+        UiKit.Text(this, UiKit.ZenBold, new Vector2(x + 24, y + 20), IsBossSolo ? "対戦相手" : "対戦順", UiKit.FontHeading, UiKit.White);
+        int count = IsBossSolo ? 1 : 4;
+        for (int n = 0; n < count; n++)
+        {
+            int i = IsBossSolo ? _game.PendingBossIndex : n;
+            float cw = IsBossSolo ? w - 40 : (w - 52) / 2;
+            var card = new Rect2(x + 20 + n % 2 * (cw + 12), y + 60 + n / 2 * 148, cw, IsBossSolo ? 286 : 136);
+            Color accent = CompanionDialogue.Accent(i switch { 0 => Job.Melee, 1 => Job.Heal, 2 => Job.Magic, _ => Job.Tank });
+            UiKit.ExhibitPanel(this, card, accent, false, 3);
+            float foot = card.End.Y - 43;
+            UiKit.ExhibitPlinth(this, new Vector2(card.GetCenter().X, foot), new Vector2(cw * .36f, 10), accent);
+            var art = _bossPortraits[i];
+            Rect2 content = UiKit.ContentRect(art);
+            float scale = Mathf.Min((cw - 28) / content.Size.X, (IsBossSolo ? 206 : 80) / content.Size.Y);
+            UiKit.DrawPortraitScaled(this, art, new Vector2(card.GetCenter().X, foot - 5), scale);
+            UiKit.Text(this, UiKit.Mono, card.Position + new Vector2(10, 8), $"{i + 1:00}", 13, accent);
+            UiKit.Text(this, UiKit.ZenBold, new Vector2(card.Position.X, card.End.Y - 25), BossRushRoot.DisplayName(i, _game), 16, UiKit.White, HorizontalAlignment.Center, cw);
+        }
+        UiKit.Text(this, UiKit.ZenBold, new Vector2(x + 24, y + 362), $"操作：{_game.JobDef.CharacterName}", UiKit.FontBody, UiKit.Info);
+        UiKit.Text(this, UiKit.Zen, new Vector2(x + 24, y + 396), "BOSS本戦のみ／道中・中ボスなし", UiKit.FontSmall, UiKit.Text2);
+        UiKit.Text(this, UiKit.Zen, new Vector2(x + 24, y + 422), IsBossSolo ? "撃破するとBOSS選択へ戻ります" : "ライフ・ボムは連戦中に引き継ぎ", UiKit.FontSmall, UiKit.Text2);
+        UiKit.Text(this, UiKit.Zen, new Vector2(x + 24, y + 448), "ショップの強化を反映／会話なし", UiKit.FontSmall, UiKit.Text2);
+        UiKit.Text(this, UiKit.Zen, new Vector2(x + 24, y + 478), IsBossSolo ? "リトライは選んだBOSSから" : "リトライはあかり戦から", UiKit.FontSmall, UiKit.Text3);
     }
 
     private void DrawMinaColumn(float x, float y, float w, float h)
@@ -342,7 +388,7 @@ public partial class DiffSelect : Node2D
         // アクセント色（カードのpip色に合わせる）：通常=Purify / Hard=橙 / Luna=穢れピンク
         Color accent = luna ? UiKit.Kegare : (tr.Diff == GameManager.Diff.Hard ? new Color("e89460") : UiKit.Purify);
 
-        // ── 立ち絵の配置（縦長 474x720 を高さ基準でフィット、足元をカラム下端へ）──
+        // ── 立ち絵の配置（高さ基準でフィット、足元をカラム下端へ）──
         var tex = _faceTo ?? _faceFrom;
         float baseCx = x + w * 0.5f;
         float footY = y + h - 64f;               // 足元（一言ぶんの帯を下に残す）

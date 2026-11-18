@@ -1,0 +1,35 @@
+{
+  "generator": "Built-in image_gen, reference-based scene inserts",
+  "assets": [
+    {
+      "id": "akari_phone_insert",
+      "refs": [
+        "D:/dev/algo_shoot/char/bg2/opening/anime_v2/akari_unsent.png",
+        "D:/dev/algo_shoot/char/bg2/opening/op_akari_v1.png"
+      ],
+      "prompt": "Use case: illustration-story. ONE finished landscape 16:9 anime film illustration, an insert shot for an existing visual-novel opening. Reference images define the exact setting, character and props. Fine hand-drawn anime lines, nuanced painted light, cinematic depth. This is a different camera and moment from the reference, NOT another portrait of the same face. No new story event, no other people, no ending, no victory, no rescue, no reunion. No captions, lyrics, title or watermark. Opaque full environment. New extreme close insert from above the exact nighttime office desk: the lavender smartphone lies screen-up beside the keyboard, Akari's ivory cardigan cuff and one naturally drawn hand enter from the lower right; her index finger hesitates just above the phone screen. Show ONLY hand/forearm, absolutely no face or upper body. Phone display is a dark unsent message interface with a large empty draft field and tiny pale caret, small neutral UI bars; no legible prose needed. Exactly one phone. Existing keyboard, cool monitor edge and blurred office window/blinds in depth, no new decorations. Sharp hand and phone, soft background, cool blue phone light and same fluorescent nighttime lighting. Subject fills the center so it can be used in a diagonal photo panel.",
+      "file": "akari_phone_insert.png",
+      "transparent_background": false
+    },
+    {
+      "id": "koharu_study_insert",
+      "refs": [
+        "D:/dev/algo_shoot/char/bg2/opening/anime_v2/koharu_late.png",
+        "D:/dev/algo_shoot/char/bg2/opening/op_koharu_v1.png"
+      ],
+      "prompt": "Use case: illustration-story. ONE finished landscape 16:9 anime film illustration, an insert shot for an existing visual-novel opening. Reference images define the exact setting, character and props. Fine hand-drawn anime lines, nuanced painted light, cinematic depth. This is a different camera and moment from the reference, NOT another portrait of the same face. No new story event, no other people, no ending, no victory, no rescue, no reunion. No captions, lyrics, title or watermark. Opaque full environment. New overhead-diagonal cinematic close shot of Koharu's study desk at night, NO PERSON visible. The open school notebook fills center-right with unfinished handwritten schoolwork (unreadable natural marks), exactly ONE lavender penlight set diagonally across the page, existing laptop in upper-left playing the same small purple-haired streamer picture, existing pen pouch near notebook, bookshelf and blue curtains softly blurred in distance. A visible contrast between the study page and colorful laptop glow, cool lavender light, careful paper edges and penlight geometry. Not a repeated girl portrait; no new clock, no new bedroom layout, no extra penlight, no character outside the laptop. Keep the reference's floral cozy bedroom palette and hand-painted anime finish. Full 16:9 frame.",
+      "file": "koharu_study_insert.png",
+      "transparent_background": false
+    },
+    {
+      "id": "rei_stream_insert",
+      "refs": [
+        "D:/dev/algo_shoot/char/bg2/opening/op_rei_v1.png",
+        "D:/dev/algo_shoot/char/bg2/opening/op_rei_cutin_v1.png"
+      ],
+      "prompt": "Use case: illustration-story. ONE finished landscape 16:9 anime film illustration, an insert shot for an existing visual-novel opening. Reference images define the exact setting, character and props. Fine hand-drawn anime lines, nuanced painted light, cinematic depth. This is a different camera and moment from the reference, NOT another portrait of the same face. No new story event, no other people, no ending, no victory, no rescue, no reunion. No captions, lyrics, title or watermark. Opaque full environment. Image 1 defines real Rei's exact desk/studio; image 2 defines ONLY her on-screen avatar. New shot over real Rei's left shoulder TOWARD the single monitor: a small out-of-focus edge of her short purple bob and gray cardigan at lower-left, no visible real face. The monitor is the main subject, centered and clearly framed, showing her long indigo-purple-haired avatar with exact golden star hairclip, purple eyes, white short-sleeved blouse with purple/gold trim and bow from image 2. The avatar preview is framed by modest vertical chat bars and audio meter strips, no readable text needed, no platform logos. Existing single boom microphone enters from left toward chair, keyboard and plain blue mug on desk; no second monitor, no new props or lights. Nighttime studio with warm ceiling fill and cool monitor glow. This is a scene about the screen, not a full-screen avatar portrait.",
+      "file": "rei_stream_insert.png",
+      "transparent_background": false
+    }
+  ]
+}

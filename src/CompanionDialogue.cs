@@ -7,6 +7,10 @@ public static class CompanionDialogue
     public enum Beat { Intro, Mid, Boss }
     public enum Menu { Select, Hub, Return, ShopEnter, ShopBuy, ShopExit, TrainEnter, TrainShoot, TrainIdle }
 
+    public const string MinaPortrait = "res://char/v3/mina_conversation_v1.png";
+    public const string MinaSmilePortrait = "res://char/v3/mina_conversation_smile_v1.png";
+    public const string MinaWorriedPortrait = "res://char/v3/mina_conversation_worried_v1.png";
+    public const string MinaTearsPortrait = "res://char/v3/mina_conversation_tears_v1.png";
     public const string ReiAvatarPortrait = "res://char/v3/rei_gawa_face_v1.png";
 
     public static string Portrait(Job job) => job switch
@@ -14,7 +18,7 @@ public static class CompanionDialogue
         Job.Melee => "res://char/v3/akari_face.png",
         Job.Heal => "res://char/v3/koharu_face.png",
         Job.Magic => ReiAvatarPortrait,
-        _ => "res://char/mina_face.png",
+        _ => MinaPortrait,
     };
 
     public static string AccountPortrait(Job job) => AccountIcon(Jobs.Get(job).CharacterId);
@@ -49,7 +53,7 @@ public static class CompanionDialogue
         (6, "じゃあ、よろしく。黙ってついてくだけには、しないから。", ""),
     },
         (Job.Heal, "tutorial", Beat.Intro) => new (int, string, string)[] {
-        (6, "あたしも、そっちへ行っていいの？　見てるだけじゃなくて。", ""),
+        (6, "あたしも見てるだけじゃなくて、そっちに行っていいの？", ""),
         (0, "もちろん。こはるが行きたいなら、僕が道を開く。分からないことは聞いて。", ""),
         (6, "……うん。分かんないとこ、ちゃんと聞くね。", ""),
     },
@@ -72,7 +76,7 @@ public static class CompanionDialogue
     public static (int who, string text, string face)[] MenuDialogue(Job job, Menu scene) => (job, scene) switch
     {
         (Job.Melee, Menu.Select) => new (int, string, string)[] {
-        (6, "あたしも行く。いつまでも、待ってる側じゃなくて。", ""),
+        (6, "あたしも行く。いつまでも待ってるだけじゃ嫌だもん。", ""),
         (0, "うん。僕が道を開く。準備ができたら、あかりさんをダイブさせるよ。", ""),
         (6, "画面の向こうのあなたも、よろしく。怖くなったら、消さずに言うから。", ""),
     },
@@ -89,13 +93,13 @@ public static class CompanionDialogue
         (Job.Melee, Menu.Hub) => new (int, string, string)[] {
         (6, "通知、来てた。……いまじゃなくても、いいか。", ""),
         (0, "気になるなら、先に見てもいいよ。話の続きは待ってる。", ""),
-        (6, "待ってはいるよ。でも今は、あなたに続きを話したい。……画面の向こうの、あなたに。", ""),
+        (6, "返事は待ってるよ。でも今は、画面の向こうのあなたに続きを話したいの。", ""),
         (0, "うん。さっきの続きを聞かせて。", ""),
     },
         (Job.Heal, Menu.Hub) => new (int, string, string)[] {
         (6, "ペンライトの電池、換えようかな。光、ちょっと弱い。", ""),
         (0, "使わない日にも、手元に置いてるんだね。", ""),
-        (6, "うん。あなたにも見せたいな、これ。光ってなくても、好きなものなんだよ。", ""),
+        (6, "これ、あなたにも見せたいな。光ってなくても好きなんだ。", ""),
         (0, "うん。どうして好きなのかも、聞いてみたい。", ""),
     },
         (Job.Magic, Menu.Hub) => new (int, string, string)[] {
@@ -112,7 +116,7 @@ public static class CompanionDialogue
         (Job.Heal, Menu.Return) => new (int, string, string)[] {
         (6, "ちゃんとできたか、まだ分かんない。でも、途中で目をそらさなかった。", ""),
         (0, "おかえり。僕も見てた。怖いところで、呼んでくれたね。", ""),
-        (6, "あなたにも、帰ってきたよって言いたかった。点数の報告じゃなくて。", ""),
+        (6, "帰ってきたよって、あなたにも言いたかった。点数の報告ならあとでいいや。", ""),
     },
         (Job.Magic, Menu.Return) => new (int, string, string)[] {
         (6, "配信なら、ここで元気に締めるんだけど。……今日は、ちょっと静かにしたい。", ""),

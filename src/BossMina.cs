@@ -4,6 +4,15 @@ public partial class BossMina : Enemy
 {
     public override UnfolderKind UnfolderStyle => UnfolderKind.Mina;
     public override int UnfolderStage => EncounterPhase;
+    private static readonly string[] LunaticPhaseLines =
+    {
+        "お迎えですか？　……いつもは、わたくしが伺うのに。",
+        "雨の音にまじって、まだお返事を待つ声がします。",
+        "この翼なら、もう誰も雨に濡れずに済みます。",
+        "笑ってお答えするのは、わたくしも得意でした。",
+        "……今日は、わたくしの方から。迎えに来てください。",
+    };
+    protected override string LunaticEncounterLine => LunaticPhaseLines[_pattern];
     public bool Finished { get; private set; }
     public bool MemoryPlayed => _memoryPlayed;
     public bool AoeGateActive => PostSequenceActive || Transitioning || _memoryPending || PhasePending || (_caster != null && _caster.Active);
@@ -12,17 +21,19 @@ public partial class BossMina : Enemy
     public int EncounterPhase => _pattern;
     public const int DragonPhase = 2;
     public bool IsDragonForm => _pattern >= DragonPhase && !IsPurified;
+    public override bool UsesTransformedMusic => IsDragonForm;
     private BossTransformation.Frame? _dragonBefore;
     private double _wingTime;
-    private Texture2D[]? _wingFrames;
+    private Texture2D? _wingFrame;
+    internal float WingPhase => (float)(_wingTime / 1.6 * Mathf.Tau);
     private bool PhasePending => _pattern < PhaseThresholds.Length && HpRatio <= PhaseThresholds[_pattern];
     internal int AttackPhase => _pattern;
     private bool _memoryPending, _memoryPlayed;
     private static readonly (int who, string text, string face)[] MemoryLeadIn = {
-        (6, "ほら。いまの話、もっと聞きたいわ。役に立つ報告より、ずっと。", ""),
-        (1, "ご報告することがなくても、話しかけたい日が、ありました。", "res://char/mina_face.png"),
+        (6, "ほら、仕事の報告より、そういう話のほうがずっと聞きたいわ。", ""),
+        (1, "ご報告することがなくても、話しかけたい日が、ありました。", "res://char/v3/mina_conversation_v1.png"),
         (6, "どんなとき？", ""),
-        (1, "皆さまの帰還を確認したあと。呼びかけて、やめたことが……。", "res://char/mina_face.png"),
+        (1, "皆さまの帰還を確認したあと。呼びかけて、やめたことが……。", "res://char/v3/mina_conversation_v1.png"),
     };
     private CharacterStoryTalk? _memoryTalk;
     private CharacterStoryTalk? _recloseTalk;
@@ -85,6 +96,7 @@ public partial class BossMina : Enemy
 
     internal Vector2 KeepDragonInField(Vector2 position)
     {
+        if (!BossInArena) return position;
         var bounds = DragonFlightBounds;
         return new Vector2(Mathf.Clamp(position.X, bounds.Position.X, bounds.End.X),
             Mathf.Clamp(position.Y, bounds.Position.Y, bounds.End.Y));
@@ -93,18 +105,11 @@ public partial class BossMina : Enemy
     protected override void TickBodyMotion(double delta)
     {
         if (!IsDragonForm || !BodyMotionReady || BodyAttacking || Transitioning || PostSequenceActive) return;
-        _wingFrames ??= new[]
-        {
-            GD.Load<Texture2D>(BattleCostumePath(2, "flap_up")),
-            GD.Load<Texture2D>(BattleCostumePath(2, "flap_level")),
-            GD.Load<Texture2D>(BattleCostumePath(2, "flap_low")),
-        };
+        _wingFrame ??= GD.Load<Texture2D>(BattleCostumePath(2, "flap_level"));
         _wingTime += delta;
-        float beat = (float)(_wingTime % 0.96);
-        int frame = beat < .26f ? 0 : beat < .40f ? 1 : beat < .64f ? 2 : 1;
-        SetMotionFrame(_wingFrames[frame]);
+        SetMotionFrame(_wingFrame);
         // Lift follows the downstroke; the hitbox remains at the flight-path position.
-        BodySprite.Position = new Vector2(0, -1.2f * Mathf.Sin((beat - .40f) / .96f * Mathf.Tau));
+        BodySprite.Position = new Vector2(0, -.45f * Mathf.Sin(WingPhase - .4f * Mathf.Tau));
         BodySprite.Rotation = 0;
     }
 
@@ -141,24 +146,29 @@ public partial class BossMina : Enemy
 
     private static readonly (int who, string text, string face)[] Lines =
     {
-        (1, "……帰り道が、見えます。わたくしの分も……。", "res://char/mina_face.png"),
+        (1, "……帰り道が、見えます。わたくしの分も……。", "res://char/v3/mina_conversation_v1.png"),
         (6, "ええ。立てる？　急がなくていいわ。", ""),
-        (1, "はい。ご主人様へ、つないでください。", "res://char/mina_face.png"),
+        (1, "はい。ご主人様へ、つないでください。", "res://char/v3/mina_conversation_v1.png"),
     };
     private static readonly (int who, string text, string face)[] AkariLines =
     {
-        (1, "……帰り道が、見えます。わたくしの分も……。", "res://char/mina_face.png"),
+        (1, "……帰り道が、見えます。わたくしの分も……。", "res://char/v3/mina_conversation_v1.png"),
         (6, "立てる？　あたしにつかまって。ゆっくりでいいから。", ""),
-        (1, "はい。ご主人様へ、つないでください。", "res://char/mina_face.png"),
+        (1, "はい。ご主人様へ、つないでください。", "res://char/v3/mina_conversation_v1.png"),
     };
     private static readonly (int who, string text, string face)[] KoharuLines =
     {
-        (1, "……帰り道が、見えます。わたくしの分も……。", "res://char/mina_face.png"),
+        (1, "……帰り道が、見えます。わたくしの分も……。", "res://char/v3/mina_conversation_v1.png"),
         (6, "手、つないでるよ。立てそう？　急がなくていいからね。", ""),
-        (1, "はい。ご主人様へ、つないでください。", "res://char/mina_face.png"),
+        (1, "はい。ご主人様へ、つないでください。", "res://char/v3/mina_conversation_v1.png"),
     };
     public static (int who, string text, string face)[] RedemptionLines(Job job) => job switch
     {
+        Job.Tank => new (int, string, string)[] {
+            (1, "あの日、ご主人様にわたくしの声が届いたのは、この先です。", "res://char/v3/mina_conversation_v1.png"),
+            (0, "ここだったんだね。……もう一度、聞かせて。", ""),
+            (1, "はい。ただいま、ご主人様。", "res://char/v3/mina_conversation_v1.png"),
+        },
         Job.Melee => AkariLines,
         Job.Heal => KoharuLines,
         _ => Lines,
@@ -167,6 +177,7 @@ public partial class BossMina : Enemy
 
     protected override void OnEnemyReady()
     {
+        FaceLeft = false;
         // 主要バランス値は INI（config/boss_stats.ini [mina]）で上書き可。第3引数＝現行既定値。
         Points = BossTuning.I("mina", "points", 3000);
         BodyRadius = BossTuning.F("mina", "body_radius", 16f);
@@ -179,6 +190,9 @@ public partial class BossMina : Enemy
 
         int bars = BossTuning.I("mina", "hp_bars", 0);
         BarCount = bars > 0 ? bars : DiffBars(finalBoss: true);
+        if (GameManager.Instance?.Difficulty == GameManager.Diff.Hard
+            && GetTree().GetFirstNodeInGroup("boss_rush") is BossRushRoot { SingleBoss: true })
+            BarHp = BossTuning.I("mina", "solo_hard_bar_hp", 650);
 
         PreTexPath = "res://char/v3/boss_mina_body_idle.png";
         DownTexPath = BossDownArt.Path("mina");
@@ -214,21 +228,22 @@ public partial class BossMina : Enemy
 
     protected override void UpdateMovement(double delta)
     {
-        if (IsDragonForm) GlobalPosition = KeepDragonInField(GlobalPosition);
+        if (IsDragonForm && !BarrageHolding) GlobalPosition = KeepDragonInField(GlobalPosition);
         if (Transitioning || _memoryPending || PhasePending)
         {
             // EnterExposed can re-enable the body during a signature's safe-zone relay.
             if (_caster.Active) SetBodyContactEnabled(false);
-            ApplyBossMotion(new Vector2(0, Mathf.Sin((float)Time.GetTicksMsec() * 0.003f) * 0.8f), 0, !IsDragonForm);
+            ApplyBossMotion(new Vector2(0, Mathf.Sin((float)Time.GetTicksMsec() * 0.003f) * 0.8f), 0, false);
             FxLayer.Instance?.EmitBossAura(FxLayer.BossAura.Mina, GlobalPosition, (float)delta, 48f);
             return;
         }
         // 自機の位置を渡す＝鏡写しの追従（track_gain 1.0／縦も gain_y 0.85 で高さを合わせる）と、反転の判定に使う。
         if (GetTree().GetFirstNodeInGroup("player") is Node2D pl) _mover.SetPlayerPos(pl.GlobalPosition);
-        if (!BarrageHolding) GlobalPosition = _mover.Step(GlobalPosition, delta, IsDragonForm ? 1.65f : 1f);
-        if (IsDragonForm) GlobalPosition = KeepDragonInField(GlobalPosition);
+        if (!BarrageHolding) GlobalPosition = _mover.Step(GlobalPosition, delta, IsDragonForm ? 1.65f : 1f, framed: !BossInArena);
+        else _mover.TickFacing(GlobalPosition, delta);
+        if (IsDragonForm && !BarrageHolding) GlobalPosition = KeepDragonInField(GlobalPosition);
         ApplyBossMotion(_mover.VisualOffset, IsDragonForm ? 0 : _mover.Lean,
-            IsDragonForm ? !_mover.FacingLeft : _mover.FacingLeft);
+            !_mover.FacingLeft);
         FxLayer.Instance?.EmitBossAura(FxLayer.BossAura.Mina, GlobalPosition, (float)delta, 36f);
     }
 
@@ -244,7 +259,7 @@ public partial class BossMina : Enemy
         if (_posts != null) floor = Mathf.Max(floor, _posts.Floor);
         if (!_memoryPlayed && _pattern >= 2) floor = Mathf.Max(floor, 0.5f);
         // The opening attack must finish or be interrupted by a shield break before crossing the HP boundary.
-        if (_caster != null && !_caster.OpenerCompleted) floor += 1f / (TotalBars * BarHp);
+        if (_caster != null && !_caster.OpenerCompleted && !GaugeAttackResolving) floor += 1f / (TotalBars * BarHp);
         return DamageToHpFloor(damage, floor);
     }
 
@@ -271,7 +286,6 @@ public partial class BossMina : Enemy
         Transitioning = true;
         _caster.CancelPendingAttacks();
         _pattern++;
-        if (UsesTechniqueCycle || _pattern == 4) RallyShield();
         if (_pattern == DragonPhase)
         {
             _dragonBefore = BossTransformation.Frame.Capture(BodySprite);
@@ -282,9 +296,11 @@ public partial class BossMina : Enemy
         }
         ChangeBattleCostume(BattleCostumePath(_pattern, "idle"), BattleCostumePath(_pattern, "attack"),
             BattleDownPath(_pattern));
-        ApplyBossMotion(Vector2.Zero, 0, IsDragonForm ? !_mover.FacingLeft : _mover.FacingLeft);
+        RestartAfterFormChange();
+        ApplyBossMotion(Vector2.Zero, 0, !_mover.FacingLeft);
         if (_pattern == 4) CryTexPath = CostumePath(4, "idle");
         ApplySpell();
+        ShowLunaticEncounterLine();
         // 段（衣装）の切り替わり＝盤面の仕切り直し。自機だけ前の段の位置に残るのが非対称なので初期位置へ戻す。
         //   龍形態（DragonPhase）では上で本体の徘徊ゾーンごと移して位置を貼り直している＝まさに
         //   「敵の位置がリセットされる瞬間」。自機だけ取り残さない。
@@ -295,6 +311,24 @@ public partial class BossMina : Enemy
         //   次の _Process が「CinematicMode でない」を見て CompletePhaseTransition を呼ぶ＝衣装替えと次段の武装だけが走る。
         if (GameManager.SkipBossStory) return;
         MinaPhaseScene.Play(GetHud()!, GetParent(), _pattern, CompletePhaseTransition);
+    }
+
+    internal override void PrepareTechniquePractice(int phase)
+    {
+        base.PrepareTechniquePractice(0);
+        _pattern = phase;
+        _posts.ResumeMusic(0.2f);
+        if (IsDragonForm)
+        {
+            var bounds = DragonFlightBounds;
+            _mover.MoveZoneTo(bounds.GetCenter(), bounds.Size.X * .5f, bounds.Size.Y * .5f,
+                BossTuning.F("mina", "cruise_speed", 26f));
+            GlobalPosition = KeepDragonInField(GlobalPosition);
+        }
+        ChangeBattleCostume(BattleCostumePath(phase, "idle"), BattleCostumePath(phase, "attack"), BattleDownPath(phase));
+        ApplySpell();
+        FinishFormReveal();
+        _caster.BeginPhase(phase);
     }
 
     private void CompletePhaseTransition()
@@ -323,21 +357,26 @@ public partial class BossMina : Enemy
         Job job = GetNode<GameManager>("/root/Game").SelectedJob;
         string[] replies = job switch
         {
+            Job.Tank => new[] { "重かったね。僕にも聞かせて。", "うん。今もここで聞いてるよ。", "ミナ、僕の声をたどって。ここだよ。" },
             Job.Melee => new[] { "持てるところ、あたしにも渡して。", "何ができるかじゃなくて、ミナに会いたいんだよ。", "もう一度言うね。迎えに来たよ、ミナ。" },
             Job.Heal => new[] { "持てるところ、一つあたしにも渡して。", "何もできなくても、一緒にいてほしいよ。", "もう一度言うよ。迎えに来たの、ミナ。" },
             _ => new[] { "持てるところを、一つ渡しなさい。", "できるかどうかを聞きに来たんじゃないわ。", "もう一度言う。迎えに来たの、ミナ。" },
         };
+        Audio.Instance?.Music(Audio.Instance.BgmStoryMina, 0.7f);
         _recloseTalk = CharacterStoryTalk.Start(new[]
         {
-            (1, RecloseLines[index], "res://char/mina_worried.png"),
-            (6, replies[index], ""),
-        }, GetHud, ShowStoryLine, () => _zHeld = Pad.AdvanceHeld());
+            (1, RecloseLines[index], "res://char/v3/mina_conversation_worried_v1.png"),
+            (job == Job.Tank ? 0 : 6, replies[index], ""),
+        }, GetHud, ShowStoryLine, () => {
+            _zHeld = Pad.AdvanceHeld();
+            _posts.ResumeMusic();
+        });
     }
 
     protected override void OnCryStart()
     {
         _caster.CancelPendingAttacks();
-        ApplyBossMotion(Vector2.Zero, 0, _mover.FacingLeft);
+        ApplyBossMotion(Vector2.Zero, 0, !_mover.FacingLeft);
         var hud = GetHud();
         hud?.HideBossBar();
         hud?.HideSpellCard(); // 宣告カードの残留を断つ（改心会話中はタイマー停止＝自然には消えない）
@@ -352,6 +391,7 @@ public partial class BossMina : Enemy
         //   ルナティックも同じ経路＝邂逅（F3）の会話を出さず、その場で着地して Finished へ。
         _f3 = RedemptionLines(GetNodeOrNull<GameManager>("/root/Game")?.SelectedJob ?? Job.Tank);
         if (hud == null || _f3.Length == 0 || GameManager.SkipBossStory) { EndCryNow(); return; }
+        Audio.Instance?.Music(Audio.Instance.BgmStoryMina, 0.7f);
         hud.HoldBubble = true;
         _seq = true; _line = 0; _lineT = 0;
         ShowLine();
@@ -391,6 +431,7 @@ public partial class BossMina : Enemy
                 return;
             }
             _caster.CancelPendingAttacks();
+            Audio.Instance?.Music(Audio.Instance.BgmStoryMina, 0.7f);
             void PlayMemory() => MinaStoryFilm.Play(GetHud()!, GetParent(), aftermath: false, completed: () =>
             {
                 _zHeld = Pad.AdvanceHeld();
@@ -401,7 +442,7 @@ public partial class BossMina : Enemy
                     OnHpChanged();
                 }
             });
-            if (_pattern < 2)
+            if (_pattern < 2 && GameManager.Instance!.SelectedJob != Job.Tank)
                 _memoryTalk = CharacterStoryTalk.Start(MemoryLeadIn, GetHud, ShowStoryLine, PlayMemory);
             else PlayMemory();
             return;
@@ -449,7 +490,7 @@ public partial class BossMina : Enemy
     {
         var kind = (Hud.LineKind)who;
         string portrait = kind == Hud.LineKind.Mina && string.IsNullOrEmpty(face)
-            ? "res://char/mina_worried.png" : face;
+            ? "res://char/v3/mina_conversation_worried_v1.png" : face;
         hud.ShowDialog(kind, text, portrait, otherName: "ミナ");
     }
 

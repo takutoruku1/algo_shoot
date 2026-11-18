@@ -7,6 +7,9 @@ using Godot;
 public partial class BossAkari : Enemy
 {
     public override UnfolderKind UnfolderStyle => UnfolderKind.Akari;
+    protected override string LunaticEncounterLine => IsForm2
+        ? "待って。今度は、追いついてから言うね。"
+        : "向かいの席、今日も空けてあるよ。……笑っちゃう？";
     public bool EdgeAttackActive => _caster != null && _caster.EdgeAttackActive;
     public bool Finished { get; private set; }
 
@@ -16,10 +19,6 @@ public partial class BossAkari : Enemy
     private bool _lowHpRallied;
     private bool _memoryPending;
     private bool _memoryPlayed;
-    private int _shieldBreaks;
-    protected override int WindowCap => GameManager.Instance?.Difficulty is GameManager.Diff.Easy or GameManager.Diff.Normal
-        ? Mathf.Min(base.WindowCap, TotalBars * BarHp / 5) : base.WindowCap;
-    protected override void OnShieldBroken() => _shieldBreaks++;
     private BossPostSequence _posts = null!;
     public bool PostSequenceActive => _posts != null && _posts.Active;
     private int _pattern;
@@ -62,25 +61,30 @@ public partial class BossAkari : Enemy
     private static readonly (int who, string text, string face)[] MemoryLeadIn =
     {
         (2, "……待って。まだ、言えてないのに。", "res://char/v3/akari_face.png"),
-        (1, "はい。ここにおります。誰に、何を伝えたかったのですか。", "res://char/mina_face.png"),
+        (1, "はい。ここにおります。誰に、何を伝えたかったのですか。", CompanionDialogue.MinaPortrait),
         (2, "西野くん。同じ年に会社に入って、向かいの席で……。", "res://char/v3/akari_face.png"),
-        (1, "その方が、いなくなったのですね。", "res://char/mina_face.png"),
+        (1, "その方が、いなくなったのですね。", CompanionDialogue.MinaPortrait),
         (2, "三日前に辞めたの。最後の日も、あたし、普通に仕事してた。", "res://char/v3/akari_face.png"),
-        (1, "普通にしているほうが、楽でしたか。", "res://char/mina_face.png"),
+        (1, "普通にしているほうが、楽でしたか。", CompanionDialogue.MinaPortrait),
         (2, "……そう思ってた。ちゃんと「またね」って言えれば、終わらない気がして。", "res://char/v3/akari_face.png"),
-        (1, "その日は、どこまで言えたのでしょう。", "res://char/mina_face.png"),
+        (1, "その日は、どこまで言えたのでしょう。", CompanionDialogue.MinaPortrait),
         (2, "帰る前に、あたしの席へ来たの。そしたら、電話が鳴って……。", "res://char/v3/akari_face.png"),
     };
     private static readonly (int who, string text, string face)[] Lines =
     {
-        (2, "……返事がほしかった。おめでとう、より先に。", "res://char/v3/akari_face_cry.png"),
+        (2, "……「おめでとう」って言う前に、あの人の返事がほしかった。", "res://char/v3/akari_face_cry.png"),
         (2, "だから、何度も送って……怖くなって、取り消した。", "res://char/v3/akari_face_cry.png"),
-        (1, "……いま、見えた下書き。あの一通だけは、消さずに残していたのですね。", "res://char/mina_face.png"),
-        (1, "——「おめでとう ほんとだよ 元気でね」。……宛名は、ありません。", "res://char/mina_face.png"),
+        (1, "……いま、見えた下書き。あの一通だけは、消さずに残していたのですね。", CompanionDialogue.MinaPortrait),
+        (1, "——「おめでとう ほんとだよ 元気でね」。……宛名は、ありません。", CompanionDialogue.MinaPortrait),
         (2, "……ほんとは、ちゃんと笑って見送りたかった。でも、寂しいほうが先に出ちゃった。", "res://char/v3/akari_face_cry.png"),
-        (1, "取り消された十二通は、ぜんぶ、わたくしに当たりました。", "res://char/mina_face.png"),
-        (1, "十二通、読みました。寂しかったのですね。……「好き」まで悪いものにしなくて、よいと思います。", "res://char/mina_face.png"),
-        (2, "……ぁ……", "res://char/v3/akari_face_cry.png"),
+        (1, "取り消された十二通は、ぜんぶ、わたくしに当たりました。", CompanionDialogue.MinaPortrait),
+        (1, "十二通、読みました。寂しかったのですね。……「好き」まで悪いものにしなくて、よいと思います。", CompanionDialogue.MinaPortrait),
+        (2, "ねえ。何て書けば、返事、来ると思う？", "res://char/v3/akari_face_cry.png"),
+        (1, "……お返事を約束できる言葉は、わたくしには分かりません。", CompanionDialogue.MinaPortrait),
+        (2, "……だよね。返事をもらうために書いたら、また消しちゃいそう。", "res://char/v3/akari_face_cry.png"),
+        (2, "おめでとう、は送る。好き、は……あたしのメモに残しておく。今は、それでいい。", "res://char/v3/akari_face_cry.png"),
+        (1, "はい。……『おめでとう』、ですね。", CompanionDialogue.MinaPortrait),
+        (2, "……今度は、ちゃんと送ってみる。", "res://char/v3/akari_face_cry.png"),
     };
     private const int SilenceAtLine = 5;
 
@@ -88,8 +92,8 @@ public partial class BossAkari : Enemy
     {
         if (game?.ChosenAt("s1_4") != "一つずつ聞こう。ミナも無理しないで") return Lines;
         var lines = Lines[..];
-        lines[SilenceAtLine] = (1, "机では、一通だけ開きました。続きは、あかりさんから聞きたくて。", "res://char/mina_face.png");
-        lines[SilenceAtLine + 1] = (1, "いま、聞かせてくださった言葉を、覚えておきます。寂しかったのですね。……「好き」まで悪いものにしなくて、よいと思います。", "res://char/mina_face.png");
+        lines[SilenceAtLine] = (1, "机では、一通だけ開きました。続きは、あかりさんから聞きたくて。", CompanionDialogue.MinaPortrait);
+        lines[SilenceAtLine + 1] = (1, "いま、聞かせてくださった言葉を、覚えておきます。寂しかったのですね。……「好き」まで悪いものにしなくて、よいと思います。", CompanionDialogue.MinaPortrait);
         return lines;
     }
 
@@ -115,6 +119,9 @@ public partial class BossAkari : Enemy
 
         int bars = BossTuning.I("akari", "hp_bars", 0);
         BarCount = bars > 0 ? bars : Mathf.Max(1, DiffBars(finalBoss: false) - 1);
+        if (GameManager.Instance?.Difficulty == GameManager.Diff.Hard
+            && GetTree().GetFirstNodeInGroup("boss_rush") is BossRushRoot { SingleBoss: true })
+            BarHp = BossTuning.I("akari", "solo_hard_bar_hp", 800);
 
         // 弾幕・ギミックの外出し値（INIに無ければフィールド初期値＝現行値のまま）。
         _roamSpeed = BossTuning.F("akari", "roam_speed", RoamSpeed);
@@ -189,7 +196,8 @@ public partial class BossAkari : Enemy
     {
         // 自機の位置を渡す＝自機狙いの追従（x と y の両方に寄る）と、反転の判定（40px 以上・0.6秒）に使う。
         if (GetTree().GetFirstNodeInGroup("player") is Node2D pl) _mover.SetPlayerPos(pl.GlobalPosition);
-        if (!BarrageHolding) GlobalPosition = _mover.Step(GlobalPosition, delta, IsForm2 ? 1.65f : 1f);
+        if (!BarrageHolding) GlobalPosition = _mover.Step(GlobalPosition, delta, IsForm2 ? 1.65f : 1f, framed: !BossInArena);
+        else _mover.TickFacing(GlobalPosition, delta);
         ApplyBossMotion(_mover.VisualOffset, _mover.Lean, IsForm2 ? !_mover.FacingLeft : _mover.FacingLeft, _mover.SquashScale);
         FxLayer.Instance?.EmitBossAura(FxLayer.BossAura.Akari, GlobalPosition, (float)delta, 32f);
         TickForm2Technique(delta, _mover, _caster);
@@ -205,8 +213,7 @@ public partial class BossAkari : Enemy
     {
         if (_posts is { Active: true }) return 0;
         float floor = _posts?.Floor ?? 0;
-        if ((GameManager.Instance?.Difficulty is GameManager.Diff.Easy or GameManager.Diff.Normal) && !HasEvolved && _shieldBreaks < 3)
-            floor = Mathf.Max(floor, 0.54f);
+        if (!HasEvolved) floor = Mathf.Max(floor, 0.52f);
         return DamageToHpFloor(damage, floor);
     }
 
@@ -264,8 +271,7 @@ public partial class BossAkari : Enemy
         hud?.HideSpellCard(); // 宣告カードの残留を断つ（改心会話中はタイマー停止＝自然には消えない）
         GetNodeOrNull<GameManager>("/root/Game")?.EndFury();           // 【激情】メーターを止めて畳む
         GetNodeOrNull<GameManager>("/root/Game")?.NotifyRedemptionStart(); // 残機0の抜けプロンプトを演出に重ねない
-        // 改心が始まる確実な瞬間に「解決音（完）」へ移す＝途切れていたフレーズが最後まで歌われる。
-        Audio.Instance?.PlayRedeem(1);
+        Audio.Instance?.Music(Audio.Instance.BgmStoryAkari, 0.8f);
         // 会話を出せない状況（Hud が取れない／台詞が無い）なら会話に入らず即着地させる
         //   ＝送るものが無いのに EndCryNow を待ち続けて Finished が立たない詰まりを断つ。
         //   ルナティックも同じ経路＝改心のかけあい（弾を止める会話）を出さず、その場で着地して Finished へ。
@@ -305,6 +311,7 @@ public partial class BossAkari : Enemy
                 return;
             }
             _caster.CancelPendingAttacks();
+            Audio.Instance?.Music(Audio.Instance.BgmStoryAkari, 0.7f);
             void ResumeBattle()
             {
                 _zHeld = Pad.AdvanceHeld();
@@ -326,7 +333,6 @@ public partial class BossAkari : Enemy
             else
             {
                 GetHud()!.HideSpellCard();
-                Audio.Instance?.StopMusic(0.7f);
                 _memoryTalk = CharacterStoryTalk.Start(MemoryLeadIn, GetHud, ShowStoryLine,
                     () => AkariStoryFilm.Play(GetHud()!, GetParent(), aftermath: false, completed: ResumeBattle));
             }
@@ -377,7 +383,7 @@ public partial class BossAkari : Enemy
         {
             Hud.LineKind.Companion => face,                 // 潜行キャラ本人＝表情差分（空欄は Hud がジョブ立ち絵へ）
             Hud.LineKind.Other => string.IsNullOrEmpty(face) ? "res://char/v3/akari_face.png" : face, // あかりは行ごと差し替え可（こはる方式）
-            _ => "res://char/mina_face.png",                // ミナ
+            _ => CompanionDialogue.MinaPortrait,                // ミナ
         };
         hud.ShowDialog(kind, text, portrait, otherName: "あかり");
     }

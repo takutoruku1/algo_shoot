@@ -1,0 +1,50 @@
+[
+  {
+    "id": "akari",
+    "role": "instrumental",
+    "target_bpm": 168,
+    "output_tempo_estimate": 169.73125884016955
+  },
+  {
+    "id": "akari",
+    "role": "remix",
+    "target_bpm": 192,
+    "output_tempo_estimate": 187.20748829953197
+  },
+  {
+    "id": "koharu",
+    "role": "instrumental",
+    "target_bpm": 172,
+    "output_tempo_estimate": 169.01408450704204
+  },
+  {
+    "id": "koharu",
+    "role": "remix",
+    "target_bpm": 196,
+    "output_tempo_estimate": 192.9260450160772
+  },
+  {
+    "id": "rei",
+    "role": "instrumental",
+    "target_bpm": 160,
+    "output_tempo_estimate": 156.65796344647518
+  },
+  {
+    "id": "rei",
+    "role": "remix",
+    "target_bpm": 184,
+    "output_tempo_estimate": 179.37219730941786
+  },
+  {
+    "id": "mina",
+    "role": "instrumental",
+    "target_bpm": 136,
+    "output_tempo_estimate": 136.51877133105836
+  },
+  {
+    "id": "mina",
+    "role": "remix",
+    "target_bpm": 164,
+    "output_tempo_estimate": 160.8579088471849
+  }
+]

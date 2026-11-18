@@ -1,0 +1,27 @@
+{
+  "dotnet_build": "passed: 0 warnings, 0 errors",
+  "source_hashes": "8/8 originals unchanged",
+  "output_decode": "4/4 full decodes passed",
+  "imported_loop_offsets": "4/4 match loop_selection.json",
+  "targeted_headless_qa": "passed",
+  "targeted_rendered_qa": "passed",
+  "loop_test_method": "For each character, seek near the end three times and verify playback wraps to its nonzero loop offset.",
+  "story_test_method": "Actual StoryFilm.Play entry, pause continuity, auto-advance through all dialogue, natural completion, fade to next music.",
+  "screenshots": "build/qa_story/character_theme_render_pass_20261103/captures",
+  "headless_log": "build/qa_story/character_theme_headless_pass_20261103/stdout.log",
+  "render_log": "build/qa_story/character_theme_render_pass_20261103/stdout.log",
+  "renderer_warnings": [
+    "Vulkan layer manifest registry lookup",
+    "Existing RGB8 images converted to RGBA8 by hardware compatibility path"
+  ],
+  "project_import": "4 theme assets imported; overall import has existing PNG format errors under output/steam_store_assets_20261102. These other-work files were not modified.",
+  "auditory_review": "not_performed; selection uses character briefs and objective tempo, dynamics, spectral and harmonic analysis. Musical suitability and perceived seam smoothness are not certified by listening.",
+  "dependencies": {
+    "soundfile": "0.13.1",
+    "ffmpeg": "8.1.1",
+    "librosa": "0.10.2.post1",
+    "python": "3.9",
+    "scipy": "1.13.1",
+    "numpy": "1.26.4"
+  }
+}

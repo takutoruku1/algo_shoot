@@ -38,12 +38,12 @@ public partial class BossPostSequence : Node
         ResumeMusic();
     }
 
-    public void ResumeMusic() => Music(_thresholds.Length == 0 ? 5 : Count, 0.8f);
+    public void ResumeMusic(float fade = 0.8f) => Music(_thresholds.Length == 0 ? 5 : Count, fade);
 
     private void Music(int depth, float fade)
     {
-        if (_story.Id == "akari") Audio.Instance?.StartAkariMusic(depth, fade);
-        else Audio.Instance?.StartPostMusic(_story.Id, depth, fade);
+        if (_story.Id == "akari") Audio.Instance?.StartAkariMusic(depth, fade, _boss.UsesTransformedMusic);
+        else Audio.Instance?.StartPostMusic(_story.Id, depth, fade, _boss.UsesTransformedMusic);
     }
 
     public void UpdateDamage()

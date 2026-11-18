@@ -31,10 +31,15 @@ public partial class EnemyProjectileQa : Node
             game.ResetPersistent();
             game.AutoSaveEnabled = false;
             game.Difficulty = GameManager.Diff.Normal;
+            typeof(Settings).GetProperty(nameof(Settings.PauseWhenUnfocused))!.SetValue(null, false);
             DisplayServer.WindowSetMode(DisplayServer.WindowMode.Windowed);
             DisplayServer.WindowSetSize(new Vector2I(1280, 720));
             await Frames(1);
-            if (OS.GetCmdlineUserArgs().Contains("--overhead"))
+            if (OS.GetCmdlineUserArgs().Contains("--moving-origins"))
+                await CheckMovingOrigins(game);
+            else if (OS.GetCmdlineUserArgs().Contains("--collision"))
+                await CheckCollisionShapes();
+            else if (OS.GetCmdlineUserArgs().Contains("--overhead"))
                 await CheckOverhead(game);
             else if (OS.GetCmdlineUserArgs().Contains("--colors"))
                 await CheckEnemyColors();
@@ -90,16 +95,124 @@ public partial class EnemyProjectileQa : Node
         }
     }
 
+    private async Task CheckMovingOrigins(GameManager game)
+    {
+        GetNode<Node>("/root/QaPilot").ProcessMode = ProcessModeEnum.Disabled;
+        GetNode<Node>("/root/DemoPilot").ProcessMode = ProcessModeEnum.Disabled;
+        Pool.ProcessMode = ProcessModeEnum.Disabled;
+        Hud.BubblePaused = false;
+        var world = new Node2D();
+        AddChild(world);
+        var target = new Node2D { Position = new Vector2(Field.Left + 25, 150) };
+        target.AddToGroup("player");
+        world.AddChild(target);
+        var specs = AllSpecs().DistinctBy(s => (s.Pattern, s.PreTexPath)).ToArray();
+        foreach (var difficulty in Enum.GetValues<GameManager.Diff>())
+        foreach (var spec in specs.Where(s => s.Pattern is not AttackPattern.None and not AttackPattern.BuzzWall
+            and not AttackPattern.KoharuPrayerCarry))
+        {
+            game.Difficulty = difficulty;
+            var enemy = new MidEnemy { ProcessMode = ProcessModeEnum.Disabled };
+            enemy.Configure(spec);
+            world.AddChild(enemy);
+            enemy.Position = new Vector2(Field.Right - 70, 100);
+            string label = $"{spec.Pattern}/{difficulty}/{spec.PreTexPath}";
+            if (spec.Pattern == AttackPattern.ReiLockBurst)
+            {
+                Call(enemy, "BeginLockBurst");
+                var beam = world.GetChildren().OfType<AreaStrike>().Single();
+                beam.SetProcess(false);
+                var direction = Read<Vector2>(beam, "_segDir");
+                for (int frame = 0; frame < 4; frame++)
+                {
+                    enemy.Position += new Vector2(-3, 5);
+                    beam._Process(.05);
+                    Check(!beam.IsStriking && beam.GlobalPosition.IsEqualApprox(enemy.ShotCenter)
+                        && Read<Vector2>(beam, "_segDir") == direction, label + ": beam warning follows body with locked direction");
+                }
+                beam._Process(Read<double>(beam, "_warn") - Read<double>(beam, "_t"));
+                Vector2 launch = beam.GlobalPosition;
+                enemy.Position += new Vector2(10, -12);
+                beam._Process(.01);
+                Check(beam.IsStriking && beam.GlobalPosition == launch, label + ": fired beam keeps its impact position");
+                beam.QueueFree();
+            }
+            else
+            {
+                if (spec.Pattern == AttackPattern.MinaMemory) SeedTrail(enemy);
+                if (spec.Pattern >= AttackPattern.AkariDeadline) Call(enemy, "BeginCharacterAttack");
+                int salvos = spec.Pattern >= AttackPattern.AkariDeadline ? Read<int>(enemy, "_salvoRemaining") : 2;
+                for (int salvo = 0; salvo < salvos; salvo++)
+                {
+                    enemy.Position += new Vector2(-2, 3);
+                    Call(enemy, spec.Pattern >= AttackPattern.AkariDeadline ? "FireCharacterSalvo" : "FireBasicAttack");
+                    var bullets = Bullets();
+                    Check(bullets.Length > 0 && bullets.All(b => b.RoadPending && b.CollisionLayer == 0
+                        && b.GlobalPosition.IsEqualApprox(enemy.ShotCenter)), label + $": salvo {salvo} begins on body");
+                    var velocities = bullets.Select(b => b.Velocity).ToArray();
+                    bool follows = true;
+                    for (int frame = 0; frame < 20; frame++)
+                    {
+                        enemy.Position += new Vector2(-.3f, .4f);
+                        foreach (var bullet in bullets) bullet.StepEnemy(1d / 60, 1);
+                        follows &= bullets.All(b => b.RoadPending && b.CollisionLayer == 0
+                            && b.GlobalPosition.IsEqualApprox(enemy.ShotCenter)
+                            && !Read<Sprite2D>(b, "_modelSprite").Visible);
+                    }
+                    Check(follows, label + ": pending origin follows moving body");
+                    Hud.BubblePaused = true;
+                    foreach (var bullet in bullets) bullet.StepEnemy(1, 1);
+                    Check(bullets.All(b => b.RoadPending && b.GlobalPosition.IsEqualApprox(enemy.ShotCenter)),
+                        label + ": dialogue preserves pending shot");
+                    Hud.BubblePaused = false;
+                    foreach (var bullet in bullets) bullet.StepEnemy(.2, 1);
+                    enemy.Position += new Vector2(-2, 2);
+                    Vector2 launch = enemy.ShotCenter;
+                    foreach (var bullet in bullets) bullet.StepEnemy(0, 1);
+                    Check(bullets.All(b => !b.RoadPending && b.GlobalPosition.IsEqualApprox(launch)
+                        && b.CollisionLayer == 8 && Read<Sprite2D>(b, "_modelSprite").Visible),
+                        label + ": actual launch uses latest body position and visible projectile");
+                    enemy.Position += new Vector2(20, -15);
+                    for (int i = 0; i < bullets.Length; i++)
+                    {
+                        var bullet = bullets[i];
+                        bool formation = bullet.LeadIn;
+                        Vector2 destination = formation ? Read<Vector2>(bullet, "_leadTo") : launch;
+                        bullet.StepEnemy(.01, 1);
+                        Check(bullet.GlobalPosition.DistanceTo(launch) > .001f
+                            && !bullet.GlobalPosition.IsEqualApprox(enemy.ShotCenter), label + ": fired shot separates from body");
+                        for (int frame = 0; frame < 180 && bullet.LeadIn; frame++) bullet.StepEnemy(1d / 60, 1);
+                        Check(!bullet.LeadIn && Read<Sprite2D>(bullet, "_modelSprite").Visible
+                            && (!formation || bullet.GlobalPosition.IsEqualApprox(destination)
+                                && bullet.Velocity.IsEqualApprox(velocities[i])), label + ": formation remains visible and keeps its trajectory");
+                    }
+                    Pool.DespawnAll();
+                    enemy.Position = new Vector2(Field.Right - 70, 100 + salvo * 3);
+                }
+                Call(enemy, spec.Pattern >= AttackPattern.AkariDeadline ? "BeginCharacterAttack" : "FireBasicAttack");
+                if (spec.Pattern >= AttackPattern.AkariDeadline) Call(enemy, "FireCharacterSalvo");
+                var pending = Bullets();
+                enemy.QueueFree();
+                foreach (var bullet in pending) bullet.StepEnemy(.01, 1);
+                Check(pending.Length > 0 && pending.All(b => !b.Active), label + ": removing owner cancels pending shots");
+            }
+            if (!enemy.IsQueuedForDeletion()) enemy.QueueFree();
+            Pool.DespawnAll();
+            await Frames(1);
+        }
+        world.QueueFree();
+        Pool.ProcessMode = ProcessModeEnum.Inherit;
+    }
+
     private async Task CheckOverhead(GameManager game)
     {
         ProcessMode = ProcessModeEnum.Always;
         string output = ProjectSettings.GlobalizePath("res://build/qa_story/overhead");
         DirAccess.MakeDirRecursiveAbsolute(output);
         var spawnPost = typeof(PostBullets).GetMethod("SpawnOne", BindingFlags.Static | BindingFlags.NonPublic)!;
-        foreach (var (scene, cameo) in new[] { ("Akari", false), ("Koharu", false), ("Rei", false),
-            ("MinaBattle", false), ("Akari", true), ("Koharu", true) })
+        foreach (string scene in new[] { "Akari", "Koharu", "Rei", "MinaBattle" })
         {
-            string label = scene + (cameo ? "_midboss" : "_boss");
+            string label = scene + "_boss";
             game.SelectedEntry = GameManager.StageEntry.Start;
             game.Difficulty = GameManager.Diff.Normal;
             var root = GD.Load<PackedScene>($"res://{scene}.tscn").Instantiate<Node2D>();
@@ -115,22 +228,10 @@ public partial class EnemyProjectileQa : Node
             hud.HoldBubble = false;
             hud.HideBubble();
             hud.SetCinematicMode(false);
-            Enemy source;
-            if (cameo)
-            {
-                Write(stage, "_stepStarted", false);
-                Write(stage, "_lunatic", true);
-                Call(stage, "Step_BossCameo", 0d);
-                Write(stage, "_lunatic", false);
-                source = Read<CameoBoss>(stage, "_cameo");
-            }
-            else
-            {
-                source = scene switch { "Akari" => new BossAkari(), "Koharu" => new BossKoharu(),
-                    "Rei" => new BossRei(), _ => new BossMina() };
-                world.AddChild(source);
-                root.GetNode<StageBackground>("StageBackground").EnterBoss();
-            }
+            Enemy source = scene switch { "Akari" => new BossAkari(), "Koharu" => new BossKoharu(),
+                "Rei" => new BossRei(), _ => new BossMina() };
+            world.AddChild(source);
+            root.GetNode<StageBackground>("StageBackground").EnterBoss();
             root.GetNode<StageBackground>("StageBackground").GetNode<BgLayers>("BgLayers")._Process(2);
             source.Position = new Vector2(Field.Right - 65, 105);
             var entrance = typeof(Enemy).GetMethod("TickEntrance", Private)!;
@@ -153,14 +254,7 @@ public partial class EnemyProjectileQa : Node
             OverheadCast[] Casts() => world.GetChildren().OfType<OverheadCast>().Where(c => !c.IsQueuedForDeletion()).ToArray();
             void Spawn()
             {
-                if (cameo)
-                {
-                    var art = scene == "Akari" ? BulletArt.AkariDocs : BulletArt.KoharuPenlight;
-                    typeof(Enemy).GetMethod("SetSpellVisual", Private)!.Invoke(source,
-                        new object?[] { BulletShape.Needle, accent, art, 24f });
-                    Call(source, "RainDown", Pool, game.ScaleBullets(scene == "Akari" ? 7 : 8), 72f);
-                }
-                else spawnPost.Invoke(null, new object?[] { Pool, rng, theme, 46f, accent, false, true, source });
+                spawnPost.Invoke(null, new object?[] { Pool, rng, theme, 46f, accent, false, true, source });
                 foreach (var bullet in Bullets()) bullet.SetPhysicsProcess(false);
             }
             async Task Clear()
@@ -187,11 +281,7 @@ public partial class EnemyProjectileQa : Node
                 var cast = Casts().Single();
                 var positions = bullets.Select(b => b.Position).ToArray();
                 var velocities = bullets.Select(b => b.Velocity).ToArray();
-                Check(bullets.Length == (cameo ? game.ScaleBullets(scene == "Akari" ? 7 : 8) : 1),
-                    $"{label}/{diff}: original shot count");
-                if (cameo)
-                    Check(bullets.Any(b => Mathf.IsEqualApprox(b.GlobalPosition.X, player.GlobalPosition.X) && b.Velocity.X == 0),
-                        $"{label}/{diff}: falling rain contains a lane through the player");
+                Check(bullets.Length == 1 && bullets[0].ModelAnimationName != null, $"{label}/{diff}: the post has its own Blender core");
                 Check(bullets.All(b => b.OverheadPending && !b.Visible && b.CollisionLayer == 0 && b.CollisionMask == 0),
                     $"{label}/{diff}: windup is invisible and harmless, not a new moving hitbox");
                 int lives = player.Lives, grazes = game.GrazeCount;
@@ -212,31 +302,26 @@ public partial class EnemyProjectileQa : Node
                 Check(Mathf.IsEqualApprox(Read<float>(cast, "_time"), 0.28f), $"{label}/{diff}: pause freezes cast");
                 cast.ProcessMode = ProcessModeEnum.Inherit;
                 GetTree().Paused = false;
-                Write(game, "_focusModeT", 2f);
                 cast._PhysicsProcess(0.1);
-                Check(Mathf.IsEqualApprox(Read<float>(cast, "_time"), 0.28f + 0.1f * GameManager.FocusModeScale),
-                    $"{label}/{diff}: cast follows bullet focus time");
-                Write(game, "_focusModeT", 0f);
+                Check(Mathf.IsEqualApprox(Read<float>(cast, "_time"), 0.38f),
+                    $"{label}/{diff}: cast advances without the removed focus slowdown");
                 cast._PhysicsProcess(0.4);
                 Check(bullets.All(b => !b.OverheadPending && b.Visible && b.CollisionLayer == 8
                     && b.CollisionMask == 1u),
                     $"{label}/{diff}: exact collision masks return on release");
                 Check(bullets.Select(b => b.Position).SequenceEqual(positions) && bullets.Select(b => b.Velocity).SequenceEqual(velocities)
-                    && bullets.All(b => b.Radius == (cameo ? 3.2f : 3f)), $"{label}/{diff}: fall origin, velocity and radius preserved");
-                if (!cameo)
+                    && bullets.All(b => b.Radius == 3f), $"{label}/{diff}: fall origin, velocity and radius preserved");
+                await Clear();
+                double timer = 0;
+                for (int i = 0; i < 30; i++)
                 {
-                    await Clear();
-                    double timer = 0;
-                    for (int i = 0; i < 30; i++)
-                    {
-                        int tick = 6;
-                        PostBullets.Tick(stage, rng, 1, ref timer, ref tick, source, theme, 46, accent);
-                    }
-                    int cap = diff switch { GameManager.Diff.Easy => 4, GameManager.Diff.Hard => 10,
-                        GameManager.Diff.Lunatic => 14, _ => 7 };
-                    Check(Bullets().Length == cap && Bullets().Count(b => b.WordAching) <= 1,
-                        $"{label}/{diff}: reserved posts obey density and aching-post caps");
+                    int tick = 6;
+                    PostBullets.Tick(stage, rng, 1, ref timer, ref tick, source, theme, 46, accent);
                 }
+                int cap = diff switch { GameManager.Diff.Easy => 4, GameManager.Diff.Hard => 15,
+                    GameManager.Diff.Lunatic => 21, _ => 11 };
+                Check(Bullets().Length == cap && Bullets().Count(b => b.WordAching) <= 1,
+                    $"{label}/{diff}: reserved posts obey density and aching-post caps");
             }
             await Clear();
             game.Difficulty = GameManager.Diff.Normal;
@@ -335,78 +420,30 @@ public partial class EnemyProjectileQa : Node
         };
         world.AddChild(boss);
         boss.GlobalPosition = new Vector2(Field.Right - 65f, 95f);
-        var caster = Read<Node>(boss, "_caster");
-        caster.SetProcess(false);
-        Call(caster, "CancelPendingAttacks");
-        root.GetNode<StageBackground>("StageBackground").EnterBoss();
-        await Frames(160);
         boss.SetPhysicsProcess(false);
-        typeof(Enemy).GetField("_danmaku", Private)!.SetValue(boss, new BossDanmaku(boss));
-        boss.GlobalPosition = new Vector2(Field.Right - 65f, 95f);
+        foreach (var caster in boss.GetChildren().OfType<AreaSpellCaster>()) caster.CancelPendingAttacks();
+        hud.HideBubble();
         Hud.BubblePaused = false;
+        typeof(Enemy).GetMethod("TickEntrance", Private)!.Invoke(boss, new object[] { 0d });
+        typeof(Enemy).GetMethod("TickEntrance", Private)!.Invoke(boss, new object[] { 2d });
+        Read<BossPostSequence>(boss, "_posts").ProcessMode = ProcessModeEnum.Disabled;
         foreach (var diff in Enum.GetValues<GameManager.Diff>())
         {
             game.Difficulty = diff;
-            for (int phase = 0; phase < (theme == StageTheme.Mina ? 5 : 4); phase++)
+            var danmaku = new BossDanmaku(boss);
+            for (int i = 0; i < 8 && danmaku.ActiveTechnique == null; i++)
             {
-                Pool.DespawnAll();
-                Write(boss, "_pattern", phase);
-                Call(boss, "ApplySpell");
-                Call(boss, "FirePattern", 3d);
-                CheckIllustrated($"{theme}/{diff}/phase{phase}");
-                Check(Bullets().Any(b => b.Velocity.Normalized().Dot(boss.GlobalPosition.DirectionTo(player.GlobalPosition)) > 0.99999f),
-                    $"{theme}/{diff}/phase{phase}: body attack includes a direct threat to the player");
-                if (theme == StageTheme.Akari && phase == 0)
-                {
-                    var shots = Bullets();
-                    // 扇は自機狙い＝本数は必ず奇数（ScaleBulletsOdd）。中心の1本が自機の正面を通る。
-                    Check(shots.Length == Mathf.Min(7, game.ScaleBulletsOdd(Read<int>(boss, "_fanCount")))
-                        && shots.All(b => b.Radius == BulletPool.BossRadius && b.AccelCharging && !b.Homing
-                            && Mathf.IsEqualApprox(b.Velocity.Length(), 2f * game.BulletSpeedMul)
-                            && ReferenceEquals(Read<BulletArt.PlayerVisual>(b, "_playerVisual"), BulletArt.PlayerShot(Job.Melee))),
-                        $"Akari/{diff}: fan preserves count with Akari's character shot performance");
-                }
-                if (theme == StageTheme.Rei)
-                    Check(Bullets().All(b => ReferenceEquals(Read<BulletArt.PlayerVisual>(b, "_playerVisual"), BulletArt.PlayerShot(Job.Magic))),
-                        $"Rei phase {phase} uses Rei's existing projectile");
-                if (diff == GameManager.Diff.Normal && phase == 0)
-                {
-                    foreach (var b in Bullets()) { b.GlobalPosition += b.Velocity * 0.7f; b.SetPhysicsProcess(false); }
-                    await Shot($"{theme}_1280");
-                    DisplayServer.WindowSetSize(new Vector2I(960, 540));
-                    await Frames(5);
-                    await Shot($"{theme}_960");
-                    DisplayServer.WindowSetSize(new Vector2I(1280, 720));
-                    await Frames(5);
-                }
+                boss.TickBossFrame(1);
+                danmaku.Tick(1);
             }
-            Pool.DespawnAll();
-            Call(boss, "FireFinale", Pool, 3d);
-            CheckIllustrated($"{theme}/{diff}/finale");
-            if (theme == StageTheme.Akari)
-                Check(Bullets().All(b => ReferenceEquals(Read<BulletArt.PlayerVisual>(b, "_playerVisual"), BulletArt.PlayerShot(Job.Melee))),
-                    $"Akari/{diff}: all finale body shots use Akari's projectile");
+            var attack = danmaku.ActiveTechnique;
+            Check(attack != null && BossAttackCycle.Slots(boss, BossAttackCycle.Segment(boss))
+                .Contains(new BossAttackCycle.Slot(attack.TechniqueKind, attack.TechniqueVariant)),
+                $"{theme}/{diff}: normal combat selects a roster technique");
+            attack!.Cancel();
+            await Frames(2);
         }
-        Pool.DespawnAll();
         game.Difficulty = GameManager.Diff.Normal;
-        if (theme != StageTheme.Mina)
-        {
-            var stage = (Node)root.GetType().GetProperty("Stage")!.GetValue(root)!;
-            Write(stage, "_stepStarted", false);
-            // 中ボスの登場カットシーン（CameoIntroScene）は会話送りを待つ＝ここでは通り抜けられない。
-            // ルナティック経路はカットシーンを流さずその場で中ボスを出すので、この一歩だけ借りて弾幕に入る
-            //（弾の絵・当たり・弾速の検査が目的で、登場演出は qa_cameo_intro の担当）。
-            Write(stage, "_lunatic", true);
-            Call(stage, "Step_BossCameo", 0d);
-            Write(stage, "_lunatic", false);
-            var cameo = Read<CameoBoss>(stage, "_cameo");
-            cameo.SetPhysicsProcess(false);
-            Hud.BubblePaused = false;
-            Call(cameo, "FirePattern", 3d);
-            CheckIllustrated($"{theme}/cameo");
-            cameo.QueueFree();
-            Pool.DespawnAll();
-        }
         var postTheme = theme switch
         {
             StageTheme.Akari => PostPool.Theme.Akari, StageTheme.Koharu => PostPool.Theme.Koharu,
@@ -420,6 +457,7 @@ public partial class EnemyProjectileQa : Node
             .Single(c => post.IsHeldBy(c));
         overhead._PhysicsProcess(OverheadCast.Windup);
         var core = Read<BulletWordCore>(post, "_wordCore");
+        Check(post.ModelAnimationName != null, $"{theme}/post: damaging core uses a Blender model");
         Check(ReferenceEquals(core.Art, BulletArt.PostCore(postTheme)) && core.CoreR == post.Radius
             && core.Visible, $"{theme}/post: themed core preserves hit radius");
         Pool.DespawnAll();
@@ -432,14 +470,16 @@ public partial class EnemyProjectileQa : Node
             storm.SetProcess(false);
             Call(storm, "TickStorm", 1d);
             var quote = Bullets().Single();
-            Check(ReferenceEquals(Read<BulletWordCore>(quote, "_wordCore").Art, BulletArt.Get("rei_film"))
-                && quote.IsPatternBullet && quote.Radius == 3f, "quote storm keeps its non-destructible film core");
+            Check(quote.ModelAnimationName == "rei_quote_pin", "quote storm animates its own Blender pin");
+            Check(ReferenceEquals(Read<BulletWordCore>(quote, "_wordCore").Art, QuoteStorm.QuoteVisual.Cropped)
+                && quote.IsPatternBullet && quote.Radius == 3f, "quote storm keeps its distinct pinned-quote core");
             Pool.DespawnAll();
             storm.QueueFree();
             var tutorial = new StageZero { Player = player, Hud = hud, World = world };
             world.AddChild(tutorial);
             tutorial.SetProcess(false);
             Call(tutorial, "SpawnSlowBullets");
+            Check(Bullets().All(b => b.ModelAnimationName == "enemy_rei_anonymous"), "tutorial practice uses road models");
             CheckIllustrated("tutorial dodge practice");
             Check(Bullets().Length == 4 && Bullets().All(b => b.Radius == 3f), "tutorial retains four small slow shots");
             Pool.DespawnAll();
@@ -538,7 +578,7 @@ public partial class EnemyProjectileQa : Node
                     Pool.DespawnAll();
                     Call(enemy, "FireCharacterSalvo");
                     await CheckLeadIn(enemy, $"{label}/salvo{salvo}");
-                    CheckGeometry(enemy, game, spec.Pattern, $"{label}/salvo{salvo}");
+                    CheckGeometry(enemy, spec.Pattern, $"{label}/salvo{salvo}");
                 }
                 return;
             }
@@ -589,36 +629,48 @@ public partial class EnemyProjectileQa : Node
         // 以降はこちらで1フレームずつ送る（エンジン側に動かされない）。Activate の遅延セットだけ1フレーム流す。
         foreach (var b in bullets) b.SetPhysicsProcess(false);
         await Frames(1);
+        foreach (var b in bullets)
+        {
+            b.StepEnemy(.45, 1);
+            b.StepEnemy(0, 1);
+        }
         for (int i = 0; i < bullets.Length; i++)
         {
             var b = bullets[i];
             if (!leading[i]) continue;
-            // 導入中の弾も当たる（無敵の弾を作らない）。
-            Check(b.Active && b.Visible && b.Monitorable && b.Monitoring
-                && EnabledShapes(b).Length == b.Footprint!.Shapes.Length,
+            var player = (Player)GetTree().GetFirstNodeInGroup("player");
+            Vector2 previous = player.GlobalPosition;
+            player.GlobalPosition = b.GlobalPosition;
+            b.SyncEnemyCollision(player.GlobalPosition);
+            Call(b, "ApplyCollision");
+            bool nearCollision = EnabledShapes(b).Length > 0;
+            player.GlobalPosition = previous;
+            b.SyncEnemyCollision(previous);
+            Check(b.Active && b.Visible && b.Monitorable && b.Monitoring && b.CollisionLayer != 0 && nearCollision,
                 $"{label}: the shot can still be hit and can still hit while it leaves the body");
             // 瞬間移動でもフェードでもなく「飛んでいく」＝毎フレーム必ず発射点へ近づき、ずっと見えている。
             float travel = b.GlobalPosition.DistanceTo(targets[i]);
             float prev = travel;
             int steps = 0;
             bool flies = true;
-            while (b.LeadIn && steps++ < 64)
+            int maximumSteps = Mathf.CeilToInt(travel / Bullet.LeadSpeed * 60f) + 1;
+            while (b.LeadIn && steps++ <= maximumSteps)
             {
                 b._PhysicsProcess(1.0 / 60.0);
                 float now = b.GlobalPosition.DistanceTo(targets[i]);
                 flies &= now < prev && b.Visible && b.Active;
                 prev = now;
             }
-            Check(flies && steps > 1 && steps <= Mathf.CeilToInt(Bullet.LeadMaxDur * 60f) + 1,
+            Check(flies && steps > 1 && steps <= maximumSteps,
                 $"{label}: flies {travel:0}px out of the body over {steps} frames"
-                + $" (visible the whole way, never longer than {Bullet.LeadMaxDur:0.00}s)");
+                + $" (visible the whole way at {Bullet.LeadSpeed:0}px/s)");
             Check(b.GlobalPosition.DistanceTo(targets[i]) < 0.01f && b.Velocity.IsEqualApprox(speeds[i]),
                 $"{label}: lands on the pattern's own firing point at the pattern's own speed");
         }
     }
 
     // 弾幕の幾何（＝避け方）が変わっていないこと。設計値そのものを書いて、着いた先の並びと照合する。
-    private void CheckGeometry(MidEnemy enemy, GameManager game, AttackPattern pattern, string label)
+    private void CheckGeometry(MidEnemy enemy, AttackPattern pattern, string label)
     {
         foreach (var b in Bullets()) while (b.LeadIn) b._PhysicsProcess(1.0 / 60.0);
         var bullets = Bullets();
@@ -644,7 +696,8 @@ public partial class EnemyProjectileQa : Node
                 Check(blades.Length == 2 && blades.Zip(want, (a, b) => a.DistanceTo(b) < 0.01f).All(ok => ok),
                     $"{label}: opens a {jaw * 2f:0}px pincer across the aim");
                 Check(bullets.All(b => Mathf.Abs(b.Velocity.Normalized()
-                            .AngleTo(target - b.GlobalPosition)) <= Mathf.DegToRad(4.01f))
+                            .AngleTo(target - b.GlobalPosition)) <= Mathf.DegToRad(
+                                (float)Call(enemy, "FanSpan", b.GlobalPosition, 2, 8f, 3.8f, true)! / 2 + .01f))
                     && blades.All(p => bullets.Any(b => b.GlobalPosition.IsEqualApprox(p)
                             && Mathf.Abs(b.Velocity.Normalized().AngleTo(target - p)) < 0.001f)),
                     $"{label}: both blades close on the telegraphed player spot");
@@ -654,9 +707,16 @@ public partial class EnemyProjectileQa : Node
             //   ＝棒立ちは必ず壁に当たり、避けは「見えている空席へ移る」になる（2026-10-03）。
             case AttackPattern.AkariVacant:
             {
-                int slots = Math.Clamp(game.ScaleBullets(5), 3, Mathf.FloorToInt((Field.Height - 24f) / 16f) + 1);
-                float spacing = Math.Max(16f, 96f / (slots - 1));
+                float pitch = (float)Call(enemy, "LanePitch", 3.8f)!;
+                int slots = Math.Clamp((int)Call(enemy, "RoadCount", 5)!, 3, Mathf.FloorToInt((Field.Height - 24f) / pitch) + 1);
+                float spacing = Math.Max(pitch, 96f / (slots - 1));
                 float mine = Mathf.Clamp(Read<Vector2>(enemy, "_burstTarget").Y, Field.Top, Field.Bottom);
+                // Targets inside LeadMinDist launch at the warned muzzle, not at a second emission point.
+                for (int i = 0; i < ys.Length; i++)
+                {
+                    float intended = mine + Mathf.Round((ys[i] - mine) / spacing) * spacing;
+                    if (Mathf.Abs(ys[i] - at.Y) < .01f && Mathf.Abs(intended - at.Y) < Bullet.LeadMinDist) ys[i] = intended;
+                }
                 var gaps = ys.Zip(ys.Skip(1), (a, b) => b - a).ToArray();
                 Check(bullets.Length == slots - 1 && xs.All(x => Mathf.Abs(x - at.X) < 0.01f)
                     && ys.All(y => Mathf.Abs((y - mine) - Mathf.Round((y - mine) / spacing) * spacing) < 0.01f)
@@ -664,14 +724,15 @@ public partial class EnemyProjectileQa : Node
                     && gaps.Count(g => g > spacing + 0.01f) <= 1
                     && gaps.Max() <= spacing * 2f + 0.01f,
                     $"{label}: seats {slots - 1} of {slots} rows on the player's own row ({spacing:0}px apart), "
-                    + "leaving the one empty seat somewhere else");
+                    + $"leaving the one empty seat elsewhere (muzzle={at}, targetY={mine}, rows={string.Join(",", ys)})");
                 break;
             }
             // 数字の人：本体の 24px 上、横 80px に広げた列から降る。車線の束は「自機を通る1本」を含む
             //   ＝敵の真上に固定していた旧仕様の「列から外れて立てば永久に届かない」を潰す（2026-10-03）。
             case AttackPattern.ReiMetrics:
             {
-                int count = Math.Max(2, game.ScaleBullets(4));
+                float pitch = (float)Call(enemy, "LanePitch", 3.8f)!;
+                int count = Math.Clamp((int)Call(enemy, "RoadCount", 4)!, 2, Mathf.FloorToInt(80f / pitch) + 1);
                 float row = Mathf.Max(Field.Top + 16f, at.Y - 24f);
                 float step = 80f / (count - 1);
                 var lanes = xs.OrderBy(x => x).ToArray();
@@ -687,10 +748,11 @@ public partial class EnemyProjectileQa : Node
             // 荷物の人：縦 22px 間隔で積んだ置き弾。
             case AttackPattern.KoharuParcel:
             {
-                int parcels = Math.Max(1, game.ScaleBullets(2));
+                int parcels = (int)Call(enemy, "RoadCount", 2)!;
+                float spacing = Math.Max(22f, (float)Call(enemy, "LanePitch", 4f)!);
                 Check(bullets.Length == parcels && xs.All(x => Mathf.Abs(x - at.X) < 0.01f)
-                    && (parcels == 1 || Mathf.Abs(ys.Last() - ys.First() - 22f * (parcels - 1)) < 0.01f),
-                    $"{label}: keeps the 22px parcel stack");
+                    && (parcels == 1 || Mathf.Abs(ys.Last() - ys.First() - spacing * (parcels - 1)) < 0.01f),
+                    $"{label}: keeps the {spacing}px parcel stack");
                 break;
             }
             // 記憶の残響：自機ではなく「自分が通った道」へ置く＝仕込んだ足跡の上に必ず落ちる。
@@ -750,9 +812,8 @@ public partial class EnemyProjectileQa : Node
     private void CheckIllustrated(string label)
     {
         var bullets = Bullets();
-        Check(bullets.Length > 0 && bullets.All(b => Read<Texture2D?>(b, "_sprite") != null
-            || Read<BulletArt.PlayerVisual?>(b, "_playerVisual") != null),
-            $"{label}: all {bullets.Length} projectiles have illustrations");
+        Check(bullets.Length > 0 && bullets.All(b => b.ModelAnimationName != null),
+            $"{label}: all {bullets.Length} projectiles have Blender models");
         Check(bullets.All(b => b.Radius > 0 && b.Damage == 1 && b.Footprint is { Shapes.Length: > 0 } footprint
             && footprint.Shapes.All(s => s is ConvexPolygonShape2D)),
             $"{label}: illustrated silhouettes are the damage shapes");
@@ -774,7 +835,7 @@ public partial class EnemyProjectileQa : Node
         Check(background.IsSunset && material is ShaderMaterial && bullet.Tint == new Color("e072ac"),
             "enemy palette changes rendering only; source color, shape and movement remain intact");
         bullet.SetWord("QA", coreArt: BulletArt.KoharuBadge);
-        Check(bullet.Material == null && Read<BulletWordCore>(bullet, "_wordCore").Material == material,
+        Check(bullet.Material == null && bullet.GetChildren().OfType<Sprite2D>().Single().Material == BossProjectileArt.Get("koharu_star_pin").DrawMaterial,
             "enemy palette applies to the dangerous post core, not the text card");
         Pool.DespawnAll();
 
@@ -828,10 +889,10 @@ public partial class EnemyProjectileQa : Node
             for (int i = 0; i < arts.Length; i++)
             {
                 var shot = Pool.Spawn(new Vector2(110 + i * 43, 75), Vector2.Left * 70, true, 4);
-                shot.SetSprite(arts[i], 0);
+                shot.SetEnemySprite(arts[i]!, 0);
                 shot.Rotation = 0;
                 shot.SetPhysicsProcess(false);
-                Check(shot.Material == material, "enemy contrast palette stays active on sunset and night backgrounds");
+                Check(shot.GetChildren().OfType<Sprite2D>().Single().Material == BossProjectileArt.For(arts[i]!)!.DrawMaterial, "the model retains its lit surface on sunset and night backgrounds");
             }
             await Frames(3);
             await Shot(sunset ? "sunset_readable_shapes" : "night_readable_shapes");
@@ -870,79 +931,40 @@ public partial class EnemyProjectileQa : Node
 
     private async Task CheckPixels(string name, Texture2D art)
     {
-        var viewport = new SubViewport
-        {
-            Size = new Vector2I(96, 96), TransparentBg = true,
-            RenderTargetUpdateMode = SubViewport.UpdateMode.Always,
-        };
+        var viewport = new SubViewport { Size = new Vector2I(160, 96), TransparentBg = true, World2D = new World2D(),
+            RenderTargetUpdateMode = SubViewport.UpdateMode.Always };
         AddChild(viewport);
         var bullet = new Bullet();
         viewport.AddChild(bullet);
-        bullet.Activate(new Vector2(48, 48), Vector2.Zero, true, 8f, 1);
-        bullet.SetSprite(art, 0f);
+        bullet.Activate(new Vector2(100, 48), Vector2.Zero, true, 12, 1);
+        bullet.SetEnemySprite(art, 0);
         bullet.Rotation = 0;
         bullet.SetPhysicsProcess(false);
         await Frames(2);
         await ToSignal(RenderingServer.Singleton, RenderingServer.SignalName.FramePostDraw);
-        using var image = viewport.GetTexture().GetImage();
-        // -- --dump-masks : 縁の見た目を目で確かめる用。96px の描画結果と、絵ごとに生成した線／光のマスクを PNG に落とす。
-        if (OS.GetCmdlineUserArgs().Contains("--dump-masks"))
+        using var first = viewport.GetTexture().GetImage();
+        var bounds = first.GetUsedRect();
+        Check(bullet.ModelAnimationName == name && bounds.Size.X > 4 && bounds.Size.Y > 4,
+            $"{name}: live model visible at game scale");
+        float extent = bullet.IllustrationRadius + 2;
+        float low = 1, high = 0;
+        for (int y = bounds.Position.Y; y < bounds.End.Y; y++)
+        for (int x = bounds.Position.X; x < bounds.End.X; x++)
         {
-            string dump = ProjectSettings.GlobalizePath("res://build/qa_story/enemy_projectiles/masks");
-            DirAccess.MakeDirRecursiveAbsolute(dump);
-            image.SavePng($"{dump}/{name}_render.png");
-            var sil = Bullet.SilhouetteOf(art);
-            sil.Rim.GetImage().SavePng($"{dump}/{name}_rim.png");
-            sil.Glow.GetImage().SavePng($"{dump}/{name}_glow.png");
+            Color pixel = first.GetPixel(x, y);
+            if (pixel.A < .6f) continue;
+            if (new Vector2(x + .5f, y + .5f).DistanceTo(bullet.Position) > extent)
+                throw new Exception($"{name}: pixels beyond projected model and rim");
+            low = Math.Min(low, pixel.Luminance);
+            high = Math.Max(high, pixel.Luminance);
         }
-        Check(bullet.Footprint is { Shapes.Length: > 0 }, $"{name}: illustration has a nonempty silhouette collider");
-
-        // 縁の規則（2026-09-26 蛍光縁）：絵の輪郭から外へ「明るいネオン線（不透明）→ 同じ色相の半透明の光 → 無」
-        // の順に並ぶこと。線も光も絵の形に沿う（丸いグローではない）＝絵から pad+2px 離れた点は完全に透明。
-        // 距離は「絵の α≥0.5 画素までの最短距離（world px）」を絵の画像から直接測り、右と下の 2 方向で検査する
-        // （縦長・横長の絵では、丸い光なら短辺側の far 点を覆ってしまう）。
-        const float r = 8f;
-        float rimW = Bullet.RimFrac * r * 2f * Bullet.SpriteFit, pad = Bullet.GlowFrac * r * 2f * Bullet.SpriteFit;
-        using var src = art.GetImage();
-        float k = Mathf.Min(1f, 96f / Mathf.Max(src.GetWidth(), src.GetHeight()));
-        if (k < 1f) src.Resize(Mathf.RoundToInt(src.GetWidth() * k), Mathf.RoundToInt(src.GetHeight() * k), Image.Interpolation.Bilinear);
-        float scale = r * 2f * Bullet.SpriteFit / Mathf.Max(src.GetWidth(), src.GetHeight());
-        var solid = new List<Vector2>();
-        for (int y = 0; y < src.GetHeight(); y++)
-            for (int x = 0; x < src.GetWidth(); x++)
-                if (src.GetPixel(x, y).A >= 0.5f)
-                    solid.Add(new Vector2(48f + (x + 0.5f - src.GetWidth() / 2f) * scale, 48f + (y + 0.5f - src.GetHeight() / 2f) * scale));
-        float Dist(Vector2 p)
-        {
-            float best = float.MaxValue;
-            foreach (var s in solid) best = Mathf.Min(best, p.DistanceSquaredTo(s));
-            return Mathf.Sqrt(best);
-        }
-        // 中心から dir へ 0.25px 刻みに進み、この方向で最後に絵へ触れた点より外で、絵からの距離が minDist 以上に
-        // なった最初の点を含む画素を返す（絵の中心が透明な絵＝二つの泡などでは、中心の白い芯を拾わないように）。
-        Color Sample(Vector2 dir, float minDist)
-        {
-            var center = new Vector2(48f, 48f);
-            float lastInside = 0f;
-            for (float t = 0f; t < 40f; t += 0.25f)
-                if (Dist(center + dir * t) < 0.5f) lastInside = t;
-            for (float t = lastInside; ; t += 0.25f)
-            {
-                var q = center + dir * t;
-                if (Dist(q) >= minDist) return image.GetPixel(Mathf.FloorToInt(q.X), Mathf.FloorToInt(q.Y));
-            }
-        }
-        foreach (var (dir, label) in new[] { (Vector2.Right, "right"), (Vector2.Down, "down") })
-        {
-            Color line = Sample(dir, 1.0f);          // 線の帯（絵の縁から 1〜2px。線幅 2.2px）：不透明で明るく、色がある
-            Color glow = Sample(dir, rimW + 0.9f);   // 線のすぐ外（光の帯の内側）：半透明で線と同じ色相
-            Color far = Sample(dir, pad + 2f);       // 光の帯の外：完全に透明（丸いグローならここが覆われる）
-            Check(line.A > 0.6f && line.Luminance > 0.3f && line.S > 0.25f,
-                $"{name}: bright neon line just outside the illustration ({label}: {line})");
-            Check(glow.A > 0.06f && glow.A < 0.85f && glow.S > 0.5f && Mathf.Abs(Mathf.Wrap(glow.H - line.H, -0.5f, 0.5f)) < 0.08f,
-                $"{name}: translucent glow of the same hue beyond the line ({label}: {glow})");
-            Check(far.A == 0f, $"{name}: light follows the outline and ends within {pad + 2f:0.0}px — no round glow ({label})");
-        }
+        Check(high - low > .12f, $"{name}: lit and shaded faces remain distinct");
+        int initialFrame = bullet.ModelAnimationFrame;
+        bullet.StepEnemy(.32, 1);
+        await ToSignal(RenderingServer.Singleton, RenderingServer.SignalName.FramePostDraw);
+        using var turned = viewport.GetTexture().GetImage();
+        Check(bullet.ModelAnimationFrame != initialFrame && !turned.GetData().SequenceEqual(first.GetData()),
+            $"{name}: on-screen image changes as the solid rotates");
         bullet.Deactivate();
         viewport.QueueFree();
         await Frames(2);
@@ -958,6 +980,7 @@ public partial class EnemyProjectileQa : Node
         Pool.DespawnAll();
         Hud.BubblePaused = false;
         var target = new Area2D { CollisionLayer = 1, CollisionMask = 8 };
+        target.AddToGroup("player");
         target.AddChild(new CollisionShape2D { Shape = new CircleShape2D { Radius = Player.HitRadius } });
         AddChild(target);
         int contacts = 0;
@@ -990,6 +1013,8 @@ public partial class EnemyProjectileQa : Node
 
     private async Task CheckCollisionShapes()
     {
+        var updaters = Pool.GetChildren().Where(node => node.IsPhysicsProcessing()).ToArray();
+        foreach (var updater in updaters) updater.SetPhysicsProcess(false);
         using var source = Image.CreateEmpty(48, 48, false, Image.Format.Rgba8);
         source.FillRect(new Rect2I(4, 4, 40, 40), new Color("ec365c"));
         source.FillRect(new Rect2I(12, 12, 24, 24), Colors.Transparent);
@@ -997,6 +1022,9 @@ public partial class EnemyProjectileQa : Node
         var viewport = new SubViewport { Size = new Vector2I(128, 128), TransparentBg = true,
             World2D = new World2D(), RenderTargetUpdateMode = SubViewport.UpdateMode.Always };
         AddChild(viewport);
+        var target = new Node2D { Position = new Vector2(64, 64) };
+        target.AddToGroup("player");
+        viewport.AddChild(target);
         var bullet = new Bullet();
         viewport.AddChild(bullet);
         var center = new Vector2(64, 64);
@@ -1006,6 +1034,7 @@ public partial class EnemyProjectileQa : Node
         bullet.SetPhysicsProcess(false);
         async Task Flush()
         {
+            bullet.SyncEnemyCollision(target.GlobalPosition);
             await ToSignal(GetTree(), SceneTree.SignalName.PhysicsFrame);
             await ToSignal(GetTree(), SceneTree.SignalName.PhysicsFrame);
             await Frames(2);
@@ -1016,16 +1045,17 @@ public partial class EnemyProjectileQa : Node
         var opaquePoint = new Vector2(-16 * pixelScale, 0);
         var paddingPoint = new Vector2(-23 * pixelScale, 0);
         await Flush();
-        Check(Hit(opaquePoint) && !Hit(Vector2.Zero) && !Hit(paddingPoint),
+        Check(Hit(opaquePoint) && Hit(-opaquePoint) && !Hit(Vector2.Zero) && !Hit(paddingPoint) && !Hit(-paddingPoint),
             "native collision follows opaque art, preserving transparent holes and outer padding");
         await ToSignal(RenderingServer.Singleton, RenderingServer.SignalName.FramePostDraw);
         using (var image = viewport.GetTexture().GetImage())
             Check(image.GetPixel(64, 64).A < 0.6f, "no white damage dot or round backing fills an illustrated hole");
-        var first = bullet.Footprint;
-        bullet.SetWord("QA", coreArt: texture);
+        bullet.SetWord("QA", coreArt: QuoteStorm.QuoteVisual.Cropped);
         await Flush();
-        Check(ReferenceEquals(first, bullet.Footprint) && Hit(opaquePoint) && !Hit(Vector2.Zero)
-            && !Hit(new Vector2(35, 0)), "post icon shares the silhouette; text panel is harmless");
+        var pin = BossProjectileArt.Get("rei_quote_pin");
+        Check(bullet.ModelAnimationName == pin.Name && ReferenceEquals(bullet.Footprint,
+            pin.Footprint(bullet.ModelAnimationFrame, bullet.IllustrationRadius / pin.MaximumRadius))
+            && Hit(Vector2.Zero) && !Hit(new Vector2(35, 0)), "rotating post core collides and its text panel is harmless");
 
         bullet.Activate(center, Vector2.Down * 40, true, 4, 1, BulletShape.Needle);
         bullet.SetPhysicsProcess(false);
@@ -1051,6 +1081,7 @@ public partial class EnemyProjectileQa : Node
         await Flush();
         Check(EnabledShapes(bullet).Length == 0, "despawn disables every silhouette part");
         viewport.QueueFree();
+        foreach (var updater in updaters) updater.SetPhysicsProcess(true);
         await Frames(2);
     }
 

@@ -42,8 +42,8 @@ public partial class JobStatsQa : Node
             lines.Add((value, UiKit.ZenBold, 15));
         }
         lines.Add(($"回避距離：{Jobs.DodgeDistNote(job)}", UiKit.Zen, 11));
-        foreach (string s in (List<string>)CallStatic("JobPros", job)!) lines.Add(("・" + s, UiKit.Zen, 12));
-        foreach (string s in (List<string>)CallStatic("JobCons", job)!) lines.Add(("・" + s, UiKit.Zen, 12));
+        foreach (string s in (List<string>)CallStatic("JobPros", job)!) lines.Add(("・" + s, UiKit.Zen, 13));
+        foreach (string s in (List<string>)CallStatic("JobCons", job)!) lines.Add(("・" + s, UiKit.Zen, 13));
         return lines;
     }
 
@@ -84,7 +84,20 @@ public partial class JobStatsQa : Node
                     $"{job.CharacterId} prints its real movement and dodge multipliers");
                 string row = (string)CallStatic("JobStats", job)!;
                 Check(row.Contains(mode) && row.Contains(power), $"{job.CharacterId} summarises mode and firepower on its row");
+                string cons = string.Join("\n", (List<string>)CallStatic("JobCons", job)!);
+                Check(!cons.Contains("…") && !cons.Contains("上の数値"), $"{job.CharacterId} states its weaknesses without placeholders");
             }
+            string Cons(Job id) => string.Join("\n", (List<string>)CallStatic("JobCons", Jobs.Get(id))!);
+            Check(Cons(Job.Tank).Contains("移動速度が遅い") && Cons(Job.Tank).Contains("距離が短い"), "Mina explains both mobility drawbacks");
+            Check(Cons(Job.Melee).Contains("0.5秒") && Cons(Job.Melee).Contains("48px"), "Akari explains launch delay and close-range conditions");
+            Check(Cons(Job.Heal).Contains("基礎威力が低い") && Cons(Job.Heal).Contains("移動速度が遅い"), "Koharu explains power and movement drawbacks");
+            Check(Cons(Job.Magic).Contains("距離が短い") && !Cons(Job.Magic).Contains("時間が長い")
+                && Cons(Job.Magic).Contains("クリティカルなし") && Cons(Job.Magic).Contains("拡散弾"), "Rei explains every dodge and firepower drawback");
+            Check(string.Join("\n", (List<string>)CallStatic("JobPros", Jobs.Get(Job.Magic))!).Contains("素早く再使用"),
+                "Rei explains the faster recharge of her short dodge");
+            string healPros = string.Join("\n", (List<string>)CallStatic("JobPros", Jobs.Get(Job.Heal))!);
+            Check(healPros.Contains("満タン時は数えない") && healPros.Contains("所持上限まで")
+                && healPros.Contains("回避終了後") && !healPros.Contains("常時"), "Koharu states recovery limits and when the veil activates");
             // 4人が別の軸で強い（2026-09-27 の値振り）：機動の序列と耐久の序列が入れ替わっている。
             JobTuning Def(Job j) => Jobs.Get(j);
             Check(Def(Job.Melee).MoveMul > Def(Job.Heal).MoveMul
@@ -93,8 +106,8 @@ public partial class JobStatsQa : Node
                 "movement ranks Akari over Koharu over Rei over Mina");
             Check(Def(Job.Tank).MaxLifeDelta > Def(Job.Magic).MaxLifeDelta
                 && Def(Job.Magic).MaxLifeDelta > Def(Job.Heal).MaxLifeDelta
-                && Def(Job.Heal).MaxLifeDelta > Def(Job.Melee).MaxLifeDelta,
-                "hearts rank Mina over Rei over Koharu over Akari");
+                && Def(Job.Heal).MaxLifeDelta == Def(Job.Melee).MaxLifeDelta,
+                "hearts rank Mina over Rei, with Koharu and Akari equal");
             // 回避距離は4人で「すこし極端に」開く（2026-09-27）。序列と、最長/最短が2.5倍以上離れること。
             Check(Def(Job.Melee).DodgeDistMul > Def(Job.Heal).DodgeDistMul
                 && Def(Job.Heal).DodgeDistMul > Def(Job.Tank).DodgeDistMul
@@ -127,6 +140,8 @@ public partial class JobStatsQa : Node
             // 全員救った状態にして4人並べる（判定は _cleared だけを見る＝Hub と同じ経路で開き直す）。
             var cleared = Read<HashSet<string>>(game, "_cleared");
             foreach (var stage in GameManager.Stages) cleared.Add(stage.Id);
+            Call(hub, "BuildEntries");
+            Call(hub, "LoadFaces");
             Write(hub, "_mode", Enum.Parse(Read<object>(hub, "_mode").GetType(), "Cards"));
             Call(hub, "OpenJob");
             await Frames(20);
@@ -141,6 +156,11 @@ public partial class JobStatsQa : Node
                 Check(Read<int>(hub, "_jobSel") == i, $"cursor rests on {choices[i].CharacterId}");
                 await CheckFits(hub, choices[i].CharacterId);
                 await Shot($"accounts_{choices[i].CharacterId}");
+                DisplayServer.WindowSetSize(new Vector2I(960, 540));
+                await Frames(8);
+                await Shot($"accounts_{choices[i].CharacterId}_small");
+                DisplayServer.WindowSetSize(new Vector2I(1280, 720));
+                await Frames(8);
             }
             // ↓ で順に降りて、パネルの中身が選択と一緒に変わることを確かめる。
             Write(hub, "_jobSel", 0);
@@ -191,8 +211,12 @@ public partial class JobStatsQa : Node
         // パネルの本文（pad=14・強み/弱みの見出し幅36）に収まる幅で1行ずつ検める。
         float inner = panel.Size.X - 28f;
         foreach (var (text, font, size) in PanelLines(Read<JobTuning[]>(hub, "_jobChoices")[Read<int>(hub, "_jobSel")]))
-            Check(UiKit.TextW(font, text, size) <= inner - 36f,
-                $"\"{text}\" fits inside the detail panel ({who})");
+        {
+            var wrapped = UiKit.WrapLines(font, text, size, inner - 36f);
+            Check(string.Concat(wrapped).Replace(" ", "") == text.Replace(" ", ""), $"wrapped text retains the complete explanation ({who})");
+            foreach (string line in wrapped)
+                Check(UiKit.TextW(font, line, size) <= inner - 36f, $"\"{line}\" fits inside the detail panel ({who})");
+        }
     }
 
     private async Task Finish()
@@ -225,7 +249,7 @@ public partial class JobStatsQa : Node
     private async Task Shot(string name)
     {
         if (DisplayServer.GetName() == "headless") return;   // 撮影は窓ありのときだけ
-        string path = ProjectSettings.GlobalizePath("res://build/shots_jobstats");
+        string path = ProjectSettings.GlobalizePath("res://build/qa_story/account_details_20261023/screenshots");
         DirAccess.MakeDirRecursiveAbsolute(path);
         await ToSignal(RenderingServer.Singleton, RenderingServer.SignalName.FramePostDraw);
         using var image = GetViewport().GetTexture().GetImage();

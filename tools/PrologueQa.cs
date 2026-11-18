@@ -29,6 +29,34 @@ public partial class PrologueQa : Node
             GetNode<GameManager>("/root/Game").MsgCharsPerSec = 300;
             await Frames(1);
 
+            if (Array.Exists(OS.GetCmdlineUserArgs(), arg => arg == "--backlog"))
+            {
+                await CheckBacklog();
+                await Finish();
+                return;
+            }
+
+            if (Array.Exists(OS.GetCmdlineUserArgs(), arg => arg == "--phone"))
+            {
+                for (int route = 0; route < 2; route++)
+                {
+                    var pro = GD.Load<PackedScene>("res://Prologue.tscn").Instantiate<Prologue>();
+                    GetTree().Root.AddChild(pro);
+                    GetTree().CurrentScene = pro;
+                    await AdvanceUntil(() => Read<ChoiceOverlay?>(pro, "_choice") != null);
+                    await Choose(pro, route);
+                    await AdvanceUntil(() => CurrentDialogue(pro).Text.Contains("わたくしの手があります"));
+                    Check(!GameManager.MinaNamed && Read<Texture2D>(pro, "_firstTouch").ResourcePath == Prologue.FirstTouchArt,
+                        $"route {route}: touch through the glass before naming");
+                    await Frames(150);
+                    if (route == 0 && DisplayServer.GetName() != "headless") await Shot("first_touch");
+                    pro.QueueFree();
+                    await Frames(5);
+                }
+                await Finish();
+                return;
+            }
+
             if (Array.Exists(OS.GetCmdlineUserArgs(), arg => arg == "--backdrop"))
             {
                 await CheckBackdrop();
@@ -186,7 +214,7 @@ public partial class PrologueQa : Node
                     "first stage post uses the current SNS account portrait");
                 if (route == 0) await Shot("first_stage_post");
                 await AdvanceUntil(() => Read<int>(pro, "_phase") == 6);
-                Check(GameManager.MinaNamed && pro.GetNodeOrNull<OpeningFilm>("OpeningFilm") != null,
+                Check(GameManager.MinaNamed && pro.GetNodeOrNull<OpeningVideo>("OpeningVideo") != null,
                     $"route {route} starts the animated opening after the first stage post");
                 await AdvanceUntil(() => !IsInstanceValid(pro));
                 Check(GetTree().CurrentScene.SceneFilePath == "res://Hub.tscn", $"route {route} reaches the hub");
@@ -208,6 +236,47 @@ public partial class PrologueQa : Node
             GD.PushError($"[PrologueQA] FAIL {ex}");
             GetTree().Quit(1);
         }
+    }
+
+    private async Task CheckBacklog()
+    {
+        typeof(Settings).GetProperty(nameof(Settings.PauseWhenUnfocused))!.SetValue(null, false);
+        var pro = GD.Load<PackedScene>("res://Prologue.tscn").Instantiate<Prologue>();
+        GetTree().Root.AddChild(pro);
+        GetTree().CurrentScene = pro;
+        await AdvanceUntil(() => pro.GetNodeOrNull<OpeningVideo>("OpeningVideo") != null);
+        int prologueLines = Hud.Backlog.Count;
+        Check(prologueLines > 8 && System.Linq.Enumerable.All(Hud.Backlog, line => line.Section == "プロローグ"),
+            "prologue dialogue keeps its section when the opening begins");
+        await WaitUntil(() => Hud.Backlog.Count >= prologueLines + 2);
+        Check(Hud.Backlog[prologueLines].Section == "オープニング" && Hud.Backlog[^1].Speaker == "レイ",
+            "video captions start a new section inside the prologue scene");
+
+        var log = GetNode<Backlog>("/root/Backlog");
+        log.Open();
+        await Frames(3);
+        Check(log.IsOpen && log.Scroll == 0, "backlog opens at the newest line");
+        if (DisplayServer.GetName() != "headless")
+        {
+            await Shot("backlog_opening");
+            Input.ActionPress("ui_down");
+            await Frames(55);
+            Input.ActionRelease("ui_down");
+            float older = log.Scroll;
+            Check(older > 0, "down scrolls toward earlier dialogue");
+            await Shot("backlog_prologue_scrolled");
+            Input.ActionPress("ui_up");
+            await Frames(10);
+            Input.ActionRelease("ui_up");
+            Check(log.Scroll < older, "up scrolls back toward newer dialogue");
+        }
+        typeof(Backlog).GetMethod("Close", Private)!.Invoke(log, null);
+        await Frames(3);
+        log.Open();
+        Check(log.Scroll == 0, "reopening returns to the newest line");
+        typeof(Backlog).GetMethod("Close", Private)!.Invoke(log, null);
+        pro.QueueFree();
+        await Frames(3);
     }
 
     private static (string Text, string Face) CurrentDialogue(Prologue pro)

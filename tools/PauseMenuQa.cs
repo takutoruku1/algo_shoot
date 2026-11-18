@@ -251,7 +251,6 @@ public partial class PauseMenuQa : Node
             boss.QueueFree();
             await Frames(3);
             root.Hud.HoldBubble = false;
-            root.Hud.BattleMemoryTempo = false;
             root.Hud.HideBubble();
         }
         root.QueueFree();
@@ -280,6 +279,8 @@ public partial class PauseMenuQa : Node
 
     private async Task CheckCombatResume(GameManager game)
     {
+        bool hadCharge = game.HasChargeShot;
+        game.TrainingSetUpgrade("n_charge_shot", true);
         bool hadDodge = game.HasDodge;
         game.TrainingSetUpgrade("n_dodge", true);
         var root = GD.Load<PackedScene>("res://Akari.tscn").Instantiate<AkariRoot>();
@@ -341,6 +342,7 @@ public partial class PauseMenuQa : Node
         root.QueueFree();
         await Frames(3);
         game.TrainingSetUpgrade("n_dodge", hadDodge);
+        game.TrainingSetUpgrade("n_charge_shot", hadCharge);
     }
 
     private async Task CheckRetryHoldResume()

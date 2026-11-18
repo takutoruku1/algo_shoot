@@ -1,4 +1,5 @@
 using Godot;
+using System.Collections.Generic;
 
 // StageImagery : 各ステージの「心象世界」を、汚染された SNS(Y) のタイムラインが右→左へ流れる
 //   ツイート風カードとしてエンジン描画で重ねる軽量レイヤー（設計書 4 / 6 の演出ト書きを SNS で翻訳）。
@@ -11,7 +12,7 @@ using Godot;
 //
 // 弾幕の視認性最優先：カードは「画面奥で流れ去る世間の声」で前に出さない。無彩色〜淡い同系色（弾の濃ピンク/
 //   黒グリフと色相分離）、加算しない、α上限おおむね0.20（合算込み・こはるは暗背景で一段低い）、同時4枚・中央回避・
-//   12px/s（ScrollFx近層より遥か遅い＝奥）。乱数は使わず Frac(Mathf.Sin(i*..)*..) の決定論パターン。
+//   背景の近景より遅く流す。乱数は使わず Frac(Mathf.Sin(i*..)*..) の決定論パターン。
 //   レーンは上下2段（画面の縦中央＝弾の主戦場を空ける）。横スクロールでも弾の視認性を確保する。
 public partial class StageImagery : Node2D
 {
@@ -26,27 +27,59 @@ public partial class StageImagery : Node2D
     private float _bulletDamp = 1f; // 弾密度が高いほど背景を引く係数（致命情報を最前面の明るさに＝§3 視認性）
     private double _revT = -1;      // S3 画の反転：<0=未発火。TriggerReversal() から 0 で進行を始める
 
+    private static readonly HashSet<StageKind> PreparedAssets = new();
+
+    internal static IEnumerable<float> PrepareAssetSteps(StageKind kind)
+    {
+        if (PreparedAssets.Contains(kind)) yield break;
+        var glyphs = new HashSet<(FontFile Font, int Size, int Glyph)>();
+        void Add(FontFile font, string text, int size)
+        {
+            foreach (var rune in text.EnumerateRunes()) glyphs.Add((font, size, rune.Value));
+        }
+        Add(UiKit.Mono, "POST QUOTE", 5);
+        Add(UiKit.Mono, "/ 0123456789", 4);
+        string[] bodies = kind switch { StageKind.Akari => AkariBodies, StageKind.Koharu => KoharuBodies, _ => ReiBodies };
+        for (int i = 0; i < bodies.Length; i++)
+        {
+            Add(UiKit.ZenBold, DisplayName(i), CardNameSize);
+            Add(UiKit.Mono, Handle(i) + "0123456789.,万", CardMetaSize);
+            Add(UiKit.Zen, bodies[i], CardBodySize);
+        }
+        if (kind == StageKind.Akari) Add(UiKit.Zen, "す——あの——ね、ごめ", DraftSize);
+        if (kind == StageKind.Rei)
+        {
+            Add(UiKit.ZenBold, "星逢レイ", 7);
+            Add(UiKit.Zen, "登録者", 5);
+        }
+        int prepared = 0, total = glyphs.Count + bodies.Length + (kind == StageKind.Rei ? 1 : 0);
+        foreach (var (font, size, glyph) in glyphs)
+        {
+            if (font.HasChar(glyph)) font.RenderRange(0, new Vector2I(size, 0), glyph, glyph);
+            yield return ++prepared / (float)total;
+        }
+        for (int i = 0; i < bodies.Length; i++)
+        {
+            IconTex(VoiceIndex(i));
+            yield return ++prepared / (float)total;
+        }
+        if (kind == StageKind.Rei)
+        {
+            _reiIcon ??= GD.Load<Texture2D>(CompanionDialogue.AccountIcon("rei"));
+            yield return 1;
+        }
+        PreparedAssets.Add(kind);
+    }
+
     public override void _Ready()
     {
         ZIndex = -50;
         ZAsRelative = false;
         AddToGroup("imagery");
         _font = UiKit.Zen; // 非ピクセル（滑らかゴシック）
-        if (Kind == StageKind.Rei)
-        {
-            // New timeline cards must not rasterize Japanese glyphs or load icons during a barrage.
-            for (int i = 0; i < ReiBodies.Length; i++)
-            {
-                IconTex(VoiceIndex(i));
-                var layout = Layout(i, ReiBodies[i], false);
-                WarmFont(UiKit.ZenBold, layout.Name, CardNameSize);
-                WarmFont(UiKit.Mono, layout.Handle + "0123456789.,万", CardMetaSize);
-                foreach (string line in layout.Lines) WarmFont(UiKit.Zen, line, CardBodySize);
-            }
-            _reiIcon ??= GD.Load<Texture2D>(CompanionDialogue.AccountIcon("rei"));
-            WarmFont(UiKit.ZenBold, "星逢レイ", 7);
-            WarmFont(UiKit.Zen, "登録者", 5);
-        }
+        foreach (float progress in PrepareAssetSteps(Kind)) { }
+        string[] bodies = Kind switch { StageKind.Akari => AkariBodies, StageKind.Koharu => KoharuBodies, _ => ReiBodies };
+        for (int i = 0; i < bodies.Length; i++) Layout(i, bodies[i], bodies[i].StartsWith(">"));
     }
 
     // S3 画の反転：改心成立（cry→post 遷移）の瞬間に各ボスの OnCryEnd から呼ばれる。
@@ -100,9 +133,9 @@ public partial class StageImagery : Node2D
     }
 
     // 投稿は上下の背景レーンに限定し、弾幕が増えるほど薄くする。
-    private const float CardW = 164f, CardH = 50f;
+    private const float CardW = 154f, CardH = 58f;
     private const int CardNameSize = 6, CardBodySize = 7, CardMetaSize = 5;
-    private const float ScrollSpeed = 12f;           // px/s（ScrollFx近層より遥か遅い＝奥／画面酔い対策で半減）
+    private const float ScrollSpeed = 19f;
     private const int CardCount = 4;                 // 同時表示（控えめ）
     private static readonly float[] LaneRows = { 8f, H - CardH - 8f };
 
@@ -111,15 +144,15 @@ public partial class StageImagery : Node2D
     // 背景カードの「他人」のアカウント。表・名前の作りは src/SnsVoices.cs（Hub の埋め草カードと同じ表を引く）
     //   ＝道中の背景で見た名前が、ハブのタイムラインにも同じ顔（アイコン）で並ぶ。
     // 表示名と @ハンドルは対にする（同じ添字を引く）＝「名前とIDが噛み合った他人」に見せる。
-    private int VoiceIndex(int i) => (int)(Frac(Mathf.Sin(i * 45.3f) * 10247.7f) * SnsVoices.Count) % SnsVoices.Count;
-    private string Handle(int i)
+    private static int VoiceIndex(int i) => (int)(Frac(Mathf.Sin(i * 45.3f) * 10247.7f) * SnsVoices.Count) % SnsVoices.Count;
+    private static string Handle(int i)
     {
         int num = 10 + (int)(Frac(Mathf.Sin(i * 91.7f) * 7351.3f) * 8900f);
         return Handles.Mob(SnsVoices.At(VoiceIndex(i)).Handle, num);
     }
 
     // 表示名（@ハンドルとは別の、太め濃いめで出す日本語/英字の通り名）。
-    private string DisplayName(int i) => SnsVoices.At(VoiceIndex(i)).Name;
+    private static string DisplayName(int i) => SnsVoices.At(VoiceIndex(i)).Name;
 
     // アカウントのアイコン（char/v3/icons/mob_XX.png）。名前・@ハンドルと同じ添字から引く
     //   ＝ハブの埋め草カード／オープニングの通知カード（PostToast）と、同じ人には同じ顔が付く。
@@ -191,12 +224,6 @@ public partial class StageImagery : Node2D
         }
     }
 
-    private static void WarmFont(FontFile font, string text, int size)
-    {
-        foreach (var rune in text.EnumerateRunes())
-            if (font.HasChar(rune.Value)) font.RenderRange(0, new Vector2I(size, 0), rune.Value, rune.Value);
-    }
-
     private CardLayout Layout(int i, string body, bool quote)
     {
         var key = (i, body, quote);
@@ -205,7 +232,7 @@ public partial class StageImagery : Node2D
         float nameWidth = UiKit.TextW(UiKit.ZenBold, name, CardNameSize);
         float hx = 23 + nameWidth + 3 + (Verified(i) ? 6 : 0);
         string handle = Elide(UiKit.Mono, Handle(i), CardMetaSize, CardW - 6 - hx - 7);
-        float width = CardW - 6 - 23 - (quote ? 4 : 0);
+        float width = CardW - 16 - (quote ? 4 : 0);
         var lines = UiKit.WrapLines(UiKit.Zen, body.StartsWith("> ") ? body.Substring(2) : body, CardBodySize, width);
         var visible = new string[Mathf.Min(lines.Count, 2)];
         for (int line = 0; line < visible.Length; line++)
@@ -218,45 +245,56 @@ public partial class StageImagery : Node2D
                           bool liked = false, bool quote = false)
     {
         float a = pa * fade;
-        const float pad = 6, avatar = 6;
+        const float pad = 7, avatar = 6;
         float tx = x + 23, right = x + CardW - pad;
-        var ink = new Color(0.035f, 0.045f, 0.055f, Mathf.Min(a * 2.4f, 0.36f));
-        var white = new Color("e7e9ea");
-        var meta = new Color(white, Mathf.Min(a * 1.7f, 0.3f));
-        UiKit.Box(this, new Rect2(x, y, CardW, CardH), ink, 2f);
-        DrawLine(new Vector2(x + pad, y + CardH), new Vector2(right, y + CardH),
-            new Color(white, a * 0.7f), 0.4f);
-        DrawAvatar(new Vector2(x + pad + avatar, y + pad + avatar), avatar, VoiceIndex(i), accent, a);
+        var ink = new Color(new Color("0b1020").Lerp(panel, 0.035f), Mathf.Min(a * 2.7f, 0.36f));
+        var white = Colors.White.Lerp(text, 0.35f);
+        var meta = new Color(text, Mathf.Min(a * 1.65f, 0.28f));
+        var edge = new Color(accent, a * 1.45f);
+        var shape = new[] { new Vector2(x, y), new Vector2(x + CardW - 7, y),
+            new Vector2(x + CardW, y + 7), new Vector2(x + CardW, y + CardH),
+            new Vector2(x + 5, y + CardH), new Vector2(x, y + CardH - 5), new Vector2(x, y) };
+        DrawColoredPolygon(shape[..^1], ink);
+        DrawColoredPolygon(new[] { shape[0], shape[1], shape[2], new Vector2(x + CardW, y + 9),
+            new Vector2(x, y + 9) }, new Color(accent, a * 0.22f));
+        DrawPolyline(shape, new Color(accent, a * 0.2f), 2.3f, true);
+        DrawPolyline(shape, edge, 0.45f, true);
+        DrawLine(new Vector2(x, y + 10), new Vector2(x, y + 23), new Color(accent, a * 2.1f), 1.2f, true);
+        DrawLine(new Vector2(x + pad, y + 9), new Vector2(right - 7, y + 9), new Color(accent, a * 0.55f), 0.4f);
+        UiKit.Text(this, UiKit.Mono, new Vector2(x + pad, y + 1), quote ? "QUOTE" : "POST", 5,
+            new Color(accent, Mathf.Min(a * 3.4f, 0.48f)));
+        UiKit.Text(this, UiKit.Mono, new Vector2(right - 23, y + 2), $"/ {i + 1:D3}", 4, meta);
+        DrawAvatar(new Vector2(x + pad + avatar, y + 18), avatar, VoiceIndex(i), accent, a);
         var layout = Layout(i, body, quote);
         string name = layout.Name;
-        UiKit.Text(this, UiKit.ZenBold, new Vector2(tx, y + pad), name, CardNameSize,
-            new Color(white, Mathf.Min(a * 2f, 0.34f)));
+        UiKit.Text(this, UiKit.ZenBold, new Vector2(tx, y + 12), name, CardNameSize,
+            new Color(white, Mathf.Min(a * 2.2f, 0.36f)));
         float hx = tx + layout.NameWidth + 3;
         if (Verified(i))
         {
-            UiKit.VerifiedBadge(this, new Vector2(hx + 2, y + 10), 1.8f, accent, Mathf.Min(a * 2, 0.35f));
+            UiKit.VerifiedBadge(this, new Vector2(hx + 2, y + 16), 1.8f, accent, Mathf.Min(a * 2, 0.35f));
             hx += 6;
         }
         string handle = layout.Handle;
-        UiKit.Text(this, UiKit.Mono, new Vector2(hx, y + pad + 1), handle, CardMetaSize, meta);
-        for (int k = 0; k < 3; k++) DrawCircle(new Vector2(right - 4 + k * 1.6f, y + 9), 0.35f, meta);
-        float bodyX = tx + (quote ? 4 : 0);
+        UiKit.Text(this, UiKit.Mono, new Vector2(hx, y + 13), handle, CardMetaSize, meta);
+        float bodyX = x + 8 + (quote ? 4 : 0);
         float bodyLineHeight = Mathf.Ceil(UiKit.Zen.GetHeight(CardBodySize));
         var lines = layout.Lines;
-        if (quote) DrawLine(new Vector2(tx, y + 16), new Vector2(tx, y + 16 + bodyLineHeight * Mathf.Min(lines.Length, 2)),
+        if (quote) DrawLine(new Vector2(x + 8, y + 26), new Vector2(x + 8, y + 26 + bodyLineHeight * Mathf.Min(lines.Length, 2)),
             new Color(accent, a * 1.6f), 0.7f);
         for (int line = 0; line < Mathf.Min(lines.Length, 2); line++)
         {
             string s = lines[line];
-            UiKit.Text(this, UiKit.Zen, new Vector2(bodyX, y + 16 + line * bodyLineHeight), s, CardBodySize,
+            UiKit.Text(this, UiKit.Zen, new Vector2(bodyX, y + 25 + line * bodyLineHeight), s, CardBodySize,
                 new Color(white, Mathf.Min(a * 2.8f, 0.46f)));
         }
-        float step = (right - tx) / 4f;
+        DrawLine(new Vector2(x + pad, y + 47), new Vector2(right, y + 47), new Color(accent, a * 0.5f), 0.35f);
+        float step = (right - x - pad) / 4f;
         string[] nums = { replies.ToString(), reposts.ToString(), FmtCount(likes), FmtCount(views) };
         for (int k = 0; k < 4; k++)
         {
             var color = k == 2 && liked ? new Color(0.85f, 0.6f, 0.69f, meta.A) : meta;
-            var p = new Vector2(tx + step * k, y + 43);
+            var p = new Vector2(x + pad + step * k, y + 52);
             DrawEngagementIcon(k, p, color);
             UiKit.Text(this, UiKit.Mono, p + new Vector2(7, -3), nums[k], CardMetaSize, color);
         }
@@ -306,14 +344,11 @@ public partial class StageImagery : Node2D
     private static string FmtCount(int n)
         => n >= 10000 ? $"{n / 1000 / 10f:0.#}万" : n.ToString();
 
-    // アクション行の4数字＋いいね済みをまとめて運ぶ（引用線は Akari 専用パスで個別指定）。
-    private struct CardMeta { public int Replies, Reposts, Likes, Views; public bool Liked; }
-
     // 4枚のカードのループ x を等間隔で配り、右→左へ流す。各カードは上下2段に交互配置（縦中央を空ける）。
     // #11：巻き戻し（周回）ごとに本文/アカウントのインデックスを +CardCount ずらし、bodies 8件が
     //   「4枚ずつ・順番に」全部流れる。切替は必ず画面外（右外→左外の折り返し瞬間）＝画面内でチラつかない。
     private void DrawTimeline(float fade, Color panel, Color text, Color accent,
-                              string[] bodies, System.Func<int, CardMeta> meta, float panelA)
+                              string[] bodies, float panelA)
     {
         float span = W + CardW;
         for (int i = 0; i < CardCount; i++)
@@ -324,9 +359,9 @@ public partial class StageImagery : Node2D
             float x = W - raw % span;
             float y = LaneRows[i % LaneRows.Length];
             int idx = (i + (int)(raw / span) * CardCount) % bodies.Length; // 周回ごとに +CardCount
-            var m = meta(idx);
+            var m = PostPool.ShortPostCounts(bodies[idx]);
             DrawCard(x, y, panelA, fade, panel, text, accent, idx, bodies[idx],
-                     m.Replies, m.Reposts, m.Likes, m.Views, m.Liked, quote: false);
+                     m.Replies, m.Reposts, m.Likes, m.Views);
         }
     }
 
@@ -365,7 +400,7 @@ public partial class StageImagery : Node2D
         const float w = 128, h = 26;
         float x = Field.CenterX - w / 2, y = 27;
         _reiIcon ??= GD.Load<Texture2D>(CompanionDialogue.AccountIcon("rei"));
-        DrawRect(new Rect2(x, y, w, h), new Color(0.035f, 0.045f, 0.055f, 0.38f * alpha));
+        DrawRect(new Rect2(x, y, w, h), new Color(0.035f, 0.045f, 0.055f, 0.52f * alpha));
         DrawLine(new Vector2(x, y + h), new Vector2(x + w, y + h), new Color(accent, 0.3f * alpha), 0.5f);
         UiKit.FaceAvatar(this, new Vector2(x + 13, y + 13), 8, _reiIcon, accent, false, 0, 0.55f * alpha);
         UiKit.Text(this, UiKit.ZenBold, new Vector2(x + 26, y + 5), "星逢レイ", 7, new Color(Colors.White, 0.55f * alpha));
@@ -377,21 +412,11 @@ public partial class StageImagery : Node2D
 
     private void DrawRei(float fade)
     {
-        DrawSubscriberCard(fade, new Color("a9c6d8"));
-
-        // 配信のコメント欄。冷たい青、メタは不自然に多い（切り抜き・引用の拡散）。
         var panel = new Color(0.80f, 0.86f, 1f);
         var text = new Color(0.82f, 0.88f, 1f);
-        var accent = new Color(0.86f, 0.90f, 1f);
-        DrawTimeline(fade, panel, text, accent, ReiBodies, i => new CardMeta
-        {
-            // 数字は据え置き。切り抜き・引用で伸びるのは他人の投稿の方＝本人の登録者 2,000 とは伸び方が違う。
-            Replies = 12 + (int)(Frac(Mathf.Sin(i * 11.3f) * 4127.1f) * 80f),
-            Reposts = 20 + (int)(Frac(Mathf.Sin(i * 29.3f) * 3317.1f) * 90f),
-            Likes = 60 + (int)(Frac(Mathf.Sin(i * 17.1f) * 5123.7f) * 180f),  // 60〜240
-            Views = 8000 + (int)(Frac(Mathf.Sin(i * 37.7f) * 6619.3f) * 40000f),
-            Liked = Frac(Mathf.Sin(i * 53.1f) * 2237.7f) > 0.5f,             // 半分はいいね済み（淡桃）
-        }, panelA: 0.13f);
+        var accent = new Color("9fcedb");
+        DrawTimeline(fade, panel, text, accent, ReiBodies, panelA: 0.13f);
+        DrawSubscriberCard(fade, new Color("a9c6d8"));
     }
 
     // ---- STAGE1 あかり：自責の雨のタイムライン（雨の湿度を残す）----
@@ -406,7 +431,7 @@ public partial class StageImagery : Node2D
         // 自責リプのタイムライン。寒色ニュートラルのパネルに、本人の声だけ桃の差し色。右→左・上下2段。
         // DrawTimeline と同じ周回ローテ（+CardCount）で 8 件全部を順に流す（切替は画面外）。
         var panel = new Color(0.80f, 0.85f, 1f);
-        var accent = new Color(0.86f, 0.88f, 0.95f);
+        var accent = new Color("bcb6db");
         float span = W + CardW;
         for (int i = 0; i < CardCount; i++)
         {
@@ -419,13 +444,9 @@ public partial class StageImagery : Node2D
             bool quote = body.StartsWith(">");
             var text = isVoice ? new Color(0.95f, 0.86f, 0.90f) : new Color(0.82f, 0.86f, 0.96f);
             // 自責リプ＝小さなスレッド。数字は控えめ。本人の声(isVoice)だけ淡桃のいいねが灯る。
+            var m = PostPool.ShortPostCounts(body);
             DrawCard(x, y, 0.13f, fade, panel, text, accent, idx, body,
-                     replies: 1 + (int)(Frac(Mathf.Sin(idx * 31.7f) * 1913.1f) * 6f),  // 1〜7
-                     reposts: (int)(Frac(Mathf.Sin(idx * 23.1f) * 1777.7f) * 4f),       // 0〜3
-                     likes: 2 + (int)(Frac(Mathf.Sin(idx * 13.7f) * 2113.3f) * 9f),     // 2〜11
-                     views: 80 + (int)(Frac(Mathf.Sin(idx * 41.3f) * 2551.9f) * 600f),
-                     liked: isVoice,
-                     quote: quote);
+                     m.Replies, m.Reposts, m.Likes, m.Views, liked: isVoice, quote: quote);
         }
 
         // 送信取消の下書き（道中の演出・2026-09-06 作り直し＝案 a）。白い板は使わない。
@@ -476,16 +497,8 @@ public partial class StageImagery : Node2D
         // 孤独のタイムライン。暗背景なので一段低い α(0.07)。反応ゼロ＝いいね 0/1。
         var panel = new Color(0.85f, 0.84f, 0.82f);   // ニュートラル暖
         var text = new Color(0.86f, 0.85f, 0.83f);
-        var accent = new Color(0.90f, 0.89f, 0.86f);
-        DrawTimeline(fade, panel, text, accent, KoharuBodies, i => new CardMeta
-        {
-            // 孤独＝誰も反応しない。返信・リポスト・いいねは 0/1。閲覧数だけわずか（読まれてはいる）。
-            Replies = 0,
-            Reposts = 0,
-            Likes = (int)(Frac(Mathf.Sin(i * 19.3f) * 1303.1f) * 1.6f),     // 0 か 1
-            Views = 1 + (int)(Frac(Mathf.Sin(i * 27.7f) * 911.3f) * 8f),    // 1〜8（既読の冷たさ）
-            Liked = false,                                                   // 誰もハートを押さない
-        }, panelA: 0.07f);
+        var accent = new Color("d4c09c");
+        DrawTimeline(fade, panel, text, accent, KoharuBodies, panelA: 0.07f);
 
         // 机の下に、箱が三つ（S2-1「開けられた跡は、ひとつだけ」）。
         float ty = 150f;

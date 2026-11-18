@@ -1,0 +1,66 @@
+[
+  {
+    "source": "D:\\dev\\algo_shoot\\audio\\bgm_boss_akari_instrumental.ogg",
+    "method": "faster-whisper small, Japanese, VAD, full track",
+    "detections": [
+      {
+        "start": 1.33,
+        "end": 3.33,
+        "text": "お疲れ様でした",
+        "avg_logprob": -0.9488620758056641,
+        "no_speech_prob": 0.863094687461853
+      }
+    ],
+    "limitation": "Not a listening review; cannot prove melody identity, absence of humming, or complete absence of vocals."
+  },
+  {
+    "source": "D:\\dev\\algo_shoot\\audio\\bgm_boss_akari_remix.ogg",
+    "method": "faster-whisper small, Japanese, VAD, full track",
+    "detections": [],
+    "limitation": "Not a listening review; cannot prove melody identity, absence of humming, or complete absence of vocals."
+  },
+  {
+    "source": "D:\\dev\\algo_shoot\\audio\\bgm_boss_koharu_instrumental.ogg",
+    "method": "faster-whisper small, Japanese, VAD, full track",
+    "detections": [],
+    "limitation": "Not a listening review; cannot prove melody identity, absence of humming, or complete absence of vocals."
+  },
+  {
+    "source": "D:\\dev\\algo_shoot\\audio\\bgm_boss_koharu_remix.ogg",
+    "method": "faster-whisper small, Japanese, VAD, full track",
+    "detections": [],
+    "limitation": "Not a listening review; cannot prove melody identity, absence of humming, or complete absence of vocals."
+  },
+  {
+    "source": "D:\\dev\\algo_shoot\\audio\\bgm_boss_mina_instrumental.ogg",
+    "method": "faster-whisper small, Japanese, VAD, full track",
+    "detections": [],
+    "limitation": "Not a listening review; cannot prove melody identity, absence of humming, or complete absence of vocals."
+  },
+  {
+    "source": "D:\\dev\\algo_shoot\\audio\\bgm_boss_mina_remix.ogg",
+    "method": "faster-whisper small, Japanese, VAD, full track",
+    "detections": [
+      {
+        "start": 2.58,
+        "end": 3.58,
+        "text": "エンディング",
+        "avg_logprob": -0.9573627412319183,
+        "no_speech_prob": 0.8570341467857361
+      }
+    ],
+    "limitation": "Not a listening review; cannot prove melody identity, absence of humming, or complete absence of vocals."
+  },
+  {
+    "source": "D:\\dev\\algo_shoot\\audio\\bgm_boss_rei_instrumental.ogg",
+    "method": "faster-whisper small, Japanese, VAD, full track",
+    "detections": [],
+    "limitation": "Not a listening review; cannot prove melody identity, absence of humming, or complete absence of vocals."
+  },
+  {
+    "source": "D:\\dev\\algo_shoot\\audio\\bgm_boss_rei_remix.ogg",
+    "method": "faster-whisper small, Japanese, VAD, full track",
+    "detections": [],
+    "limitation": "Not a listening review; cannot prove melody identity, absence of humming, or complete absence of vocals."
+  }
+]

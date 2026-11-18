@@ -27,8 +27,8 @@ public partial class ControlCard : Control
 {
     // 話題（会話の行に対応）。None = カードを出さない行。
     //   Dodge / Charge（2026-09-22）はスキル説明（StageTutorial.SkillDodge / SkillCharge）用。
-    //   Dodge は習得後、Charge は最初から使えるので最初の面の冒頭で出る（2026-09-25）。
-    public enum Topic { None, Move, Shot, Lock, LockClear, Bomb, Dodge, Charge }
+    //   Dodge と Charge はショップで習得した後に案内する。
+    public enum Topic { None, Move, Shot, Lock, LockClear, Bomb, Dodge, Charge, Special }
 
     private Topic _topic = Topic.None;   // いま出している話題
     private Topic _next = Topic.None;    // 差し替え先（クロスフェード中のみ _topic と異なる）
@@ -140,7 +140,7 @@ public partial class ControlCard : Control
             new Row("コントローラー", Pad.Face(JoyButton.RightStick),  "右スティック押し込み"),
             new Row("マウス",         "左クリック",                    "もう一度短く押すと外れる"),
         }),
-        Topic.Bomb => ("ボム", "敵を攻撃し、短時間無敵になります。敵弾は消えません", UiKit.Mina, new[]
+        Topic.Bomb => ("ボム", "雑魚と敵の攻撃を欠片に変えて自動回収。ボスにはダメージ", UiKit.Mina, new[]
         {
             new Row("キーボード",     "X",            "残数は左の BOMB 欄"),
             new Row("コントローラー", Pad.Face(JoyButton.X), "残数は左の BOMB 欄"),
@@ -154,13 +154,20 @@ public partial class ControlCard : Control
             new Row("コントローラー", Pad.Face(JoyButton.LeftStick),   "左スティック押し込み\n倒した方向へ。無ければその場"),
             new Row("マウス",         "右クリック",                    "カーソル方向へ\n自機の近くならその場"),
         }),
-        // 溜め打ち（最初から使える。2026-09-25）。割り当ては Player.cs の溜め入力＝Z / Y / 左クリックの長押し
+        // 溜め打ち。割り当ては Player.cs の溜め入力＝Z / Y / 左クリックの長押し
         //   （キーボードは 2026-09-26 に C → Z）。マウスは短押しがロックオン送り・長押しが溜め（同じ左クリック）＝注記で分ける。
         Topic.Charge => ("溜め打ち", $"満ちたら離す。{GameManager.Instance!.JobDef.ChargeDescription}", UiKit.Gold, new[]
         {
             new Row("キーボード",     "Z 長押し",                            "満ちたら離す"),
             new Row("コントローラー", Pad.Face(JoyButton.Y) + " 長押し",      "満ちたら離す"),
             new Row("マウス",         "左クリック 長押し",                    "短押し：ロック・解除\n長押し：溜めて離す"),
+        }),
+        Topic.Special => (PlayerSpecial.NameFor(GameManager.Instance!.SelectedJob),
+            $"{GameManager.Instance.JobDef.CharacterName}の必殺技 / 効果終了から再使用まで{PlayerSpecial.Cooldown:0}秒", UiKit.Purify, new[]
+        {
+            new Row("キーボード", "C", "一度押して発動"),
+            new Row("コントローラー", Pad.Face(JoyButton.LeftShoulder), "一度押して発動"),
+            new Row("マウス", "サイドボタン", "非ロック時はホイールでも発動"),
         }),
         _ => ("", "", UiKit.White, System.Array.Empty<Row>()),
     };

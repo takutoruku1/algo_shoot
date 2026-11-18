@@ -29,7 +29,8 @@ public partial class CompanionDialogueQa : Node
             DisplayServer.WindowSetMode(DisplayServer.WindowMode.Windowed);
             DisplayServer.WindowSetSize(new Vector2I(1280, 720));
             await Frames(2);
-            if (OS.GetCmdlineUserArgs().Contains("--portraits-only")) await CheckPortraits(game);
+            if (OS.GetCmdlineUserArgs().Contains("--speaker-icons")) await CheckSpeakerIcons();
+            else if (OS.GetCmdlineUserArgs().Contains("--portraits-only")) await CheckPortraits(game);
             else if (OS.GetCmdlineUserArgs().Contains("--timers-only")) await CheckStageTimers(game);
             else if (OS.GetCmdlineUserArgs().Contains("--scripts-only")) CheckScripts();
             else if (OS.GetCmdlineUserArgs().Contains("--clarity"))
@@ -66,6 +67,47 @@ public partial class CompanionDialogueQa : Node
             GetTree().Paused = false;
             GetTree().Quit(1);
         }
+    }
+
+    private async Task CheckSpeakerIcons()
+    {
+        var hud = new Hud();
+        AddChild(hud);
+        hud.HoldBubble = true;
+        bool rendered = DisplayServer.GetName() != "headless";
+        foreach (bool memory in new[] { false, true })
+        {
+            hud.SetCinematicMode(memory, accent: UiKit.Info);
+            hud.ShowDialog(Hud.LineKind.Boy, "聞こえてるよ。");
+            Check(Read<bool>(hud, "_dlgDraftMark") && Hud.Backlog[^1].Color == UiKit.CutWarm,
+                $"reader keeps the same silhouette and color (cinematic={memory})");
+            if (rendered) { await Frames(3); await Shot(memory ? "reader_memory" : "reader_stage"); }
+        }
+        foreach (string speaker in new[] { "ミナ", "あかり", "こはる", "レイ", "レイ（配信）", "西野", "母" })
+        {
+            hud.ShowDialog(Hud.LineKind.Other, "聞こえています。", otherName: speaker);
+            if (!rendered) continue;
+            await Frames(3);
+            await ToSignal(RenderingServer.Singleton, RenderingServer.SignalName.FramePostDraw);
+            using var frame = GetViewport().GetTexture().GetImage();
+            var center = hud.DialogRect.Position + new Vector2(40, 27);
+            Color Pixel(int x, int y) => frame.GetPixel(
+                Mathf.RoundToInt((center.X + x) * frame.GetWidth() / UiKit.DesignW),
+                Mathf.RoundToInt((center.Y + y) * frame.GetHeight() / UiKit.DesignH));
+            var outside = Pixel(-24, 0);
+            int visible = 0;
+            for (int y = -12; y <= 12; y++)
+                for (int x = -12; x <= 12; x++)
+                {
+                    var delta = Pixel(x, y) - outside;
+                    if (Mathf.Abs(delta.R) + Mathf.Abs(delta.G) + Mathf.Abs(delta.B) > 0.12f) visible++;
+                }
+            Check(visible > 100, $"visible icon beside {speaker} in a flashback");
+            if (speaker is "ミナ" or "西野") await Shot(speaker == "ミナ" ? "mina_memory" : "nishino_memory");
+        }
+        hud.HideBubble();
+        hud.SetCinematicMode(false);
+        await RemoveScene(hud);
     }
 
     private async Task CheckPortraits(GameManager game)
@@ -335,7 +377,7 @@ public partial class CompanionDialogueQa : Node
             .Contains("ご主人様に話しかけたい")), "Mina explicitly names whom she wants to talk to");
         var aftermath = CharacterStory.Aftermath(Job.Heal, "rei");
         Check(aftermath.Any(l => l.text.Contains("そこまで待たなくてもいい"))
-            && aftermath.Any(l => l.text.Contains("閉じた。途中で")),
+            && aftermath.Any(l => l.text.Contains("途中で閉じた")),
             "Koharu can close the stream without first hearing its ending");
         Check(CompanionDialogue.MenuText(Job.Magic, CompanionDialogue.Menu.TrainShoot).Contains("的に届きました"),
             "training hit dialogue describes a hit, not a miss");
@@ -437,7 +479,7 @@ public partial class CompanionDialogueQa : Node
         void Take(string key, string block) { if (!seenBefore.Contains(key)) expected.AddRange(Tutorial(block)); }
         Take(StageTutorial.RouteSeenKey, "Route");
         if (game.HasDodge) Take(StageTutorial.SkillDodgeSeenKey, "SkillDodge");
-        Take(StageTutorial.SkillChargeSeenKey, "SkillCharge");   // 溜め打ちは最初から使える＝習得の条件は無い
+        if (game.HasChargeShot && stageId != "akari") Take(StageTutorial.SkillChargeSeenKey, "SkillCharge");
         switch (stageId)
         {
             case "akari":
@@ -466,8 +508,8 @@ public partial class CompanionDialogueQa : Node
             var hud = root.GetNode<Hud>("Hud");
             if (job.Id == Job.Tank && stageId == "akari")
             {
-                hud.ShowDialog(Hud.LineKind.Mina, "first", "res://char/mina_face.png");
-                hud.ShowDialog(Hud.LineKind.Mina, "second", "res://char/mina_worried.png");
+                hud.ShowDialog(Hud.LineKind.Mina, "first", "res://char/v3/mina_conversation_v1.png");
+                hud.ShowDialog(Hud.LineKind.Mina, "second", "res://char/v3/mina_conversation_worried_v1.png");
                 Check(Read<double>(hud, "_portraitFadeT") > 0 && Read<Texture2D?>(hud, "_dlgPortraitPrev") != null,
                     "same-speaker expression changes still crossfade");
                 hud.HideBubble();

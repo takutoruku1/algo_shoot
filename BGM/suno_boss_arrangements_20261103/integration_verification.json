@@ -1,0 +1,56 @@
+{
+  "build": "dotnet build",
+  "build_errors": 0,
+  "build_warnings": 0,
+  "runtime_exit_code": 0,
+  "checks_passed": 258,
+  "checks_failed": 0,
+  "dotnet_initialized": true,
+  "runtime_stderr": null,
+  "runtime_log": "build/qa_story/boss_arrangements/game_qa_verified",
+  "scope": [
+    "BGM resource assignment",
+    "all 8 boss arrangement loops",
+    "normal and Lunatic transformation music",
+    "Mina human phase retains normal arrangement",
+    "story return keeps remix",
+    "transformed technique practice and restart",
+    "story theme fades and pause"
+  ],
+  "listening_review": "not performed; melody identity and absence of vocals require listening",
+  "video_qa": "../../output/boss_music_video_20261103/video_qa.json",
+  "audio_files": [
+    {
+      "path": "audio/bgm_boss_akari_instrumental.ogg",
+      "sha256": "0B01C095853AC98FEF2245392CCD3C40CE7479025EF199B7A42A03ABA093BA06"
+    },
+    {
+      "path": "audio/bgm_boss_akari_remix.ogg",
+      "sha256": "441078BD090858AED21DCE2B7B0C3DFBDCBB218D343C0A8D2283DDB94AB4178C"
+    },
+    {
+      "path": "audio/bgm_boss_koharu_instrumental.ogg",
+      "sha256": "447D0069DBA1DC082E38A4517AE4169582DEAB6DADFA9AB2B3911EA26831995C"
+    },
+    {
+      "path": "audio/bgm_boss_koharu_remix.ogg",
+      "sha256": "873852D7E406B0B5975C0C5CF0AB469BDBFE03ED00DF2F896DF019C6A6746914"
+    },
+    {
+      "path": "audio/bgm_boss_mina_instrumental.ogg",
+      "sha256": "95231EF061468CAEA69AA09A8385B710DC05E0026DB70255BB9FC3EDFF67B2B2"
+    },
+    {
+      "path": "audio/bgm_boss_mina_remix.ogg",
+      "sha256": "23D2669A59AD073D2CAE0D6D16CBF152265E019F19848FAB4BD339B2DA4942A4"
+    },
+    {
+      "path": "audio/bgm_boss_rei_instrumental.ogg",
+      "sha256": "7D4CA37305FFDB0D2442A652279F0CB3905F741BC0423CD6758B815B03EE731B"
+    },
+    {
+      "path": "audio/bgm_boss_rei_remix.ogg",
+      "sha256": "42FA92D13EDA30FB9754BD0F5D6A606948F747723B5F6CBF769360AF6EDD7850"
+    }
+  ]
+}

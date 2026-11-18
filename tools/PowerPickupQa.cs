@@ -29,7 +29,7 @@ public partial class PowerPickupQa : Node
         for (int i = 0; i < frames; i++) ShardLayer._PhysicsProcess(1.0 / 60);
     }
     private void EmitKill(Player player, Vector2 position) =>
-        FxLayer.Instance.PurifyBurst(position, 80, FxLayer.PurifyTier.Zako, 4, power: player.CountPowerupKill());
+        FxLayer.Instance.PurifyBurst(position, 80, FxLayer.PurifyTier.Zako, power: player.CountPowerupKill());
     private static void Vulnerable(Player p)
     {
         Write(p, "_invincible", false);
@@ -147,14 +147,12 @@ public partial class PowerPickupQa : Node
             }
             foreach (bool shop in new[] { false, true })
             {
-                _game.TrainingSetUpgrade("n_lines", shop);
                 _game.TrainingSetUpgrade("n_move_15x", shop);
                 _pool.DespawnAll();
                 Call(p, "Fire");
                 int baseCount = job.Id == Job.Magic ? 5 : 2;
-                int shopCount = shop ? (job.Id == Job.Magic ? 2 : 1) : 0;
-                Check(Shots().Length == baseCount + shopCount,
-                    $"{job.CharacterId}: level {level}, shop {shop}, exactly {baseCount + shopCount} shots");
+                Check(Shots().Length == baseCount,
+                    $"{job.CharacterId}: level {level}, shop {shop}, exactly {baseCount} shots");
                 Check(Shots().All(b => !b.IsEnemy && ReferenceEquals(Read<BulletArt.PlayerVisual>(b, "_playerVisual"), BulletArt.PlayerShot(job.Id))),
                     "powered shots retain the selected character artwork");
                 if (job.Id == Job.Melee)
@@ -195,7 +193,7 @@ public partial class PowerPickupQa : Node
         Tick(60);
         Check(p.Lives == startingLives && p.MaxLives == startingLives && p.PowerLevel(PowerKind.Life) == 0,
             job.CharacterId + " heart pickup heals once with no stored buff");
-        Check(_game.ExtraLines == 0 && Mathf.IsEqualApprox(_game.MoveSpeedMul, 1),
+        Check(_game.ColumnOwnedIds().Count == 0 && Mathf.IsEqualApprox(_game.MoveSpeedMul, 1),
             "temporary buffs never modify permanent upgrades");
         while (Engine.TimeScale < 0.99) await Frames(1);
         Vulnerable(p);
@@ -208,7 +206,6 @@ public partial class PowerPickupQa : Node
     private void CheckDamage(AkariRoot root, int level, Dictionary<string, int> baseline)
     {
         var player = root.Player;
-        _game.TrainingSetUpgrade("n_lines", false);
         var body = new Enemy { Position = player.Position + Vector2.Right * 85, ProcessMode = ProcessModeEnum.Disabled };
         Write(body, "BarCount", 1000);
         Write(body, "PanelCount", 0);
@@ -261,13 +258,13 @@ public partial class PowerPickupQa : Node
         boss.QueueFree();
     }
 
-    private object Spawn(PowerKind kind, Vector2 position)
+    private object Spawn(PowerKind? kind, Vector2 position)
     {
         ShardLayer.Add(new FxLayer.P
         {
             Type = FxLayer.T.HeartP, X = position.X, Y = position.Y, Vx = 65, Vy = -35,
             Size = 3, Ttl = 0.8f, Grav = 70, Drag = 0.7f, Col = FxLayer.Heart,
-        }, 5, 4, power: kind);
+        }, 5, power: kind);
         return Shards()[Shards().Count - 1]!;
     }
 
@@ -277,12 +274,47 @@ public partial class PowerPickupQa : Node
         var p = root.Player;
         ShardLayer.SetPhysicsProcess(false);
         var fx = FxLayer.Instance;
+        p.Position = new Vector2(Field.Right - 20f, Field.Bottom - 20f);
+        foreach (PowerKind? kind in new PowerKind?[] { null, PowerKind.Line, PowerKind.Speed, PowerKind.Life })
+        {
+            var drifting = Spawn(kind, new Vector2(300, 100));
+            Tick(60);
+            Vector2 beforeDrift = Read<Vector2>(drifting, "Position");
+            if (OS.GetCmdlineUserArgs().Contains("--shots")) await Shot($"drift_{kind?.ToString() ?? "heart"}_before");
+            Tick(60);
+            Vector2 afterDrift = Read<Vector2>(drifting, "Position");
+            Check(beforeDrift.X - afterDrift.X > 22f && beforeDrift.X - afterDrift.X < 26f
+                && Mathf.Abs(afterDrift.Y - beforeDrift.Y) < 1f && !Read<bool>(drifting, "Attracted"),
+                $"{kind?.ToString() ?? "heart"}: drifts visibly left after scattering without player attraction");
+            if (OS.GetCmdlineUserArgs().Contains("--shots")) await Shot($"drift_{kind?.ToString() ?? "heart"}_after");
+            Tick(240);
+            Check(Shards().Contains(drifting) && Field.Rect.HasPoint(Read<Vector2>(drifting, "Position"))
+                && !Read<bool>(drifting, "Attracted"),
+                $"{kind?.ToString() ?? "heart"}: remains available after six seconds");
+            Tick(90);
+            Check(Shards().Count == 0, $"{kind?.ToString() ?? "heart"}: expires after seven seconds");
+
+            long edgeScore = _game.Score, edgeMoney = _game.Impression;
+            int edgePower = kind.HasValue ? p.PowerLevel(kind.Value) : 0;
+            var edge = Spawn(kind, new Vector2(Field.Left + 12f, 60f));
+            Write(edge, "Velocity", Vector2.Left * 24f);
+            Tick(42);
+            Check(Shards().Contains(edge) && Read<Vector2>(edge, "Position").X < Field.Left,
+                $"{kind?.ToString() ?? "heart"}: crosses the left edge without stopping");
+            Tick(30);
+            Check(Shards().Count == 0 && _game.Score == edgeScore && _game.Impression == edgeMoney
+                && (!kind.HasValue || p.PowerLevel(kind.Value) == edgePower),
+                $"{kind?.ToString() ?? "heart"}: leaving the screen removes the drop without rewards");
+            Shards().Clear();
+        }
+        p.Position = new Vector2(170f, 108f);
+        long beforeBurstMoney = _game.Impression;
         Read<RandomNumberGenerator>(fx, "_rng").Seed = 713;
-        fx.PurifyBurst(new Vector2(300, 100), 80, FxLayer.PurifyTier.Zako, 12);
+        fx.PurifyBurst(new Vector2(300, 100), 80, FxLayer.PurifyTier.Zako);
         var original = Shards().Cast<object>().Select(s => Read<FxLayer.P>(s, "Particle")).ToArray();
         Shards().Clear();
         Read<RandomNumberGenerator>(fx, "_rng").Seed = 713;
-        fx.PurifyBurst(new Vector2(300, 100), 80, FxLayer.PurifyTier.Zako, 12, power: PowerKind.Line);
+        fx.PurifyBurst(new Vector2(300, 100), 80, FxLayer.PurifyTier.Zako, power: PowerKind.Line);
         var powered = Shards().Cast<object>().Select(s => Read<FxLayer.P>(s, "Particle")).ToArray();
         Check(original.Length == powered.Length && original.Zip(powered, (a, b) =>
             a.Type == b.Type && a.Col == b.Col && a.Size == b.Size && a.Rot == b.Rot && a.Spin == b.Spin
@@ -290,7 +322,7 @@ public partial class PowerPickupQa : Node
             "power overlay preserves original shard count, shapes, size, colors and scatter");
         Check(Drops().Length == 1 && ShardLayer.PowerCount == 1
             && Shards().Cast<object>().Sum(s => Read<int>(s, "Points")) == 8
-            && Shards().Cast<object>().Sum(s => Read<int>(s, "Imp")) == 12,
+            && _game.Impression == beforeBurstMoney,
             "exactly one original shard carries power without changing total rewards");
         Check(powered.All(particle => particle.Type is FxLayer.T.HeartP or FxLayer.T.Petal), "no extra pickup particles");
         Shards().Clear();
@@ -368,15 +400,12 @@ public partial class PowerPickupQa : Node
         GetTree().Paused = false;
         ShardLayer.SetPhysicsProcess(false);
         p.Position = Read<Vector2>(drop, "Position") - new Vector2(40f, 0);
-        _game.FlushShardImpression();
         long score = _game.Score, money = _game.Impression;
         Tick(45);
-        _game.FlushShardImpression();
-        Check(p.LinePower == 1 && Drops().Length == 0 && _game.Score == score + 5 && _game.Impression > money,
-            "same shard magnet collects power, original points and currency together");
+        Check(p.LinePower == 1 && Drops().Length == 0 && _game.Score == score + 5 && _game.Impression == money,
+            "same shard magnet collects power and points without paying currency");
         money = _game.Impression;
         Tick(60);
-        _game.FlushShardImpression();
         Check(p.LinePower == 1 && _game.Score == score + 5 && _game.Impression == money, "power and rewards apply exactly once");
         Spawn(PowerKind.Line, p.Position);
         ShardLayer._PhysicsProcess(0.4);
@@ -387,7 +416,7 @@ public partial class PowerPickupQa : Node
             "already-maxed power cannot exceed level two or prevent ordinary shard rewards");
         Spawn(PowerKind.Speed, new Vector2(200, 185));
         p.Position = new Vector2(170, 40);
-        Tick(330);
+        Tick(450);
         Check(Drops().Length == 0 && p.SpeedPower == 0, "uncollected overlay expires with its shard");
         Spawn(PowerKind.Speed, new Vector2(310, 180));
         ShardLayer.BeginRush(2);

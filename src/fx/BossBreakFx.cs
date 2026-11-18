@@ -5,6 +5,7 @@ public partial class BossBreakFx : Node2D
     public const float Duration = 0.72f;
     private const string Label = "BREAK";
     private const int FontSize = 27;
+    private const float HalfWidth = 78f, HalfHeight = 25f;
     private float _age;
     private readonly float[] _advances = new float[Label.Length];
     private float _textWidth;
@@ -14,10 +15,9 @@ public partial class BossBreakFx : Node2D
 
     public override void _Ready()
     {
-        // Keep hostile bullets (ZIndex 0) in front of the announcement. The boss body sprite shares -1,
-        // so FxLayer.BossBreakCue adds this node to the tail of World to draw it after (= over) the body.
+        // The body and shield share this relative layer. The cue is their later sibling.
         ZIndex = -1;
-        ZAsRelative = false;
+        FitToBoss();
         Material = new CanvasItemMaterial { LightMode = CanvasItemMaterial.LightModeEnum.Unshaded };
         for (int i = 0; i < Label.Length; i++)
         {
@@ -26,12 +26,18 @@ public partial class BossBreakFx : Node2D
         }
     }
 
-    // 2026-09-22 ユーザー指示：頭上ではなくボス本体に重ねる。文字と斬線はボスの中心に置き、
-    //   横は斬線の到達幅(70px)が盤面外へ出ない範囲、縦は文字の半高(25px)が盤面内に残る範囲へクランプするだけ。
-    public void PlaceOn(Vector2 bossPosition, float bodyHeight)
+    private void FitToBoss()
     {
-        GlobalPosition = new Vector2(Mathf.Clamp(bossPosition.X, Field.Left + 78f, Field.Right - 78f),
-            Mathf.Clamp(bossPosition.Y, Field.Top + 25f, Field.Bottom - 25f));
+        var boss = GetParent<Enemy>();
+        var center = boss.GlobalPosition;
+        bool framed = boss.BodyShotJob.HasValue && !boss.BossInArena;
+        float right = framed ? Field.WorldRight : Field.Right;
+        float frameScale = (Field.BossFrameWidth - 4f) / (2f * HalfWidth);
+        float sideRoom = Mathf.Min(center.X - Field.Left, right - center.X);
+        float scale = framed ? frameScale : Mathf.Clamp(sideRoom / HalfWidth, frameScale, 1f);
+        Scale = Vector2.One * scale;
+        GlobalPosition = new Vector2(Mathf.Clamp(center.X, Field.Left + HalfWidth * scale, right - HalfWidth * scale),
+            Mathf.Clamp(center.Y, Field.Top + HalfHeight * scale, Field.Bottom - HalfHeight * scale));
     }
 
     public override void _Process(double delta)
@@ -49,6 +55,7 @@ public partial class BossBreakFx : Node2D
             QueueFree();
             return;
         }
+        FitToBoss();
         QueueRedraw();
     }
 

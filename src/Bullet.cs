@@ -27,14 +27,13 @@ public partial class Bullet : Area2D
     public float BoundsMargin = DefaultBoundsMargin;
 
     public Vector2 Velocity;
+    internal bool BossPathDriven;
     public bool IsEnemy;
     public int Damage;
     internal int ShotPowerPercent = 100;
     public bool Active;
     public ulong ActivationId { get; private set; }
     public bool Grazed;  // グレイズ済みか（重複加点防止）
-    // QA検証ログ（集中モードで遅くなったこと）を弾1発につき一度だけ出すためのワンショット。Activate で戻る。
-    private bool _slowLogged;
     // 残貫通数（自機の連射弾のみ・貫く光 shot_pierce）。>0 の弾はヒットで消えず、消費側が1減らして素通しする。
     public int Pierce;
     // 残跳弾数（自機の拡散弾のみ・連鎖の光 chain_light）。>0 の弾が消費された瞬間、最寄りの別の敵へ跳弾する。
@@ -45,19 +44,24 @@ public partial class Bullet : Area2D
     //   ★命中側（Enemy.OnBodyHit の ChargeImpact 付近・Panel・BossPost）がこれを読んで、
     //     【激情】の変化量を段で変える（倍率は下の FuryMul）。値を動かす処理そのものは次段で書く。
     public int ChargeStage { get; private set; }
+    public bool ChargeFanCenter { get; private set; }
+    internal ulong ChargeVolleyId { get; set; }
+    internal Vector2 ChargeOrigin { get; set; }
     // この弾が【激情】へ与える変化量の倍率（1段=1.0／2段=ChargeTier.FuryMul）。命中側が掛けるだけの受け皿。
     public float FuryMul => ChargeTier.FuryMulFor(ChargeStage);
     private readonly HashSet<ulong> _chargeHits = new();
     private bool _chargeImpactPlayed;
 
-    public void MakeCharged(Job job, int stage = ChargeTier.First)
+    public void MakeCharged(Job job, int stage = ChargeTier.First, bool fanCenter = true)
     {
         Charged = true;
         ChargeJob = job;
         ChargeStage = Mathf.Max(ChargeTier.First, stage);
+        ChargeFanCenter = fanCenter;
         Pierce = Jobs.Get(job).ChargePierce;
         Material = null; // 溜め弾は通常ブレンドのまま（ChargeShotFx の見た目を変えない）
         if (IsEnemy && _playerVisual != null) RefreshFootprint();
+        if (!IsEnemy) UsePlayerAnimation(job);
         QueueRedraw();
     }
 
@@ -97,14 +101,29 @@ public partial class Bullet : Area2D
     private Texture2D? _sprite;
     private float _spriteRotSpeed;  // rad/s（符号で回転方向）
     private float _spriteSway;      // 初期角のばらつき（rad）。同時発射で絵が揃って見える硬さを消す
+    private ProjectileTurntable? _modelAnimation;
+    private Sprite2D? _modelSprite;
+    private float _modelAnimationSize, _modelAnimationRate;
+    private bool _roadModel;
+    internal int ModelAnimationFrame => _modelSprite?.Frame ?? -1;
+    internal string? ModelAnimationName => _modelAnimation?.Name;
     // 素材内の余白を含めた表示倍率。敵弾の判定も同じ倍率で輪郭に追従する。
     internal const float SpriteFit = 1f;
+    private static readonly CanvasItemMaterial IllustratedEnemyMaterial = new() {
+        LightMode = CanvasItemMaterial.LightModeEnum.Unshaded,
+    };
 
     // テクスチャ弾にする（Spawn 後に呼ぶ）。rotSpeed は deg/s（0＝回さない）。
     // ダメージ・速度は維持し、画像の輪郭へ判定を更新する。
     public void SetSprite(Texture2D? tex, float rotSpeedDeg = 55f)
     {
+        ClearModelAnimation();
         _sprite = tex;
+        if (IsEnemy)
+        {
+            Material = IllustratedEnemyMaterial;
+            _neon = TintSet ? Tint : NeonDefault;
+        }
         TextureFilter = TextureFilterEnum.LinearWithMipmaps;
         _spriteRotSpeed = Mathf.DegToRad(rotSpeedDeg);
         // 弾ごとに初期角をばらす（同時発射でも「同じ絵が同じ向きで並ぶ」硬さが消える）。
@@ -112,6 +131,85 @@ public partial class Bullet : Area2D
         Rotation = _spriteSway; // 1フレーム目から傾いた状態で出す（無回転で出て次フレームに飛ぶのを防ぐ）
         RefreshFootprint();
         QueueRedraw();
+    }
+
+    private void ClearModelAnimation()
+    {
+        _modelAnimation = null;
+        _roadModel = false;
+        if (_modelSprite != null) _modelSprite.Visible = false;
+    }
+
+    internal void UseRoadAnimation(RoadProjectileArt art)
+        => UseModelAnimation(art, true);
+
+    internal void SetEnemySprite(Texture2D texture, float spin, RoadProjectileArt? road = null)
+    {
+        SetSprite(texture, spin);
+        UseModelAnimation(road ?? BossProjectileArt.For(texture) ?? RoadProjectileArt.Get(texture), road != null);
+    }
+
+    private void UseModelAnimation(ProjectileTurntable art, bool road)
+    {
+        float maximumRadius = CollisionRadius;
+        _modelAnimation = art;
+        _roadModel = road;
+        _modelAnimationSize = maximumRadius / art.MaximumRadius;
+        _modelAnimationRate = (_spriteRotSpeed < 0 ? -1 : 1) * (.42f + Mathf.Abs(_spriteRotSpeed) * .13f);
+        _spriteRotSpeed = 0;
+        if (road) Rotation = 0;
+        else _spriteSway = (GetInstanceId() % 101) / 101f * Mathf.Tau;
+        if (_modelSprite == null)
+        {
+            _modelSprite = new Sprite2D { Hframes = ProjectileTurntable.Columns,
+                Vframes = ProjectileTurntable.FrameCount / ProjectileTurntable.Columns };
+            AddChild(_modelSprite);
+        }
+        _modelSprite.Texture = art.Texture;
+        _modelSprite.Material = art.DrawMaterial;
+        _modelSprite.ZIndex = Word.Length > 0 ? 13 : 0;
+        _modelSprite.Scale = Vector2.One * _modelAnimationSize / ProjectileTurntable.CellSize;
+        _modelSprite.Modulate = Colors.White;
+        UpdateModelAnimation(true);
+        QueueRedraw();
+    }
+
+    private void UsePlayerAnimation(Job job)
+    {
+        bool second = Charged && ChargeStage >= ChargeTier.Second;
+        var art = PlayerProjectileArt.Get(job, second);
+        _modelAnimation = art;
+        _roadModel = false;
+        float size = Radius * (second ? 1.326f : Charged ? 4.4f : 3.8f);
+        _modelAnimationSize = size * ProjectileTurntable.CellSize / Mathf.Max(art.Front.Region.Size.X, art.Front.Region.Size.Y);
+        _modelAnimationRate = .8f;
+        _spriteSway = (ActivationId % 17) / 17f * Mathf.Tau;
+        if (_modelSprite == null)
+        {
+            _modelSprite = new Sprite2D { Hframes = ProjectileTurntable.Columns,
+                Vframes = ProjectileTurntable.FrameCount / ProjectileTurntable.Columns };
+            AddChild(_modelSprite);
+        }
+        _modelSprite.Texture = art.Texture;
+        _modelSprite.Material = art.DrawMaterial;
+        _modelSprite.ZIndex = 0;
+        _modelSprite.Scale = Vector2.One * _modelAnimationSize / ProjectileTurntable.CellSize;
+        _modelSprite.Modulate = Colors.White;
+        UpdateModelAnimation(true);
+    }
+
+    private void UpdateModelAnimation(bool force = false)
+    {
+        if (_modelAnimation == null) return;
+        _modelSprite!.Visible = !RoadPending;
+        int frame = (int)(Mathf.PosMod(_spriteSway / Mathf.Tau + (_age + _leadElapsed) * _modelAnimationRate, 1f)
+            * ProjectileTurntable.FrameCount);
+        if (!force && _modelSprite.Frame == frame) return;
+        _modelSprite.Frame = frame;
+        // Player hit circles stay fixed while the Blender artwork banks.
+        if (!IsEnemy) return;
+        _footprint = _modelAnimation.Footprint(frame, _modelAnimationSize);
+        if (force || _enemyCollisionParts != 0) QueueCollisionUpdate();
     }
     // M2バランス：×0.75 は自機狙い弾をほぼ無力化していた（かすった時点で回避が確定する）ため ×0.85 に緩和。
     // “読める”手応えは残しつつ、グレイズ＝安全化ではなくす。
@@ -133,37 +231,56 @@ public partial class Bullet : Area2D
     private bool _bossDeploying;
     private bool _bossShotHeld;
     private bool _bossEdgeLaunch;
-    private MidEnemy? _roadOwner;
+    private Node? _roadOwner;
+    private BulletArt.PlayerVisual? _roadVisual;
     private float _roadWarning;
+    private bool _roadFollowsOwner;
     internal bool RoadPending => _roadOwner != null;
     private const float RoadWarningDuration = 0.45f;
 
-    internal void PrepareRoadShot(MidEnemy owner)
+    internal void PrepareRoadShot(MidEnemy owner, bool followOwner = true)
     {
+        PrepareRoadShot(owner, owner.RoadVisual!);
+        _roadFollowsOwner = followOwner;
+        if (followOwner) GlobalPosition = owner.ShotCenter;
+    }
+
+    internal void PrepareRoadShot(Node owner, BulletArt.PlayerVisual art)
+    {
+        if (_modelSprite != null) _modelSprite.Visible = false;
         _roadOwner = owner;
+        _roadVisual = art;
         _roadWarning = RoadWarningDuration;
+        _roadFollowsOwner = false;
+        ZIndex = -1;
         CollisionLayer = CollisionMask = 0;
         QueueRedraw();
     }
 
     private bool TickRoadWarning(float delta)
     {
-        if (!IsInstanceValid(_roadOwner) || _roadOwner!.IsPurified)
-        {
-            GetNode<BulletPool>("/root/Pool").Despawn(this);
-            return true;
-        }
         QueueRedraw();
+        if (_roadFollowsOwner)
+        {
+            GlobalPosition = ((MidEnemy)_roadOwner!).ShotCenter;
+            if (LeadIn)
+            {
+                _leadFrom = GlobalPosition;
+                _leadDur = _leadFrom.DistanceTo(_leadTo) / LeadSpeed;
+            }
+        }
         if (_roadWarning > 0)
         {
             _roadWarning = Mathf.Max(0, _roadWarning - delta);
             return true;
         }
+        _roadFollowsOwner = false;
         // A warned bullet can depart under the player, but becomes harmful only after separating.
         if (GetTree().GetFirstNodeInGroup("player") is Player player
             && GlobalPosition.DistanceTo(player.GlobalPosition) <= CollisionRadius + Player.HitRadius + 4f)
             return false;
         _roadOwner = null;
+        ZIndex = 0;
         CollisionLayer = LayerEnemyBullet;
         CollisionMask = MaskEnemyBullet;
         return false;
@@ -172,22 +289,14 @@ public partial class Bullet : Area2D
     private void DrawRoadWarning()
     {
         if (!GameManager.ShowAttackTelegraphs) return;
-        var ink = new Color("17121b");
-        var light = new Color("ffd394");
+        var art = _roadVisual!;
         float progress = 1 - _roadWarning / RoadWarningDuration;
-        float r = CollisionRadius + 3 + (1 - progress) * 4;
+        float elapsed = _leadElapsed + RoadWarningDuration - _roadWarning;
+        float fade = .55f + .45f * Mathf.SmoothStep(0, 1, Mathf.Clamp(elapsed / .10f, 0, 1));
         DrawSetTransform(Vector2.Zero, -Rotation);
-        for (int side = 0; side < 4; side++)
-        {
-            float angle = side * Mathf.Pi / 2;
-            var a = Vector2.FromAngle(angle - 0.25f) * r;
-            var b = Vector2.FromAngle(angle + 0.25f) * r;
-            DrawLine(a, b, ink, 2.2f, true);
-            DrawLine(a, b, light, 0.8f, true);
-        }
-        Vector2 direction = Velocity.Normalized();
-        DrawLine(direction * (r + 2), direction * (r + 7 + progress * 4), ink, 2.2f, true);
-        DrawLine(direction * (r + 2), direction * (r + 7 + progress * 4), light, 0.8f, true);
+        Vector2 direction = LeadIn ? _leadFrom.DirectionTo(_leadTo) : Velocity.Normalized();
+        AttackTelegraph.RoadCharge(this, Vector2.Zero, Vector2.Zero, direction, art,
+            progress, fade, CollisionRadius * 2 + 3, Rotation);
         DrawSetTransform(Vector2.Zero);
     }
     internal BossShotStyle BossStyle { get; private set; }
@@ -275,7 +384,9 @@ public partial class Bullet : Area2D
         float warningDistance = Velocity.Length() * 0.3f;
         float progress = Mathf.Clamp(1f - (ReiSplitDistance - _reiSplitTravel) / warningDistance, 0f, 1f);
         if (progress <= 0) return;
-        var color = new Color(1f, 0.92f, 0.74f, progress * 0.85f);
+        var fragment = BulletArt.EnemyVisual(_reiSplitsRemaining > 1 ? "rei_subscriber" : "rei_comment",
+            _reiSplitsRemaining > 1 ? "ffb085" : "efa2db");
+        var color = new Color(fragment.Accent, progress * .85f);
         const int count = 3;
         float spread = BossPattern >= 0 ? 0 : Mathf.DegToRad(_reiSplitsRemaining == 2 ? 24f : 8f);
         for (int i = 0; i < count; i++)
@@ -283,6 +394,7 @@ public partial class Bullet : Area2D
             var direction = Vector2.FromAngle(Mathf.Lerp(-spread, spread, (float)i / (count - 1)));
             Vector2 offset = BossPattern >= 0 ? Vector2.Down * ((i - 1) * (_reiSplitsRemaining == 2 ? 12 : 6)) : Vector2.Zero;
             DrawLine(direction * (Radius + 2), direction * (Radius + 5 + progress * 7) + offset, color, 0.8f, true);
+            AttackTelegraph.ProjectileOrigin(this, direction * (Radius + 9) + offset, fragment, color, 5);
         }
         DrawArc(Vector2.Zero, Radius + 2 + progress * 2, -Mathf.Pi * 0.7f, Mathf.Pi * 0.7f, 20, color, 0.7f, true);
     }
@@ -369,6 +481,7 @@ public partial class Bullet : Area2D
     public int TurnRateOverride;
     private bool _enemyHomingFinished;
     private Node2D? _homeTarget;
+    internal Node2D? HomingTargetOverride { get; set; }
     private Panel? _homeUnfolder;
     private Node2D? _launchTarget;
     private Panel? _launchPanel;
@@ -384,7 +497,7 @@ public partial class Bullet : Area2D
 
     public void UseCharacterProjectile(Job character, BossShotStyle style = BossShotStyle.Aimed)
     {
-        _playerVisual = BulletArt.PlayerShot(character);
+        _playerVisual = BulletArt.CharacterShot(character);
         _sprite = null;
         _spriteRotSpeed = 0;
         TextureFilter = TextureFilterEnum.LinearWithMipmaps;
@@ -397,80 +510,24 @@ public partial class Bullet : Area2D
     {
         BossPattern = pattern;
         UseBossIllustration(BulletArt.BossPattern(character, pattern));
-        if (character == Job.Magic && pattern == 1)
-        {
-            _reiIllustration = true;
-            SetPhysicsProcess(false);
-            GetNode<BulletPool>("/root/Pool").TrackReiBullet(this);
-            _reiCollisionTarget = GetTree().GetFirstNodeInGroup("player") as Node2D;
-            if (_reiIllustrationMaterial == null)
-            {
-                _reiIllustrationMaterial = new ShaderMaterial { Shader = new Shader { Code = @"
-shader_type canvas_item;
-render_mode unshaded;
-uniform vec4 rim : source_color;
-varying vec2 world_position;
-varying vec4 tint;
-void vertex() {
-    world_position = (MODEL_MATRIX * vec4(VERTEX, 0.0, 1.0)).xy;
-    tint = COLOR;
-}
-void fragment() {
-    vec4 art = texture(TEXTURE, UV);
-    float unit = max(length(dFdx(world_position)), 0.0001);
-    vec2 step_uv = vec2(length(vec2(dFdx(UV.x), dFdy(UV.x))), length(vec2(dFdx(UV.y), dFdy(UV.y)))) / unit;
-    float outer = 0.0;
-    float inner = 0.0;
-    for (int i = 0; i < 8; i++) {
-        float angle = float(i) * 0.7853981634;
-        vec2 offset = vec2(cos(angle), sin(angle)) * step_uv;
-        outer = max(outer, texture(TEXTURE, UV + offset * 0.8).a);
-        inner = max(inner, texture(TEXTURE, UV + offset * 0.375).a);
-    }
-    if (art.a >= 0.6) COLOR = art * tint;
-    else if (inner >= 0.6) COLOR = rim * tint;
-    else if (outer >= 0.6) COLOR = vec4(0.1294, 0.0745, 0.1608, 1.0) * tint;
-    else discard;
-}" } };
-                _reiIllustrationMaterial.SetShaderParameter("rim", _illustrationRim!.Value);
-            }
-            Material = _reiIllustrationMaterial;
-        }
     }
 
-    internal void UseBossIllustration(BulletArt.PlayerVisual art, Color? rim = null)
+    internal void UseBossIllustration(BulletArt.PlayerVisual art, float? fitRadius = null)
     {
-        if (_reiIllustration)
-        {
-            GetNode<BulletPool>("/root/Pool").UntrackReiBullet(this);
-            SetPhysicsProcess(Active);
-        }
-        _reiIllustration = false;
+        ClearModelAnimation();
         _playerVisual = art;
-        _illustrationRim = rim ?? art.Accent;
-        Material = _illustrationMaterial ??= new ShaderMaterial
-        {
-            Shader = new Shader { Code = @"
-shader_type canvas_item;
-render_mode unshaded;
-void fragment() {
-    if (texture(TEXTURE, UV).a < 0.6) discard;
-}" },
-        };
+        _illustrationFit = fitRadius is float target
+            ? target / BulletFootprint.Texture(art.Cropped, art.Pivot - art.Region.Position, BossArtSize(Radius, Charged)).Radius : 1;
         RefreshFootprint();
-        if (!IllustrationEdges.TryGetValue(_footprint!, out _illustrationEdges))
-            IllustrationEdges[_footprint!] = _illustrationEdges = _footprint!.Contours
-                .Select(contour => contour.Append(contour[0]).ToArray()).ToArray();
-        QueueRedraw();
+        var model = BossProjectileArt.For(art)
+            ?? throw new System.InvalidOperationException($"Missing Blender projectile for {BulletArt.EnemyKey(art.Texture)}");
+        Material = IllustratedEnemyMaterial;
+        UseModelAnimation(model, false);
     }
 
-    private static ShaderMaterial? _illustrationMaterial;
-    private static ShaderMaterial? _reiIllustrationMaterial;
-    private bool _reiIllustration;
-    private Node2D? _reiCollisionTarget;
-    private static readonly Dictionary<BulletFootprint, Vector2[][]> IllustrationEdges = new();
-    private Vector2[][]? _illustrationEdges;
-    private Color? _illustrationRim;
+    private Node2D? _enemyCollisionTarget;
+    private float _illustrationFit = 1;
+    internal BulletArt.PlayerVisual? EnemyIllustration => IsEnemy ? _playerVisual : null;
     internal static Color BossColor(Job player, BossShotStyle style) => style switch
     {
         BossShotStyle.Ring => new Color("ff5275"),
@@ -536,26 +593,20 @@ void fragment() {
     public void SetWord(string w, string handle = "", Color? accent = null, bool murk = false, bool aching = false,
         Texture2D? coreArt = null)
     {
+        ClearModelAnimation();
         Word = w;
         _wordHandle = handle;
         _wordAccent = accent ?? KegareWord;
         _wordMurk = murk;
         WordAching = aching;
-        // 晒し投稿らしい“いいね数”を語ごとに固定で付与（X感／毎フレーム再計算しない）。
-        int h = 0; foreach (char c in w) h = h * 31 + c;
+        _wordLikes = PostPool.ShortPostCounts(w).Likes.ToString();
         if (aching)
         {
-            // 層2 は数字そのものが手がかり＝いいね 0〜3（10 の視認性の表）。数万の層1 と桁で見分けがつく。
-            _wordLikes = (Mathf.Abs(h) % 4).ToString();
             // ハートの代わりに深夜の時刻（2:00〜4:59）。内容は日常のまま、時刻だけが深い（09 の病みサイン「刻」）。
+            int h = 0; foreach (char c in w) h = h * 31 + c;
             _wordTime = $"{2 + (Mathf.Abs(h / 4) % 3)}:{(Mathf.Abs(h / 16) % 60):00}";
         }
-        else
-        {
-            int likes = 800 + (Mathf.Abs(h) % 47000);
-            _wordLikes = likes >= 10000 ? $"{likes / 10000f:0.0}万" : likes.ToString("#,0");
-            _wordTime = "";
-        }
+        else _wordTime = "";
 
         // チップ本体を弾層より奥へ（絶対 z）。Activate が通常弾用に毎回リセットする。
         ZIndex = -12;
@@ -568,15 +619,15 @@ void fragment() {
             AddChild(_wordCore);
         }
         _wordCore.CoreR = Radius;
-        _wordCore.Material = EnemyMaterial;
+        _wordCore.Material = IllustratedEnemyMaterial;
         Material = null;
         _wordCore.PunchCol = ChipBg();
-        _wordCore.Neon = NeonOf(_wordAccent, GameManager.Instance!.SelectedJob); // 芯の縁も通常弾と同じ蛍光の規則
-        _wordCore.Art = coreArt ?? BulletArt.Get("enemy_rei_anonymous");
+        _wordCore.Art = coreArt ?? BulletArt.Get("enemy_rei_anonymous")!;
         _sprite = null;
         _playerVisual = null;
         Rotation = 0;
         RefreshFootprint();
+        UseModelAnimation(BossProjectileArt.For(_wordCore.Art) ?? RoadProjectileArt.Get(_wordCore.Art), false);
         _wordCore.Visible = true;
         _wordCore.QueueRedraw();
         QueueRedraw();
@@ -609,6 +660,7 @@ void fragment() {
 
     public float Radius { get; private set; } = 3f;
     public float CollisionRadius => _footprint?.Radius ?? Radius;
+    internal float IllustrationRadius => _modelAnimation is { } model ? model.MaximumRadius * _modelAnimationSize : CollisionRadius;
     internal BulletFootprint? Footprint => _footprint;
 
     // RefrainScripts_tama / Refrain HUD A.dc.html の弾デザイン。
@@ -777,24 +829,25 @@ void fragment() {
     private BulletFootprint? _footprint;
     private BulletFootprint? _appliedFootprint;
     private bool _collisionQueued;
-    private ulong _reiCollisionParts;
+    private ulong _enemyCollisionParts;
 
     internal static float BossArtSize(float radius, bool charged) => (charged ? 10f : 8f)
         * radius / (charged ? BulletPool.BossChargeRadius : BulletPool.BossRadius);
 
     internal static BulletFootprint BossFootprint(Job job, float radius, bool charged)
     {
-        var art = BulletArt.PlayerShot(job);
+        var art = BulletArt.CharacterShot(job);
         return BulletFootprint.Texture(art.Cropped, art.Pivot - art.Region.Position, BossArtSize(radius, charged));
     }
 
     private void RefreshFootprint()
     {
         if (!IsEnemy) _footprint = null;
+        else if (_modelAnimation != null) _footprint = _modelAnimation.Footprint(_modelSprite!.Frame, _modelAnimationSize);
         else if (Word.Length > 0 && _wordCore?.Art is Texture2D icon)
             _footprint = BulletFootprint.Texture(icon, icon.GetSize() / 2, Radius * 2 * SpriteFit);
         else if (_playerVisual is { } art)
-            _footprint = BulletFootprint.Texture(art.Cropped, art.Pivot - art.Region.Position, BossArtSize(Radius, Charged));
+            _footprint = BulletFootprint.Texture(art.Cropped, art.Pivot - art.Region.Position, BossArtSize(Radius, Charged) * _illustrationFit);
         else if (_sprite is { } sprite)
             _footprint = BulletFootprint.Texture(sprite, sprite.GetSize() / 2, Radius * 2 * SpriteFit);
         else _footprint = BulletFootprint.Primitive(Shape, Radius);
@@ -811,9 +864,9 @@ void fragment() {
     private void ApplyCollision()
     {
         _collisionQueued = false;
-        ulong parts = _reiIllustration && Active ? ReiCollisionParts() : ulong.MaxValue;
-        bool partsChanged = parts != _reiCollisionParts;
-        _reiCollisionParts = parts;
+        ulong parts = IsEnemy && Active ? EnemyCollisionParts() : ulong.MaxValue;
+        bool partsChanged = parts != _enemyCollisionParts;
+        _enemyCollisionParts = parts;
         bool collisionCulled = Active && parts == 0;
         ShapeOwnerSetDisabled(_shapeOwner, !Active || collisionCulled);
         if (!Active) return;
@@ -829,32 +882,38 @@ void fragment() {
             ShapeOwnerClearShapes(_shapeOwner);
             if (_footprint == null) ShapeOwnerAddShape(_shapeOwner, _circle);
             else for (int index = 0; index < _footprint.Shapes.Length; index++)
-                if (!_reiIllustration || (parts & (1UL << index)) != 0) ShapeOwnerAddShape(_shapeOwner, _footprint.Shapes[index]);
+                if ((parts & (1UL << index)) != 0) ShapeOwnerAddShape(_shapeOwner, _footprint.Shapes[index]);
             _appliedFootprint = _footprint;
         }
     }
 
-    internal void StepRei(double delta)
+    internal void StepEnemy(double delta, float timeScale)
     {
-        if (_reiIllustration && Active) _PhysicsProcess(delta);
+        if (IsEnemy && Active) ProcessPhysics(delta, timeScale);
     }
 
-    internal void SyncReiCollision()
+    internal void SyncEnemyCollision(Vector2? target)
     {
-        if (_reiIllustration && ReiCollisionParts() != _reiCollisionParts) QueueCollisionUpdate();
+        if (!IsEnemy || !Active) return;
+        ulong parts = target.HasValue ? EnemyCollisionParts(target.Value) : 0;
+        if (parts != _enemyCollisionParts) QueueCollisionUpdate();
+        if (parts != 0) PhysicsServer2D.AreaSetTransform(GetRid(), GlobalTransform);
     }
 
-    private ulong ReiCollisionParts()
+    private ulong EnemyCollisionParts()
     {
-        if (!IsInstanceValid(_reiCollisionTarget)) return 0;
+        return IsInstanceValid(_enemyCollisionTarget) ? EnemyCollisionParts(_enemyCollisionTarget!.GlobalPosition) : 0;
+    }
+
+    private ulong EnemyCollisionParts(Vector2 target)
+    {
         var transform = GlobalTransform;
-        var target = new Transform2D(0, _reiCollisionTarget!.GlobalPosition);
         float range = Player.GrazeRadius + 2 + CollisionRadius * Mathf.Max(transform.X.Length(), transform.Y.Length());
-        if (transform.Origin.DistanceSquaredTo(target.Origin) > range * range) return 0;
+        if (transform.Origin.DistanceSquaredTo(target) > range * range) return 0;
         ulong parts = 0;
         // Keep the original convex pieces; only pieces beyond the player's graze area can sleep.
         for (int index = 0; index < _footprint!.Shapes.Length; index++)
-            if ((transform * _footprint.ShapeBounds[index]).Grow(Player.GrazeRadius + 2).HasPoint(target.Origin))
+            if ((transform * _footprint.ShapeBounds[index]).Grow(Player.GrazeRadius + 2).HasPoint(target))
                 parts |= 1UL << index;
         return parts;
     }
@@ -876,14 +935,13 @@ void fragment() {
         BulletShape shape = BulletShape.Orb, Color? tint = null, bool homing = false, bool backwardHoming = false)
     {
         ActivationId++;
+        SetNotifyTransform(!isEnemy);
         Scale = Vector2.One;
         Velocity = vel;
         IsEnemy = isEnemy;
         _playerVisual = isEnemy ? null : BulletArt.PlayerShot(GameManager.Instance!.SelectedJob);
-        _illustrationEdges = null;
-        _illustrationRim = null;
-        _reiIllustration = false;
-        _reiCollisionTarget = null;
+
+        _enemyCollisionTarget = isEnemy ? GetTree().GetFirstNodeInGroup("player") as Node2D : null;
         TextureFilter = isEnemy ? TextureFilterEnum.ParentNode : TextureFilterEnum.LinearWithMipmaps;
         // 自機の通常弾だけ加算ブレンド＝縁取りの無い光条（敵弾は通常ブレンド＝暗い縁取りが立つ）。
         Material = isEnemy ? EnemyMaterial : PlayerGlow;
@@ -899,9 +957,11 @@ void fragment() {
         Charged = false;
         ChargeJob = default;
         ChargeStage = 0;
+        ChargeFanCenter = false;
+        ChargeVolleyId = 0;
+        ChargeOrigin = Vector2.Zero;
         _chargeHits.Clear();
         _chargeImpactPlayed = false;
-        _slowLogged = false; // QA検証ログのワンショットもプール再利用ごとに戻す
         Chain = 0;  // 跳弾数も同様（付与は FireSpread 側）
         Word = "";  // 再利用時に前の言葉を持ち越さない
         IsPatternBullet = false;       // ギミックフラグも再利用時に持ち越さない
@@ -910,6 +970,7 @@ void fragment() {
         Softened = false;
         // テクスチャ弾も再利用時に必ず落とす（持ち越すと別スペルの弾がグッズ／書類の絵で出る事故になる）。
         _sprite = null; _spriteRotSpeed = 0f; _spriteSway = 0f;
+        ClearModelAnimation();
         Shape = shape;
         TintSet = tint.HasValue;
         if (tint.HasValue) Tint = tint.Value;
@@ -920,6 +981,7 @@ void fragment() {
         TurnRateOverride = 0;            // 旋回上書きも再利用時にリセット（付与は Spawn 後に設定）
         _enemyHomingFinished = false;
         _homeTarget = null;
+        HomingTargetOverride = null;
         _homeUnfolder = null;
         _launchTarget = null;
         _launchPanel = null;
@@ -928,9 +990,11 @@ void fragment() {
         // 加速球フラグ群も再利用時に必ずリセット（プール再利用で持ち越すと別の弾が誤加速する）。
         Accel = false; _accelDone = false; _accelDelay = 0f; _fastSpeed = 0f; _accelDir = Vector2.Zero; _age = 0f;
         _reiSplitsRemaining = 0; _reiSplitTravel = 0;
+        _illustrationFit = 1;
         BossBarrageId = 0;
         _bossWarnedLaunch = false;
         _bossShotHeld = false;
+        BossPathDriven = false;
         BossBarrageWave = -1;
         _bossDeploying = false; _bossEdgeLaunch = false; BossStyle = default; BossPattern = -1; BossAimTarget = null; FormationHomingOffset = Vector2.Zero; FormationHomingAnchor = null; Modulate = Colors.White; _accelStartSpeed = 0; AccelRampSeconds = 0;
         // 減速弾のフラグ群も同様にリセット（持ち越すと別の弾が勝手に失速する）。
@@ -939,8 +1003,7 @@ void fragment() {
         _leadDur = 0f; _leadElapsed = 0f; _leadFrom = Vector2.Zero; _leadTo = Vector2.Zero;
 
         // 言葉弾（投稿チップ）の層と当たり芯の子も再利用時にリセット。
-        // SetWord が ZIndex -12（チップは弾より奥）へ沈めるので、通常弾は必ず 0 へ戻す。
-        ZIndex = 0;
+        ZIndex = !isEnemy && Field.BossFrameActive && pos.X >= Field.Right ? 8 : 0;
         ZAsRelative = true;
         _wordMurk = false;
         _wordHandle = "";
@@ -955,8 +1018,13 @@ void fragment() {
 
         // グループ登録（ボムの一括消去・グレイズ判定用）
         AddToGroup(isEnemy ? "enemy_bullets" : "player_bullets");
+        if (isEnemy) GetNode<BulletPool>("/root/Pool").TrackEnemyBullet(this);
 
+        // 重なった位置で再利用する弾も検出されるよう、形状より先に監視を有効化する。
+        SetDeferred(Area2D.PropertyName.Monitoring, true);
+        SetDeferred(Area2D.PropertyName.Monitorable, true);
         RefreshFootprint();
+        if (!isEnemy) UsePlayerAnimation(GameManager.Instance!.SelectedJob);
 
         // レイヤー/マスク設定（isEnemy に応じて）
         if (isEnemy)
@@ -970,12 +1038,8 @@ void fragment() {
             CollisionMask = MaskPlayerBullet;   // 4
         }
 
-        // 可視化・検出有効化。衝突状態の変更はシグナル中でも安全なよう遅延設定する
-        // （Deactivate と順序を揃え、再利用時の取り違えを防ぐ）。
         Visible = true;
-        SetPhysicsProcess(true);
-        SetDeferred(Area2D.PropertyName.Monitoring, true);
-        SetDeferred(Area2D.PropertyName.Monitorable, true);
+        SetPhysicsProcess(!isEnemy);
 
         QueueRedraw();
     }
@@ -983,8 +1047,8 @@ void fragment() {
     // 非表示・monitoring 無効化・プールへ戻る準備。
     public void Deactivate()
     {
-        if (_reiIllustration) GetNode<BulletPool>("/root/Pool").UntrackReiBullet(this);
-        _reiCollisionTarget = null;
+        if (IsEnemy) GetNode<BulletPool>("/root/Pool").UntrackEnemyBullet(this);
+        _enemyCollisionTarget = null;
         Active = false;
         _overheadCast = null;
         _roadOwner = null;
@@ -1113,13 +1177,23 @@ void fragment() {
         if (!SoftenOnGraze || Softened) return;
         Softened = true;
         Velocity *= GrazeSoftenMul;
+        if (_modelAnimation != null) _modelSprite!.Modulate = new Color(1, 1, 1, .75f);
         QueueRedraw();
     }
 
-    public override void _PhysicsProcess(double delta)
+    public override void _PhysicsProcess(double delta) => ProcessPhysics(delta, IsEnemy ? GameManager.EnemyTimeScale : 1f);
+
+    private void ProcessPhysics(double delta, float ets)
     {
         if (!Active)
             return;
+
+        if (RoadPending && (!IsInstanceValid(_roadOwner) || _roadOwner!.IsQueuedForDeletion()
+            || _roadOwner is Enemy { IsPurified: true }))
+        {
+            GetNode<BulletPool>("/root/Pool").Despawn(this);
+            return;
+        }
 
         if (OverheadPending) return;
 
@@ -1127,41 +1201,34 @@ void fragment() {
         if (Hud.BubblePaused)
             return;
 
-        // ★集中モード（#10）：敵弾だけ時間を遅くする（自機弾は等速＝こちらの攻めは鈍らない）。
-        //   以降この関数は delta を使わず edelta で進む＝寿命・加速・旋回・移動が一括で同じ倍率になる。
-        float ets = IsEnemy ? GameManager.EnemyTimeScale : 1f;
-        // QA走行だけ、敵弾が遅くなっていることを弾1発につき一度ログへ（AreaStrike 側と同じ scale が出るはず）。
-        if (QaPilot.Verbose && ets < 0.99f && !_slowLogged)
-        {
-            _slowLogged = true;
-            GD.Print($"[focus] Bullet slowed: scale={ets:0.00} speed={Velocity.Length():0} -> {Velocity.Length() * ets:0} px/s");
-        }
         double edelta = delta * ets;
+
+        // Road shots wait on the moving body before their visible flight into formation.
+        if (RoadPending && TickRoadWarning((float)edelta)) return;
 
         // ─── 導入区間：敵の中心 →「本来の発射点」へ、弾自身が飛んで入る ───
         // 体から離れた空中に湧かせない（＝「予兆なくわいて攻撃している」の原因を断つ）。
-        // 道中弾とボスの展開弾は予告が終わるまで無害。到着までは攻撃の経過時間を進めない。
+        // 到着までは攻撃の経過時間を進めない。
         if (LeadIn)
         {
             // 経過を _leadDur で頭打ちにして進める＝最後のフレームで必ず x==1 に届き、
             // 端数が残って「発射点に着いているのに導入が終わらない」が起きない。
             _leadElapsed = Mathf.Min(_leadElapsed + (float)edelta, _leadDur);
             float x = _leadElapsed / _leadDur;
-            // ease-out（1-(1-x)^2）＝体から勢いよく出て、発射点では減速してパターンの速度へ受け渡す
-            //（遠い発射点でも「飛んできて止まった」に見え、瞬間移動にはならない）。
-            GlobalPosition = x >= 1f ? _leadTo : _leadFrom.Lerp(_leadTo, 1f - (1f - x) * (1f - x));
+            // Live road projectiles keep a bounded travel speed even for distant formations.
+            GlobalPosition = x >= 1f ? _leadTo : _leadFrom.Lerp(_leadTo, _roadModel ? x : 1f - (1f - x) * (1f - x));
             // 絵の自転だけは導入中も進める（_age は止めるので _leadElapsed で足す＝到達時に角度が飛ばない）。
             if (_sprite != null && _spriteRotSpeed != 0f)
                 Rotation = (_age + _leadElapsed) * _spriteRotSpeed + _spriteSway;
             if (!LeadIn && _bossDeploying) FinishBossDeployment();
+            UpdateModelAnimation();
             return;
         }
 
-        if (RoadPending && TickRoadWarning((float)edelta)) return;
-
         // 経過時間を進める（会話停止中は上で return 済み＝弾停止と整合）。
         _age += (float)edelta;
-        if (Charged && _illustrationEdges == null) QueueRedraw();
+        UpdateModelAnimation();
+        if (Charged && _modelAnimation == null) QueueRedraw();
 
         if (Accel && !_accelDone)
         {
@@ -1171,13 +1238,21 @@ void fragment() {
                 if (_launchTarget is Enemy enemy)
                     _launchPanel = enemy.SelectUnfolder(GlobalPosition, _launchPanel, this);
                 Vector2 target = _launchPanel?.GlobalPosition ?? _launchTarget.GlobalPosition;
-                if (edelta > 0)
-                    _launchTargetVelocity = _launchTargetVelocity.Lerp(
-                        ((target - _launchTargetPosition) / (float)edelta).LimitLength(180f), 0.35f);
-                _launchTargetPosition = target;
-                float flight = Mathf.Min(0.35f, GlobalPosition.DistanceTo(target) / _fastSpeed);
-                _accelDir = GlobalPosition.DirectionTo(target + _launchTargetVelocity * flight);
-                Velocity = _accelDir * Velocity.Length();
+                if (_launchTarget is Panel && Velocity.Dot(target - GlobalPosition) <= 0)
+                {
+                    _launchTarget = null;
+                    _launchPanel = null;
+                }
+                else
+                {
+                    if (edelta > 0)
+                        _launchTargetVelocity = _launchTargetVelocity.Lerp(
+                            ((target - _launchTargetPosition) / (float)edelta).LimitLength(180f), 0.35f);
+                    _launchTargetPosition = target;
+                    float flight = Mathf.Min(0.35f, GlobalPosition.DistanceTo(target) / _fastSpeed);
+                    _accelDir = GlobalPosition.DirectionTo(target + _launchTargetVelocity * flight);
+                    Velocity = _accelDir * Velocity.Length();
+                }
             }
             if (_age >= _accelDelay)
             {
@@ -1190,7 +1265,7 @@ void fragment() {
 
         // 減速弾：_decelDelay 秒かけて _fromSpeed → _slowSpeed へ落ちる（向きは不変）。
         //   毎フレーム Velocity を掛け算で減らすのではなく _age から絶対値で引き直す＝
-        //   集中モード（EnemyTimeScale）で edelta が縮んでも減速カーブの形が変わらない。
+        //   練習の速度変更で edelta が縮んでも減速カーブの形が変わらない。
         //   ease-out（1-(1-x)^2）＝最初に大きく失速し、最後はゆるく寄る＝「声が届かなくなる」画。
         if (Decel)
         {
@@ -1210,11 +1285,15 @@ void fragment() {
             SteerToTarget((float)edelta);
         }
         // 旋回は変換行列だけを更新し、画像の描画コマンドを毎フレーム作り直さない。
-        if (_playerVisual != null && Velocity.LengthSquared() > 0.01f) Rotation = Velocity.Angle();
+        if (_playerVisual != null && Velocity.LengthSquared() > 0.01f)
+        {
+            float angle = Velocity.Angle();
+            if (!BossPathDriven && Rotation != angle) Rotation = angle;
+        }
         else if (_sprite == null && Word.Length == 0 && Shape is BulletShape.Needle or BulletShape.Rice
             && Velocity.LengthSquared() > 0.01f) Rotation = Velocity.Angle();
 
-        if (Velocity != Vector2.Zero) GlobalPosition += Velocity * (float)edelta;
+        if (!BossPathDriven && Velocity != Vector2.Zero) GlobalPosition += Velocity * (float)edelta;
 
         // 自機のホーミング弾は 2.5 秒で寿命切れ（画面内を漂う“自機弾の雲”を作らない）。
         float homingLife = IsEnemy ? EnemyHomingLife : HomingLife;
@@ -1230,7 +1309,13 @@ void fragment() {
         // 盤面の外(余白16px)に出たら Despawn。パネル側へ抜けた弾もここで消える。
         var p = GlobalPosition;
         float m = _bossEdgeLaunch ? 24f : BoundsMargin;
-        if (p.X < Field.Left - m || p.X > Field.Right + m ||
+        if (!IsEnemy)
+        {
+            ZAsRelative = false;
+            ZIndex = Field.BossFrameActive && p.X >= Field.Right ? 8 : 0;
+        }
+        float right = IsEnemy ? Field.Right : Field.WorldRight;
+        if (p.X < Field.Left - m || p.X > right + m ||
             p.Y < Field.Top - m || p.Y > Field.Bottom + m)
         {
             var pool = GetNodeOrNull<BulletPool>("/root/Pool");
@@ -1257,29 +1342,41 @@ void fragment() {
         }
         var player = GetTree().GetFirstNodeInGroup("player") as Player;
         var locked = IsEnemy || BackwardHoming ? null : player?.LockTarget as Enemy;
-        var tgt = _homeTarget;
-        bool lost = tgt == null || !IsInstanceValid(tgt) || (tgt is Enemy en && en.IsPurified)
-            || (Charged && _chargeHits.Contains(tgt.GetInstanceId()));
-        _retargetT -= delta;
-        if (locked != null && !locked.IsPurified && !HasChargeHit(locked))
+        var tgt = HomingTargetOverride ?? _homeTarget;
+        if (HomingTargetOverride != null)
         {
-            tgt = _homeTarget = locked;
-            _retargetT = RetargetInterval;
+            if (!IsInstanceValid(tgt) || tgt!.IsQueuedForDeletion() || HasChargeHit(tgt)) return;
+            if (Velocity.Dot(tgt.GlobalPosition - GlobalPosition) <= 0)
+            {
+                Homing = false;
+                return;
+            }
         }
-        else if (lost)
+        else
         {
-            tgt = _homeTarget = AcquireTarget();
-            _retargetT = RetargetInterval;
-        }
-        else if (_retargetT <= 0f)
-        {
-            _retargetT = RetargetInterval;
-            var cand = AcquireTarget();
-            // 現標的より十分（距離比 0.6 以下＝二乗で 0.36 以下）近ければ乗り換える。
-            if (cand != null && !ReferenceEquals(cand, tgt) && tgt != null &&
-                cand.GlobalPosition.DistanceSquaredTo(GlobalPosition)
-                    <= tgt.GlobalPosition.DistanceSquaredTo(GlobalPosition) * (RetargetGain * RetargetGain))
-                tgt = _homeTarget = cand;
+            bool lost = tgt == null || !IsInstanceValid(tgt) || (tgt is Enemy en && en.IsPurified)
+                || (Charged && _chargeHits.Contains(tgt.GetInstanceId()));
+            _retargetT -= delta;
+            if (locked != null && !locked.IsPurified && !HasChargeHit(locked))
+            {
+                tgt = _homeTarget = locked;
+                _retargetT = RetargetInterval;
+            }
+            else if (lost)
+            {
+                tgt = _homeTarget = AcquireTarget();
+                _retargetT = RetargetInterval;
+            }
+            else if (_retargetT <= 0f)
+            {
+                _retargetT = RetargetInterval;
+                var cand = AcquireTarget();
+                // 現標的より十分（距離比 0.6 以下＝二乗で 0.36 以下）近ければ乗り換える。
+                if (cand != null && !ReferenceEquals(cand, tgt) && tgt != null &&
+                    cand.GlobalPosition.DistanceSquaredTo(GlobalPosition)
+                        <= tgt.GlobalPosition.DistanceSquaredTo(GlobalPosition) * (RetargetGain * RetargetGain))
+                    tgt = _homeTarget = cand;
+            }
         }
         if (tgt == null) return; // 標的が無ければ直進
 
@@ -1302,7 +1399,10 @@ void fragment() {
         }
         float turn = TurnRateOverride > 0 ? TurnRateOverride : HomingTurnRate; // 誘導速射・後方追尾で旋回を上げる
         if (IsEnemy) turn = Mathf.Min(turn, EnemyHomingTurnRate);
+        else turn = Mathf.Max(turn, 720f);
         float maxStep = Mathf.DegToRad(turn) * delta;
+        // 接近後は直接収束させ、小さなシールドの周囲を旋回し続けるのを防ぐ。
+        if (!IsEnemy && GlobalPosition.DistanceTo(aim) <= spd * 0.2f) maxStep = Mathf.Pi;
         float na = cur + Mathf.Clamp(Mathf.AngleDifference(cur, want), -maxStep, maxStep);
         Velocity = new Vector2(Mathf.Cos(na), Mathf.Sin(na)) * spd;
     }
@@ -1323,10 +1423,10 @@ void fragment() {
             if (n is Enemy e && !e.IsPurified)
             {
                 if (Charged && _chargeHits.Contains(e.GetInstanceId())) continue;
-                // 進行方向の側にいる敵だけを狙う（4px の緩衝は自機に重なった敵を取りこぼさないため）。
                 bool inRange = (e.GlobalPosition.X - GlobalPosition.X) * sx > -4f;
-                if (!inRange) continue;
                 float d = e.GlobalPosition.DistanceSquaredTo(GlobalPosition);
+                // 銃口が自機より20px先にあるため、至近距離では後ろへ抜けた敵も拾う。
+                if (!inRange && d > 32f * 32f) continue;
                 if (d < bestD) { bestD = d; best = e; }
             }
         }
@@ -1343,6 +1443,8 @@ void fragment() {
             DrawRoadWarning();
             return;
         }
+
+        if (IsEnemy && _modelAnimation != null && Word.Length == 0) return;
 
         float r = Radius;
 
@@ -1435,8 +1537,7 @@ void fragment() {
         if (_playerVisual != null)
         {
             DrawReiSplitCue();
-            if (IsEnemy) DrawBossProjectile(r);
-            else DrawPlayerProjectile(r);
+            DrawPlayerProjectile(r);
             return;
         }
 
@@ -1484,53 +1585,6 @@ void fragment() {
         }, col);
     }
 
-    private void DrawBossProjectile(float r)
-    {
-        var art = _playerVisual!;
-        if (_illustrationEdges != null)
-        {
-            float outlineScale = 1 / Mathf.Max(GlobalTransform.X.Length(), GlobalTransform.Y.Length());
-            if (LeadIn || CollisionLayer == 0)
-            {
-                foreach (var edge in _illustrationEdges)
-                    for (int i = 1; i < edge.Length; i++)
-                        DrawDashedLine(edge[i - 1], edge[i], new Color("829aa8"), .55f * outlineScale, 1.5f * outlineScale, true);
-                return;
-            }
-            float illustrationSize = BossArtSize(r, Charged);
-            float illustrationScale = illustrationSize / Mathf.Max(art.Region.Size.X, art.Region.Size.Y);
-            var illustrationRect = new Rect2((art.Region.Position - art.Pivot) * illustrationScale, art.Region.Size * illustrationScale);
-            if (_reiIllustration)
-            {
-                float padding = outlineScale / illustrationScale;
-                DrawTextureRectRegion(art.Texture, illustrationRect.Grow(outlineScale), art.Region.Grow(padding));
-                return;
-            }
-            foreach (var edge in _illustrationEdges) DrawPolyline(edge, new Color("211329"), 1.6f * outlineScale, true);
-            foreach (var edge in _illustrationEdges) DrawPolyline(edge, _illustrationRim!.Value, .75f * outlineScale, true);
-            DrawTextureRectRegion(art.Texture, illustrationRect, art.Region);
-            return;
-        }
-        if (AccelCharging)
-        {
-            float p = Mathf.Clamp(_age / _accelDelay, 0, 1);
-            float ring = r + 4 - p * 2;
-            DrawArc(Vector2.Zero, ring, -Mathf.Pi * 0.7f, Mathf.Pi * 0.7f, 24,
-                new Color(1, 0.88f, 0.65f, 0.35f + p * 0.4f), 0.8f, true);
-        }
-        else if (Accel)
-        {
-            float flash = 1f - Mathf.Clamp((_age - _accelDelay) / 0.22f, 0, 1);
-            if (flash > 0) DrawArc(Vector2.Zero, r + 2 + flash * 3, 0, Mathf.Tau, 24, new Color(1, 1, 1, flash), 0.8f, true);
-        }
-        float size = BossArtSize(r, Charged);
-        float scale = size / Mathf.Max(art.Region.Size.X, art.Region.Size.Y);
-        var rect = new Rect2((art.Region.Position - art.Pivot) * scale, art.Region.Size * scale);
-        var silhouette = SilhouetteOf(art.Cropped);
-        DrawTextureRect(silhouette.Rim, rect.Grow(silhouette.PadFrac * size), false, new Color(0.025f, 0.025f, 0.025f));
-        DrawTextureRectRegion(art.Texture, rect, art.Region);
-    }
-
     private void DrawPlayerProjectile(float r)
     {
         var art = _playerVisual!;
@@ -1560,9 +1614,7 @@ void fragment() {
             _tailCols[2] = new Color(accent, 0f);
             DrawPrimitive(_tailPts, _tailCols, _tailUvs);
         }
-        float scale = r * 3.8f / Mathf.Max(art.Region.Size.X, art.Region.Size.Y);
-        DrawTextureRectRegion(art.Texture,
-            new Rect2((art.Region.Position - art.Pivot) * scale, art.Region.Size * scale), art.Region);
+
     }
 
     // テクスチャ弾（こはる＝推し活グッズ／あかり＝仕事の書類）。
@@ -1683,16 +1735,11 @@ void fragment() {
     }
 }
 
-// BulletWordCore : 投稿チップ弾（言葉弾）の「当たり芯」だけを弾層（実効 z0）で描く子ノード。
-//   チップ本体（親 Bullet）は z-12 の背景の“声”へ沈むが、刺さる点だけは通常弾と同じ層に浮かせて
-//   「当たり判定のあるものは常にコメント文字より上」を保証する（#最重要 視認性）。
-//   芯の周囲はチップ下地色で文字を薄くし、イラストが本文に埋もれないようにする。
-//   描画コマンドの記録は SetWord 時の1回だけ（位置追従は親の Transform 継承＝毎フレーム再描画なし）。
+// The backplate sits above every post label and immediately behind the rotating damage core.
 public partial class BulletWordCore : Node2D
 {
     public float CoreR = 3f;     // 親 Bullet の当たり半径
     public Color PunchCol;
-    public Color Neon = Bullet.NeonDefault; // 蛍光縁の色（SetWord がチップの accent から NeonOf で決める）
     public Texture2D? Art;
 
     public override void _Draw()
@@ -1703,10 +1750,5 @@ public partial class BulletWordCore : Node2D
         size *= CoreR * 2f * 1.35f / longSide;
         var rect = new Rect2(-size / 2f, size);
         DrawRect(rect.Grow(2f), new Color(PunchCol, 0.9f));
-        var sil = Bullet.SilhouetteOf(Art);
-        var big = rect.Grow(sil.PadFrac * Mathf.Max(size.X, size.Y));
-        DrawTextureRect(sil.Glow, big, false, Bullet.GlowOf(Neon));
-        DrawTextureRect(sil.Rim, big, false, Bullet.RimOf(Neon));
-        DrawTextureRect(Art, rect, false);
     }
 }

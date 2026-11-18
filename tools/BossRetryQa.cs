@@ -35,21 +35,21 @@ public partial class BossRetryQa : Node
             foreach (long score in new long[] { 0, 1, 2, 999, 10000, long.MaxValue })
             {
                 Property(_game, "Score", score);
-                Check(!_game.BossReached && !_game.PrepareBossRetry() && _game.Score == score,
+                Check(!_game.BossReached && !_game.PrepareBossRetry(120) && _game.Score == score,
                     $"score {score}: boss retry is refused before the boss is reached");
                 _game.NotifyBossReached();
-                Check(_game.PrepareBossRetry(), "boss retry is accepted once the boss was reached this run");
-                _game.ResetRun();
+                Check(_game.PrepareBossRetry(120), "boss retry is accepted once the boss was reached this run");
+                Check(_game.ResetRun() == 120, "boss retry restores elapsed time even at zero score");
                 Check(_game.Score == score / 2, $"score {score} retains half without overflow");
                 Check(!_game.BossReached, "boss-reached flag is run-scoped and clears with the next run");
-                _game.ResetRun();
+                Check(_game.ResetRun() == 0, "elapsed time is consumed exactly once");
                 Check(_game.Score == 0, "retry score is consumed exactly once");
             }
             Property(_game, "Score", 1000L);
             _game.NotifyBossReached();
-            _game.PrepareBossRetry();
+            _game.PrepareBossRetry(120);
             _game.ResetPersistent();
-            _game.ResetRun();
+            Check(_game.ResetRun() == 0, "new game discards pending retry time");
             Check(_game.Score == 0, "new game discards a pending retry score");
             DisplayServer.WindowSetMode(DisplayServer.WindowMode.Windowed);
             DisplayServer.WindowSetSize(new Vector2I(1280, 720));
@@ -78,39 +78,63 @@ public partial class BossRetryQa : Node
                 CheckEntry(root, scene, boss: false);
 
                 // ここからはボス到達済み（Freeze で Stage の step は回らないので印は QA が立てる）。
+                AdvanceStageClock(root, 120);
                 Property(_game, "Score", 10000L);
                 _game.NotifyBossReached();
                 root = await RetryChoice(root, 0, mouse: false, capture: scene == "Akari" ? "menu" : null);
                 Check(_game.Score == 5000, $"{scene}: selected boss retry carries 5000 through scene reload");
                 CheckEntry(root, scene, boss: true);
+                CheckStageClock(root, 120);
+                AdvanceStageClock(root, 25);
                 _game.NotifyBossReached();
                 root = await RetryChoice(root, 0, mouse: true);
                 Check(_game.Score == 2500, $"{scene}: repeat mouse retry charges half once, not twice");
+                CheckStageClock(root, 145);
+                AdvanceStageClock(root, 15);
 
                 Property(_game, "Score", 999L);
                 _game.NotifyBossReached();
                 root = await RetryKey(root, shift: false, alive: false);
                 Check(_game.Score == 499, $"{scene}: R uses the same half-score cost");
+                CheckStageClock(root, 160);
                 CheckEntry(root, scene, boss: true);
+                if (scene != "Stage0")
+                {
+                    string id = scene == "MinaBattle" ? GameManager.FinalStageId : scene.ToLowerInvariant();
+                    _game.RecordClearTime(id, _game.Difficulty, 150);
+                    CheckClearRecord(root, id, 150);
+                    Freeze(root);
+                }
                 Property(_game, "Score", 501L);
                 _game.NotifyBossReached();
                 root = await RetryKey(root, shift: true, alive: false);
                 Check(_game.Score == 0, $"{scene}: Shift+R starts over with zero score");
                 CheckEntry(root, scene, boss: false);
+                CheckStageClock(root, 0);
+                AdvanceStageClock(root, 35);
                 Property(_game, "Score", 800L);
                 _game.NotifyBossReached();
                 root = await RetryChoice(root, 1, mouse: false);
                 Check(_game.Score == 0, $"{scene}: start-over choice does not carry retry points");
+                CheckStageClock(root, 0);
                 Property(_game, "Score", 600L);
                 _game.NotifyBossReached();
                 root = await RetryKey(root, shift: false, alive: true);
                 Check(_game.Score == 0, $"{scene}: normal held-R restart still resets score");
                 Property(_game, "Score", 0L);
+                AdvanceStageClock(root, 90);
                 _game.NotifyBossReached();
                 root = await RetryChoice(root, 0, mouse: false);
                 Check(_game.Score == 0, $"{scene}: zero score does not prevent retry");
                 Check(_game.Impression == 2345 && _game.Followers == 678, "retry does not spend permanent currencies");
                 Check(_game.SelectedJob == Job.Melee && _game.Difficulty == GameManager.Diff.Hard, "character and difficulty survive retry");
+                if (scene != "Stage0")
+                {
+                    AdvanceStageClock(root, 20);
+                    double elapsed = CheckStageClock(root, 110);
+                    string id = scene == "MinaBattle" ? GameManager.FinalStageId : scene.ToLowerInvariant();
+                    CheckClearRecord(root, id, (float)elapsed);
+                }
                 root.QueueFree();
                 await Frames(3);
                 GameManager.ClearGameOverChoice(null);
@@ -199,6 +223,32 @@ public partial class BossRetryQa : Node
         hud.SetCinematicMode(false);
     }
 
+    private static void AdvanceStageClock(Node2D root, double delta)
+    {
+        if (root is Stage0Root) return;
+        var stage = (Node)root.GetType().GetProperty("Stage")!.GetValue(root)!;
+        stage._Process(delta);
+    }
+
+    private static double CheckStageClock(Node2D root, double expected)
+    {
+        if (root is Stage0Root) return 0;
+        var stage = (Node)root.GetType().GetProperty("Stage")!.GetValue(root)!;
+        double elapsed = Read<double>(stage, "_stageElapsed");
+        Check(elapsed >= expected && elapsed < expected + 3, $"{root.Name}: expected {expected}s plus scene frames, got {elapsed:F2}s");
+        Check(Read<float>(root.GetNode<Hud>("Hud"), "_elapsed") == (float)elapsed, "HUD shows the cumulative stage time");
+        return elapsed;
+    }
+
+    private void CheckClearRecord(Node2D root, string id, float expectedBest)
+    {
+        var stage = (Node)root.GetType().GetProperty("Stage")!.GetValue(root)!;
+        bool final = stage is StageMina;
+        var clear = stage.GetType().GetMethod(final ? "RecordClear" : "Step_Clear", Private)!;
+        clear.Invoke(stage, final ? null : new object[] { 0d });
+        Check(_game.GetBestTime(id, _game.Difficulty) == expectedBest, $"{id}: best after boss retry is {expectedBest:F2}s");
+    }
+
     private async Task<Node2D> Reloaded(Node2D previous)
     {
         await QaSceneTransition.Wait(this, 4);
@@ -236,7 +286,7 @@ public partial class BossRetryQa : Node
         var rect = (Rect2)typeof(ChoiceOverlay).GetMethod("RowRect", Private)!.Invoke(choice, new object[] { selected })!;
         Check(rect.Position.X >= Field.DLeft && rect.End.X <= Field.DRight, "retry option fits inside the playfield");
         Check(_game.Score == score, "opening the choices does not charge score");
-        if (capture != null)
+        if (capture != null && DisplayServer.GetName() != "headless")
         {
             if (reached) root.GetNode<StageBackground>("StageBackground").EnterBoss();
             foreach (var size in new[] { new Vector2I(1280, 720), new Vector2I(960, 540), new Vector2I(540, 960) })
@@ -276,7 +326,8 @@ public partial class BossRetryQa : Node
         }
         choice._Process(0.51d);
         Check(choice.Decided && choice.Selected == selected, "choice confirms through its input handler");
-        Check(GameManager.HandleGameOverExit(root, hud, ref held), "confirmed choice initiates reload");
+        root._Process(0.016d);
+        Check(LoadingScreen.IsActive, "confirmed choice initiates reload through the stage input handler");
         return await Reloaded(root);
     }
 

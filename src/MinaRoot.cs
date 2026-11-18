@@ -8,30 +8,30 @@ public partial class MinaRoot : Node2D
     public const int ScreenHeight = 216;
     public static readonly BgLayers.Layer[] RouteLayers =
     {
-        new BgLayers.Layer("res://char/bg2/route/mina_far.png", 0.22f, -98, Colors.White, fitToField: true, travel: true),
-        new BgLayers.Layer("res://char/bg2/route/mina_mid.png", 0.62f, -97, Colors.White, fitToField: true, travel: true),
-        new BgLayers.Layer("res://char/bg2/route/mina_near.png", 1.20f, -96, Colors.White, fitToField: true, travel: true),
+        new BgLayers.Layer("res://char/bg2/route/blender/mina_far.png", 0.22f, -98, Colors.White, fitToField: true, travel: true),
+        new BgLayers.Layer("res://char/bg2/route/blender/mina_mid.png", 0.62f, -97, Colors.White, fitToField: true, travel: true),
+        new BgLayers.Layer("res://char/bg2/route/blender/mina_near.png", 1.20f, -96, Colors.White, fitToField: true, travel: true),
     };
 
     public static readonly BgLayers.Layer[] PassageLayers =
     {
-        new BgLayers.Layer("res://char/bg2/route/mina_passage_far.png", 0.22f, -98, Colors.White, fitToField: true, travel: true),
-        new BgLayers.Layer("res://char/bg2/route/mina_passage_mid.png", 0.62f, -97, Colors.White, fitToField: true, travel: true),
-        new BgLayers.Layer("res://char/bg2/route/mina_passage_near.png", 1.20f, -96, Colors.White, fitToField: true, travel: true),
+        new BgLayers.Layer("res://char/bg2/route/blender/mina_passage_far.png", 0.22f, -98, Colors.White, fitToField: true, travel: true),
+        new BgLayers.Layer("res://char/bg2/route/blender/mina_passage_mid.png", 0.62f, -97, Colors.White, fitToField: true, travel: true),
+        new BgLayers.Layer("res://char/bg2/route/blender/mina_passage_near.png", 1.20f, -96, Colors.White, fitToField: true, travel: true),
     };
 
     public static readonly BgLayers.Layer[] ClimaxLayers =
     {
-        new BgLayers.Layer("res://char/bg2/route/mina_climax_far.png", 0.18f, -98, Colors.White, fitToField: true, travel: true),
-        new BgLayers.Layer("res://char/bg2/route/mina_climax_mid.png", 0.65f, -97, Colors.White, fitToField: true, travel: true),
-        new BgLayers.Layer("res://char/bg2/route/mina_climax_near.png", 1.40f, -96, Colors.White, fitToField: true, travel: true),
+        new BgLayers.Layer("res://char/bg2/route/blender/mina_climax_far.png", 0.18f, -98, Colors.White, fitToField: true, travel: true),
+        new BgLayers.Layer("res://char/bg2/route/blender/mina_climax_mid.png", 0.65f, -97, Colors.White, fitToField: true, travel: true),
+        new BgLayers.Layer("res://char/bg2/route/blender/mina_climax_near.png", 1.40f, -96, Colors.White, fitToField: true, travel: true),
     };
 
     public static readonly BgLayers.Layer[] LateRouteLayers =
     {
-        new BgLayers.Layer("res://char/bg2/route/mina_late_far.png", 0.18f, -98, Colors.White, fitToField: true, travel: true),
-        new BgLayers.Layer("res://char/bg2/route/mina_late_mid.png", 0.65f, -97, Colors.White, fitToField: true, travel: true),
-        new BgLayers.Layer("res://char/bg2/route/mina_late_near.png", 1.40f, -96, Colors.White, fitToField: true, travel: true),
+        new BgLayers.Layer("res://char/bg2/route/blender/mina_late_far.png", 0.18f, -98, Colors.White, fitToField: true, travel: true),
+        new BgLayers.Layer("res://char/bg2/route/blender/mina_late_mid.png", 0.65f, -97, Colors.White, fitToField: true, travel: true),
+        new BgLayers.Layer("res://char/bg2/route/blender/mina_late_near.png", 1.40f, -96, Colors.White, fitToField: true, travel: true),
     };
 
     public static readonly BgLayers.Layer[] BossLayers =
@@ -58,8 +58,8 @@ public partial class MinaRoot : Node2D
     public override void _Ready()
     {
         var g = GetNodeOrNull<GameManager>("/root/Game");
-        if (g?.SelectedJob == Job.Tank) g.SelectedJob = Job.Magic;
-        g?.ResetRun();
+        if (g?.SelectedJob == Job.Tank && g.IsMinaLockedForFinal) g.SelectedJob = Job.Magic;
+        double elapsed = g?.ResetRun() ?? 0;
         g?.SetContamination(1f); // ミナの内側は穢れが頂点
 
         DrawBackdrop();
@@ -82,8 +82,8 @@ public partial class MinaRoot : Node2D
         AddChild(new BubbleLayer { Name = "BubbleLayer", Hud = Hud }); // 会話の吹き出し（会話バー・一行字幕・宣告カード）＝弾・自機より奥（世界側 -7）に描く層。状態は Hud が持つ
         Hud.SetLives(Player.Lives);
 
-        Stage = new StageMina { Name = "StageMina", Player = Player, Hud = Hud, World = World };
-        AddChild(Stage);
+        Stage = new StageMina { Name = "StageMina", Player = Player, Hud = Hud, World = World, Elapsed = elapsed };
+        PlayerSpecialTutorial.Start(this, Hud, Stage);
     }
 
     private void DrawBackdrop()
@@ -95,6 +95,7 @@ public partial class MinaRoot : Node2D
             LateRouteLayerDefs = LateRouteLayers,
             PassageLayerDefs = PassageLayers,
             ClimaxLayerDefs = ClimaxLayers,
+            ContinuousTravel = true,
             BossLayerDefs = BossLayers,
             LayerBossBehavior = BgLayers.BossBehavior.Illustrated,
             BaseZ = -96,
@@ -148,7 +149,7 @@ public partial class MinaRoot : Node2D
             //   残響の三波を飛ばしてミナ戦から。今ランでボス未到達なら PrepareBossRetry が予約しない
             //   ＝最初から）／Shift+R＝最初から（従来どおり。SelectedEntry に触らない）。
             if (gameOver && !Input.IsKeyPressed(Key.Shift))
-                GetNode<GameManager>("/root/Game").PrepareBossRetry();
+                GetNode<GameManager>("/root/Game").PrepareBossRetry(Stage.Elapsed);
             GetNodeOrNull<BulletPool>("/root/Pool")?.DespawnAll();
             GameManager.FadeToScene(this, GetTree().CurrentScene.SceneFilePath);
             return;
@@ -158,7 +159,7 @@ public partial class MinaRoot : Node2D
         // ゲームオーバー（残機0）中は「抜ける（ハブへ戻る）」を受付。お金は保存して持ち帰る。
         if (gameOver)
         {
-            if (GameManager.HandleGameOverExit(this, Hud, ref _exitHeld)) return;
+            if (GameManager.HandleGameOverExit(this, Hud, ref _exitHeld, Stage.Elapsed)) return;
         }
         else { GameManager.ClearGameOverChoice(Hud); _exitHeld = false; }
     }

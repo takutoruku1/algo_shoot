@@ -106,13 +106,37 @@ public partial class QuoteStorm : Node2D
         => IsInstanceValid(b) && b.Active && b.IsPatternBullet && b.Word == q.Body;
 
     private readonly RandomNumberGenerator _rng = new();
+    internal static BulletArt.PlayerVisual QuoteVisual => BulletArt.EnemyVisual("res://assets/fx/rei_quote_pin.svg", "e3ddea");
+    private Node2D _warnings = null!;
     private Hud? _hud;
     private const int StackCap = 12;
+    private static bool _assetsPrepared;
+
+    internal static IEnumerable<float> PrepareAssetSteps()
+    {
+        if (_assetsPrepared) yield break;
+        var glyphs = new HashSet<char>(PinHandle + PinBody + DraftLine + string.Concat(Replies) + "下書き: 引用レイ……0123456789,.万");
+        foreach (var stage in new[] { Stage1, Stage2, Stage3 })
+            foreach (var quote in stage)
+                foreach (char c in quote.Handle + quote.Body) glyphs.Add(c);
+        int prepared = 0, total = glyphs.Count + 2;
+        foreach (char glyph in glyphs)
+        {
+            if (UiKit.Zen.HasChar(glyph)) UiKit.Zen.RenderRange(0, new Vector2I(9, 0), glyph, glyph);
+            yield return ++prepared / (float)total;
+        }
+        var art = QuoteVisual.Cropped;
+        BulletFootprint.Texture(art, art.GetSize() / 2, 6);
+        yield return ++prepared / (float)total;
+        Bullet.SilhouetteOf(art);
+        yield return 1;
+        _assetsPrepared = true;
+    }
 
     // ピン留めカードの設計位置（プレイ領域＝Field の上部中央）。ガワ（ボスの姿）はまだ出ていないので、
     // 貼りつき先はカードのまわり＝この矩形の下側の帯になる。
     // HUD の上帯（浄化バー）と自機の主戦場を避け、幅は本文が一行に収まる最小に留める。
-    private static readonly Rect2 PinRect = new(Field.CenterX - 108f, Field.Top + 20f, 216f, 22f);
+    private static Rect2 PinRect => new(Field.CenterX - 108f, Field.Top + 20f, 216f, 22f);
 
     public override void _Ready()
     {
@@ -120,6 +144,10 @@ public partial class QuoteStorm : Node2D
         ZAsRelative = false;
         _rng.Randomize();
         _hud = GetTree().GetFirstNodeInGroup("hud") as Hud;
+        _warnings = new Node2D { ZIndex = -1, ZAsRelative = false,
+            Material = new CanvasItemMaterial { LightMode = CanvasItemMaterial.LightModeEnum.Unshaded } };
+        _warnings.Draw += DrawArrivalWarnings;
+        AddChild(_warnings);
         _spawnT = 0.8;                   // 入りの一拍（ピン留めを読む時間）
         SetProcess(true);
     }
@@ -128,7 +156,6 @@ public partial class QuoteStorm : Node2D
     {
         if (Hud.BubblePaused) return;    // 会話中（バブル）は嵐も止める（他の ambient と同じ流儀）
 
-        // ★集中モード（#10）：嵐（＝敵の攻撃）も敵側の時計で進める。
         delta = GameManager.EnemyDelta(delta);
         _elapsed += delta;
         _phaseT += delta;
@@ -142,7 +169,22 @@ public partial class QuoteStorm : Node2D
             case Phase.Silence: TickSilence(delta); break;
             case Phase.Draft:   TickDraft(); break;
         }
-        QueueRedraw();
+        _warnings.QueueRedraw();
+    }
+
+    private void DrawArrivalWarnings()
+    {
+        if (!GameManager.ShowAttackTelegraphs || _flying.Count == 0) return;
+        var art = QuoteVisual;
+        foreach (var (bullet, quote, destination) in _flying)
+        {
+            if (!IsChip(bullet, quote) || bullet.GlobalPosition.X <= Field.Right) continue;
+            Vector2 direction = bullet.GlobalPosition.DirectionTo(destination);
+            Vector2 entry = bullet.GlobalPosition + direction * ((Field.Right - 12 - bullet.GlobalPosition.X) / direction.X);
+            float progress = Mathf.Clamp(1 - (bullet.GlobalPosition.X - Field.Right) / 150f, 0, 1);
+            float fade = .55f + .45f * Mathf.SmoothStep(0, 1, Mathf.Clamp(progress / .12f, 0, 1));
+            AttackTelegraph.RoadCharge(_warnings, entry, entry, direction, art, progress, fade);
+        }
     }
 
     // ───────── 段階1〜3：飛来 ─────────
@@ -208,6 +250,7 @@ public partial class QuoteStorm : Node2D
     private void EnterDraft()
     {
         _phase = Phase.Draft;
+        QueueRedraw();
         _phaseT = 0;
         // 剥がした下には、まだ同じ笑顔のガワ。カードの下に薄い字で一行（この Node2D が描く）。
         _hud?.ShowBossLine("", $"下書き: {DraftLine}", new Color(0.72f, 0.70f, 0.76f), 3.2);
@@ -219,6 +262,7 @@ public partial class QuoteStorm : Node2D
     {
         if (_phaseT < 3.2) return;
         _phase = Phase.Done;
+        QueueRedraw();
         if (QaPilot.Verbose) GD.Print($"[QuoteStorm] done t={_elapsed:0.0}");
     }
 
@@ -246,8 +290,7 @@ public partial class QuoteStorm : Node2D
         if (b == null) return;
         b.BoundsMargin = 260f;            // 飛行中は右端の外に丸ごと居られる余白（貼りつきで既定へ）
         // 引用は「投稿に寄る側」で層が違う（09）。濁色チップにして、面の投稿弾（テーマ色）と見分ける。
-        b.SetWord(q.Body, q.Handle, new Color(0.55f, 0.55f, 0.60f), murk: true,
-            coreArt: BulletArt.Get("rei_film"));
+        b.SetWord(q.Body, q.Handle, QuoteVisual.Accent, murk: true, coreArt: QuoteVisual.Cropped);
         b.IsPatternBullet = true;                 // 撃つと剥がれる（祈り弾と同じ経路）
         _flying.Add((b, q, dst));
         QuoteCount++;

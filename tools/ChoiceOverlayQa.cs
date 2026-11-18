@@ -468,7 +468,7 @@ public partial class ChoiceOverlayQa : Node
         _root.GetNode("StageAkari").SetProcess(false);
         var hud = _root.GetNode<Hud>("Hud");
         hud.HoldBubble = true;
-        hud.ShowDialog(Hud.LineKind.Mina, "……返事を、ひとつ。あなたなら、どんな言葉にしますか。", "res://char/mina_face.png");
+        hud.ShowDialog(Hud.LineKind.Mina, "……返事を、ひとつ。あなたなら、どんな言葉にしますか。", "res://char/v3/mina_conversation_v1.png");
         hud.RevealDialogNow();
         choice = ChoiceOverlay.Show(hud, (string[])typeof(StageAkari).GetField("S15Choices", Static)!.GetValue(null)!, 1, onBoard: true);
         choice.SetProcess(false);

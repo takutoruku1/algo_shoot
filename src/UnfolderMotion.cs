@@ -1,4 +1,6 @@
-using Godot;
+﻿using Godot;
+
+using System.Collections.Generic;
 
 public enum UnfolderKind { None, Akari, Koharu, Rei, Mina }
 
@@ -7,8 +9,35 @@ public readonly record struct UnfolderPose(Vector2 Position, float Tilt, Vector2
 
 public static class UnfolderMotion
 {
+    public const int RotationFrames = 72;
+    public const int RotationFrameSize = 128;
+    public const float RotationPeriod = 6f;
+    private static readonly Dictionary<string, AtlasTexture[]> RotationTextures = new();
+
     public static string TexturePath(UnfolderKind kind)
-        => $"res://char/ui/unfolder_{kind.ToString().ToLowerInvariant()}_v1.png";
+        => $"res://char/ui/blender/unfolder_{kind.ToString().ToLowerInvariant()}.png";
+
+    public static string RotationPath(string frontPath)
+        => frontPath.GetBaseDir() + "/rotation/" + frontPath.GetFile();
+
+    public static int FrameAt(float time, float slot)
+        => Mathf.FloorToInt(Mathf.PosMod(time / RotationPeriod + slot / Mathf.Tau, 1) * RotationFrames) % RotationFrames;
+
+    public static AtlasTexture FrameTexture(string frontPath, int frame)
+    {
+        if (!RotationTextures.TryGetValue(frontPath, out var frames))
+        {
+            var atlas = GD.Load<Texture2D>(RotationPath(frontPath));
+            frames = new AtlasTexture[RotationFrames];
+            for (int i = 0; i < frames.Length; i++)
+                frames[i] = new AtlasTexture {
+                    Atlas = atlas, FilterClip = true,
+                    Region = new Rect2(i % 8 * RotationFrameSize, i / 8 * RotationFrameSize, RotationFrameSize, RotationFrameSize),
+                };
+            RotationTextures.Add(frontPath, frames);
+        }
+        return frames[frame];
+    }
 
     public static Color ColorFor(UnfolderKind kind) => new(kind switch
     {
@@ -36,7 +65,7 @@ public static class UnfolderMotion
             case UnfolderKind.Koharu:
             {
                 float sway = Mathf.Sin(time * 0.7f);
-                float angle = slot + sway * (0.65f + 0.16f * Mathf.Sin(slot));
+                float angle = slot + time * .38f + sway * (0.65f + 0.16f * Mathf.Sin(slot));
                 float split = Mathf.Pow(Mathf.Sin(time * 0.8f), 2);
                 float r = radius + 20f + 10f * split + 4f * Mathf.Cos(time * 0.9f + slot);
                 var position = Vector2.FromAngle(angle) * new Vector2(r, r * 0.82f);

@@ -62,10 +62,11 @@ public sealed class JobTuning
     public int HomingTurnRate = 200;
     public int ChargeWays = 1;
     public float ChargeSpreadDegrees;
-    public int ChargePower = 12;
+    public int ChargePower = 11;
+    public int ChargeShieldPower = 6;
     public float ChargeSpeed = 820f;
     public float ChargeRadius = 9f;
-    public int ChargePierce = 5;
+    public int ChargePierce = 2;
 
     // ── 距離ボーナス（近接の利／遠隔の利。互いに鏡像）──
     public bool CritEnabled = true;          // 密着クリティカルが成立するか
@@ -111,12 +112,12 @@ public static class Jobs
             CharacterId = "akari", CharacterName = "あかり", PlayerTexturePath = "res://char/player/akari/akari_idle_v2.png",
             UnlockStageId = "akari",
             ChargeDescription = "高威力の加速弾",
-            ChargePower = 18, ChargeSpeed = 960f, ChargeRadius = 12f, ChargePierce = 1,
+            ChargePower = 11, ChargeSpeed = 960f, ChargeRadius = 12f, ChargePierce = 1,
             MaxLifeDelta = 0,
             MoveMul = 1.12f,           // 2026-09-27 機動の序列を作る：4人で一番速い＝踏み込んで殴る型の足
             DodgeDistMul = 1.5f,       // 同上（1.2→1.5）。4人中最長＝一息で踏み込み、一息で離脱する近接の足
-            CritMult = 2.0f,           // 他ジョブ ×1.25 に対し ×2.0
-            CritCap = 8,               // 本体1ヒット上限(8)と同値＝クリの伸びしろを潰さない
+            CritMult = 1.5f,
+            CritCap = 6,
             CloseDodgeCdMul = 0.75f,   // 48px以内に居る間だけ回避CDが縮む
         },
 
@@ -129,11 +130,8 @@ public static class Jobs
             UnlockStageId = "koharu",
             ChargeDescription = "3発の追尾弾",
             ChargeWays = 3, ChargeSpreadDegrees = 32f,
-            ChargePower = 4, ChargeSpeed = 300f, ChargeRadius = 6f, ChargePierce = 1,
-            // 火力は4ジョブ最遅（設計書 §2）。ホーミング自体が既に ×0.85（HomingPowerMul）なので、
-            // ここを強く掛けると基礎威力1の序盤で下限(max(1,…))に張り付いて差が消える。
-            // ×0.8 なら 0.85×0.8=0.68＝実効で最遅を保ちつつ、強化が伸びた終盤でも
-            // 語り手(0.50×1.0、遠隔で×1.3)・結び手(1.0)との序列が入れ替わらない。
+            ChargePower = 4, ChargeSpeed = 300f, ChargeRadius = 6f, ChargePierce = 0,
+            ChargeShieldPower = 2,
             PowerMul = 0.8f,
             MoveMul = 0.96f,           // 2026-09-27 機動の序列：あかり(1.12)とレイ(0.92)の間＝平均。速さでは選ばせない
             DodgeDistMul = 1.1f,       // 同上（1.0→1.1）。標準よりわずかに伸びる＝避けも回復も人並みにできる
@@ -150,9 +148,9 @@ public static class Jobs
             ShotSpeed = 320f, ShotShape = BulletShape.Petal,
             CharacterId = "rei", CharacterName = "レイ", PlayerTexturePath = "res://char/player/rei/rei_idle_v2.png",
             UnlockStageId = "rei",
-            ChargeDescription = "5方向の拡散弾",
-            ChargeWays = 5, ChargeSpreadDegrees = 64f,
-            ChargePower = 3, ChargeSpeed = 540f, ChargeRadius = 6f, ChargePierce = 1,
+            ChargeDescription = "中央で盾を削る拡散弾",
+            ChargeWays = 5, ChargeSpreadDegrees = 28f,
+            ChargePower = 3, ChargeSpeed = 720f, ChargeRadius = 6f, ChargePierce = 1,
             MaxLifeDelta = +1,         // 2026-09-27 「近づかれたら終わり」を少しだけ許す＝耐久の序列でミナの次に置く
             MoveMul = 0.92f,           // 同上。足を止めて撃つ砲台＝ミナ(0.88)より速いが こはる(0.96) より遅い
             // 同上（0.8→0.55）。4人中最短＝ほとんど動かない。無敵（DodgeIFrame 0.45秒は4人共通）だけ
@@ -160,12 +158,14 @@ public static class Jobs
             DodgeDistMul = 0.55f,
             CritEnabled = false,       // 密着クリ無効（近接の鏡像）
             FarMult = 1.3f,
-            DodgeCdMul = 1.15f,
+            DodgeCdMul = 0.85f,
         },
     };
 
     // 全ジョブ（ハブの選択画面・デバッグ表示が並べる順。Tank が先頭＝初期選択）。
     public static JobTuning[] All => Table;
+    public static JobTuning? UnlockedBy(string stageId) =>
+        stageId.Length == 0 ? null : System.Array.Find(Table, job => job.UnlockStageId == stageId);
 
     // ───────── 画面表示用のヘルパ（2026-09-27 作者指示「アカウント切り替えに火力の記載を追加」）─────────
     //   数値は上の Table が正典。ここは「そこに入っている値を日本語にするだけ」＝Hub 側に生の係数を書かない。
@@ -186,7 +186,7 @@ public static class Jobs
     {
         GameManager.ShotMode.Spread => "扇状に広く。面の制圧",
         GameManager.ShotMode.Homing => "勝手に追う。狙いが楽",
-        GameManager.ShotMode.Accel => "伸びるほど速い。一点突破",
+        GameManager.ShotMode.Accel => "発射後に溜めて加速。一点突破",
         _ => "素直な直射。手数で押す",
     };
 
@@ -201,7 +201,7 @@ public static class Jobs
     {
         string s = j.ChargeDescription.Length > 0 ? j.ChargeDescription : "溜め打ち";
         string ways = j.ChargeWays > 1 ? System.FormattableString.Invariant($"×{j.ChargeWays}発") : "";
-        return System.FormattableString.Invariant($"{s}（威力{j.ChargePower}{ways}）");
+        return System.FormattableString.Invariant($"{s}（基礎威力{j.ChargePower}{ways}）");
     }
 
     // 回避距離の一言（2026-09-27 作者指示「回避距離をキャラクター毎にすこし極端に」）。
@@ -235,9 +235,8 @@ public static class Jobs
 
 // ChargeTier : 溜め打ちの「段」（2026-09-25 ユーザー決定「2段階チャージ」）。
 //
-//   1段（誰でも最初から）  ChargeNeedSec 秒（0.60）で満ちる。弾は JobTuning の素の値そのまま。
-//   2段（ショップ n_charge）さらに押し続けると満ちる。溜め時間は**倍**（合計 1.20 秒）で、
-//                           威力・弾の大きさ・【激情】の変化量が伸びる。1段で離せば従来どおりの弾が出る。
+//   1段（溜め打ち購入後）  ChargeNeedSec 秒（0.60）で満ちる。弾は JobTuning の素の値そのまま。
+//   2段（ショップ n_charge）さらに押し続けると満ちる。威力・弾の大きさ・【激情】の変化量が伸びる。
 //
 // ★数値はここ一箇所に集める。実機で触ってから調整する前提なので、config/boss_stats.ini の
 //   [charge] セクション（後勝ち）からも差し替えられる＝再ビルド無しで詰められる。
@@ -248,11 +247,7 @@ public static class ChargeTier
     public const int First = 1;
     public const int Second = 2;
 
-    // 2段目が満ちるまでの長押し秒 ＝ 1段目 × HoldMul。作者指示の「倍」がそのまま既定。
-    public const float DefaultHoldMul = 2.0f;
-    // 2段目の威力倍率。×4 の大玉（1段）をさらに倍にすると、ボス本体の1ヒット上限 32（Enemy.cs）へ
-    //   結び手 12×2=24 ／ 灯し手 18×2=36（上限で頭打ち）と、上限に触れるか触れないかの辺りに収まる。
-    //   「倍待って倍痛い」が素直に読める値として ×2.0 を初期値に置く。
+    public const float DefaultHoldMul = 1.5f;
     public const float DefaultPowerMul = 2.0f;
     // 2段目の弾半径倍率（見た目と当たり判定の両方。Bullet.Radius が描画も判定も決める）。
     //   ×1.25＝結び手 9→11.25px。×1.6 は「最大溜めがでかすぎる」（2026-09-25 ユーザー）ので縮めた。

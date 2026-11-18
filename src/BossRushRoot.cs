@@ -3,8 +3,11 @@ using Godot;
 public partial class BossRushRoot : Node2D
 {
     public const string ScenePath = "res://BossRush.tscn";
+    public const string SingleScenePath = "res://BossSolo.tscn";
     public const string RecordId = "boss_rush";
     public static readonly string[] BossNames = { "あかり", "こはる", "レイ", "ミナ" };
+    internal static string DisplayName(int index, GameManager game) => index == 3 && !game.FinalBossRevealed ? "???" : BossNames[index];
+    internal static readonly string[] BossIds = { "akari", "koharu", "rei", "mina" };
     private static readonly BgLayers.Layer[][] Backgrounds =
         { AkariRoot.BossLayers, KoharuRoot.BossLayers, ReiRoot.BossLayers, MinaRoot.BossLayers };
 
@@ -14,6 +17,11 @@ public partial class BossRushRoot : Node2D
     public Enemy? Boss { get; private set; }
     public int Round { get; private set; }
     public bool Completed { get; private set; }
+    [Export] public bool SingleBoss { get; set; }
+    public int BossCount => SingleBoss ? 1 : BossNames.Length;
+    public int BossIndex => SingleBoss ? _selectedBoss : Round;
+    public string RunRecordId => SingleBoss ? $"boss_solo_{BossIds[_selectedBoss]}" : RecordId;
+    private int _selectedBoss;
     private GameManager _game = null!;
     private StageBackground _background = null!;
     private Control _overlay = null!;
@@ -25,21 +33,16 @@ public partial class BossRushRoot : Node2D
     public override void _Ready()
     {
         _game = GetNode<GameManager>("/root/Game");
-        if (!_game.BossRushUnlocked)
-        {
-            _leaving = true;
-            GameManager.FadeToScene(this, "res://Hub.tscn");
-            return;
-        }
+        _selectedBoss = _game.PendingBossIndex;
         AddToGroup("boss_rush");
         _game.ResetRun();
         _game.SelectedEntry = GameManager.StageEntry.Start;
-        _game.BeginStageRun(RecordId);
-        _game.SetStageTarget(BossNames.Length);
+        _game.BeginStageRun(RunRecordId);
+        _game.SetStageTarget(BossCount);
         _game.SetContamination(0);
         _background = new StageBackground
         {
-            Name = "StageBackground", LayerDefs = Backgrounds[0], BossLayerDefs = Backgrounds[0],
+            Name = "StageBackground", LayerDefs = Backgrounds[BossIndex], BossLayerDefs = Backgrounds[BossIndex],
             LayerBossBehavior = BgLayers.BossBehavior.Illustrated, StartInBoss = true,
         };
         AddChild(_background);
@@ -60,6 +63,7 @@ public partial class BossRushRoot : Node2D
         _overlay = new Control { MouseFilter = Control.MouseFilterEnum.Ignore, ZIndex = 50 };
         _overlay.Draw += DrawProgress;
         AddChild(_overlay);
+        PlayerSpecialTutorial.Start(this, Hud);
     }
 
     public override void _Process(double delta)
@@ -69,7 +73,7 @@ public partial class BossRushRoot : Node2D
         bool gameOver = Player.Lives <= 0;
         if (!Completed && _retry.Update(delta, Input.IsKeyPressed(Key.R), instant: gameOver))
         {
-            Leave(ScenePath);
+            Leave(SingleBoss ? SingleScenePath : ScenePath);
             return;
         }
         Hud.SetRetryHold(_retry.Progress);
@@ -90,7 +94,10 @@ public partial class BossRushRoot : Node2D
         {
             _interval -= delta;
             if (_interval > 0) return;
-            if (Completed) Leave("res://Hub.tscn");
+            if (Completed)
+            {
+                Leave(SingleBoss ? BossSelectRoot.ScenePath : "res://Hub.tscn");
+            }
             else SpawnBoss();
             return;
         }
@@ -110,7 +117,8 @@ public partial class BossRushRoot : Node2D
         World.ProcessMode = ProcessModeEnum.Inherit;
         Player.SnapToStart();
         _game.NotifyBossReached();
-        Boss = Round switch
+        if (BossIndex == 3) _game.RevealFinalBoss();
+        Boss = BossIndex switch
         {
             0 => new BossAkari { Name = "BossAkari" },
             1 => new BossKoharu { Name = "BossKoharu" },
@@ -130,19 +138,21 @@ public partial class BossRushRoot : Node2D
         Boss = null;
         Hud.HideBossBar();
         Hud.HideSpellCard();
+        if (!SingleBoss) SteamAchievements.RecordBossDefeat(BossIds[BossIndex], _game.Difficulty, _game.SelectedJob);
         Round++;
         _interval = 1.4;
-        if (Round < BossNames.Length)
+        if (Round < BossCount)
         {
             _background.CrossfadeLayersToBoss(BgLayers.BossBehavior.Illustrated, Backgrounds[Round], 1f);
             return;
         }
         Completed = true;
         _interval = 5;
-        var time = _game.RecordClearTime(RecordId, _game.Difficulty, (float)_elapsed);
-        var score = _game.RecordScore(RecordId, _game.Difficulty, _game.Score);
+        var time = _game.RecordClearTime(RunRecordId, _game.Difficulty, (float)_elapsed);
+        var score = _game.RecordScore(RunRecordId, _game.Difficulty, _game.Score);
+        _game.SettleStageScore();
         _game.AutoSave();
-        Hud.ShowClearBanner("BOSS RUSH CLEAR", (float)_elapsed, time.isBest, time.prev,
+        Hud.ShowClearBanner(SingleBoss ? "BOSS CLEAR" : "BOSS RUSH CLEAR", (float)_elapsed, time.isBest, time.prev,
             _game.Score, score.isBest, score.prev);
     }
 
@@ -157,9 +167,9 @@ public partial class BossRushRoot : Node2D
     {
         if (Boss != null || Completed) return;
         UiKit.BeginDesign(_overlay);
-        UiKit.Text(_overlay, UiKit.Mono, new Vector2(Field.DLeft, 260), $"BOSS RUSH  {Round + 1} / 4", 22,
+        UiKit.Text(_overlay, UiKit.Mono, new Vector2(Field.DLeft, 260), SingleBoss ? "BOSS SOLO" : $"BOSS RUSH  {Round + 1} / {BossCount}", 22,
             UiKit.Info, HorizontalAlignment.Center, Field.DWidth);
-        UiKit.Text(_overlay, UiKit.ZenBold, new Vector2(Field.DLeft, 300), BossNames[Round], 38,
+        UiKit.Text(_overlay, UiKit.ZenBold, new Vector2(Field.DLeft, 300), DisplayName(BossIndex, _game), 38,
             UiKit.White, HorizontalAlignment.Center, Field.DWidth);
         UiKit.EndDesign(_overlay);
     }

@@ -43,6 +43,7 @@ public partial class DialogueWrapQa : Node2D
             foreach (string arg in OS.GetCmdlineUserArgs())
                 if (arg.StartsWith("--report=")) CheckCorpus(arg[9..]);
             CheckNaturalBreaks();
+            CheckPhonePages();
             GD.Print($"PASS: {_checks} wrapping assertions");
             if (OS.GetCmdlineUserArgs().Contains("--prologue"))
             {
@@ -121,7 +122,7 @@ public partial class DialogueWrapQa : Node2D
                     Require(page.Split('\n').Length <= 2, "Corpus page fits two lines");
                     Require(UiKit.WrapLines(font, page, size, width).SequenceEqual(page.Split('\n')), "Corpus page reflows consistently");
                 }
-                var dialoguePages = DialogueBox.Paginate(text, width);
+                var dialoguePages = profile == "phone" ? DialogueBox.PaginatePhone(text, width) : DialogueBox.Paginate(text, width);
                 Require(string.Concat(dialoguePages).Replace("\n", "") == text.Replace("\r", "").Replace("\n", ""), "Dialogue formatting preserves the source");
                 foreach (string page in dialoguePages)
                 {
@@ -158,6 +159,30 @@ public partial class DialogueWrapQa : Node2D
         }
         foreach (string text in new[] { boot, "……あなたが、作った方ですね。", "その投稿には、送れなかった言葉があります。", "光🙂が届く。👩‍💻の言葉を聞きます。" })
             foreach (float width in new[] { 96f, 160f, 310f, 420f }) CheckWrap(text, width);
+    }
+
+    private void CheckPhonePages()
+    {
+        float width = 480 - 2 * DialogueBox.Padding;
+        string longSentence = string.Concat(Enumerable.Repeat("まだ話したいことがあるから、", 5)) + "もう少しだけ。";
+        foreach (string text in new[] {
+            "ここが「Y」のタイムラインだよ。あかりさんの投稿に、観測のしるしをつけた。",
+            "僕の声が届くのは、回線を結んだ仲間だけ。向こうの人には聞こえない。道案内は僕がするから、君自身の言葉で話してほしい。",
+            "「声が聞こえる？」……うん、ここからもう一度、あなたに声を届けてみるね。",
+            longSentence })
+        {
+            var pages = DialogueBox.PaginatePhone(text, width);
+            Require(string.Concat(pages).Replace("\n", "") == text, "Phone pages preserve the spoken text");
+            foreach (string page in pages)
+            {
+                var lines = page.Split('\n');
+                Require(lines.Length <= Hud.DlgMaxLines && lines.All(line =>
+                    UiKit.TextW(DialogueBox.Body.Font, line, DialogueBox.Body.Size) <= width), "Phone page fits the box");
+                if (text != longSentence)
+                    Require(UiKit.IsSentenceEnd(page, page.Length), $"Phone dialogue stops at a sentence end: {page}");
+            }
+        }
+        Require(DialogueBox.PaginatePhone("はい。行きましょう。", width).Count == 1, "Short sentences share a phone page");
     }
 
     private async System.Threading.Tasks.Task CapturePrologue()

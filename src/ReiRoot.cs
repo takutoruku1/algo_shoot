@@ -15,30 +15,30 @@ public partial class ReiRoot : Node2D
 
     public static readonly BgLayers.Layer[] RouteLayers =
     {
-        new BgLayers.Layer("res://char/bg2/route/rei_far.png", 0.22f, -95, Colors.White, fitToField: true, travel: true),
-        new BgLayers.Layer("res://char/bg2/route/rei_mid.png", 0.62f, -92, Colors.White, fitToField: true, travel: true),
-        new BgLayers.Layer("res://char/bg2/route/rei_near.png", 1.20f, -91, Colors.White, fitToField: true, travel: true),
+        new BgLayers.Layer("res://char/bg2/route/blender/rei_far.png", 0.22f, -95, Colors.White, fitToField: true, travel: true),
+        new BgLayers.Layer("res://char/bg2/route/blender/rei_mid.png", 0.62f, -92, Colors.White, fitToField: true, travel: true),
+        new BgLayers.Layer("res://char/bg2/route/blender/rei_near.png", 1.20f, -91, Colors.White, fitToField: true, travel: true),
     };
 
     public static readonly BgLayers.Layer[] PassageLayers =
     {
-        new BgLayers.Layer("res://char/bg2/route/rei_passage_far.png", 0.22f, -95, Colors.White, fitToField: true, travel: true),
-        new BgLayers.Layer("res://char/bg2/route/rei_passage_mid.png", 0.62f, -92, Colors.White, fitToField: true, travel: true),
-        new BgLayers.Layer("res://char/bg2/route/rei_passage_near.png", 1.20f, -91, Colors.White, fitToField: true, travel: true),
+        new BgLayers.Layer("res://char/bg2/route/blender/rei_passage_far.png", 0.22f, -95, Colors.White, fitToField: true, travel: true),
+        new BgLayers.Layer("res://char/bg2/route/blender/rei_passage_mid.png", 0.62f, -92, Colors.White, fitToField: true, travel: true),
+        new BgLayers.Layer("res://char/bg2/route/blender/rei_passage_near.png", 1.20f, -91, Colors.White, fitToField: true, travel: true),
     };
 
     public static readonly BgLayers.Layer[] ClimaxLayers =
     {
-        new BgLayers.Layer("res://char/bg2/route/rei_climax_far.png", 0.18f, -95, Colors.White, fitToField: true, travel: true),
-        new BgLayers.Layer("res://char/bg2/route/rei_climax_mid.png", 0.65f, -92, Colors.White, fitToField: true, travel: true),
-        new BgLayers.Layer("res://char/bg2/route/rei_climax_near.png", 1.40f, -91, Colors.White, fitToField: true, travel: true),
+        new BgLayers.Layer("res://char/bg2/route/blender/rei_climax_far.png", 0.18f, -95, Colors.White, fitToField: true, travel: true),
+        new BgLayers.Layer("res://char/bg2/route/blender/rei_climax_mid.png", 0.65f, -92, Colors.White, fitToField: true, travel: true),
+        new BgLayers.Layer("res://char/bg2/route/blender/rei_climax_near.png", 1.40f, -91, Colors.White, fitToField: true, travel: true),
     };
 
     public static readonly BgLayers.Layer[] LateRouteLayers =
     {
-        new BgLayers.Layer("res://char/bg2/route/rei_late_far.png", 0.18f, -95, Colors.White, fitToField: true, travel: true),
-        new BgLayers.Layer("res://char/bg2/route/rei_late_mid.png", 0.65f, -92, Colors.White, fitToField: true, travel: true),
-        new BgLayers.Layer("res://char/bg2/route/rei_late_near.png", 1.40f, -91, Colors.White, fitToField: true, travel: true),
+        new BgLayers.Layer("res://char/bg2/route/blender/rei_late_far.png", 0.18f, -95, Colors.White, fitToField: true, travel: true),
+        new BgLayers.Layer("res://char/bg2/route/blender/rei_late_mid.png", 0.65f, -92, Colors.White, fitToField: true, travel: true),
+        new BgLayers.Layer("res://char/bg2/route/blender/rei_late_near.png", 1.40f, -91, Colors.White, fitToField: true, travel: true),
     };
 
     public static readonly BgLayers.Layer[] MidbossLayers =
@@ -66,7 +66,7 @@ public partial class ReiRoot : Node2D
     {
         ReiBossTechnique.PrepareAssets();
         var g = GetNodeOrNull<GameManager>("/root/Game");
-        g?.ResetRun();
+        double elapsed = g?.ResetRun() ?? 0;
         g?.BeginStageRun("rei");
 
         _tint = new CanvasModulate { Name = "Tint", Color = Cold };
@@ -82,6 +82,7 @@ public partial class ReiRoot : Node2D
             LateRouteLayerDefs = LateRouteLayers,
             PassageLayerDefs = PassageLayers,
             ClimaxLayerDefs = ClimaxLayers,
+            ContinuousTravel = true,
             StartInLateRoute = g?.SelectedEntry == GameManager.StageEntry.AfterMidBoss,
             MidbossLayerDefs = MidbossLayers,
             LayerBossBehavior = BgLayers.BossBehavior.Illustrated,
@@ -119,8 +120,8 @@ public partial class ReiRoot : Node2D
         AddChild(new BubbleLayer { Name = "BubbleLayer", Hud = Hud }); // 会話の吹き出し（会話バー・一行字幕・宣告カード）＝弾・自機より奥（世界側 -7）に描く層。状態は Hud が持つ
         Hud.SetLives(Player.Lives);
 
-        Stage = new StageRei { Name = "StageRei", Player = Player, Hud = Hud, World = World };
-        AddChild(Stage);
+        Stage = new StageRei { Name = "StageRei", Player = Player, Hud = Hud, World = World, Elapsed = elapsed };
+        PlayerSpecialTutorial.Start(this, Hud, Stage);
     }
 
     public override void _Process(double delta)
@@ -141,7 +142,7 @@ public partial class ReiRoot : Node2D
             if (gameOver && !Input.IsKeyPressed(Key.Shift))
             {
                 var g = GetNodeOrNull<GameManager>("/root/Game");
-                g?.PrepareBossRetry();
+                g?.PrepareBossRetry(Stage.Elapsed);
             }
             GetNodeOrNull<BulletPool>("/root/Pool")?.DespawnAll();
             GameManager.FadeToScene(this, GetTree().CurrentScene.SceneFilePath);
@@ -152,7 +153,7 @@ public partial class ReiRoot : Node2D
         // ゲームオーバー（残機0）中は「抜ける（ハブへ戻る）」を受付。お金は保存して持ち帰る。
         if (gameOver)
         {
-            if (GameManager.HandleGameOverExit(this, Hud, ref _exitHeld)) return;
+            if (GameManager.HandleGameOverExit(this, Hud, ref _exitHeld, Stage.Elapsed)) return;
         }
         else { GameManager.ClearGameOverChoice(Hud); _exitHeld = false; }
 

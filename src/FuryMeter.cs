@@ -178,7 +178,7 @@ public partial class GameManager
 
     // 自然上昇。GameManager._Process から毎フレーム呼ぶ。
     //   戦闘が止まっているとき（会話バブル＝Hud.BubblePaused／改心などの割り込み＝Hud.SuppressCallouts）は
-    //   上昇も止める＝「放置すると荒れる」が会話の裏で進まない（コンボ猶予の凍結と同じ理屈）。
+    //   上昇も止める＝「放置すると荒れる」が会話の裏で進まない。
     private void TickFury(double delta)
     {
         if (!FuryActive) return;

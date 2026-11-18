@@ -156,7 +156,7 @@ public partial class BossEdgeVolley : Node2D
                 else
                 {
                     bullet = _pool.Spawn(gate, _direction * _speed, true, 3.4f, 1, BulletShape.Diamond, _accent);
-                    bullet.SetSprite(_art);
+                    bullet.SetEnemySprite(_art, 55f);
                 }
                 if (GameManager.Instance?.IsLunatic != true) bullet.DeployBossFormation(gate, edgeLaunch: true);
                 if (_boss.BodyShotJob == Job.Melee)

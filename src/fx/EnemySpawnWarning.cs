@@ -26,7 +26,7 @@ public partial class EnemySpawnWarning : Node2D
         Stroke(new Vector2(0, gap), new Vector2(0, 10), Light);
         for (int i = 0; i < 2; i++)
         {
-            float x = 4 + i * 7 + Mathf.PosMod(_progress * 2, 1) * 3;
+            float x = 4 + i * 7;
             Stroke(new Vector2(x, -4), new Vector2(x + 4, 0), Amber);
             Stroke(new Vector2(x + 4, 0), new Vector2(x, 4), Amber);
         }

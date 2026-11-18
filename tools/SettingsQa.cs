@@ -20,10 +20,10 @@ public partial class SettingsQa : Node
         ProcessMode = ProcessModeEnum.Always;
         try
         {
-            Check(OS.GetUserDataDir().Replace('\\', '/').Contains("/build/qa_settings/"), "isolated save data");
+            Check(OS.GetUserDataDir().Replace('\\', '/').Contains("/build/qa_story/"), "isolated save data");
             if (Array.IndexOf(OS.GetCmdlineUserArgs(), "--prepare") >= 0)
             {
-                SaveSettings("{\"mode\":0,\"auto\":true,\"autosave\":false,\"msg\":2,\"shake\":0,\"flash\":0,\"reduceflash\":true,\"pauseunfocused\":true}");
+                SaveSettings("{\"mode\":0,\"auto\":true,\"autosave\":false,\"msg\":2,\"shake\":0,\"flash\":0,\"reduceflash\":true,\"pauseunfocused\":true,\"alert\":35}");
                 GD.Print("[SettingsQA] prepared preferences for a fresh process");
                 GetTree().Quit();
                 return;
@@ -33,6 +33,8 @@ public partial class SettingsQa : Node
                 "dialogue and autosave preferences restore before opening settings");
             Check(Settings.ShakeStrength == 0 && Settings.HitFlashStrength == 0 && Settings.ReduceFlashes,
                 "effect preferences restore before opening settings");
+            Check(Mathf.IsEqualApprox(AudioServer.GetBusVolumeDb(AudioServer.GetBusIndex("Alert")), Mathf.LinearToDb(0.35f)),
+                "warning volume restores before opening settings");
             if (DisplayServer.GetName() != "headless")
                 Check(DisplayServer.WindowGetMode() == DisplayServer.WindowMode.Windowed, "saved window mode restores on startup");
             game.AutoSave();
@@ -68,6 +70,34 @@ public partial class SettingsQa : Node
             Check(player.Position == start, "player cannot move while focus pause is active");
             menu._Notification((int)NotificationApplicationFocusIn);
             Check(menu.IsOpen && GetTree().Paused, "focus return requires deliberate resume");
+            Invoke(menu, "Activate", menu.GearIndex);
+            await Shot("pause_settings");
+            Pad.ReleaseMouseFollow();
+            Write(menu, "_sel", PauseMenu.AllSettingsRowIndex);
+            Invoke(menu, "ProcessSettings", true, false);
+            await Frames(5);
+            var layer = Read<CanvasLayer>(menu, "_settingsOverlay");
+            var overlay = layer.GetChild<Settings>(0);
+            Write(overlay, "_t", 1d);
+            Check(GetTree().Paused && GetTree().CurrentScene == stage && overlay.CanProcess(),
+                "full settings remains interactive over paused combat without changing the scene");
+            Write(overlay, "_cat", 3);
+            Write(overlay, "_row", 0);
+            Invoke(overlay, "Adjust", 1, false);
+            Check(Mathf.IsEqualApprox(Settings.ShakeStrength, 0.05f), "accessibility can be changed during combat");
+            await Shot("pause_accessibility");
+            Write(overlay, "_cat", 1);
+            Write(overlay, "_row", 0);
+            Invoke(overlay, "Adjust", -1, false);
+            await Press(Key.H);
+            Check(GetNode<HowToPlay>("/root/HowTo").IsOpen, "settings opens the existing controls guide");
+            await Press(Key.Escape);
+            Check(!GetNode<HowToPlay>("/root/HowTo").IsOpen && IsInstanceValid(overlay) && menu.IsOpen,
+                "closing controls returns only to settings");
+            await Press(Key.Escape);
+            Check(Read<CanvasLayer?>(menu, "_settingsOverlay") == null && menu.IsOpen && GetTree().Paused,
+                "closing full settings returns only to the paused quick settings");
+            Check(Mathf.IsEqualApprox(menu.VolValue(0), 75f), "quick settings refreshes changed volume");
             Invoke(menu, "Close");
             SaveSettings("{\"pauseunfocused\":false}");
             Settings.ApplySaved(game);
@@ -131,11 +161,32 @@ public partial class SettingsQa : Node
             Check(game.MsgCharsPerSec == DialogueBox.Speed(2) && Settings.ShakeStrength == 0 && Settings.HitFlashStrength == 1,
                 "out-of-range saved settings clamp to supported values");
             Invoke(settings, "Save");
-            Check(AudioConfig.GetInt("inputdisplay", -1) == 2, "controller selection preserves its saved device value");
-            string[] categories = { "display", "audio", "gameplay", "controls", "accessibility" };
+            Check(!AudioConfig.Read().ContainsKey("inputdisplay"), "obsolete initial control display preference is removed");
+            Write(settings, "_cat", 1);
+            Write(settings, "_row", 0);
+            MouseSettings(settings, new Vector2(340, 167), true);
+            Check(AudioConfig.Get("master") == 80, "clicking a slider label does not mute the sound");
+            MouseSettings(settings, new Vector2(1055, 167), true);
+            Check(AudioConfig.Get("master") == 50, "clicking the volume track sets its position");
+            MouseSettings(settings, new Vector2(1174, 280), false);
+            Check(AudioConfig.Get("master") == 100, "dragging outside the original row still adjusts the captured slider");
+            PadField("_mL", false);
+            Invoke(settings, "MouseSettings", false);
+            Pad.ReleaseMouseFollow();
+            Write(settings, "_row", 3);
+            Invoke(settings, "Adjust", -1, false);
+            Check(AudioConfig.Get("alert") == 95 && Mathf.IsEqualApprox(
+                AudioServer.GetBusVolumeDb(AudioServer.GetBusIndex("Alert")), Mathf.LinearToDb(0.95f)),
+                "warning volume changes independently and saves");
+            AudioConfig.SetBus("Alert", 0);
+            AudioConfig.ApplySaved();
+            Check(Mathf.IsEqualApprox(AudioServer.GetBusVolumeDb(AudioServer.GetBusIndex("Alert")), Mathf.LinearToDb(0.95f)),
+                "saved warning volume can be restored");
+            string[] categories = { "display", "audio", "gameplay", "accessibility" };
             for (int i = 0; i < categories.Length; i++)
             {
                 Write(settings, "_cat", i);
+                Write(settings, "_row", 0);
                 settings.QueueRedraw();
                 await Shot($"settings_{categories[i]}");
             }
@@ -164,12 +215,32 @@ public partial class SettingsQa : Node
         for (int i = 0; i < count; i++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
     }
 
+    private async Task Press(Key key)
+    {
+        Input.ParseInputEvent(new InputEventKey { Keycode = key, Pressed = true });
+        await Frames(4);
+        Input.ParseInputEvent(new InputEventKey { Keycode = key, Pressed = false });
+        await Frames(4);
+    }
+
+    private static void PadField(string name, object value)
+        => typeof(Pad).GetField(name, BindingFlags.Static | BindingFlags.NonPublic)!.SetValue(null, value);
+
+    private static void MouseSettings(Settings settings, Vector2 position, bool click)
+    {
+        PadField("_mousePos", position);
+        PadField("_usingMouse", true);
+        PadField("_mL", true);
+        UiKit.BeginHotspots(position);
+        Invoke(settings, "MouseSettings", click);
+    }
+
     private async Task Shot(string name)
     {
         if (DisplayServer.GetName() == "headless") return;
         await Frames(2);
         await ToSignal(RenderingServer.Singleton, RenderingServer.SignalName.FramePostDraw);
-        string path = "res://build/qa_settings/shots";
+        string path = "user://settings_shots";
         DirAccess.MakeDirRecursiveAbsolute(ProjectSettings.GlobalizePath(path));
         using var image = GetViewport().GetTexture().GetImage();
         Check(image.SavePng($"{path}/{name}.png") == Error.Ok, $"screenshot {name}");

@@ -23,6 +23,7 @@ public partial class EpilogueQa : Node
         try
         {
             Check(OS.GetUserDataDir().Replace('\\', '/').Contains("/build/qa_story/"), "isolated save data");
+            typeof(Settings).GetProperty(nameof(Settings.PauseWhenUnfocused))!.GetSetMethod(true)!.Invoke(null, new object[] { false });
             DisplayServer.WindowSetMode(DisplayServer.WindowMode.Windowed);
             DisplayServer.WindowSetSize(new Vector2I(1280, 720));
             _out = ProjectSettings.GlobalizePath("res://build/qa_story/ending_v2/shots");
@@ -98,8 +99,8 @@ public partial class EpilogueQa : Node
             await Frames(2);
             if (route == 0)
             {
-                using var returning = await Shot("final_rooftop");
-                MatchArt(returning, Read<Texture2D>(final, "_rooftop"), new Rect2(0, 0, 1280, 720));
+                using var returning = await Shot("final_screen");
+                MatchArt(returning, Read<Texture2D>(final, "_returnScreen"), new Rect2(0, 0, 1280, 720));
             }
             await AdvanceUntil(() => GetTree().CurrentScene?.SceneFilePath == "res://Epilogue.tscn");
             await QaSceneTransition.Wait(this);
@@ -140,8 +141,9 @@ public partial class EpilogueQa : Node
         await Frames(30);
         foreach (string field in new[] { "_skyDawn", "_rest", "_goodbye" })
             Check(Read<Texture2D>(ep, field).ResourcePath.StartsWith("res://char/bg2/ending/"), $"{field} loads ending art");
-        foreach (string field in new[] { "_skyDawn", "_goodbye" })
-            Check(Read<Texture2D>(ep, field).ResourcePath.EndsWith("_v2.png"), $"{field} uses the matched dawn artwork");
+        Check(Read<Texture2D>(ep, "_skyDawn").ResourcePath.EndsWith("bg_ep_dawn_v2.png"), "credits use the dawn artwork");
+        Check(Read<Texture2D>(ep, "_rest").ResourcePath.EndsWith("cg_ep_mina_screen_v1.png"), "Mina returns inside the phone screen");
+        Check(Read<Texture2D>(ep, "_goodbye").ResourcePath.EndsWith("cg_ep_mina_screen_goodnight_v1.png"), "Mina says goodnight inside the phone screen");
 
         if (choice == 0)
         {
@@ -205,9 +207,12 @@ public partial class EpilogueQa : Node
             using var small = await Shot("end_small");
             DisplayServer.WindowSetSize(new Vector2I(1280, 720));
         }
-        await AdvanceUntil(() => GetTree().CurrentScene?.SceneFilePath == "res://TitleMenu.tscn");
+        await AdvanceUntil(() => GetTree().CurrentScene?.SceneFilePath == "res://Hub.tscn");
         await QaSceneTransition.Wait(this);
-        Check(!IsInstanceValid(ep), $"E6 choice {choice} returns to title");
+        Check(!IsInstanceValid(ep), $"E6 choice {choice} returns home");
+        game.ResetPersistent();
+        Check(game.LoadFromSlot(0) && game.HasChoiceAt("e6") && game.LastSentWord == expected && game.EndingRollSeen,
+            $"E6 choice {choice} and ending completion survive reloading");
         GetTree().CurrentScene.QueueFree();
         await Frames(3);
     }
@@ -217,8 +222,10 @@ public partial class EpilogueQa : Node
         Check(film.GetChildCount() == 0, "film has no walking sprites or articulated body parts");
         film.SetProcess(false);
         var art = Read<Texture2D[]>(film, "_art");
-        foreach (int shot in new[] { 4, 5, 6 })
-            Check(art[shot].ResourcePath.EndsWith("_v2.png"), $"film cut {shot} uses the matched dawn artwork");
+        Check(art[0].ResourcePath.EndsWith("cg_ep_mina_screen_v1.png"), "film opens with Mina inside the phone screen");
+        foreach (int shot in new[] { 4, 5 })
+            Check(art[shot].ResourcePath.EndsWith("cg_ep_mina_screen_goodnight_v1.png"), $"film cut {shot} keeps Mina inside the phone screen");
+        Check(art[6].ResourcePath.EndsWith("bg_ep_dawn_v2.png"), "film closes on the dawn artwork");
         var cuts = (double[])typeof(EndingFilm).GetField("Cuts", BindingFlags.Static | BindingFlags.NonPublic)!.GetValue(null)!;
         var lines = (string[])typeof(EndingFilm).GetField("Lines", BindingFlags.Static | BindingFlags.NonPublic)!.GetValue(null)!;
         for (int shot = 0; shot < art.Length; shot++)

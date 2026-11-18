@@ -55,10 +55,14 @@ public partial class AutoplayInputQa : Node
             Check(_player.LockedOn && _player.LockTarget == enemy, "locks on through Shift input");
             Check(Mathf.Abs(_player.GlobalPosition.Y - enemy.GlobalPosition.Y) < 4f,
                 $"tracks a target 12px away without stalling (y={_player.GlobalPosition.Y:0.0})");
+            Check(_maxCharge == 0 && game.OwnedUpgradeCount == 0, "autoplay does not charge or grant upgrades before purchase");
+            game.TrainingSetImpression(GameManager.GetUpgradeDef("n_charge_shot")!.BaseCost);
+            Check(game.TryPurchase("n_charge_shot"), "buy the base charge skill without another upgrade");
+            _time = 0;
+            await Frames(75);
             Check(_maxCharge == ChargeTier.First && _firstCharge <= 1.1,
                 $"fires a first-tier charge through Z within 1.1s (t={_firstCharge:0.00})");
-            Check(!game.HasChargeTier2 && game.ExtraLines == 0,
-                "autoplay does not grant upgrades");
+
 
             _hud.SetCinematicMode(true);
             await Frames(3);

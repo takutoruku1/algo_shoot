@@ -4,7 +4,7 @@ using System.Collections.Generic;
 
 public partial class StoryFilm : Node2D
 {
-    protected readonly record struct Line(int Shot, string Time, string Speaker, string Text, double Hold = 0.2);
+    protected readonly record struct Line(int Shot, string Time, string Speaker, string Text, double Hold = 0.2, Job? Author = null);
 
     protected Hud _hud = null!;
     protected Node _world = null!;
@@ -25,7 +25,6 @@ public partial class StoryFilm : Node2D
     //   ・TimeLead … 時制の見出しだけを見せる一拍。memory 0.6（旧 1.05）／aftermath 1.05
     //   ・AutoRead … 自動送り（Settings の AutoAdvanceDialog）で、全文が出てから次へ送るまでの秒。
     //                memory 1.0（旧 1.4）／aftermath 1.4
-    //   初見でも Ctrl／RB 押しっぱなしで早送りできる件は Hud.BattleMemoryTempo。
     protected double FadeTime => _aftermath ? 0.65 : 0.45;
     private double AutoRead => _aftermath ? 1.4 : 1.0;
     // 背後（StageBackground/BgLayers のボスイラスト）を塞ぐ不透明の黒板。
@@ -69,6 +68,7 @@ public partial class StoryFilm : Node2D
     protected string _storyName = "";
     protected int _atlasRows = 3;
     protected Dictionary<int, string> _shotImages = new();
+    protected Dictionary<int, Vector4> _shotRegions = new();
     private Texture2D _atlas = null!;
 
     // 回想BGMを引くためのキー（"rei"/"akari"/"koharu"/"mina"）。_storyName の小文字＝
@@ -88,9 +88,8 @@ public partial class StoryFilm : Node2D
         _hud.SuppressCallouts = true;
         _hud.HideBubble();
         _hud.HoldBubble = true;
-        // 戦闘中の回想だけ、初見でも押しっぱなし早送りを許す。
-        _hud.BattleMemoryTempo = !_aftermath;
         _hud.SetCinematicMode(true, accent: StoryAccent());
+        _hud.StoryLogSection = StorySectionLabel;
         GetNode<BulletPool>("/root/Pool").DespawnAll();
         foreach (Node hazard in GetTree().GetNodesInGroup("aoe"))
             if (hazard is AreaStrike) hazard.QueueFree();
@@ -130,6 +129,7 @@ public partial class StoryFilm : Node2D
     public override void _Process(double delta)
     {
         if (Pad.UiBlocked(this)) { _held = true; return; }
+        bool skip = !_leaving && _skip.Update(delta);
         bool held = Pad.AdvanceHeld();
         bool edge = held && !_held;
         _held = held;
@@ -143,7 +143,7 @@ public partial class StoryFilm : Node2D
         QueueRedraw();
         if (_leaving)
         {
-            if (_fadeT < FadeTime) return;
+            if (_fadeT < FadeTime || Pad.MouseDown()) return;
             Restore();
             GD.Print($"[{_storyName}Story] {(_aftermath ? "aftermath" : "memory")} complete");
             _completed();
@@ -152,7 +152,7 @@ public partial class StoryFilm : Node2D
         }
         // 既読フィルムの長押しスキップ。立ち上げの 0.65 秒フェード中も受け付ける（そこで待たせる意味が無い）。
         //   飛ばしたあとは最終行まで読んだときと**同じ畳み方**（_leaving からの明けフェード）へ落とす。
-        if (_skip.Update(delta)) { BeginLeave(); return; }
+        if (skip) { BeginLeave(); return; }
         if (!_started)
         {
             if (_fadeT < FadeTime) return;
@@ -166,9 +166,7 @@ public partial class StoryFilm : Node2D
         //   （_hud は空＝DialogRevealed が true を返すため、素通りさせると _line が飛ぶ）。
         if (_timeHold > 0)
         {
-            // オートは一拍を待たせる（そのための自動送り）。押した人と既読スキップだけ即座に明ける。
-            //   FastForwarding は「表示中の行が既読」で立つフラグ＝ここでは直前の行を見ているが、
-            //   既読スキップ中に見出しで止まらないという意図どおりに働く。
+            // オートは一拍を待たせる（そのための自動送り）。押した人とスキップだけ即座に明ける。
             //   memory の1行目は直前の行が無い（＝FastForwarding が立たない）ので、押しっぱなし自体を見る。
             if (_timeT >= _timeHold || edge || _hud.FastForwarding || (!_aftermath && Hud.SkipHeld)) ShowLineText();
             return;
@@ -184,7 +182,7 @@ public partial class StoryFilm : Node2D
                      || (_lineT >= _lines[_line].Hold && _hud.AutoAdvanceReady && _readT >= AutoRead)))
         {
             _line++;
-            if (_line == _lines.Length) BeginLeave();
+            if (_line == _lines.Length) OnLinesCompleted();
             else ShowLine();
         }
     }
@@ -194,7 +192,9 @@ public partial class StoryFilm : Node2D
     //   記録はセーブ（GameManager._idleDialogSeen → idleDialogSeen）に載るが、保存そのものは
     //   既存のオートセーブ点（ステージクリア／ハブ帰還／FINAL 記録）に任せる。回想の直後は必ず
     //   戦闘の続きかクリア処理へ戻るので、ここで個別に AutoSave を挟む必要はない。
-    private void BeginLeave()
+    protected virtual void OnLinesCompleted() => BeginLeave();
+
+    protected void BeginLeave()
     {
         if (_leaving) return;
         _leaving = true;
@@ -247,14 +247,15 @@ public partial class StoryFilm : Node2D
         var line = _lines[_line];
         if (line.Speaker.Length == 0) _hud.ShowMessage(line.Text);
         else if (line.Speaker == "主人公") _hud.ShowDialog(Hud.LineKind.Boy, line.Text);
-        else _hud.ShowDialog(Hud.LineKind.Other, line.Text, otherName: line.Speaker);
+        else _hud.ShowDialog(Hud.LineKind.Other, line.Text,
+            line.Author is { } author ? CompanionDialogue.Portrait(author) : "", otherName: line.Speaker);
     }
 
     private void SetFrame(string prefix, int shot)
     {
         bool fullFrame = _shotImages.TryGetValue(shot, out string? path);
         var texture = fullFrame ? GD.Load<Texture2D>(path!) : _atlas;
-        var region = fullFrame ? new Vector4(0, 0, 1, 1)
+        var region = fullFrame ? _shotRegions.GetValueOrDefault(shot, new Vector4(0, 0, 1, 1))
             : new Vector4((shot % 2) / 2f, (shot / 2) / (float)_atlasRows, 0.5f, 1f / _atlasRows);
         _grade.SetShaderParameter(prefix + "_texture", texture);
         _grade.SetShaderParameter(prefix + "_region", region);
@@ -298,6 +299,8 @@ public partial class StoryFilm : Node2D
         _ => _storyName,
     };
 
+    private string StorySectionLabel => $"{StoryLabel()} / {(_aftermath ? "アフターシーン" : "回想記録")}";
+
     private void DrawStoryFrame()
     {
         Color accent = StoryAccent();
@@ -319,11 +322,10 @@ public partial class StoryFilm : Node2D
         DrawRect(new Rect2(1260, 82, 2, 410), new Color(accent2, 0.18f));
 
         string mode = _aftermath ? "AFTER SCENE" : "MEMORY LOG";
-        string modeJ = _aftermath ? "アフターシーン" : "回想記録";
         float chipW = Mathf.Max(188f, UiKit.TextW(UiKit.Mono, mode, 18) + 44f);
         UiKit.Box(this, new Rect2(42, 18, chipW, 30), new Color(0.040f, 0.038f, 0.058f, 0.72f), 8f, new Color(accent, 0.45f), 1f);
         UiKit.Text(this, UiKit.Mono, new Vector2(64, 24), mode, 18, new Color(accent, 0.96f));
-        UiKit.Text(this, UiKit.ZenBold, new Vector2(64 + chipW, 25), $"  {StoryLabel()} / {modeJ}", 16, new Color(UiKit.Text2, 0.9f));
+        UiKit.Text(this, UiKit.ZenBold, new Vector2(64 + chipW, 25), $"  {StorySectionLabel}", 16, new Color(UiKit.Text2, 0.9f));
 
     }
 
@@ -369,9 +371,9 @@ public partial class StoryFilm : Node2D
         if (IsInstanceValid(_hud))
         {
             _hud.HoldBubble = false;
-            _hud.BattleMemoryTempo = false;
             _hud.HideBubble();
             _hud.SetCinematicMode(false);
+            _hud.StoryLogSection = null;
             _hud.SuppressCallouts = _suppressed;
         }
 

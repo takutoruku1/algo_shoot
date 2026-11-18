@@ -1,0 +1,31 @@
+{
+  "schema": 1,
+  "asset": "assets/sns/koharu_worked_notes_v1.png",
+  "created_date": "2026-10-30",
+  "mode": "built-in image_gen",
+  "tool": "image_gen.imagegen",
+  "intent": "generate with existing-project scene and style reference",
+  "tool_arguments": {
+    "prompt": "Create one original landscape 2:1 anime illustration for an in-game SNS photo attachment. It is a quiet, casual photo of a school notebook after a student finally understood an exercise by asking a classmate for help. NO title, overlay, caption, watermark, collage or border.\n\nREFERENCE: Use ONLY the bottom-right panel (column 2, row 4) of the supplied 2-column 4-row story atlas as the visual style and scene reference. That panel is the next morning in a Japanese classroom: light honey-colored wooden school desk, soft bright window daylight, an open white notebook, simple study materials, warm restrained contemporary anime rendering. Match its line quality, material shading, soft light and palette. Do NOT copy or show any characters or any other panel's nighttime bedroom, screen or props.\n\nCOMPOSITION: close overhead, slightly oblique candid view of one open ruled exercise notebook on that same light wooden school desk. Notebook has mild perspective and takes most of the image; both its handwritten work and worn eraser remain readable in a central safe region within 85% of image width and 85% of height, safe to crop to an exact 2:1 landscape. Gentle bright morning light enters from upper left. Only a slim edge of a plain muted coral-red pencil pouch may appear at far left, as in reference. Two simple modest pencils, one dark navy and one natural wood, rest at different small angles at the two side edges, suggesting two students studied together. The right-hand page is the focus. The left page stays mostly blank with faint ruled lines and a light erased patch, no invented text. On the right page, a small worn white eraser in a plain dark-blue sleeve, a few real eraser crumbs, and a faint rubbed-out former calculation above the current working. This erased trace must be extremely faint and not look like a bold competing answer. The paper feels used and personal, not a decorative stationery flat-lay or a perfect achievement poster.\n\nMATH CONTENT: Five clearly legible, mathematically accurate pencil-written rows, with natural but neat handwriting, in exactly this order on the right-hand page. Keep spacing generous and put nothing over these equations:\nx² − 5x + 6 = 0\nx² − 2x − 3x + 6 = 0\nx(x − 2) − 3(x − 2) = 0\n(x − 2)(x − 3) = 0\nx = 2, 3\nThe second and third rows should feel newly added as intermediate working after the student erased an earlier unfinished attempt. No extra math, no question number, no Japanese writing, no fake kanji, no teacher marks, no check marks, no grades, no perfect score and no circles around the answer. This is a small moment of understanding, not a prize.\n\nNo people, faces, hands, silhouettes, plants, coffee, food, cups, phones, screens, penlights, hearts, stickers, flower decorations or logos. No textbook layout or published textbook reproduction. No dramatic fantasy effects. Entire scene must remain a believable object-only close-up from the reference classroom and a beautiful softly shaded 2D anime game illustration, not photorealistic.",
+    "referenced_image_paths": [
+      "D:/dev/algo_shoot/char/v3/koharu_story_atlas_v2.png"
+    ],
+    "transparent_background": false
+  },
+  "generated_source": "C:/Users/takut/.codex/generated_images/01a18845-6192-7fe2-a30e-0165131e8f09/exec-984a5d05-90c9-461c-826e-114079085983.png",
+  "reference_region": "char/v3/koharu_story_atlas_v2.png, bottom-right panel (column 2, row 4) only",
+  "story_basis": "KoharuStoryFilm Aftermath: next morning, Koharu asks a classmate for help and the notebook contains intermediate working rather than only an answer.",
+  "intended_caption": "ここ、やっと分かった。",
+  "review": {
+    "dimensions": [
+      1774,
+      887
+    ],
+    "aspect_ratio": "2:1",
+    "math": "All five intended equations visually checked; factoring and solutions are correct.",
+    "content": "Object-only notebook on classroom desk, faint erased attempt, eraser and crumbs, two pencils, restrained coral pouch edge.",
+    "style": "Compared to bottom-right existing story atlas panel; wood desk, morning light and contemporary anime rendering match.",
+    "crop": "All five equations and eraser remain inside the central 85% crop-safe area.",
+    "assets": "Only existing project reference and built-in generated output; no external asset downloads, paid materials or copied textbook pages."
+  }
+}

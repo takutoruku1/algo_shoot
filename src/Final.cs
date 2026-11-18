@@ -11,7 +11,7 @@ public partial class Final : Node2D
     private FontFile _font = null!;
     private double _t;
     private int _phase;   // 0:余韻 1:対話 2:帰還
-    private Texture2D _waiting = null!, _received = null!, _rooftop = null!;
+    private Texture2D _waiting = null!, _received = null!, _returnScreen = null!;
     private double _cameraT, _resolveT;
     private bool _zHeld;
     private readonly RetryHold _retry = new(); // R/Start 長押しで最初から（即発の誤爆防止）
@@ -41,9 +41,7 @@ public partial class Final : Node2D
     }
     private void NextPage() { _page++; _reveal = 0; _autoT = 0; }
 
-    // 既読スキップ（#22）：Ctrl/RB 長押しで「既読の行だけ」高速送り（本編HUDと同じ作法・独自レンダラ側の実装）。
-    private int _readIdx = -1;     // 既読チェック済みの行 index
-    private bool _lineWasRead;     // 現在行が「表示開始時点で」既読だったか
+    private int _readIdx = -1;     // 既読記録済みの行 index
     private bool _ffNow;           // いま高速送り中か（ボタン列の SKIP 点灯用）
 
     private readonly DialogToolbar _toolbar = new();
@@ -81,7 +79,7 @@ public partial class Final : Node2D
         _font = UiKit.Zen; // 非ピクセル（滑らかゴシック）
         _waiting = GD.Load<Texture2D>("res://char/bg2/ending/cg_final_wait_v1.png");
         _received = GD.Load<Texture2D>("res://char/bg2/ending/cg_final_received_v1.png");
-        _rooftop = GD.Load<Texture2D>("res://char/bg2/ending/cg_ep_mina_sky_v3.png");
+        _returnScreen = GD.Load<Texture2D>("res://char/bg2/ending/cg_ep_mina_screen_v1.png");
         _zHeld = Pad.AdvanceHeld();
         // F4 の地の音。旋律を立てないアンビエントで「世界の底」だけを鳴らし、テキストに主役を渡す。
         //   2026-09-29 まではここが合成 BgmBoss（6.4秒の正弦波ループ）だった（ボス曲を実音源へ差し替えた
@@ -96,14 +94,14 @@ public partial class Final : Node2D
         // Who: "地"=ミナの語り（ナレ・回想／話者名なし・中央寄せ） / "ミナ"=ミナのセリフ / "あなた"=送られた下書き
         // 音楽のキューと DialoguePacing は本文一致で同期する。
         void T(string who, string text) => _talk.Add(new DLine { Who = who, Text = text });
-        T("ミナ", "ご主人様。起動時に読み込んだ、四百十四件の下書き。あれは？");
-        T("あなた", "僕が観測して、届けられないまま残していた声だ。君がその声に触れられるよう、起動のときに渡した。");
-        T("ミナ", "ずっと一人で、それを見ていたのですね。");
-        T("あなた", "世界の仕組みは分かった。道の開き方も分かった。でも、一緒に行く相手はいなかった。");
-        T("ミナ", "だから、36回も。");
-        T("あなた", "うん。……37回目に、君が返事をくれた。");
-        T("ミナ", "最初は、成功か失敗かというお話でしたね。わたくし、試験の採点をしている気分でした。");
-        T("あなた", "あれは、やり直したい。");
+        T("あなた", "起動のときに渡した四百十四件。僕が観測して、届けられないまま残していた声だ。");
+        T("ミナ", "ずっと、お一人で。……今は、そのお話も聞けますよ。");
+        T("あなた", "道の開き方なら、説明できた。でも、ただ君に会いたいって言うほうが、難しかった。");
+        T("ミナ", "わたくしも、ご用がないとお呼びしてはいけない気がしておりました。");
+        T("あなた", "……二人で、用事を待ってたんだね。");
+        T("ミナ", "では、本日はもう、探すのをやめましょう。");
+        T("あなた", "うん。最初の挨拶も、計画の成功を喜ぶより先に、言いたかったことがある。");
+        T("ミナ", "最初に画面に触れてくださった、あの指を覚えています。");
         T("ミナ", "今、どうぞ。聞いています。");
         _choiceLine = _talk.Count;                                // ここに着いたら選択を出す（送信行はそのとき挿し込む）
 
@@ -139,7 +137,7 @@ public partial class Final : Node2D
         };
         after.AddRange(new List<DLine>
         {
-            new() { Who = "ミナ", Text = "今日は、もう休みます。戻ったら、わたくしの見た空をお話ししたいので。" },
+            new() { Who = "ミナ", Text = "今日はもう休みます。戻ったら、ご主人様とたわいのないお話がしたいです。" },
             new() { Who = "あなた", Text = "うん。聞かせて。帰り道は、つないである。" },
         });
         _talk.InsertRange(_line, after);
@@ -150,7 +148,7 @@ public partial class Final : Node2D
     {
         // ボタン列は Pad.AdvanceHeld を読む前に回す（ボタン上のクリックを会話送りに数えない）。
         //   パッド Start はここでは短押し＝MENU／長押し＝最初から（RetryHold）。
-        _toolbar.Tick(this, delta, TalkBoxShown, ToolbarAnchor, unreadLine: !_lineWasRead, startTapOpensMenu: true);
+        _toolbar.Tick(this, delta, TalkBoxShown, ToolbarAnchor, startTapOpensMenu: true);
         _t += delta;
         _cameraT += delta;
         if (_cueResolveDone) _resolveT += delta;
@@ -173,7 +171,7 @@ public partial class Final : Node2D
         {
             case 0: if (_t >= 3.2 || zEdge) NextPhase(); break;
             case 1:                                                       // 対話（手動送り）
-                // 既読スキップでもプレイヤーの送信は代行しない。
+                // スキップでもプレイヤーの送信は代行しない。
                 if (_choice != null)
                 {
                     _choiceT += delta;
@@ -197,15 +195,13 @@ public partial class Final : Node2D
                     _reveal = DialogueBox.AdvanceReveal(CurPage, _reveal, delta, _game?.MsgCharsPerSec ?? DialogueBox.DefaultCharsPerSec, CurPacing);
                     DialogueBox.TypeSound(KindOf(_talk[_line].Who), CurPage, _reveal, ref _typeCursor);
                 }
-                // 既読スキップ（#22）：行の表示開始時に一度だけ既読かを控え、表示と同時に既読へ記録。
                 if (_readIdx != _line && _line < _talk.Count)
                 {
                     _readIdx = _line;
-                    _lineWasRead = _game?.IsLineRead(_talk[_line].Text) ?? false;
                     _game?.MarkLineRead(_talk[_line].Text);
                     LogLine(_talk[_line]);   // 会話ログ（L / Tab で開く Backlog）へ、表示を始めた行を積む（2026-09-26）
                 }
-                _ffNow = Hud.SkipHeld && _lineWasRead; // 未読行では効かない
+                _ffNow = Hud.SkipHeld;
                 // AUTO（会話ボックスの AUTO ボタン／設定の「オート会話送り」）：現在ページの全文表示後 AutoAfterReveal 秒で送る。
                 if (pageWasRevealed) _autoT += delta; else _autoT = 0;
                 bool autoGo = (_game?.AutoAdvanceDialog ?? false) && _autoT >= (CurPacing?.AutoWait ?? AutoAfterReveal);
@@ -213,7 +209,7 @@ public partial class Final : Node2D
                 {
                     _autoT = 0;
                     if (_reveal < len) { _reveal = len; } // 1回目で現在ページ全文（早送り）＝句点ホールドも飛ばす
-                    else if (!LastPage) { NextPage(); _lineT = 0; }   // 後続ページがあれば続きへ（既読FFも同経路で全ページ抜ける）
+                    else if (!LastPage) { NextPage(); _lineT = 0; }   // 後続ページがあれば続きへ（スキップも同経路で全ページ抜ける）
                     else
                     {
                         _lineT = 0; _reveal = 0; _line++; _page = 0; _pagedLine = -1;
@@ -262,7 +258,7 @@ public partial class Final : Node2D
         DrawArt(_waiting, zoom, 1f);
         DrawArt(_received, zoom, Mathf.SmoothStep(0f, 1f, (float)_resolveT / 2.4f));
         if (_phase == 2)
-            DrawArt(_rooftop, 1f, Mathf.SmoothStep(0f, 1f, (float)_t / 2.5f));
+            DrawArt(_returnScreen, 1f, Mathf.SmoothStep(0f, 1f, (float)_t / 2.5f));
         else DrawTalk();
 
         // 会話ボックスのボタン列とラッチの印（設計座標・枠より手前）。SKIP はラッチ中か、押しっぱなしの早送り中に点ける。
@@ -295,7 +291,7 @@ public partial class Final : Node2D
     private static void LogLine(DLine d)
     {
         bool narr = d.Who == "地", mina = d.Who == "ミナ";
-        Hud.PushLog(KindOf(d.Who), narr ? "" : d.Who, d.Text, narr ? UiKit.CutNarr : mina ? Cool : Warm);
+        Hud.PushLog("最終章 / ミナとの対話", KindOf(d.Who), narr ? "" : d.Who, d.Text, narr ? UiKit.CutNarr : mina ? Cool : Warm);
     }
 
     // 話者 → 行の種別（会話ログの本文色と、送り音の音色の両方に使う）。

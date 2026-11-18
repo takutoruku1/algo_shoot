@@ -45,7 +45,7 @@ public partial class OpeningFilm : Node2D
     // 単独の字幕（DrawOverlay が描く本文と同じ文字列。会話ログにも同じものを積む＝LogCaption）。
     private const string HeardLine = "……投稿できなかった言葉が、聞こえます。";
     private const string GoLine = "ご主人様、道を探してください。";
-    private const string WaitingLine = "行きましょう。\nあの人が、言えなかったことを聞きに。";
+    private const string WaitingLine = "あの人が言えなかったことを、\n一緒に聞きに行きましょう。";
     private const string TaglineLine = "消された言葉は、消えていない。";
     private static readonly Color[] Accents = { new("f0c969"), new("a6dac8"), new("de91b9"), new("87d7ed") };
     private static readonly Vector2[] PortraitFocus = { new(0.52f, 0.24f), new(0.64f, 0.25f), new(0.51f, 0.24f), new(0.45f, 0.2f) };
@@ -160,7 +160,7 @@ public partial class OpeningFilm : Node2D
         _overlay = new FilmOverlay { Film = this, ZIndex = 2 };
         AddChild(_overlay);
         _inputArmed = !SkipHeld();
-        Audio.Instance?.Music(Audio.Instance.BgmPrologue, 0.4f);
+        Audio.Instance?.MusicOnce(Audio.Instance.BgmOpening, 0.4f);
         UpdateMina();
     }
 
@@ -205,7 +205,6 @@ public partial class OpeningFilm : Node2D
                 Audio.Instance?.PlayType(Hud.LineKind.Boy, DraftBeats[^1].Text, DraftBeats[i].Text.Length - 1);
         if (Crossed(5.1)) Audio.Instance?.PlayUiCancel();
         if (Crossed(8.7)) Audio.Instance?.PlayCalm();
-        if (Crossed(Cuts[4] + 3.2)) Audio.Instance?.Music(Audio.Instance.BgmBossRei, 1.8f);
         for (int i = 0; i < 4; i++)
         {
             double start = Cuts[5 + i];
@@ -282,20 +281,20 @@ public partial class OpeningFilm : Node2D
     private void LogCaption(int shot)
     {
         if (shot is >= 1 and <= 3)
-            Hud.PushLog(Hud.LineKind.Other, _cast[shot - 1].CharacterName, DailyLines[shot - 1], Accents[shot - 1]);
+            Hud.PushLog("オープニング", Hud.LineKind.Other, _cast[shot - 1].CharacterName, DailyLines[shot - 1], Accents[shot - 1]);
         else if (shot == 4)
         {
-            Hud.PushLog(Hud.LineKind.Mina, "", HeardLine);
-            Hud.PushLog(Hud.LineKind.Mina, "", GoLine);
+            Hud.PushLog("オープニング", Hud.LineKind.Mina, "", HeardLine);
+            Hud.PushLog("オープニング", Hud.LineKind.Mina, "", GoLine);
         }
         else if (shot is >= 5 and <= 8)
         {
             int i = shot - 5;
-            if (i == 3) Hud.PushLog(Hud.LineKind.Mina, "", CutinLines[i]);
-            else Hud.PushLog(Hud.LineKind.Other, _cast[i].CharacterName, CutinLines[i], Accents[i]);
+            if (i == 3) Hud.PushLog("オープニング", Hud.LineKind.Mina, "", CutinLines[i]);
+            else Hud.PushLog("オープニング", Hud.LineKind.Other, _cast[i].CharacterName, CutinLines[i], Accents[i]);
         }
-        else if (shot == 9) Hud.PushLog(Hud.LineKind.Mina, "", WaitingLine);
-        else if (shot == 10) Hud.PushLog(Hud.LineKind.Narration, "", TaglineLine);
+        else if (shot == 9) Hud.PushLog("オープニング", Hud.LineKind.Mina, "", WaitingLine);
+        else if (shot == 10) Hud.PushLog("オープニング", Hud.LineKind.Narration, "", TaglineLine);
     }
 
     private static int FindShot(double time)

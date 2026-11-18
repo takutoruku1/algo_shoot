@@ -200,8 +200,38 @@ public static class PostPool
         return ThemeForScene(scene ?? "");
     }
 
-    // ───────── 層2 が濁色チップになる語かどうか（PostBullets.MurkWords の置換）─────────
-    // 09 の「層2＝濁色チップ」に読み替え、遊び手が色で「見つける」手がかりにする。
+    public static (int Replies, int Reposts, int Likes, int Views) ShortPostCounts(string text) => text switch
+    {
+        "…" or "いいね0" => (0, 0, 0, 3),
+        "親には言ってない" or "何の話してたか、覚えてない" or "1:20 まだ振ってる" => (0, 0, 0, 6),
+        "推しの配信、今日も来た" or "塾の帰り、配信間に合った" or "グッズの箱、3つ目"
+            or "今日も明るいねって言われた" or "いいね1" => (0, 0, 1, 8),
+        "> 雨、やばくない?" => (1, 0, 3, 38),
+        "傘、二本あるのに" or "既読は、ついてる" => (1, 0, 2, 26),
+        "言いかけて、やめた" or "送信は、できなかった" => (0, 0, 1, 18),
+        "片想いは無料です" or "片想い無料" => (2, 2, 17, 212),
+        "初見です（毎回）" => (2, 1, 14, 172),
+        "切り抜き待ち" or "切り抜きで見た 本編行く価値なし" => (2, 2, 11, 193),
+        "一年伸びてない配信者のサンプルとして保存した" => (3, 4, 22, 341),
+        "ガワだけ豪華" or "ガワだけで中身ない" => (1, 1, 8, 107),
+        "誰か見てる?" or "返事まだ?" => (1, 0, 2, 23),
+        "引用されたｗ" => (1, 0, 3, 47),
+        _ => SmallAudience(text),
+    };
+
+    private static (int, int, int, int) SmallAudience(string text)
+    {
+        uint seed = 0;
+        foreach (char c in text) seed = unchecked(seed * 31 + c);
+        if (IsMurk(text))
+        {
+            int views = 7 + (int)(seed % 23);
+            return (0, 0, views / 12, views);
+        }
+        int seen = 19 + (int)(seed % 69);
+        return (seen % 5 == 0 ? 1 : 0, 0, seen / 12, seen);
+    }
+
     private static HashSet<string>? _murk;
     public static bool IsMurk(string w)
     {

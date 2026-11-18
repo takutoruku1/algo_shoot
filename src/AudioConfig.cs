@@ -4,10 +4,10 @@ using Godot;
 //   user://settings.json のフラットな {key: 0..100} を読み書きし、対応バスへ反映する。
 //   これにより「設定画面を開かないと音量が効かない／再起動で戻る」を解消し、
 //   ポーズ画面からも同じ値をいじれる（一つの真実）。
-//   キー→バス: master→Master, bgm→Music, se→SE, voice→Voice, amb→Amb。
+//   キー→バス: master→Master, bgm→Music, se→SE, alert→Alert, voice→Voice, amb→Amb。
 public static class AudioConfig
 {
-    private const string SettingsPath = "user://settings.json";
+    private static string SettingsPath => Startup.DataPath("settings.json");
 
     // 音量キー → (バス名, 既定値)。Settings.cs の Apply/BuildDefaults と一致させること。
     public static readonly (string Key, string Bus, float Def)[] Volumes =
@@ -15,6 +15,7 @@ public static class AudioConfig
         ("master", "Master", 80f),
         ("bgm",    "Music",  70f),
         ("se",     "SE",     85f),
+        ("alert",  "Alert", 100f),
         ("voice",  "Voice",  90f),
         ("amb",    "Amb",    55f),
     };

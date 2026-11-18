@@ -60,12 +60,34 @@ public partial class MinaPhaseQa : Node
             caster.CancelPendingAttacks();
             await Frames(3);
             bool attacksOnly = OS.GetCmdlineUserArgs().Contains("--attacks-only");
-            if (attacksOnly || !OS.GetCmdlineUserArgs().Contains("--sequence-only"))
+            bool portraitsOnly = OS.GetCmdlineUserArgs().Contains("--portraits-only");
+            bool redemptionOnly = OS.GetCmdlineUserArgs().Contains("--redemption-only");
+            if (redemptionOnly)
+                await CheckRedemptionArt(root, boss);
+            else if (portraitsOnly)
+            {
+                CameoIntroScene.PlayBoss(root.Hud, root.World, "mina", Array.Empty<(int, string, string)>(), () => { }, () => { });
+                var intro = (CameoIntroScene)GetTree().GetFirstNodeInGroup("boss_intro");
+                intro.SetProcess(false);
+                Call(intro, "Arrive");
+                Write(intro, "_time", 1d);
+                Write(intro, "_talkTime", 1d);
+                Write(intro, "_talking", true);
+                Call(intro, "ShowLine");
+                Check(Read<Texture2D>(intro, "_enemyPortrait").ResourcePath == "res://char/v3/mina_conversation_worried_v1.png",
+                    "Mina's boss entrance uses the current full conversation portrait");
+                intro.QueueRedraw();
+                await Shot("mina_boss_intro");
+                intro.QueueFree();
+                await Frames(40);
+                await CheckConversations(game, root);
+            }
+            else if (attacksOnly || !OS.GetCmdlineUserArgs().Contains("--sequence-only"))
             {
                 if (!attacksOnly) await CheckConversations(game, root);
                 await CheckAttacks(game, root, boss, caster);
             }
-            if (!attacksOnly) await CheckPhases(game, root, boss, caster);
+            if (!attacksOnly && !portraitsOnly && !redemptionOnly) await CheckPhases(game, root, boss, caster);
             root.QueueFree();
             await Frames(8);
             Pool.DespawnAll();
@@ -84,6 +106,53 @@ public partial class MinaPhaseQa : Node
             GetTree().Paused = false;
             GetTree().Quit(1);
         }
+    }
+
+    private async Task CheckRedemptionArt(MinaRoot root, BossMina boss)
+    {
+        bool downswing = OS.GetCmdlineUserArgs().Contains("--downswing");
+        string pose = downswing ? "down" : "up";
+        Write(boss, "_pattern", 3);
+        Write(boss, "_memoryPlayed", true);
+        Call(boss, "BeginPhaseTransition");
+        await AdvanceUntil(() => !boss.Transitioning);
+        root.Hud.HideBubble();
+        boss.FinishFormReveal();
+        Call(boss, "TickBodyMotion", downswing ? 1.2d : .4d);
+        typeof(Enemy).GetMethod("TickIllustrationMotion", Private)!.Invoke(boss, new object[] { 0d });
+        var body = boss.GetNode<Sprite2D>("Body");
+        var shader = (ShaderMaterial)body.Material;
+        float flap = (float)shader.GetShaderParameter("wing_flap");
+        Check(downswing ? flap < -.99f : flap > .99f, $"dragon wing at {pose} extreme ({flap})");
+        var posts = boss.GetNode<BossPostSequence>("PostSequence");
+        typeof(BossPostSequence).GetProperty("Count")!.SetValue(posts, 4);
+        CompleteOpener(Read<MinaPhaseAttacks>(boss, "_caster"));
+        boss.DealDirectDamage(boss.TotalBars * boss.BarHp);
+        await Frames(3);
+        await BreakPost(4);
+        var draft = GetTree().GetFirstNodeInGroup("boss_draft");
+        Check(draft is BossDraftScene, "the final post opens Mina's draft before redemption");
+        await AdvanceUntil(() => !IsInstanceValid(draft));
+        Check(boss.IsPurified && body.Texture.ResourcePath == BossMina.CostumePath(4, "idle"),
+            "defeat equips the original human illustration");
+        Check(boss.FadingBody?.Material is ShaderMaterial fading
+            && Mathf.IsEqualApprox((float)fading.GetShaderParameter("wing_flap"), flap),
+            "the outgoing dragon retains its last wing pose");
+        Check(body.Material == null && !body.GetNode<Sprite2D>("BossReadability").Visible,
+            "the incoming human portrait uses the atlas region without the dragon shader");
+        boss._PhysicsProcess(.06d);
+        Check(body.SelfModulate.A is > 0f and < 1f && boss.FadingBody!.SelfModulate.A is > 0f and < 1f,
+            "both original poses participate in the crossfade");
+        boss._PhysicsProcess(.24d);
+        await Frames(60);
+        if (DisplayServer.GetName() != "headless") await Shot($"redeemed_{pose}");
+        await AdvanceUntil(() => boss.Finished);
+        boss._PhysicsProcess(.24d);
+        await Frames(2);
+        if (DisplayServer.GetName() != "headless") await Shot($"redeemed_post_{pose}");
+        Check(body.Texture.ResourcePath == "res://char/v3/boss_mina_body_post.png" && body.Material == null
+            && Mathf.IsEqualApprox(body.Scale.X, body.Scale.Y),
+            "conversation ends on the post-battle illustration at its original proportions");
     }
 
     private async Task CheckAttacks(GameManager game, MinaRoot root, BossMina boss, MinaPhaseAttacks caster)
@@ -265,6 +334,10 @@ public partial class MinaPhaseQa : Node
                 {
                     minaLines++;
                     Check(speaker == "ミナ", "Mina keeps her own speaker identity");
+                    Check(Read<Texture2D>(root.Hud, "_dlgPortrait").ResourcePath.StartsWith("res://char/v3/mina_conversation"),
+                        "Mina's speech avatar uses the current conversation artwork");
+                    if (minaLines == 1 && phase is 1 or 4)
+                        await Shot($"mina_portrait_{job}_{phase}");
                 }
                 else if (kind == Hud.LineKind.Boy)
                 {
@@ -539,7 +612,8 @@ public partial class MinaPhaseQa : Node
     }
     private async Task Shot(string name)
     {
-        string dir = ProjectSettings.GlobalizePath("res://build/qa_story/mina_phases/shots");
+        string dir = ProjectSettings.GlobalizePath(OS.GetCmdlineUserArgs().Contains("--portraits-only")
+            ? "res://build/qa_story/ending_art_20261023/shots/mina" : "res://build/qa_story/mina_phases/shots");
         DirAccess.MakeDirRecursiveAbsolute(dir);
         await Frames(8);
         await ToSignal(RenderingServer.Singleton, RenderingServer.SignalName.FramePostDraw);

@@ -15,7 +15,7 @@ public partial class AkariTechniqueVideo : Node
     private static void Call(object obj, string method, Type? type = null, params object[] args)
         => (type ?? obj.GetType()).GetMethod(method, Private)!.Invoke(obj, args);
     private static T Invoke<T>(object obj, string method, params object[] args)
-        => (T)obj.GetType().GetMethod(method, Private)!.Invoke(obj, args)!;
+        => (T)obj.GetType().GetMethod(method, Private | BindingFlags.Static)!.Invoke(obj, args)!;
     private static T Property<T>(object obj, string name)
         => (T)obj.GetType().GetProperty(name, Private)!.GetValue(obj)!;
     private static T Constant<T>(object obj, string name)
@@ -61,7 +61,7 @@ public partial class AkariTechniqueVideo : Node
             if (!OS.GetUserDataDir().Replace('\\', '/').Contains("/build/qa_story/"))
                 throw new Exception("An isolated QA save directory is required.");
             var args = OS.GetCmdlineUserArgs();
-            _qa = args.Contains("--qa");
+            _qa = args.Contains("--qa") || args.Contains("--all-starts");
             _shoot = args.Contains("--shoot");
             bool waveOnly = args.Contains("--wave-only");
             if (args.Contains("--ten-techniques")) throw new ArgumentException("Use --eight-techniques for the canonical EASY attacks.");
@@ -107,6 +107,7 @@ public partial class AkariTechniqueVideo : Node
             game.SelectedJob = Job.Tank;
             game.TrainingSetAllUpgrades(false);
             game.MarkIdleDialogSeen("once_midboss_shield");
+            game.MarkIdleDialogSeen(StageTutorial.ChoiceSeenKey);
             Engine.TimeScale = 1;
             Engine.PhysicsTicksPerSecond = 60;
             GD.Seed(2073);
@@ -186,7 +187,7 @@ public partial class AkariTechniqueVideo : Node
                     (BossTechniqueKind.Normal, 2), (BossTechniqueKind.Edge, 0), (BossTechniqueKind.Area, 0),
                     (BossTechniqueKind.Area, 1),
                     (BossTechniqueKind.Crossfire, 2), (BossTechniqueKind.Crossfire, 3) };
-                if (_stationaryOnly)
+                if (_stationaryOnly || args.Contains("--all-starts"))
                 {
                     var probes = new[] { ("center", new Vector2(Field.CenterX, Field.CenterY + 48)),
                         ("left", new Vector2(Field.Left + 24, Field.CenterY)),
@@ -199,7 +200,7 @@ public partial class AkariTechniqueVideo : Node
                         for (int i = 0; i < selected.Length; i++)
                             if (onlyMechanics == null || onlyMechanics.Contains(selectedMechanics[i]))
                                 await Clip(probe * selected.Length + i + 1, selected[i].Item1, selected[i].Item2,
-                                    probes[probe].Item2, probes[probe].Item1);
+                                    probes[probe].Item2, _stationaryOnly ? probes[probe].Item1 : null);
                 }
                 else
                 {
@@ -258,6 +259,7 @@ public partial class AkariTechniqueVideo : Node
         { audio.Stop(); audio.Stream = null; }
         if (IsInstanceValid(_root)) _root.QueueFree();
         await Frames(5);
+        await Task.Delay(250);
         GC.Collect();
         GC.WaitForPendingFinalizers();
         await Frames(5);
@@ -271,8 +273,9 @@ public partial class AkariTechniqueVideo : Node
         _root.Player.GlobalPosition = Field.PlayerStart;
         var danmaku = Read<BossDanmaku>(_boss, "_danmaku", typeof(Enemy));
         bool cycle = _boss.UsesTechniqueCycle;
-        int Cursor() => cycle ? danmaku.CycleSlot : danmaku.EasyAkariSlot;
-        int Rounds() => cycle ? danmaku.CycleRounds : danmaku.EasyAkariRounds;
+        int Cursor() => cycle ? danmaku.CycleSlot : danmaku.EasySlot;
+        int Rounds() => cycle ? danmaku.CycleRounds : danmaku.EasyRounds;
+        var slots = BossAttackCycle.EasySlots(_boss, _boss.HasEvolved ? 1 : 0);
         if (!_boss.UsesEasyTechniqueSlots && !cycle)
             throw new Exception("The Akari runtime selection path is not enabled.");
         var starts = new List<object>();
@@ -289,7 +292,7 @@ public partial class AkariTechniqueVideo : Node
             if (danmaku.ActiveTechnique is { } attack && seen.Add(attack))
             {
                 int slot = Cursor();
-                var expected = BossAttackCycle.EasyAkariSlots[slot];
+                var expected = slots[slot];
                 if (attack.TechniqueKind != expected.Kind || attack.TechniqueVariant != expected.Variant)
                     throw new Exception($"EASY runtime selection differs from slot {slot}.");
                 string key = attack.MechanicKey;
@@ -307,14 +310,14 @@ public partial class AkariTechniqueVideo : Node
         }
         string[] required = { "akari.returned-express", "akari.alternating-inboxes", "akari.bound-draft-retraction",
             "akari.filing-piles", "akari.rain-splash", "akari.spent-wavefront", "akari.carried-approval", "akari.extending-clock" };
-        bool passed = completedSlots == BossAttackCycle.EasyAkariSlots.Length
+        bool passed = completedSlots == slots.Count
             && required.All(completedKeys.Contains)
             && !completedKeys.Overlaps(new[] { "akari.unsent-history", "akari.wall-reply", "akari.dwell-timecard" });
         var result = new { passed, difficulty = GetNode<GameManager>("/root/Game").Difficulty.ToString(), phase = BossAttackCycle.Segment(_boss),
             rounds = Rounds(), next_slot = Cursor(),
             naturally_completed_slots = completedSlots, required_canonical_keys = required,
             completed_keys = completedKeys.OrderBy(key => key).ToArray(), starts,
-            scope = "Actual BossDanmaku.Tick selection and Completed-driven cursor transitions over the eight integrated Akari slots. The controlled boss is invulnerable and stationary; this does not establish human difficulty or change HP and lives." };
+            scope = "Actual BossDanmaku.Tick selection and Completed-driven cursor transitions over the eligible Akari roster. The controlled boss is invulnerable and stationary; this does not establish human difficulty or change HP and lives." };
         System.IO.File.WriteAllText(_output + "/battle_cycle.json", System.Text.Json.JsonSerializer.Serialize(result,
             new System.Text.Json.JsonSerializerOptions { WriteIndented = true }));
         if (!passed) throw new Exception("EASY Akari battle-cycle reachability audit failed.");
@@ -370,12 +373,13 @@ public partial class AkariTechniqueVideo : Node
         _observedAttack = attack;
         string title = attack.SpellName;
         string mechanic = attack.MechanicKey;
-        var warningStageAudit = mechanic != "akari.rain-splash" && (_eightTechniques || mechanic == "akari.spent-wavefront")
+        var warningStageAudit = mechanic is not ("akari.rain-splash" or "akari.returned-express") && (_eightTechniques || mechanic == "akari.spent-wavefront")
             ? new WarningStageAudit(mechanic) : null;
         _warningStageAudit = warningStageAudit;
         var warningPathAudit = _eightTechniques ? new WarningPathAudit(mechanic, warningStageAudit) : null;
         _warningPathAudit = warningPathAudit;
         bool ended = false, completed = false, warningShot = false, attackShot = false;
+        var clockShots = new HashSet<int>();
         int? visibleDangerousShotsAtNaturalEnd = null;
         int warningGeometryFrames = 0;
         double firstWarning = -1, warningCaptureTime = -1, attackCaptureTime = -1;
@@ -419,6 +423,9 @@ public partial class AkariTechniqueVideo : Node
                 firstActive = attack.Elapsed;
             bool hasWarningGeometry = Read<List<(Vector2 A, Vector2 B, float Radius, bool Live, float Progress, int Shape)>>(
                 attack, "_hazards", typeof(BossCharacterTechnique)).Any(hazard => !hazard.Live);
+            if (mechanic == "akari.rain-splash")
+                hasWarningGeometry = attack.Elapsed >= Constant<double>(attack, "RainForecastAt")
+                    && attack.Elapsed < Property<double>(attack, "RainAttackAt");
             if (hasWarningGeometry)
             {
                 warningGeometryFrames++;
@@ -430,7 +437,7 @@ public partial class AkariTechniqueVideo : Node
                 "akari.alternating-inboxes" => warningStageAudit?.Full("inbox:0") == true,
                 "akari.bound-draft-retraction" => warningStageAudit?.Full("unbinding:0:exit") == true,
                 "akari.filing-piles" => warningStageAudit?.Full("pile:0:0") == true,
-                "akari.rain-splash" => Invoke<float>(attack, "EasyRainDropWarningProgress", 0, 0) >= 1,
+                "akari.rain-splash" => attack.Elapsed >= Constant<double>(attack, "RainForecastAt") + Constant<double>(attack, "RainPreview"),
                 "akari.spent-wavefront" => warningStageAudit?.Full("wave:0:expiry") == true,
                 "akari.carried-approval" => warningStageAudit?.Full("envelope:body") == true,
                 "akari.extending-clock" => warningStageAudit?.Full("clock") == true,
@@ -451,11 +458,16 @@ public partial class AkariTechniqueVideo : Node
                 attackCaptureTime = attack.Elapsed;
                 await Capture($"clip_{number:00}_attack.png");
             }
+            if (_shots && mechanic == "akari.extending-clock" && !ended)
+                foreach (double phase in new[] { 2.5, 3.2, 6.3, 10.9 })
+                    if (attack.Elapsed >= Read<double>(attack, "_warning") + phase && clockShots.Add((int)(phase * 10)))
+                        await Capture($"clip_{number:00}_clock_{phase:0.0}.png");
         }
         _audit = null;
         _warningPathAudit = null;
         _warningStageAudit = null;
         _pilot.Release();
+        if (_shots && mechanic == "akari.extending-clock") await Capture($"clip_{number:00}_clock_end.png");
         if (_waveGeometryFailure is { } finalGeometryFailure) throw new Exception(finalGeometryFailure);
         if (_warningPathFailure is { } finalPathFailure) throw new Exception(finalPathFailure);
         if (_warningStageFailure is { } finalStageFailure) throw new Exception(finalStageFailure);
@@ -463,9 +475,10 @@ public partial class AkariTechniqueVideo : Node
             throw new Exception($"Technique was interrupted or produced no attack: {title}");
         string[] requiredChecks = mechanic switch
         {
+            "akari.extending-clock" => new[] { "clock-warning-safe", "clock-center-contact", "clock-gap-clear" },
             "akari.filing-piles" => Enumerable.Range(0, 2).SelectMany(pass => new[] { "paper-warning-safe", "paper-falling-outline", "pile-center", "pile-outside", "pile-outline", "pile-expired" }
                 .Select(check => $"{check}-pass{pass}")).Concat(new[] { "paper-left-edge-reached", "paper-right-edge-reached" }).ToArray(),
-            "akari.rain-splash" => new[] { "rain-warning-safe", "rain-deployment-safe", "rain-shot-active", "rain-splash-expired", "illustration-collider" },
+            "akari.rain-splash" => new[] { "rain-warning-safe", "rain-preview-safe", "rain-shot-active", "rain-splash-expired", "illustration-collider" },
             "akari.spent-wavefront" => new[] { "wave-warning-safe", "wave-launch-center", "wave-center-released", "wave-before-opening-full", "wave-opening-target-cleared", "wave-open-sector-clear", "wave-retained-caps-active", "wave-edge-active", "wave-inner-safe", "wave-gap-cleared", "wave-expired" },
             _ => Array.Empty<string>()
         };
@@ -481,7 +494,7 @@ public partial class AkariTechniqueVideo : Node
             await Frames(1);
         }
         _running = false;
-        _chapters.Add(new { title, kind = kind.ToString(), variant, mechanic, start, end, completed, shots,
+        _chapters.Add(new { title, kind = kind.ToString(), variant, mechanic, evolved = _boss.HasEvolved, start, end, completed, shots,
             hazardFrames, elapsed, peak, check_count = checks.Count, difficulty = GameManager.Instance!.Difficulty.ToString(), fps = 60,
             capture = new { automatic_movement = !_stationaryProbe, invincible = true, shooting = _shoot, bombs = false, dodge = false,
                 start_position = new { x = initialPosition.X, y = initialPosition.Y },
@@ -530,7 +543,8 @@ public partial class AkariTechniqueVideo : Node
             throw new Exception($"Natural end did not verify an empty live-projectile field before Finish: {title}; observed={visibleDangerousShotsAtNaturalEnd?.ToString() ?? "not checked"}");
         if (_stationaryProbe && _stationaryMaxDisplacement > .01f)
             throw new Exception($"Stationary probe moved despite zero input: {title}; displacement={_stationaryMaxDisplacement:F3}");
-        if (!_stationaryProbe && mechanic == "akari.filing-piles" && (_paperGapChanges != 1 || _paperGapTravel < 20))
+        if (!_stationaryProbe && mechanic == "akari.filing-piles" && (_paperGapChanges != 1
+            || _paperGapTravel + .01f < Field.Width / (2 * Constant<int>(attack, "EasyPileColumns"))))
             throw new Exception($"Paper pass did not require its gap change: changes={_paperGapChanges}, travel={_paperGapTravel:F2}");
         if (!_stationaryProbe && mechanic == "akari.spent-wavefront")
         {
@@ -557,6 +571,19 @@ public partial class AkariTechniqueVideo : Node
         double age = attack.Elapsed - warning;
         var hazards = Read<List<(Vector2 A, Vector2 B, float Radius, bool Live, float Progress, int Shape)>>(
             attack, "_hazards", typeof(BossCharacterTechnique));
+        if (attack.MechanicKey == "akari.extending-clock")
+        {
+            var origin = Read<Vector2>(attack, "_origin");
+            if (age < 0) Check("clock-warning-safe", !attack.IsStriking && !attack.CoversPoint(origin));
+            else if (age < 10)
+            {
+                bool dangerous = Read<int>(attack, "Tier", typeof(BossCharacterTechnique)) >= 2;
+                Check("clock-center-contact", dangerous == attack.CoversPoint(origin));
+                float angle = Invoke<float>(attack, "EasyClockHandAngle", age, 0)
+                    + Mathf.Pi / Property<int>(attack, "EasyClockHands");
+                Check("clock-gap-clear", !attack.CoversPoint(origin + Vector2.FromAngle(angle) * 34));
+            }
+        }
         if (attack.MechanicKey == "akari.filing-piles")
         {
             int pass = Property<int>(attack, "EasyPilePass");
@@ -604,9 +631,8 @@ public partial class AkariTechniqueVideo : Node
             foreach (var line in hazards.Where(h => !h.Live && h.Shape == 0))
                 if (attack.CoversPoint((line.A + line.B) / 2))
                     throw new Exception($"Rain growing warning path became a contact hazard at {attack.Elapsed:F3}s");
-            var deploying = owned.FirstOrDefault(b => b.LeadIn);
-            if (deploying != null)
-                Check("rain-deployment-safe", deploying.CollisionLayer == 0 && deploying.CollisionMask == 0);
+            if (attack.Elapsed < Property<double>(attack, "RainAttackAt"))
+                Check("rain-preview-safe", owned.Length == 0);
             var active = owned.FirstOrDefault(b => !b.LeadIn);
             if (active != null)
                 Check("rain-shot-active", active.CollisionLayer != 0 && active.CollisionMask != 0);
@@ -643,7 +669,7 @@ public partial class AkariTechniqueVideo : Node
                 if (age >= .05 && age < .25) WaveCheck("wave-launch-center", attack.CoversPoint(origin));
                 if (age >= .35 && age < .65) WaveCheck("wave-center-released", !attack.CoversPoint(origin));
                 float radius = Invoke<float>(attack, "EasyWaveRadius", age);
-                Vector2 Point(int segment) => Invoke<Vector2>(attack, "EasyWavePoint", wave, segment, radius);
+                Vector2 Point(int segment) => Invoke<Vector2>(attack, "EasyWavePoint", wave, segment, radius, age >= opening, 0f);
                 if (age >= opening - .1 && age < opening)
                     WaveCheck("wave-before-opening-full", Enumerable.Range(1, spent - 1).All(segment => attack.CoversPoint(Point(segment))));
                 if (age >= opening && age < opening + .1)
@@ -672,17 +698,32 @@ public partial class AkariTechniqueVideo : Node
 
         if (checks.Contains("illustration-collider") || attack.MechanicKey != "akari.rain-splash")
             return;
-        var shot = owned.FirstOrDefault(b => !b.LeadIn && b.CollisionLayer != 0);
+        Shape2D[] ActiveShapes(Bullet bullet) => bullet.GetShapeOwners().Select(owner => (uint)owner)
+            .Where(owner => !bullet.IsShapeOwnerDisabled(owner))
+            .SelectMany(owner => Enumerable.Range(0, bullet.ShapeOwnerGetShapeCount(owner))
+                .Select(i => bullet.ShapeOwnerGetShape(owner, i))).ToArray();
+        var shot = owned.FirstOrDefault(b => !b.LeadIn && b.CollisionLayer != 0 && ActiveShapes(b).Length > 0);
         if (shot == null) return;
         var footprint = shot.Footprint!;
-        var edges = Read<Vector2[][]>(shot, "_illustrationEdges");
-        var shapes = shot.GetShapeOwners().Select(owner => (uint)owner)
-            .Where(owner => !shot.IsShapeOwnerDisabled(owner))
-            .SelectMany(owner => Enumerable.Range(0, shot.ShapeOwnerGetShapeCount(owner)).Select(i => shot.ShapeOwnerGetShape(owner, i))).ToArray();
-        Check("illustration-collider", edges != null && edges.Length > 0 && edges.Length == footprint.Contours.Length
-            && edges.Select((edge, i) => edge.Length == footprint.Contours[i].Length + 1
-                && edge[0] == edge[^1] && edge.Take(edge.Length - 1).SequenceEqual(footprint.Contours[i])).All(match => match)
-            && shapes.Select(shape => shape.GetRid()).SequenceEqual(footprint.Shapes.Select(shape => shape.GetRid())));
+        string? modelName = shot.ModelAnimationName;
+        if (modelName is not ("akari_rain_drop" or "akari_splash"))
+            throw new Exception("Rain projectile is missing its current illustrated model.");
+        var modelFootprint = BossProjectileArt.Get(modelName).Footprint(shot.ModelAnimationFrame,
+            Read<float>(shot, "_modelAnimationSize"));
+        var shapes = ActiveShapes(shot);
+        var player = (Player)attack.GetTree().GetFirstNodeInGroup("player");
+        using var core = new CircleShape2D { Radius = Player.HitRadius };
+        bool localCoverage = true;
+        // Distant convex pieces may sleep, but the collision result around the player must stay identical.
+        for (int dx = -1; dx <= 1; dx++)
+        for (int dy = -1; dy <= 1; dy++)
+        {
+            var probe = new Transform2D(0, player.GlobalPosition + new Vector2(dx, dy) * 2);
+            localCoverage &= footprint.Shapes.Any(shape => shape.Collide(shot.GlobalTransform, core, probe))
+                == shapes.Any(shape => shape.Collide(shot.GlobalTransform, core, probe));
+        }
+        Check("illustration-collider", ReferenceEquals(footprint, modelFootprint) && footprint.Contours.Length > 0
+            && shapes.All(shape => footprint.Shapes.Any(expected => expected.GetRid() == shape.GetRid())) && localCoverage);
     }
 
     private string? CheckWaveArtRadius(BossCharacterTechnique attack)
@@ -780,12 +821,6 @@ public partial class AkariTechniqueVideo : Node
             }
             switch (_mechanic)
             {
-                case "akari.returned-express":
-                    for (int batch = 0; batch < 3; batch++)
-                        Add($"delivery:{batch}", Invoke<double>(attack, "EasyDeliveryWarningStart", batch),
-                            Invoke<double>(attack, "EasyDeliveryLaunch", batch),
-                            Invoke<float>(attack, "EasyDeliveryWarningProgress", batch));
-                    break;
                 case "akari.alternating-inboxes":
                     for (int turn = 0; turn < 4; turn++)
                         Add($"inbox:{turn}", Invoke<double>(attack, "EasyInboxLaunch", turn) - Constant<double>(attack, "EasyInboxWarningLead"),
@@ -1025,9 +1060,11 @@ public partial class AkariTechniqueVideo : Node
         private float _minimumSplashY = float.PositiveInfinity;
         private int _upperSplashSamples;
         private readonly HashSet<int> _upperSplashColumns = new();
-        private const double RainFullHold = 2, RainFrameTolerance = 1d / 60;
+        private double RainFullHold = 2;
+        private const double RainFrameTolerance = 1d / 60;
         private Vector2[][]? _clockOutlines;
         private Vector2[]? _envelopePath;
+        private Vector2[]? _envelopeCurve;
         private float[] _envelopeCornerDistances = Array.Empty<float>();
         private double?[] _envelopeCornerReachedAt = Array.Empty<double?>();
         private int _envelopeRouteSamples, _envelopeNextCorner;
@@ -1112,23 +1149,6 @@ public partial class AkariTechniqueVideo : Node
             }
             switch (_mechanic)
             {
-                case "akari.returned-express":
-                    for (int batch = 0; batch < 3; batch++)
-                    {
-                        double launch = Invoke<double>(attack, "EasyDeliveryLaunch", batch);
-                        if (time < Invoke<double>(attack, "EasyDeliveryWarningStart", batch) || time >= launch || !Full($"delivery:{batch}")) continue;
-                        var columns = Invoke<IEnumerable<(Vector2 Start, Vector2 Exit)>>(attack, "EasyDeliveryWarningPaths", batch).ToArray();
-                        var returned = Invoke<(Vector2 Start, Vector2 Turn, Vector2 Bounce, Vector2 Exit)[]>(attack, "EasyDeliveryReturnPaths", batch);
-                        for (int column = 0; column < columns.Length; column++)
-                        {
-                            float width = Invoke<float>(attack, "EasyWarningHalfWidth", 1);
-                            RememberVisible($"delivery:{batch}:ordinary:{column}", launch, width, columns[column].Start, columns[column].Exit);
-                            var path = returned[column];
-                            double delay = (path.Turn.Y - path.Start.Y) * (1.0 / 27 - 1.0 / 88);
-                            RememberVisible($"delivery:{batch}:express:{column}", launch + delay, width, path.Start, path.Turn, path.Bounce, path.Exit);
-                        }
-                    }
-                    break;
                 case "akari.alternating-inboxes":
                     for (int turn = 0; turn < 4; turn++)
                     {
@@ -1166,6 +1186,7 @@ public partial class AkariTechniqueVideo : Node
                         if (_envelopePath == null)
                         {
                             _envelopePath = Invoke<Vector2[]>(attack, "EasyEnvelopeTravelPath");
+                            _envelopeCurve = Invoke<Vector2[]>(attack, "EasyEnvelopeCurvePoints");
                             _envelopeCornerDistances = Enumerable.Repeat(float.PositiveInfinity, _envelopePath.Length - 1).ToArray();
                             _envelopeCornerReachedAt = new double?[_envelopeCornerDistances.Length];
                         }
@@ -1197,11 +1218,11 @@ public partial class AkariTechniqueVideo : Node
             if (_mechanic == "akari.filing-piles")
             {
                 int pass = Property<int>(attack, "EasyPilePass");
-                float width = Property<float>(attack, "EasyPileWidth");
                 for (int column = 0; column < Property<int>(attack, "EasyPileColumnCount"); column++)
                 {
                     string key = $"pile:{pass}:{column}";
                     if (!Full(key)) continue;
+                    float width = Invoke<float>(attack, "EasyPileWidth", column);
                     var bounds = new Rect2(Invoke<float>(attack, "EasyPileX", column) - width / 2,
                         Field.Top, width, Field.Height).Intersection(Field.Rect);
                     if (hazards.Any(hazard => !hazard.Live && hazard.Shape == 2
@@ -1238,84 +1259,62 @@ public partial class AkariTechniqueVideo : Node
             int rows = Constant<int>(attack, "EasyRainRows"), columns = Property<int>(attack, "EasyRainColumns");
             _expectedRainRows = Constant<int>(attack, "EasyRainWaves") * rows;
             _expectedRainParents = _expectedRainRows * columns * Property<int>(attack, "EasyRainBursts");
+            RainFullHold = Property<double>(attack, "RainHold");
             float width = Invoke<float>(attack, "EasyWarningHalfWidth", 0);
-            int next = Property<int>(attack, "EasyRainNextRow");
-            if (next >= 0)
+            for (int index = 0; index < _expectedRainRows; index++)
             {
-                int wave = next / rows, row = next % rows;
-                float progress = Invoke<float>(attack, "EasyRainDropWarningProgress", wave, row);
+                int wave = index / rows, row = index % rows;
+                double start = Invoke<double>(attack, "RainWarningAt", wave, row);
+                float progress = Mathf.Clamp((float)((time - start) / Constant<double>(attack, "RainPreview")), 0, 1);
                 ObserveRainStage(_rainDropStages, wave, row, progress, time, "drop");
-                if (progress >= 1)
-                    for (int column = 0; column < columns; column++)
-                        Remember($"rain:{wave}:{row}:{column}:drop", Invoke<double>(attack, "EasyRainLaunch", wave, row),
-                            time, width, Invoke<Vector2>(attack, "EasyRainOrigin", wave, row, column),
-                            Invoke<Vector2>(attack, "EasyRainImpact", wave, row, column));
+                ObserveRainStage(_rainImpactStages, wave, row, progress, time, "impact");
             }
-            foreach (var impactWarning in Invoke<IEnumerable<(int Wave, int Row, double Remaining, float Progress, Vector2[] Points)>>(attack, "EasyRainImpactWarnings"))
+            foreach (object particle in Read<System.Collections.IEnumerable>(attack, "_rainParticles"))
             {
-                ObserveRainStage(_rainImpactStages, impactWarning.Wave, impactWarning.Row, impactWarning.Progress, time, "impact");
-                double rowLaunch = Invoke<double>(attack, "EasyRainLaunch", impactWarning.Wave, impactWarning.Row);
-                var candidates = Letters(attack).Where(letter => letter.Group == impactWarning.Wave && letter.State == 0
-                    && letter.Shot.Active && letter.Shot.ActivationId == letter.Activation && !letter.Shot.LeadIn
-                    && letter.Born >= rowLaunch - RainFrameTolerance - 1e-6
-                    && letter.Born <= rowLaunch + (Property<int>(attack, "EasyRainBursts") - 1)
-                        * Property<double>(attack, "EasyRainBurstInterval") + RainFrameTolerance + 1e-6).ToArray();
-                double firstBorn = candidates.Select(letter => letter.Born).DefaultIfEmpty(-1).Min();
-                var falling = candidates.Where(letter => Math.Abs(letter.Born - firstBorn) < 1e-6).ToArray();
-                if (impactWarning.Points.Length == 0 || impactWarning.Points.Length != falling.Length)
-                {
-                    _failure ??= $"Impact warning includes a missing or already landed rain column: wave={impactWarning.Wave}, row={impactWarning.Row}, points={impactWarning.Points.Length}, falling={falling.Length}";
-                    return;
-                }
-                var seenColumns = new HashSet<int>();
-                foreach (Vector2 point in impactWarning.Points)
-                {
-                    int column = Enumerable.Range(0, columns).OrderBy(index => Math.Abs(
-                        Invoke<Vector2>(attack, "EasyRainOrigin", impactWarning.Wave, impactWarning.Row, index).X - point.X)).First();
-                    Vector2 expected = Invoke<Vector2>(attack, "EasyRainImpact", impactWarning.Wave, impactWarning.Row, column);
-                    if (!seenColumns.Add(column) || point.DistanceTo(expected) > .01f
-                        || !falling.Any(letter => Math.Abs(letter.Shot.GlobalPosition.X - point.X) <= .01f))
-                    {
-                        _failure ??= $"Impact marker differs from its live falling column: wave={impactWarning.Wave}, row={impactWarning.Row}, column={column}, actual={point}, expected={expected}";
-                        return;
-                    }
-                    if (impactWarning.Progress < 1) continue;
-                    for (int side = -1; side <= 1; side += 2)
-                    {
-                        string key = $"rain:{impactWarning.Wave}:{impactWarning.Row}:{column}:{side}";
-                        Remember(key, time + impactWarning.Remaining, time, width,
-                            Invoke<Vector2[]>(attack, "EasyRainSplashWarningPath", point, side));
-                        _rainFullForecastStarted.TryAdd(key, time);
-                    }
-                }
+                if (LetterField<int>(particle, "Burst") != 0) continue;
+                int wave = LetterField<int>(particle, "Wave"), row = LetterField<int>(particle, "Row");
+                double complete = Invoke<double>(attack, "RainWarningAt", wave, row) + Constant<double>(attack, "RainPreview");
+                if (time < complete) continue;
+                int column = LetterField<int>(particle, "Column"), side = LetterField<int>(particle, "Side");
+                string part = side == 0 ? "drop" : side.ToString();
+                string key = $"rain:{wave}:{row}:{column}:{part}";
+                if (_forecasts.ContainsKey(key)) continue;
+                double duration = LetterField<double>(particle, "Duration");
+                int samples = (int)Math.Ceiling(duration / .04);
+                var points = Enumerable.Range(0, samples + 1)
+                    .Select(i => Invoke<Vector2>(attack, "RainPosition", particle, duration * i / samples)).ToArray();
+                double launch = Property<double>(attack, "RainAttackAt")
+                    + LetterField<double>(particle, "Launch") / Property<double>(attack, "RainAttackSpeed");
+                Remember(key, launch, time, width, points);
+                if (side != 0) _rainFullForecastStarted.TryAdd(key, time);
             }
         }
 
-        private LetterSample? ParentRainDrop(LetterSample letter, LetterSample[] letters)
+        private static object RainParticleForLetter(BossCharacterTechnique attack, LetterSample letter)
+            => Read<System.Collections.IEnumerable>(attack, "_rainParticles").Cast<object>().Single(particle =>
+                LetterField<object?>(particle, "Live") is { } live
+                && LetterField<Bullet>(live, "Shot") == letter.Shot && LetterField<ulong>(live, "Activation") == letter.Activation);
+
+        private static LetterSample? ParentRainDrop(BossCharacterTechnique attack, LetterSample letter, LetterSample[] letters)
         {
             if (letter.Group != 10) return letter;
-            return letters.Where(item => item.Group is 0 or 1 && item.State == 1 && item.Born < letter.Born
-                    && Math.Abs(item.Origin.X - letter.Origin.X) < .01f
-                    && _traces.TryGetValue((item.Shot.GetInstanceId(), item.Activation), out var trace)
-                    && trace.RetiredAt is { } impactAt && Math.Abs(impactAt - letter.Born) <= RainFrameTolerance + 1e-6)
-                .OrderByDescending(item => item.Born).Select(item => (LetterSample?)item).FirstOrDefault();
+            var parent = LetterField<object?>(RainParticleForLetter(attack, letter), "Parent");
+            if (parent == null || !LetterField<bool>(parent, "Landed")) return null;
+            var live = LetterField<object>(parent, "Live");
+            return letters.Single(item => item.Shot == LetterField<Bullet>(live, "Shot")
+                && item.Activation == LetterField<ulong>(live, "Activation"));
         }
 
         private static (int Wave, int Row, int Column, int Burst) RainSlot(BossCharacterTechnique attack, LetterSample parent)
         {
-            int wave = parent.Group;
-            int row = Enumerable.Range(0, Constant<int>(attack, "EasyRainRows"))
-                .OrderBy(index => Math.Abs(Invoke<double>(attack, "EasyRainLaunch", wave, index) - parent.Born)).First();
-            int column = Enumerable.Range(0, Property<int>(attack, "EasyRainColumns"))
-                .OrderBy(index => Math.Abs(Invoke<Vector2>(attack, "EasyRainOrigin", wave, row, index).X - parent.Origin.X)).First();
-            int burst = Math.Clamp((int)Math.Round((parent.Born - Invoke<double>(attack, "EasyRainLaunch", wave, row))
-                / Property<double>(attack, "EasyRainBurstInterval")), 0, Property<int>(attack, "EasyRainBursts") - 1);
-            return (wave, row, column, burst);
+            var particle = RainParticleForLetter(attack, parent);
+            return (LetterField<int>(particle, "Wave"), LetterField<int>(particle, "Row"),
+                LetterField<int>(particle, "Column"), LetterField<int>(particle, "Burst"));
         }
 
         private string? ObserveRainGeneration(BossCharacterTechnique attack, LetterSample letter, LetterSample[] letters)
         {
-            var parent = ParentRainDrop(letter, letters);
+            var parent = ParentRainDrop(attack, letter, letters);
             if (parent == null) return "A rain splash has no corresponding landed parent drop.";
             var slot = RainSlot(attack, parent.Value);
             var parentId = (parent.Value.Shot.GetInstanceId(), parent.Value.Activation);
@@ -1340,7 +1339,7 @@ public partial class AkariTechniqueVideo : Node
             if (impactError > .01f)
                 return $"Rain splash spawn differs from its parent's impact marker: actual={letter.Origin}, expected={generation.Impact}";
             int side = Math.Sign(letter.Direction.X);
-            if (side is not (-1 or 1) || Math.Abs(letter.Direction.Y) > .01f || generation.Children.ContainsKey(side))
+            if (side is not (-1 or 1) || generation.Children.ContainsKey(side))
                 return $"A parent rain drop did not emit a unique left/right splash: wave={slot.Wave}, row={slot.Row}, column={slot.Column}, side={side}";
             if (generation.Children.Values.Any(child => Math.Abs(child.Born - letter.Born) > 1e-6))
                 return $"A parent rain drop emitted its two splashes at different times: wave={slot.Wave}, row={slot.Row}, column={slot.Column}";
@@ -1369,17 +1368,12 @@ public partial class AkariTechniqueVideo : Node
         {
             switch (_mechanic)
             {
-                case "akari.returned-express":
-                    bool ordinary = letter.Group >= 1000;
-                    int lanes = Property<int>(attack, "EasyDeliveryLanes");
-                    int slot = letter.Group % 1000 % (3 * lanes);
-                    return _forecasts.GetValueOrDefault($"delivery:{slot / lanes}:{(ordinary ? "ordinary" : "express")}:{slot % lanes}");
                 case "akari.alternating-inboxes":
                     return ClosestForecast($"inbox:{letter.Group}:", letter);
                 case "akari.bound-draft-retraction":
                     return _forecasts.GetValueOrDefault($"unbinding:{Invoke<int>(attack, "EasyUnbindingCopyForGroup", letter.Group)}");
                 case "akari.rain-splash":
-                    var parent = ParentRainDrop(letter, letters);
+                    var parent = ParentRainDrop(attack, letter, letters);
                     if (parent == null) return null;
                     var rainSlot = RainSlot(attack, parent.Value);
                     string part = letter.Group == 10 ? Math.Sign(letter.Direction.X).ToString() : "drop";
@@ -1617,7 +1611,7 @@ public partial class AkariTechniqueVideo : Node
                     {
                         if (_envelopePath == null) return "Missing pre-launch envelope travel path.";
                         Vector2 center = rawBounds.GetCenter();
-                        float error = PathDistance(center, _envelopePath);
+                        float error = PathDistance(center, _envelopeCurve!);
                         _envelopeMaximumPathError = Math.Max(_envelopeMaximumPathError, error);
                         if (error > .01f || rawBounds.Size.DistanceTo(new Vector2(36, 22)) > .01f)
                             return $"Envelope body differs from its pre-warned travel path or footprint: center={center}, error={error:F4}";
@@ -1646,6 +1640,15 @@ public partial class AkariTechniqueVideo : Node
                     if (_clockOutlines == null || Read<double>(attack, "_warning") - _clockWarningAt + RainFrameTolerance + 1e-6 < RainFullHold)
                         return "Missing pre-launch clock swept-area outline.";
                     if (_stages?.Actual("clock", attack.Elapsed) is { } stageFailure) return stageFailure;
+                    if (hazard.Shape == 1)
+                    {
+                        if (Read<int>(attack, "Tier", typeof(BossCharacterTechnique)) < 2
+                            || hazard.A.DistanceTo(Read<Vector2>(attack, "_origin")) > .01f
+                            || Math.Abs(hazard.Radius - Constant<float>(attack, "ClockHubRadius")) > .01f)
+                            return "Clock hub collision does not match its danger dial.";
+                        _hazardSamples++;
+                        continue;
+                    }
                     int samples = Math.Max(1, Mathf.CeilToInt(hazard.A.DistanceTo(hazard.B)));
                     for (int sample = 0; sample <= samples; sample++)
                     {
@@ -1660,6 +1663,99 @@ public partial class AkariTechniqueVideo : Node
             }
             return null;
         }
+
+        private readonly Dictionary<(int Group, int Frame), Vector2> _deliveryHeads = new();
+        private readonly HashSet<int> _deliveryGroups = new();
+        private readonly HashSet<(int Group, int State)> _deliveryTurns = new();
+        private readonly Dictionary<int, (double Time, Vector2 Velocity, int State)> _deliveryMotion = new();
+        private readonly HashSet<int> _deliverySlowedTurns = new();
+        private readonly HashSet<string> _deliveryVisuals = new();
+        private readonly Dictionary<int, Vector2> _deliveryReplyVelocities = new();
+        private float _deliveryMaximumAngularSpeed;
+        private int _deliverySamples;
+        private float _deliveryError;
+        private double _deliveryLead;
+
+        private string? ObserveDelivery(AkariBossTechnique attack)
+        {
+            _deliveryLead = attack.DeliveryForecastLead;
+            int tick = (int)Math.Round(attack.Elapsed * 60);
+            foreach (var cue in attack.DeliveryForecasts())
+            {
+                float length = 0;
+                for (int i = 1; i < cue.Points.Length; i++)
+                {
+                    length += cue.Points[i - 1].DistanceTo(cue.Points[i]);
+                    if (!attack.PracticeHazards.Any(h => !h.Live && h.Shape == 0
+                        && h.A.DistanceTo(cue.Points[i - 1]) < .01f && h.B.DistanceTo(cue.Points[i]) < .01f))
+                        return "Moving delivery cue is absent from the displayed hazard geometry.";
+                }
+                if (length > 16) return "Delivery forecast revealed a long future route instead of a short leading cue.";
+                _deliveryHeads[(cue.Group, tick)] = cue.Points[^1];
+            }
+            int lanes = Property<int>(attack, "EasyDeliveryLanes");
+            double spacing = Property<double>(attack, "EasyDeliveryBurstInterval");
+            foreach (var letter in Letters(attack))
+            {
+                bool first = _deliveryGroups.Add(letter.Group);
+                if (!letter.Shot.Active || letter.Shot.ActivationId != letter.Activation) continue;
+                if (first)
+                {
+                    string visual = Read<BulletArt.PlayerVisual>(letter.Shot, "_playerVisual").Texture.ResourcePath;
+                    string expected = letter.Group < 1000 ? "res://char/v3/bullets/akari_envelope.png"
+                        : letter.Group < 2000 ? "res://char/v3/bullets/akari_docs.png" : "res://assets/fx/akari_reply_plane.svg";
+                    if (visual != expected) return "Delivery behavior and projectile silhouette do not match.";
+                    _deliveryVisuals.Add(visual);
+                }
+                if (letter.Group >= 1000 && letter.Group < 2000
+                    && (letter.State != 0 || letter.Shot.Velocity.X != 0 || letter.Shot.Velocity.Y <= 0))
+                    return "Falling document changed its straight downward motion.";
+                if (letter.Group >= 2000)
+                {
+                    if (letter.State != 2 || letter.Shot.Velocity.X == 0 || letter.Shot.Velocity.Y == 0)
+                        return "Reply plane did not begin as a diagonal projectile.";
+                    if (_deliveryReplyVelocities.TryGetValue(letter.Group, out var velocity)
+                        && velocity.DistanceTo(letter.Shot.Velocity) > .001f)
+                        return "Reply plane unexpectedly changed its flight direction.";
+                    _deliveryReplyVelocities[letter.Group] = letter.Shot.Velocity;
+                }
+                if (letter.Group < 1000 || letter.Group >= 2000)
+                {
+                    _deliveryTurns.Add((letter.Group, letter.State));
+                    if (_deliveryMotion.TryGetValue(letter.Group, out var last) && letter.State < 2)
+                    {
+                        float angularSpeed = Math.Abs(last.Velocity.AngleTo(letter.Shot.Velocity)) / (float)(attack.Elapsed - last.Time);
+                        _deliveryMaximumAngularSpeed = Math.Max(_deliveryMaximumAngularSpeed, angularSpeed);
+                        if (angularSpeed > 4) return "Express delivery changed direction abruptly before reaching the wall.";
+                        if (letter.State == 1 && last.State == 0)
+                        {
+                            if (letter.Shot.Velocity.Length() > 45) return "Express delivery did not slow down before its bend.";
+                            _deliverySlowedTurns.Add(letter.Group);
+                        }
+                    }
+                    _deliveryMotion[letter.Group] = (attack.Elapsed, letter.Shot.Velocity, letter.State);
+                }
+                if (!Field.Rect.Grow(-2).HasPoint(letter.Shot.GlobalPosition)) continue;
+                int index = letter.Group % 1000, burst = index / (3 * lanes);
+                int group = letter.Group / 1000 * 1000 + index % (3 * lanes);
+                int previous = (int)Math.Round((attack.Elapsed - _deliveryLead - burst * spacing) * 60);
+                if (!_deliveryHeads.TryGetValue((group, previous), out var point))
+                    return $"Missing leading delivery cue: group={letter.Group}, time={attack.Elapsed:F3}, cue_tick={previous}";
+                float error = point.DistanceTo(letter.Shot.GlobalPosition);
+                _deliveryError = Math.Max(_deliveryError, error);
+                if (error > 1.5f) return $"Delivery did not follow its earlier cue: group={letter.Group}, state={letter.State}, error={error:F3}";
+                if (letter.Shot.ZIndex <= attack.ZIndex) return "Delivery forecast hides the real projectile.";
+                _deliverySamples++;
+            }
+            return null;
+        }
+
+        private bool DeliveryComplete(int shots) => _failure == null && shots == _requiredShots
+            && _deliveryGroups.Count == shots && _deliverySamples > 0
+            && _deliveryVisuals.Count == 3
+            && _deliveryGroups.Count(group => group >= 2000) == shots / 3
+            && _deliveryGroups.Where(group => group >= 2000).All(group => _deliveryTurns.Contains((group, 2)))
+            && _deliveryGroups.Where(group => group < 1000).All(group => _deliveryTurns.Contains((group, 1)) && _deliverySlowedTurns.Contains(group));
 
         public string? Observe(BossCharacterTechnique attack, bool captureForecasts = true)
         {
@@ -1677,7 +1773,7 @@ public partial class AkariTechniqueVideo : Node
             };
             _requiredShots = _mechanic switch
             {
-                "akari.returned-express" => 6 * Property<int>(attack, "EasyDeliveryLanes") * _requiredBursts,
+                "akari.returned-express" => 9 * Property<int>(attack, "EasyDeliveryLanes") * _requiredBursts,
                 "akari.alternating-inboxes" => 4 * Invoke<IEnumerable<(Vector2, Vector2)>>(attack, "EasyInboxWarningPaths", 0).Count() * _requiredBursts,
                 "akari.bound-draft-retraction" => Constant<int>(attack, "EasyUnbindingRounds")
                     * Property<int>(attack, "EasyUnbindingCopiesPerRound") * _requiredBursts,
@@ -1686,6 +1782,8 @@ public partial class AkariTechniqueVideo : Node
                 "akari.carried-approval" => 4 * Invoke<IEnumerable<(Vector2, Vector2)>>(attack, "EasyEnvelopeOpeningPaths", 0).Count() * _requiredBursts,
                 _ => 0,
             };
+            if (attack is AkariBossTechnique delivery && _mechanic == "akari.returned-express")
+                return _failure = ObserveDelivery(delivery);
             var hazards = Read<List<(Vector2 A, Vector2 B, float Radius, bool Live, float Progress, int Shape)>>(
                 attack, "_hazards", typeof(BossCharacterTechnique));
             if (captureForecasts) CaptureForecasts(attack, hazards);
@@ -1794,7 +1892,20 @@ public partial class AkariTechniqueVideo : Node
             };
         }
 
-        public object Result() => new
+        public object Result() => _mechanic == "akari.returned-express" ? (object)new
+        {
+            @checked = true, passed = DeliveryComplete(_expectedShots), expected_projectiles = _expectedShots,
+            required_projectiles = _requiredShots, observed_projectiles = _deliveryGroups.Count,
+            leading_seconds = _deliveryLead, matched_position_samples = _deliverySamples,
+            maximum_position_error = _deliveryError, position_tolerance = 1.5,
+            return_states_observed = _deliveryTurns.Count(pair => pair.State == 2),
+            slowed_bends_observed = _deliverySlowedTurns.Count,
+            distinct_projectile_visuals = _deliveryVisuals.Order().ToArray(),
+            straight_diagonal_replies = _deliveryReplyVelocities.Count,
+            maximum_bend_radians_per_second = _deliveryMaximumAngularSpeed,
+            scope = "Short moving cues precede the same real projectile positions, including overtaking and both turns. Fixed-route repeats reuse the first cue. No human comprehension claim.",
+            failure = _failure,
+        } : new
         {
             @checked = true, passed = IsComplete(_expectedShots), expected_projectiles = _expectedShots,
             required_projectiles = _requiredShots, required_bursts_per_forecast_path = _requiredBursts,
@@ -1873,6 +1984,12 @@ public partial class AkariTechniqueVideo : Node
 
         public void RequirePass(int expectedShots)
         {
+            if (_mechanic == "akari.returned-express")
+            {
+                if (!DeliveryComplete(expectedShots))
+                    throw new Exception($"Delivery moving-warning audit failed: observed={_deliveryGroups.Count}, expected={_requiredShots}, failure={_failure}");
+                return;
+            }
             if (!IsComplete(expectedShots))
                 throw new Exception($"Warning path coverage audit failed or missed an attack: {_mechanic}, expected_shots={expectedShots}, observed={_traces.Count}, retired={_traces.Values.Count(trace => trace.Retired)}, turn_points={_traces.Values.Count(trace => trace.TurnPoint != null)}, envelope_route={EnvelopeRouteComplete}, hazard_samples={_hazardSamples}, failure={_failure ?? RainCompletionFailure(expectedShots) ?? "none"}");
         }
@@ -2014,7 +2131,8 @@ public partial class AkariTechniqueVideo : Node
                 Visit(new Rect2(position - Vector2.One * outer, Vector2.One * outer * 2), i =>
                 {
                     if (_points[i].DistanceSquaredTo(position) > outer * outer) return;
-                    _safe[i] = false;
+                    if (shapes.Any(shape => shape.Collide(transform, _clearanceCircle, new Transform2D(0, _points[i]))))
+                        _safe[i] = false;
                     if (Hits(_points[i])) MarkRegion(i);
                 });
                 pilotContact |= Hits(pilot);
@@ -2023,7 +2141,7 @@ public partial class AkariTechniqueVideo : Node
             bool pilotBodyContact = false;
             var frameBody = new bool[_points.Length];
             foreach (var enemy in attack.GetTree().GetNodesInGroup("enemies").OfType<Enemy>()
-                .Where(enemy => !enemy.IsPurified && enemy.CollisionLayer != 0 && enemy.Monitorable))
+                .Where(enemy => enemy.BodyContactDamaging && enemy.CollisionLayer != 0 && enemy.Monitorable))
             foreach (uint owner in enemy.GetShapeOwners())
             {
                 if (enemy.IsShapeOwnerDisabled(owner)) continue;
@@ -2271,7 +2389,7 @@ public partial class AkariTechniqueVideo : Node
                 point_order = "row-major from Field.Left/Top at grid_spacing increments",
                 fixed_waiting_areas = FixedWaitingAreas(),
                 broad_waiting_area_diagnostic_radius = 12,
-                basis = "60 Hz player-radius probes against actual live hazards and enabled enemy projectile collision shapes. Overlaps count once per point per frame. Enemy bodies are separate. Fixed waiting areas exclude every observed hazard, conservative projectile circle, and body clearance; four-connected grid components and their clear cores describe this one trace only. Input-dependent counterfactuals require separate fresh stationary launches. No numerical density threshold alone establishes human difficulty; between-frame events and sub-grid details are not measured." },
+                basis = "60 Hz player-radius probes against actual live hazards and enabled enemy projectile collision shapes. Overlaps count once per point per frame. Enemy bodies are separate. Fixed waiting areas exclude every observed hazard, projectile shape, and body clearance; four-connected grid components and their clear cores describe this one trace only. Input-dependent counterfactuals require separate fresh stationary launches. No numerical density threshold alone establishes human difficulty; between-frame events and sub-grid details are not measured." },
             coverage = new { columns = 4, rows = 3, regions_reached = _regions.Count(hit => hit),
                 reached = _regions, all_regions_reached_at = _allRegionsTime,
                 all_regions_required = true,
@@ -2293,7 +2411,7 @@ public partial class AkariTechniqueVideo : Node
                 pilot_attack_contact_frames = _pilotAttackContactFrames,
                 pilot_body_contact_frames = _pilotBodyContactFrames,
                 zero_pilot_contact_required = requireZeroPilotContact,
-                model = "Actual hazard geometry and enabled enemy body shapes; conservative bullet circumscribed circles; no bomb or dodge." },
+                model = "Actual hazard, projectile and enabled enemy body collision shapes with grid clearance; no bomb or dodge." },
             route = new { @checked = _routes.Length > 0, character = "Mina", speed = _speed, transition_frames = _stepFrames,
                 directions = 8, permits_waiting = true, physics_fps = 60,
                 actual_start_path_required = requireActualStartRoute,

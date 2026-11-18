@@ -1,5 +1,4 @@
 using Godot;
-using System.Collections.Generic;
 
 // Backlog : 会話ログ（バックログ）閲覧オーバーレイ（オートロード /root/Backlog）。
 //   ストーリー重視のゲーム向けに、これまで表示されたセリフ/ナレ/投稿（Hud.SetDialog を通った行）を
@@ -19,7 +18,7 @@ public partial class Backlog : CanvasLayer
 {
     private BacklogCanvas _canvas = null!;
     private bool _open;
-    private float _scroll;            // スクロール量（px・設計座標。0=最下＝最新を表示）
+    private float _scroll;            // リスト上端からの距離（設計座標）
     private float _maxScroll;         // 描画時に算出した最大スクロール
     private bool _navHeld, _backHeld;
     private bool _autoplay;
@@ -67,8 +66,9 @@ public partial class Backlog : CanvasLayer
     //     Tab ではログを開かない（ボタンは会話中は効かない＝Tab は何も起こさない）。
     private bool TabOpensHere()
     {
+        if (GetTree().CurrentScene is BossPracticeRoot { Practicing: false }) return false;
         string path = GetTree().CurrentScene?.SceneFilePath ?? "";
-        return !(path.Contains("Training") || path.EndsWith("/Hub.tscn"));
+        return !(path.Contains("Training") || path.EndsWith("/Hub.tscn") || path == MusicApp.ScenePath);
     }
 
     public void Open(System.Action? onClose = null)
@@ -80,7 +80,7 @@ public partial class Backlog : CanvasLayer
         // 開いた瞬間に閉じる→また開く…のちらつきになる（週次PT「会話ログが安定しない」の主因）。
         _navHeld = true; _backHeld = true;
         _onClose = onClose;
-        _scroll = 0f; // 0=最新（最下）を表示
+        _scroll = 0f;
         // 直接開いた（=まだ誰もポーズしていない）ときだけ自前でポーズし、閉じる時に自分で解除する。
         // ポーズメニュー経由（すでに Paused）なら触らない＝閉じてもポーズメニューに戻る（HowTo と同作法）。
         _pausedBySelf = !GetTree().Paused;
@@ -140,7 +140,7 @@ public partial class Backlog : CanvasLayer
         //（閉じた Esc/X の同じ押下が下で二重処理されないための門・Pad.UiBlocked）。
         Pad.ConsumeUi(this);
 
-        // スクロール（↑↓ / 左スティック上下）。上＝過去へ（scroll を増やす）、下＝最新へ。
+        // 下へスクロールすると古い発言へ進む。
         float ax = 0f;
         foreach (var dev in Input.GetConnectedJoypads())
             ax += Input.GetJoyAxis(dev, JoyAxis.LeftY);
@@ -148,11 +148,10 @@ public partial class Backlog : CanvasLayer
         bool down = Input.IsActionPressed("ui_down") || ax > 0.4f;
         // ホールドで連続スクロール（行送りより px 送りの方がログ閲覧は素直）。
         float step = (float)delta * 520f;
-        if (up) _scroll = Mathf.Min(_maxScroll, _scroll + step);
-        if (down) _scroll = Mathf.Max(0f, _scroll - step);
+        if (up) _scroll -= step;
+        if (down) _scroll += step;
 
-        // マウスホイールでも縦スクロール（↑↓と同じ向き：上(+)＝過去へ／下(−)＝最新へ）。
-        _scroll = Mathf.Clamp(_scroll + Pad.WheelDelta() * WheelStep, 0f, _maxScroll);
+        _scroll = Mathf.Clamp(_scroll - Pad.WheelDelta() * WheelStep, 0f, _maxScroll);
 
         // マウス：フッタの「とじる」を左クリックでも押せる（開いている間はこのオーバーレイが唯一の登録者）。
         UiKit.BeginHotspots(Pad.MousePos());
@@ -196,7 +195,7 @@ public partial class BacklogCanvas : Node2D
 
         float pad = 64f;
         float x = pad, y = 48f, w = W - pad * 2f, h = H - 96f;
-        Color panelBg = new Color(0.05f, 0.05f, 0.10f, 0.98f);
+        Color panelBg = new Color(0.05f, 0.05f, 0.10f);
         UiKit.Box(this, new Rect2(x, y, w, h), panelBg, 18f, new Color(UiKit.Purify, 0.6f), 1.4f);
 
         // 本体（縦スクロール領域）。Node2D には任意矩形クリップAPIが無いため、
@@ -214,28 +213,33 @@ public partial class BacklogCanvas : Node2D
         }
         else
         {
-            const int speakerSize = UiKit.FontLabel, bodySize = UiKit.FontBody;
-            float lineGap = 14f;            // 行ブロック間の余白
+            var listBounds = new Rect2(listX, listTop, listW, listH);
+            const float lineGap = 14f;
+            float headingH = UiKit.ZenBold.GetHeight(UiKit.FontHeading) + 14f;
             float contentH = 0f;
-            float[] blockH = new float[log.Count];
-            for (int i = 0; i < log.Count; i++)
+            string pinnedSection = log[^1].Section;
+            float pinnedY = listTop;
+            for (int i = log.Count - 1; i >= 0; i--)
             {
-                blockH[i] = BlockHeight(log[i], listW, speakerSize, bodySize);
-                contentH += blockH[i] + lineGap;
+                var entry = log[i];
+                float drawY = listTop + contentH - Menu.Scroll;
+                if (i == log.Count - 1 || entry.Section != log[i + 1].Section)
+                {
+                    if (drawY <= listTop)
+                        pinnedSection = entry.Section;
+                    else if (drawY < listBottom)
+                    {
+                        pinnedY = Mathf.Min(pinnedY, drawY - headingH);
+                        DrawSection(entry.Section, listX, drawY, listW, headingH);
+                    }
+                    contentH += headingH;
+                    drawY += headingH;
+                }
+                contentH += DrawBlock(entry, drawY, listBounds) + lineGap;
             }
-
+            DrawSection(pinnedSection, listX, pinnedY, listW, headingH);
             float maxScroll = Mathf.Max(0f, contentH - listH);
             Menu.SetMaxScroll(maxScroll);
-
-            // scroll=0 で最新（最下）が見える。下端基準で上へ積む。
-            float drawY = listBottom - contentH + Menu.Scroll;
-            for (int i = 0; i < log.Count; i++)
-            {
-                float by = drawY, bh = blockH[i];
-                if (by + bh >= listTop && by <= listBottom)
-                    DrawBlock(log[i], listX, by, listW, speakerSize, bodySize);
-                drawY += bh + lineGap;
-            }
 
             // 擬似クリップ：リスト域の上下にはみ出した行を、パネル背景色の不透明帯で覆い隠す。
             ci_DrawRect(x + 1.4f, y + 1.4f, w - 2.8f, listTop - (y + 1.4f), panelBg);            // 上マスク（ヘッダ下〜listTop）
@@ -248,7 +252,7 @@ public partial class BacklogCanvas : Node2D
                 DrawRect(new Rect2(trackX, trackY, 4f, trackH), new Color(1, 1, 1, 0.08f));
                 float vis = Mathf.Clamp(listH / contentH, 0.08f, 1f);
                 float thumbH = trackH * vis;
-                float frac = 1f - Menu.Scroll / maxScroll; // 0(上/過去)..1(下/最新)
+                float frac = Menu.Scroll / maxScroll;
                 float thumbY = trackY + (trackH - thumbH) * frac;
                 DrawRect(new Rect2(trackX, thumbY, 4f, thumbH), new Color(UiKit.Purify, 0.6f));
             }
@@ -285,27 +289,36 @@ public partial class BacklogCanvas : Node2D
         if (w > 0f && h > 0f) DrawRect(new Rect2(x, y, w, h), c);
     }
 
-    // 1行ブロック（話者ラベル＋本文）の高さを実測。本文は折り返し前提で行数から算出。
-    private float BlockHeight(Hud.LogLine line, float w, int speakerSize, int bodySize)
+    private void DrawSection(string title, float x, float y, float w, float h)
     {
-        float speakerH = UiKit.ZenBold.GetHeight(speakerSize);
-        float bodyW = w - 8f;
-        // 折り返し行数：描画（UiKit.Multi＝禁則つき WrapLines）と同一ロジックで実測＝高さズレを作らない。
-        int n = UiKit.WrapLines(UiKit.Zen, line.Text, bodySize, bodyW).Count;
-        return speakerH + 4f + n * UiKit.Zen.GetHeight(bodySize) + 2f;
+        DrawRect(new Rect2(x - 12f, y, w + 12f, h), new Color("202639"));
+        DrawRect(new Rect2(x - 12f, y, 3f, h), UiKit.Info);
+        UiKit.Text(this, UiKit.ZenBold, new Vector2(x, y + 7f), title, UiKit.FontHeading, UiKit.White);
     }
 
-    private void DrawBlock(Hud.LogLine line, float x, float y, float w, int speakerSize, int bodySize)
+    private float DrawBlock(Hud.LogLine line, float y, Rect2 bounds)
     {
-        Color col = line.Color;
-        // 左の話者色アクセントバー（色分けの一目）。
-        DrawRect(new Rect2(x - 12f, y + 2f, 3f, UiKit.ZenBold.GetHeight(speakerSize) - 4f), new Color(col, 0.85f));
-        string sp = string.IsNullOrEmpty(line.Speaker) ? "" : line.Speaker;
+        const int speakerSize = UiKit.FontLabel, bodySize = UiKit.FontBody;
+        float x = bounds.Position.X, top = bounds.Position.Y, bottom = bounds.End.Y;
         float speakerH = UiKit.ZenBold.GetHeight(speakerSize);
-        if (sp.Length > 0)
-            UiKit.Text(this, UiKit.ZenBold, new Vector2(x, y), sp, speakerSize, col);
-        // ナレは話者ラベルが薄い分、本文も少し落ち着いた色で。
+        float lineH = UiKit.Zen.GetHeight(bodySize);
+        var lines = UiKit.WrapLines(UiKit.Zen, line.Text, bodySize, bounds.Size.X - 8f);
+        float height = speakerH + 4f + lines.Count * lineH + 2f;
+        if (y + height <= top || y >= bottom) return height;
+        if (y + speakerH > top)
+        {
+            DrawRect(new Rect2(x - 12f, y + 2f, 3f, speakerH - 4f), new Color(line.Color, 0.85f));
+            UiKit.Text(this, UiKit.ZenBold, new Vector2(x, y), line.Speaker, speakerSize, line.Color);
+        }
         Color bodyCol = line.Kind == Hud.LineKind.Narration ? new Color(0.82f, 0.82f, 0.88f) : new Color(0.95f, 0.95f, 0.98f);
-        UiKit.Multi(this, UiKit.Zen, new Vector2(x, y + speakerH + 4f), line.Text, bodySize, bodyCol, w - 8f);
+        float lineY = y + speakerH + 4f;
+        foreach (string text in lines)
+        {
+            if (lineY >= bottom) break;
+            if (lineY + lineH > top)
+                UiKit.Text(this, UiKit.Zen, new Vector2(x, lineY), text, bodySize, bodyCol);
+            lineY += lineH;
+        }
+        return height;
     }
 }
